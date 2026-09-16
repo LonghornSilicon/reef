@@ -7,6 +7,10 @@ explicit = true
 torch = [ { index = "pytorch-cu126", marker = "sys_platform == 'linux'" } ]
 torchvision = [ { index = "pytorch-cu126", marker = "sys_platform == 'linux'" } ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "reef-workloads"
 version = "0.1.0"
@@ -18,18 +22,24 @@ dependencies = [
     "matplotlib>=3.11.0",
     "numpy>=2.2.0",
     "pandas>=3.0.3",
-    "pytest>=9.1.1",
-    "pytest-timeout>=2.4.0",
-    "ruff>=0.15.20",
     "torch",
     "torchvision",
     "transformers>=5.12.1",
 ]
 
-[tool.uv]
-# No importable package yet -- src/models and src/operators are empty. Once
-# there is real code to install, drop this line and add a build-system.
-package = false
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.15.20",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/configs",
+    "src/models",
+    "src/operators",
+]
 
 [tool.pytest.ini_options]
 markers = [
@@ -41,7 +51,6 @@ markers = [
     "benchmark: performance tests",
 ]
 timeout = 300
-pythonpath = ["src", "."]
 testpaths = ["tests"]
 norecursedirs = [
     "logs",
