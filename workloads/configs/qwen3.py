@@ -1,8 +1,12 @@
+"""Hyperparameters for the published Qwen3 dense model sizes."""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Qwen3Config:
+    """Architecture hyperparameters for one Qwen3 model size."""
+
     hidden_size: int
     intermediate_size: int
     num_hidden_layers: int
