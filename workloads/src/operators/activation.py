@@ -11,13 +11,32 @@ class ReLU(nn.Module):
         return torch.where(x > 0, x, torch.zeros_like(x))
 
 
+class ReLU6(nn.Module):
+    """Rectified linear unit capped at 6."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.clamp(min=0.0, max=6.0)
+
+
 class SiLU(nn.Module):
     """Sigmoid linear unit, ``x * sigmoid(x)``."""
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # torch.sigmoid, not 1 / (1 + exp(-x)): the explicit form overflows in
-        # float16 below x ≈ -11.
         return x * torch.sigmoid(x)
+
+
+class Sigmoid(nn.Module):
+    """Logistic function."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.sigmoid(x)
+
+
+class Tanh(nn.Module):
+    """Hyperbolic tangent."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.tanh(x)
 
 
 class Softmax(nn.Module):
@@ -44,3 +63,13 @@ class GELU(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         inner = self.COEFFICIENT * (x + self.CUBIC * x.pow(3))
         return 0.5 * x * (1.0 + torch.tanh(inner))
+
+
+class ErfGELU(nn.Module):
+    """GELU, exact form (BERT and ViT's ``gelu``, not the tanh one)."""
+
+    #: 1 / sqrt(2).
+    SCALE = 0.7071067811865476
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return 0.5 * x * (1.0 + torch.erf(x * self.SCALE))
