@@ -7,18 +7,29 @@ from torch import nn
 class RotaryEmbedding(nn.Module):
     """Precompute and apply rotary position embeddings."""
 
-    def __init__(self, head_dim: int, theta: float = 10000.0) -> None:
+    def __init__(
+        self,
+        head_dim: int,
+        theta: float = 10000.0,
+        scaling_factor: float = 1.0,
+    ) -> None:
         """Derive the inverse frequency table.
 
         Args:
             head_dim: Width of each attention head; must be even.
             theta: Base of the geometric frequency progression.
+            scaling_factor: Linear context-extension factor. Dividing the
+                frequencies by it is equivalent to dividing the positions by
+                it, since the angles are their product; ``1.0`` disables it.
         """
         super().__init__()
         self.head_dim = head_dim
+        self.scaling_factor = scaling_factor
         exponent = torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim
         self.register_buffer(
-            "inv_freq", 1.0 / (theta**exponent), persistent=False
+            "inv_freq",
+            1.0 / (theta**exponent) / scaling_factor,
+            persistent=False,
         )
 
     def forward(

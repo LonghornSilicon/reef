@@ -18,6 +18,14 @@ MAXPOOL_CASES = [
     (55, 3, 2),  # AlexNet's first pooling stage at 224x224 input.
 ]
 
+# (input_size, kernel_size, stride, padding)
+MAXPOOL_PADDED_CASES = [
+    (56, 3, 2, 1),  # ResNet's stem pooling at 224x224 input.
+    (16, 3, 2, 1),
+    (8, 3, 1, 1),
+    (7, 2, 2, 1),  # Padding larger than the ragged edge it covers.
+]
+
 # (input_h, input_w, output_h, output_w)
 ADAPTIVE_CASES = [
     (13, 13, 6, 6),  # Not divisible: windows overlap.
@@ -48,6 +56,33 @@ def test_max_pool2d_stride_defaults_to_kernel_size(
     x = torch.randn(2, 3, 12, 12, dtype=dtype)
     pool = MaxPool2d(kernel_size=3)
     assert_matches(pool(x), F.max_pool2d(x, 3), dtype)
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
+@pytest.mark.parametrize(
+    ("size", "kernel", "stride", "padding"), MAXPOOL_PADDED_CASES
+)
+def test_max_pool2d_padding_matches_reference(
+    size: int, kernel: int, stride: int, padding: int, dtype: torch.dtype
+) -> None:
+    """Padded pooling matches ``F.max_pool2d``.
+
+    The padding must behave as -inf rather than as zero, which only shows up
+    when the real values under an overhanging window are all negative.
+    """
+    x = torch.randn(2, 3, size, size, dtype=dtype)
+    pool = MaxPool2d(kernel_size=kernel, stride=stride, padding=padding)
+    expected = F.max_pool2d(x, kernel, stride, padding)
+    assert_matches(pool(x), expected, dtype)
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
+def test_max_pool2d_padding_is_not_zero_fill(dtype: torch.dtype) -> None:
+    """An all-negative input never pools up to zero at the border."""
+    x = -torch.rand(1, 1, 4, 4, dtype=dtype) - 1.0
+    pool = MaxPool2d(kernel_size=3, stride=1, padding=1)
+    assert (pool(x) < 0).all()
+    assert_matches(pool(x), F.max_pool2d(x, 3, 1, 1), dtype)
 
 
 @pytest.mark.parametrize("dtype", DTYPES)

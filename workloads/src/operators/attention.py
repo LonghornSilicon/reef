@@ -10,7 +10,12 @@ class GroupedQueryAttention(nn.Module):
     """Attention where several query heads share one key/value head."""
 
     def __init__(
-        self, num_heads: int, num_kv_heads: int, head_dim: int
+        self,
+        num_heads: int,
+        num_kv_heads: int,
+        head_dim: int,
+        scale: float | None = None,
+        sliding_window: int | None = None,
     ) -> None:
         """Store the head geometry and derived scale factor.
 
@@ -18,13 +23,20 @@ class GroupedQueryAttention(nn.Module):
             num_heads: Number of query heads.
             num_kv_heads: Number of key/value heads; must divide ``num_heads``.
             head_dim: Width of each head.
+            scale: Factor applied to the attention logits; defaults to
+                ``head_dim ** -0.5``. Gemma 3 overrides it, deriving the
+                scale from ``query_pre_attn_scalar`` instead of the head
+                width, and for its 27B size the two differ.
+            sliding_window: When set, a query may only attend to the
+                ``sliding_window`` most recent key positions, itself included.
         """
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
         self.head_dim = head_dim
         self.repeats = num_heads // num_kv_heads
-        self.scale = head_dim**-0.5
+        self.scale = head_dim**-0.5 if scale is None else scale
+        self.sliding_window = sliding_window
         self.softmax = Softmax(dim=-1)
 
     def expand_kv(self, x: torch.Tensor) -> torch.Tensor:
@@ -61,7 +73,12 @@ class GroupedQueryAttention(nn.Module):
             :, None
         ]
         key_pos = torch.arange(key_len, device=device)[None, :]
-        return key_pos > query_pos
+        masked = key_pos > query_pos
+        if self.sliding_window is not None:
+            # A key is in range when key_pos > query_pos - window, so the
+            # window counts the query's own position as one of its slots.
+            masked = masked | (key_pos <= query_pos - self.sliding_window)
+        return masked
 
     def forward(
         self,

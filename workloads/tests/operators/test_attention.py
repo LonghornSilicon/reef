@@ -111,3 +111,73 @@ def test_causal_mask_is_bottom_right_aligned() -> None:
     mask = attention.causal_mask(3, 5, torch.device("cpu"))
     expected = ~torch.ones(3, 5, dtype=torch.bool).tril(diagonal=2)
     torch.testing.assert_close(mask, expected)
+
+
+# (num_heads, num_kv_heads, query_len, key_len, window)
+SLIDING_CASES = [
+    (4, 2, 8, 8, 4),  # Prefill where the window bites mid-sequence.
+    (4, 2, 8, 8, 1),  # Degenerate window: attend to self only.
+    (4, 2, 8, 8, 16),  # Window wider than the sequence: plain causal.
+    (4, 2, 1, 12, 4),  # Cached decode step near the end of the window.
+    (4, 2, 3, 12, 5),  # Chunked prefill against a populated cache.
+]
+
+
+@pytest.mark.parametrize("dtype", DTYPES)
+@pytest.mark.parametrize(
+    ("num_heads", "num_kv_heads", "query_len", "key_len", "window"),
+    SLIDING_CASES,
+)
+def test_sliding_window_matches_reference(
+    num_heads: int,
+    num_kv_heads: int,
+    query_len: int,
+    key_len: int,
+    window: int,
+    dtype: torch.dtype,
+) -> None:
+    """A windowed layer matches SDPA given the same explicit mask."""
+    torch.manual_seed(0)
+    shape = (2, num_kv_heads, key_len, HEAD_DIM)
+    query = torch.randn(2, num_heads, query_len, HEAD_DIM, dtype=dtype)
+    key, value = (
+        torch.randn(*shape, dtype=dtype),
+        torch.randn(*shape, dtype=dtype),
+    )
+    layer = GroupedQueryAttention(
+        num_heads, num_kv_heads, HEAD_DIM, sliding_window=window
+    )
+
+    # Queries occupy the final query_len positions of the key axis.
+    query_pos = torch.arange(key_len - query_len, key_len)[:, None]
+    key_pos = torch.arange(key_len)[None, :]
+    allowed = (key_pos <= query_pos) & (key_pos > query_pos - window)
+    repeats = num_heads // num_kv_heads
+    expected = F.scaled_dot_product_attention(
+        query,
+        key.repeat_interleave(repeats, dim=1),
+        value.repeat_interleave(repeats, dim=1),
+        attn_mask=allowed[None, None],
+    )
+    assert_matches(layer(query, key, value), expected, dtype)
+
+
+def test_sliding_window_actually_excludes_distant_keys() -> None:
+    """Changing a key outside the window cannot change the output.
+
+    Without this, a window that is silently ignored would still match the
+    reference above, because both sides would then be plain causal.
+    """
+    window = 3
+    layer = GroupedQueryAttention(4, 2, HEAD_DIM, sliding_window=window)
+    query = torch.randn(1, 4, 8, HEAD_DIM)
+    key, value = torch.randn(1, 2, 8, HEAD_DIM), torch.randn(1, 2, 8, HEAD_DIM)
+
+    baseline = layer(query, key, value)
+    # Position 0 is outside the window of the final query, which can only see
+    # positions 5, 6 and 7.
+    value[:, :, 0] += 100.0
+    perturbed = layer(query, key, value)
+
+    torch.testing.assert_close(baseline[:, :, -1], perturbed[:, :, -1])
+    assert not torch.allclose(baseline[:, :, 0], perturbed[:, :, 0])

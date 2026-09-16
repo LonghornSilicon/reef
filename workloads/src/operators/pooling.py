@@ -7,18 +7,54 @@ from torch import nn
 
 
 class MaxPool2d(nn.Module):
-    """Square-window max pooling with no padding."""
+    """Square-window max pooling."""
 
-    def __init__(self, kernel_size: int, stride: int | None = None) -> None:
+    def __init__(
+        self,
+        kernel_size: int,
+        stride: int | None = None,
+        padding: int = 0,
+    ) -> None:
         """Store the window geometry.
 
         Args:
             kernel_size: Height and width of the pooling window.
             stride: Step between windows; defaults to ``kernel_size``.
+            padding: Implicit border added on every side of the input.
         """
         super().__init__()
         self.kernel_size = kernel_size
         self.stride = kernel_size if stride is None else stride
+        self.padding = padding
+
+    def pad(self, x: torch.Tensor) -> torch.Tensor:
+        """Surround ``x`` with a border that can never win a maximum.
+
+        The border is negative infinity rather than zero, so a window that
+        overhangs the edge reduces to the largest real value it covers. This
+        matches ``F.max_pool2d``, which treats padding as ``-inf`` rather than
+        as data.
+
+        Args:
+            x: Tensor shaped ``(batch, channels, height, width)``.
+
+        Returns:
+            Padded tensor, or ``x`` itself when padding is zero.
+        """
+        if self.padding == 0:
+            return x
+        batch, channels, height, width = x.shape
+        size = (
+            batch,
+            channels,
+            height + 2 * self.padding,
+            width + 2 * self.padding,
+        )
+        padded = torch.full(size, float("-inf"), dtype=x.dtype, device=x.device)
+        row_low, row_high = self.padding, self.padding + height
+        col_low, col_high = self.padding, self.padding + width
+        padded[:, :, row_low:row_high, col_low:col_high] = x
+        return padded
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Take the maximum over each window of ``x``.
@@ -29,7 +65,8 @@ class MaxPool2d(nn.Module):
         Returns:
             Tensor shaped ``(batch, channels, out_h, out_w)``.
         """
-        patches = x.unfold(2, self.kernel_size, self.stride).unfold(
+        padded = self.pad(x)
+        patches = padded.unfold(2, self.kernel_size, self.stride).unfold(
             3, self.kernel_size, self.stride
         )
         return patches.amax(dim=(-2, -1))

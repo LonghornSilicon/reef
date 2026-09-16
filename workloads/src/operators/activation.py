@@ -61,3 +61,30 @@ class Softmax(nn.Module):
         shifted = x - x.amax(dim=self.dim, keepdim=True)
         exponentiated = torch.exp(shifted)
         return exponentiated / exponentiated.sum(dim=self.dim, keepdim=True)
+
+
+class GELU(nn.Module):
+    """Gaussian error linear unit, tanh approximation.
+
+    This is the ``gelu_pytorch_tanh`` variant that Gemma 3 specifies, not the
+    exact erf form; the two differ by ~1e-3 at the peak, which is well outside
+    checkpoint-equivalence tolerances.
+    """
+
+    #: sqrt(2 / pi), the coefficient of the tanh argument.
+    COEFFICIENT = 0.7978845608028654
+
+    #: Weight of the cubic term inside the tanh.
+    CUBIC = 0.044715
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the tanh-approximated GELU to ``x``.
+
+        Args:
+            x: Input tensor of any shape.
+
+        Returns:
+            Tensor of the same shape and dtype as ``x``.
+        """
+        inner = self.COEFFICIENT * (x + self.CUBIC * x.pow(3))
+        return 0.5 * x * (1.0 + torch.tanh(inner))
