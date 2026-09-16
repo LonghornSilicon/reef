@@ -1,0 +1,70 @@
+import math
+
+import torch
+from torch import nn
+
+
+class Conv2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        bias: bool = True,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        fan_in = in_channels * kernel_size * kernel_size
+        bound = 1.0 / math.sqrt(fan_in)
+        self.weight = nn.Parameter(
+            torch.empty(
+                out_channels, in_channels, kernel_size, kernel_size
+            ).uniform_(-bound, bound)
+        )
+        if bias:
+            self.bias = nn.Parameter(
+                torch.empty(out_channels).uniform_(-bound, bound)
+            )
+        else:
+            self.register_parameter("bias", None)
+
+    def pad(self, x: torch.Tensor) -> torch.Tensor:
+        if self.padding == 0:
+            return x
+        batch, channels, height, width = x.shape
+        size = (
+            batch,
+            channels,
+            height + 2 * self.padding,
+            width + 2 * self.padding,
+        )
+        padded = torch.zeros(size, dtype=x.dtype, device=x.device)
+        low, high = self.padding, self.padding + height
+        padded[:, :, low:high, self.padding : self.padding + width] = x
+        return padded
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        padded = self.pad(x)
+        # im2col via strided views: (batch, in_ch, out_h, out_w, k, k)
+        patches = padded.unfold(2, self.kernel_size, self.stride).unfold(
+            3, self.kernel_size, self.stride
+        )
+        batch, _, out_h, out_w = patches.shape[:4]
+        columns = patches.permute(0, 2, 3, 1, 4, 5).reshape(
+            batch,
+            out_h * out_w,
+            self.in_channels * self.kernel_size * self.kernel_size,
+        )
+        flat_weight = self.weight.reshape(self.out_channels, -1).transpose(0, 1)
+        out = torch.matmul(columns, flat_weight)
+        if self.bias is not None:
+            out = out + self.bias
+        return out.reshape(batch, out_h, out_w, self.out_channels).permute(
+            0, 3, 1, 2
+        )

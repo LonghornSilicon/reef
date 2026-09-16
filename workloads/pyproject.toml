@@ -1,0 +1,75 @@
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [ { index = "pytorch-cu126", marker = "sys_platform == 'linux'" } ]
+torchvision = [ { index = "pytorch-cu126", marker = "sys_platform == 'linux'" } ]
+
+[project]
+name = "reef-workloads"
+version = "0.1.0"
+description = "Workload characterization for Reef (Coral NPU extension)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "accelerate>=1.14.0",
+    "matplotlib>=3.11.0",
+    "numpy>=2.2.0",
+    "pandas>=3.0.3",
+    "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.15.20",
+    "torch",
+    "torchvision",
+    "transformers>=5.12.1",
+]
+
+[tool.uv]
+# No importable package yet -- src/models and src/operators are empty. Once
+# there is real code to install, drop this line and add a build-system.
+package = false
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow",
+    "unit: fast isolated tests",
+    "integration: multiple components",
+    "regression: previously-fixed bugs",
+    "experiment: end-to-end research experiments",
+    "benchmark: performance tests",
+]
+timeout = 300
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+norecursedirs = [
+    "logs",
+    "results",
+]
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # import sorting
+    "B",      # bugbear
+    "UP",     # modern Python syntax
+    "SIM",    # simplify code
+    "ANN",    # type annotations
+    "D",      # docstrings
+    "RET",    # return statement consistency
+    "RUF",    # Ruff-specific rules
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
