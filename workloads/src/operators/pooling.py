@@ -51,7 +51,9 @@ class AdaptiveAvgPool2d(nn.Module):
         """Average ``x`` over the window that each output cell covers.
 
         Window bounds follow PyTorch's convention, so input sizes that are not
-        divisible by the output size yield overlapping windows.
+        divisible by the output size yield overlapping windows. When they do
+        divide evenly the windows tile the input, which the strided fast path
+        below handles in one vectorized reduction.
 
         Args:
             x: Tensor shaped ``(batch, channels, height, width)``.
@@ -61,6 +63,12 @@ class AdaptiveAvgPool2d(nn.Module):
         """
         batch, channels, height, width = x.shape
         out_h, out_w = self.output_size
+        if height % out_h == 0 and width % out_w == 0:
+            window_h, window_w = height // out_h, width // out_w
+            patches = x.unfold(2, window_h, window_h).unfold(
+                3, window_w, window_w
+            )
+            return patches.mean(dim=(-2, -1))
         out = torch.zeros(
             (batch, channels, out_h, out_w), dtype=x.dtype, device=x.device
         )

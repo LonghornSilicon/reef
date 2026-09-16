@@ -67,8 +67,9 @@ class Conv2d(nn.Module):
             width + 2 * self.padding,
         )
         padded = torch.zeros(size, dtype=x.dtype, device=x.device)
-        low, high = self.padding, self.padding + height
-        padded[:, :, low:high, self.padding : self.padding + width] = x
+        row_low, row_high = self.padding, self.padding + height
+        col_low, col_high = self.padding, self.padding + width
+        padded[:, :, row_low:row_high, col_low:col_high] = x
         return padded
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

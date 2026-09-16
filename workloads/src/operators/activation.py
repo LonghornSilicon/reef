@@ -31,7 +31,10 @@ class SiLU(nn.Module):
         Returns:
             Tensor of the same shape holding ``x * sigmoid(x)``.
         """
-        return x * (1.0 / (1.0 + torch.exp(-x)))
+        # torch.sigmoid rather than 1 / (1 + exp(-x)): the explicit form
+        # overflows exp in float16 once x drops below about -11, which flushes
+        # the result to zero instead of the correct small negative value.
+        return x * torch.sigmoid(x)
 
 
 class Softmax(nn.Module):
