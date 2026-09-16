@@ -5,7 +5,7 @@ import math
 import torch
 from torch import nn
 
-from operators.convolution import Padding, expand_padding, pad2d
+from operators.convolution import Padding, expand_padding, pad2d, windows2d
 
 
 def pooled_size(
@@ -71,9 +71,7 @@ class MaxPool2d(nn.Module):
             self.ceil_mode,
             float("-inf"),
         )
-        patches = padded.unfold(2, self.kernel_size, self.stride).unfold(
-            3, self.kernel_size, self.stride
-        )
+        patches = windows2d(padded, self.kernel_size, self.stride)
         return patches[:, :, :out_h, :out_w].amax(dim=(-2, -1))
 
 
@@ -95,10 +93,8 @@ class AvgPool2d(nn.Module):
         self.ceil_mode = ceil_mode
         self.count_include_pad = count_include_pad
 
-    def windows(self, x: torch.Tensor, out_h: int, out_w: int) -> torch.Tensor:
-        patches = x.unfold(2, self.kernel_size, self.stride).unfold(
-            3, self.kernel_size, self.stride
-        )
+    def total(self, x: torch.Tensor, out_h: int, out_w: int) -> torch.Tensor:
+        patches = windows2d(x, self.kernel_size, self.stride)
         return patches[:, :, :out_h, :out_w].sum(dim=(-2, -1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -115,8 +111,9 @@ class AvgPool2d(nn.Module):
         overhang_h = padded.shape[2] - counted.shape[2]
         overhang_w = padded.shape[3] - counted.shape[3]
         counted = pad2d(counted, (0, overhang_w, 0, overhang_h), 0.0)
-        total = self.windows(padded, out_h, out_w)
-        return total / self.windows(counted, out_h, out_w)
+        return self.total(padded, out_h, out_w) / self.total(
+            counted, out_h, out_w
+        )
 
 
 class AdaptiveAvgPool2d(nn.Module):
@@ -130,11 +127,8 @@ class AdaptiveAvgPool2d(nn.Module):
         batch, channels, height, width = x.shape
         out_h, out_w = self.output_size
         if height % out_h == 0 and width % out_w == 0:
-            window_h, window_w = height // out_h, width // out_w
-            patches = x.unfold(2, window_h, window_h).unfold(
-                3, window_w, window_w
-            )
-            return patches.mean(dim=(-2, -1))
+            window = (height // out_h, width // out_w)
+            return windows2d(x, window, window).mean(dim=(-2, -1))
         # PyTorch's window bounds: sizes that do not divide evenly yield
         # overlapping windows.
         out = torch.zeros(

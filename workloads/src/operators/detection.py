@@ -9,15 +9,20 @@ from operators.activation import Sigmoid, Softmax
 from operators.convolution import Conv2d
 
 
-def box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+class BoxIoU(nn.Module):
     """Pairwise intersection over union of two ``(n, 4)`` xyxy box sets."""
-    area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
-    area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
-    low = torch.max(boxes1[:, None, :2], boxes2[None, :, :2])
-    high = torch.min(boxes1[:, None, 2:], boxes2[None, :, 2:])
-    extent = (high - low).clamp(min=0)
-    intersection = extent[..., 0] * extent[..., 1]
-    return intersection / (area1[:, None] + area2[None, :] - intersection)
+
+    def forward(
+        self, boxes1: torch.Tensor, boxes2: torch.Tensor
+    ) -> torch.Tensor:
+        area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+        area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+        low = torch.max(boxes1[:, None, :2], boxes2[None, :, :2])
+        high = torch.min(boxes1[:, None, 2:], boxes2[None, :, 2:])
+        extent = (high - low).clamp(min=0)
+        intersection = extent[..., 0] * extent[..., 1]
+        union = area1[:, None] + area2[None, :] - intersection
+        return intersection / union
 
 
 class BoxCoder(nn.Module):
@@ -142,6 +147,7 @@ class NMS(nn.Module):
     def __init__(self, iou_threshold: float) -> None:
         super().__init__()
         self.iou_threshold = iou_threshold
+        self.iou = BoxIoU()
 
     def forward(
         self,
@@ -157,7 +163,7 @@ class NMS(nn.Module):
             offset = classes.to(boxes.dtype) * (boxes.max() + 1)
             boxes = boxes + offset[:, None]
         order = scores.argsort(descending=True)
-        iou = box_iou(boxes[order], boxes[order])
+        iou = self.iou(boxes[order], boxes[order])
         suppressed = torch.zeros(
             order.shape[0], dtype=torch.bool, device=boxes.device
         )

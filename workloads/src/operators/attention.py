@@ -6,6 +6,7 @@ from torch import nn
 from operators.activation import Softmax
 from operators.interpolation import GridSample
 from operators.linear import Linear
+from operators.positional import relative_positions
 
 
 class GroupedQueryAttention(nn.Module):
@@ -39,16 +40,11 @@ class GroupedQueryAttention(nn.Module):
         self, query_len: int, key_len: int, device: torch.device
     ) -> torch.Tensor:
         """Return a ``(query_len, key_len)`` mask, true where disallowed."""
-        # Queries occupy the final query_len positions of the key axis, so
-        # cached decoding gets the right offset for free.
-        query_pos = torch.arange(key_len - query_len, key_len, device=device)[
-            :, None
-        ]
-        key_pos = torch.arange(key_len, device=device)[None, :]
-        masked = key_pos > query_pos
+        relative = relative_positions(query_len, key_len, device)
+        masked = relative > 0
         if self.sliding_window is not None:
             # The window includes the query's own position.
-            masked = masked | (key_pos <= query_pos - self.sliding_window)
+            masked = masked | (relative <= -self.sliding_window)
         return masked
 
     def forward(

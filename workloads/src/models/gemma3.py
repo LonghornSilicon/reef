@@ -9,7 +9,7 @@ from operators.attention import GroupedQueryAttention
 from operators.embedding import Embedding
 from operators.linear import Linear
 from operators.normalization import GemmaRMSNorm
-from operators.rotary import RotaryEmbedding
+from operators.positional import RotaryEmbedding
 
 LayerCache = tuple[torch.Tensor, torch.Tensor]
 

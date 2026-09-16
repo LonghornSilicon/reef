@@ -31,6 +31,21 @@ def pad2d(
     return padded
 
 
+def windows2d(
+    x: torch.Tensor,
+    kernel_size: int | tuple[int, int],
+    stride: int | tuple[int, int],
+) -> torch.Tensor:
+    """View ``(B, C, H, W)`` as ``(B, C, out_h, out_w, k_h, k_w)``, no copy."""
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    if isinstance(stride, int):
+        stride = (stride, stride)
+    return x.unfold(2, kernel_size[0], stride[0]).unfold(
+        3, kernel_size[1], stride[1]
+    )
+
+
 def correlate(
     x: torch.Tensor,
     weight: torch.Tensor,
@@ -44,10 +59,9 @@ def correlate(
     window = dilation * (kernel_size - 1) + 1
     # Folding the group into the batch axis keeps the im2col view at rank 6.
     grouped = x.reshape(batch * groups, in_channels // groups, *x.shape[2:])
-    # im2col via strided views: (batch * groups, in / groups, out_h, out_w,
-    # window, window). Tensor.unfold has no dilation, so take the dilated
-    # taps out of the full window with a strided slice.
-    patches = grouped.unfold(2, window, stride).unfold(3, window, stride)
+    # Tensor.unfold has no dilation, so take the dilated taps out of the full
+    # window with a strided slice.
+    patches = windows2d(grouped, window, stride)
     if dilation > 1:
         patches = patches[..., ::dilation, ::dilation]
     out_h, out_w = patches.shape[2:4]

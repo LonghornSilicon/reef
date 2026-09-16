@@ -71,6 +71,25 @@ n/2 + \left\lfloor \dfrac{\log(r / (n/2))}{\log(D / (n/2))} \,(n - n/2) \right\r
 
 Bidirectional (encoder) use splits the buckets by sign and buckets $|r|$; causal (decoder) use buckets $\max(-r, 0)$. The bias for head $h$ is $E_{\mathrm{bucket}(j-i),\,h}$, added to the attention scores before the softmax.
 
+### RotaryEmbedding (RoPE)
+
+Unlike the three above, which are added to embeddings or scores, RoPE rotates the query and key vectors themselves. It encodes a token's position $n$ by rotating pairs of features through position-dependent angles. For rotary width $r$ (the head width by default; Pythia and Phi rotate only a leading slice), base $\theta$ and scaling factor $s$, there is one frequency per pair $k = 0, \dots, r/2 - 1$:
+
+```math
+f_k = \frac{1}{s \cdot \theta^{2k/r}}
+```
+
+The frequencies can also be supplied directly, which is how Llama 3's smoothed table enters. Split the rotated slice into halves $x^{(1)}$ and $x^{(2)}$. Each pair $\big(x^{(1)}_k, x^{(2)}_k\big)$ is rotated by angle $n f_k$:
+
+```math
+\begin{bmatrix} y^{(1)}_k \\ y^{(2)}_k \end{bmatrix}
+=
+\begin{bmatrix} \cos(n f_k) & -\sin(n f_k) \\ \sin(n f_k) & \cos(n f_k) \end{bmatrix}
+\begin{bmatrix} x^{(1)}_k \\ x^{(2)}_k \end{bmatrix}
+```
+
+The code writes the same rotation as `x * cos + rotate_half(x) * sin`, where `rotate_half` maps $[x^{(1)}, x^{(2)}]$ to $[-x^{(2)}, x^{(1)}]$. Features past $r$ pass through unchanged.
+
 ## `activation.py`
 
 All apply to each element on its own.
@@ -306,27 +325,6 @@ y = \sum_{a, b \in \{0, 1\}} w_a^x \, w_b^y \; x_{\lfloor v \rfloor + b,\; \lflo
 w_1^x = u - \lfloor u \rfloor,\ w_0^x = 1 - w_1^x
 ```
 
-## `rotary.py`
-
-### RotaryEmbedding (RoPE)
-
-Encodes a token's position $n$ by rotating pairs of features through position-dependent angles. For rotary width $r$ (the head width by default; Pythia and Phi rotate only a leading slice), base $\theta$ and scaling factor $s$, there is one frequency per pair $k = 0, \dots, r/2 - 1$:
-
-```math
-f_k = \frac{1}{s \cdot \theta^{2k/r}}
-```
-
-The frequencies can also be supplied directly, which is how Llama 3's smoothed table enters. Split the rotated slice into halves $x^{(1)}$ and $x^{(2)}$. Each pair $\big(x^{(1)}_k, x^{(2)}_k\big)$ is rotated by angle $n f_k$:
-
-```math
-\begin{bmatrix} y^{(1)}_k \\ y^{(2)}_k \end{bmatrix}
-=
-\begin{bmatrix} \cos(n f_k) & -\sin(n f_k) \\ \sin(n f_k) & \cos(n f_k) \end{bmatrix}
-\begin{bmatrix} x^{(1)}_k \\ x^{(2)}_k \end{bmatrix}
-```
-
-The code writes the same rotation as `x * cos + rotate_half(x) * sin`, where `rotate_half` maps $[x^{(1)}, x^{(2)}]$ to $[-x^{(2)}, x^{(1)}]$. Features past $r$ pass through unchanged.
-
 ## `attention.py`
 
 ### GroupedQueryAttention
@@ -380,7 +378,7 @@ followed by an output projection over the concatenated heads.
 
 Boxes are $(x_1, y_1, x_2, y_2)$ unless stated. A box has centre $(c_x, c_y)$, width $w = x_2 - x_1$ and height $h = y_2 - y_1$.
 
-### box_iou
+### BoxIoU
 
 Intersection over union of every pair from two sets:
 
