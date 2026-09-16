@@ -1,9 +1,4 @@
-"""Tiny randomly-initialized Qwen3 against ``transformers``.
-
-Everything here runs on a two-layer model with random weights, so the suite
-stays fast and needs no network access. The real 0.6B checkpoint is covered by
-the ``slow`` tests in :mod:`tests.models.test_checkpoints`.
-"""
+"""Tiny randomly-initialized Qwen3 against ``transformers``."""
 
 import pytest
 import torch
@@ -31,14 +26,6 @@ DECODE_STEPS = 5
 def build_pair(
     tie_word_embeddings: bool,
 ) -> tuple[Qwen3ForCausalLM, transformers.Qwen3ForCausalLM]:
-    """Build our model and an HF model that share one set of random weights.
-
-    Args:
-        tie_word_embeddings: Whether the LM head reuses the embedding table.
-
-    Returns:
-        Our model and the reference model, both in eval mode.
-    """
     config = Qwen3Config(tie_word_embeddings=tie_word_embeddings, **TINY)
     reference = transformers.Qwen3ForCausalLM(
         transformers.Qwen3Config(
@@ -61,7 +48,6 @@ def build_pair(
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_state_dict_keys_match_reference(tie_word_embeddings: bool) -> None:
-    """Our parameter names are exactly the reference's parameter names."""
     ours, reference = build_pair(tie_word_embeddings)
     assert set(ours.state_dict()) == set(reference.state_dict())
     tied = ours.lm_head.weight is ours.model.embed_tokens.weight
@@ -70,7 +56,6 @@ def test_state_dict_keys_match_reference(tie_word_embeddings: bool) -> None:
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_prefill_logits_match_reference(tie_word_embeddings: bool) -> None:
-    """A full-sequence forward pass reproduces the reference logits."""
     ours, reference = build_pair(tie_word_embeddings)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
 
@@ -88,7 +73,6 @@ def test_prefill_logits_match_reference(tie_word_embeddings: bool) -> None:
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_cached_decode_matches_reference(tie_word_embeddings: bool) -> None:
-    """Prefill plus cached single-token steps track the reference."""
     ours, reference = build_pair(tie_word_embeddings)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
 
@@ -117,7 +101,6 @@ def test_cached_decode_matches_reference(tie_word_embeddings: bool) -> None:
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_greedy_generate_matches_reference(tie_word_embeddings: bool) -> None:
-    """Greedy decoding picks the same tokens as ``PreTrainedModel.generate``."""
     ours, reference = build_pair(tie_word_embeddings)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
 

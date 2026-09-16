@@ -14,12 +14,6 @@ class AlexNet(nn.Module):
     """Image classifier matching torchvision's AlexNet layer for layer."""
 
     def __init__(self, num_classes: int = 1000, dropout: float = 0.5) -> None:
-        """Assemble the feature extractor and classifier head.
-
-        Args:
-            num_classes: Width of the final classification layer.
-            dropout: Drop probability used in the classifier head.
-        """
         super().__init__()
         # Indices match torchvision's AlexNet, so its state_dict loads as-is.
         self.features = nn.Sequential(
@@ -49,14 +43,6 @@ class AlexNet(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Classify a batch of images.
-
-        Args:
-            x: Tensor shaped ``(batch, 3, height, width)``.
-
-        Returns:
-            Logit tensor shaped ``(batch, num_classes)``.
-        """
         x = self.features(x)
         x = self.avgpool(x)
         x = x.flatten(1)

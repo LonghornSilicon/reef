@@ -1,9 +1,4 @@
-"""ResNet built from the from-scratch operator library.
-
-Module and parameter names follow torchvision's ``ResNet`` exactly -- ``conv1``,
-``bn1``, ``layer1``..``layer4``, ``fc``, and ``downsample.0``/``downsample.1``
-inside a block -- so a torchvision ``state_dict`` loads with ``strict=True``.
-"""
+"""ResNet built from the from-scratch operator library."""
 
 import torch
 from torch import nn
@@ -17,17 +12,6 @@ from operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 
 
 def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> Conv2d:
-    """Build the padded 3x3 convolution used inside every residual block.
-
-    Args:
-        in_channels: Channels entering the convolution.
-        out_channels: Channels leaving it.
-        stride: Spatial stride.
-
-    Returns:
-        An unbiased 3x3 convolution that preserves the spatial size at
-        ``stride == 1``.
-    """
     return Conv2d(
         in_channels,
         out_channels,
@@ -39,16 +23,6 @@ def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> Conv2d:
 
 
 def conv1x1(in_channels: int, out_channels: int, stride: int = 1) -> Conv2d:
-    """Build the 1x1 convolution used for projections and bottlenecks.
-
-    Args:
-        in_channels: Channels entering the convolution.
-        out_channels: Channels leaving it.
-        stride: Spatial stride.
-
-    Returns:
-        An unbiased 1x1 convolution.
-    """
     return Conv2d(
         in_channels, out_channels, kernel_size=1, stride=stride, bias=False
     )
@@ -67,16 +41,6 @@ class BasicBlock(nn.Module):
         downsample: nn.Module | None = None,
         norm_eps: float = 1e-5,
     ) -> None:
-        """Build the two convolutions and their norms.
-
-        Args:
-            in_channels: Channels entering the block.
-            planes: Width of the block; also its output width.
-            stride: Spatial stride, applied by the first convolution.
-            downsample: Projection applied to the residual path when the
-                shape changes, or ``None`` for an identity shortcut.
-            norm_eps: Epsilon of both batch normalizations.
-        """
         super().__init__()
         self.conv1 = conv3x3(in_channels, planes, stride)
         self.bn1 = BatchNorm2d(planes, eps=norm_eps)
@@ -87,14 +51,6 @@ class BasicBlock(nn.Module):
         self.stride = stride
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run the block over ``x``.
-
-        Args:
-            x: Tensor shaped ``(batch, in_channels, height, width)``.
-
-        Returns:
-            Tensor shaped ``(batch, planes, out_h, out_w)``.
-        """
         identity = x if self.downsample is None else self.downsample(x)
         out = self.relu(self.bn1(self.conv1(x)))
         out = self.bn2(self.conv2(out))
@@ -118,16 +74,6 @@ class Bottleneck(nn.Module):
         downsample: nn.Module | None = None,
         norm_eps: float = 1e-5,
     ) -> None:
-        """Build the three convolutions and their norms.
-
-        Args:
-            in_channels: Channels entering the block.
-            planes: Bottleneck width; the block emits ``planes * 4``.
-            stride: Spatial stride, applied by the 3x3 convolution.
-            downsample: Projection applied to the residual path when the
-                shape changes, or ``None`` for an identity shortcut.
-            norm_eps: Epsilon of all three batch normalizations.
-        """
         super().__init__()
         width = planes * self.expansion
         self.conv1 = conv1x1(in_channels, planes)
@@ -141,14 +87,6 @@ class Bottleneck(nn.Module):
         self.stride = stride
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run the block over ``x``.
-
-        Args:
-            x: Tensor shaped ``(batch, in_channels, height, width)``.
-
-        Returns:
-            Tensor shaped ``(batch, planes * 4, out_h, out_w)``.
-        """
         identity = x if self.downsample is None else self.downsample(x)
         out = self.relu(self.bn1(self.conv1(x)))
         out = self.relu(self.bn2(self.conv2(out)))
@@ -163,14 +101,13 @@ BLOCKS: dict[str, type[BasicBlock | Bottleneck]] = {
 
 
 class ResNet(nn.Module):
-    """Residual image classifier matching torchvision layer for layer."""
+    """Residual image classifier matching torchvision layer for layer.
+
+    Module names match torchvision's ``ResNet``, so its ``state_dict`` loads
+    with ``strict=True``.
+    """
 
     def __init__(self, config: ResNetConfig) -> None:
-        """Assemble the stem, the four residual stages and the classifier.
-
-        Args:
-            config: Depth hyperparameters.
-        """
         super().__init__()
         self.config = config
         block = BLOCKS[config.block]
@@ -205,20 +142,6 @@ class ResNet(nn.Module):
         blocks: int,
         stride: int,
     ) -> nn.Sequential:
-        """Build one residual stage.
-
-        Only the first block of a stage changes shape, so only it gets a
-        projection shortcut; the rest keep the identity path.
-
-        Args:
-            block: Block class the stage is built from.
-            planes: Width of the stage, before expansion.
-            blocks: Number of blocks in the stage.
-            stride: Spatial stride of the stage's first block.
-
-        Returns:
-            The stage as an ``nn.Sequential``.
-        """
         eps = self.config.norm_eps
         out_channels = planes * block.expansion
         downsample = None
@@ -238,14 +161,6 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Classify a batch of images.
-
-        Args:
-            x: Tensor shaped ``(batch, 3, height, width)``.
-
-        Returns:
-            Logit tensor shaped ``(batch, num_classes)``.
-        """
         x = self.maxpool(self.relu(self.bn1(self.conv1(x))))
         x = self.layer1(x)
         x = self.layer2(x)
@@ -256,18 +171,6 @@ class ResNet(nn.Module):
 
 
 def resnet(name: str) -> ResNet:
-    """Build one of the published ResNet depths by name.
-
-    Args:
-        name: A key of :data:`~configs.resnet.RESNET_CONFIGS`, such as
-            ``"ResNet-50"``.
-
-    Returns:
-        The corresponding model.
-
-    Raises:
-        KeyError: If ``name`` is not a known depth.
-    """
     if name not in RESNET_CONFIGS:
         known = ", ".join(RESNET_CONFIGS)
         raise KeyError(f"unknown ResNet depth {name!r}; known depths: {known}")

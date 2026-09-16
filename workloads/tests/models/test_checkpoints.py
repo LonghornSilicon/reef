@@ -1,10 +1,4 @@
-"""Equivalence against the published pretrained checkpoints.
-
-These are the tests that prove the operator library can actually stand in for
-the reference implementations on the weights we characterize. They download
-multi-hundred-megabyte checkpoints and run full-size models on CPU, so they are
-marked ``slow`` and excluded from the default ``-m "not slow"`` run.
-"""
+"""Equivalence against the published pretrained checkpoints."""
 
 import pytest
 import torch
@@ -39,7 +33,6 @@ RESNET_REPOS = ["ResNet-18", "ResNet-50"]
 
 
 def test_qwen3_0_6b_config_matches_the_hub() -> None:
-    """Our checked-in QWEN3_0_6B hyperparameters match the published config."""
     hub = transformers.AutoConfig.from_pretrained(QWEN3_REPO)
 
     assert hub.hidden_size == QWEN3_0_6B.hidden_size
@@ -57,7 +50,6 @@ def test_qwen3_0_6b_config_matches_the_hub() -> None:
 
 
 def test_qwen3_0_6b_logits_match_reference() -> None:
-    """Real Qwen3-0.6B weights reproduce the reference logits on a prompt."""
     reference = transformers.Qwen3ForCausalLM.from_pretrained(
         QWEN3_REPO, dtype=torch.float32
     ).eval()
@@ -79,7 +71,6 @@ def test_qwen3_0_6b_logits_match_reference() -> None:
 
 
 def test_pretrained_alexnet_logits_match_torchvision() -> None:
-    """Pretrained torchvision AlexNet weights produce the reference logits."""
     weights = torchvision.models.AlexNet_Weights.DEFAULT
     reference = torchvision.models.alexnet(weights=weights).eval()
     ours = AlexNet()
@@ -99,12 +90,8 @@ def test_pretrained_alexnet_logits_match_torchvision() -> None:
 
 @pytest.mark.parametrize("name", RESNET_REPOS)
 def test_pretrained_resnet_logits_match_torchvision(name: str) -> None:
-    """Pretrained torchvision ResNet weights produce the reference logits.
-
-    This is the test that proves the batch-norm running statistics load and
-    are applied correctly: with random weights the buffers are still at their
-    mean 0 / variance 1 defaults, so only a real checkpoint exercises them.
-    """
+    # Random weights leave the batch-norm buffers at mean 0 / variance 1, so
+    # only a real checkpoint exercises loading and applying them.
     builder = getattr(torchvision.models, TORCHVISION_BUILDERS[name])
     reference = builder(weights="DEFAULT").eval()
     ours = resnet(name)
@@ -131,14 +118,6 @@ GEMMA3_HUB_SIZE = "Gemma3-270M"
 
 
 def load_gemma3_hub_config(name: str) -> transformers.PreTrainedConfig:
-    """Fetch a Gemma 3 config from the hub, skipping if it is inaccessible.
-
-    Args:
-        name: A key of ``GEMMA3_CONFIGS``.
-
-    Returns:
-        The published config for that size.
-    """
     try:
         config = transformers.AutoConfig.from_pretrained(GEMMA3_REPOS[name])
     except OSError as error:
@@ -148,7 +127,6 @@ def load_gemma3_hub_config(name: str) -> transformers.PreTrainedConfig:
 
 @pytest.mark.parametrize("name", list(GEMMA3_CONFIGS))
 def test_gemma3_configs_match_the_hub(name: str) -> None:
-    """Our checked-in Gemma 3 hyperparameters match the published configs."""
     hub = load_gemma3_hub_config(name)
     ours = GEMMA3_CONFIGS[name]
 
@@ -164,12 +142,10 @@ def test_gemma3_configs_match_the_hub(name: str) -> None:
     assert hub.max_position_embeddings == ours.max_position_embeddings
     assert hub.rms_norm_eps == ours.rms_norm_eps
     assert hub.attention_bias == ours.attention_bias
-    # Local and global layers carry separate RoPE parameters.
     rope = hub.rope_parameters
     assert rope["sliding_attention"]["rope_theta"] == ours.rope_local_base_freq
     assert rope["full_attention"]["rope_theta"] == ours.rope_global_base_freq
     assert rope["full_attention"].get("factor", 1.0) == ours.rope_global_scaling
-    # The layer pattern is the architectural feature we reproduce by hand.
     expected = [
         "sliding_attention" if ours.is_sliding(index) else "full_attention"
         for index in range(ours.num_hidden_layers)
@@ -178,7 +154,6 @@ def test_gemma3_configs_match_the_hub(name: str) -> None:
 
 
 def test_gemma3_270m_logits_match_reference() -> None:
-    """Real Gemma 3 270M weights reproduce the reference logits."""
     repo = GEMMA3_REPOS[GEMMA3_HUB_SIZE]
     try:
         reference = transformers.Gemma3ForCausalLM.from_pretrained(

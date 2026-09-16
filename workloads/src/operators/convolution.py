@@ -18,16 +18,6 @@ class Conv2d(nn.Module):
         padding: int = 0,
         bias: bool = True,
     ) -> None:
-        """Allocate the filter bank and optional bias.
-
-        Args:
-            in_channels: Channel count of the input feature map.
-            out_channels: Number of filters, i.e. output channels.
-            kernel_size: Height and width of each square filter.
-            stride: Step between consecutive filter placements.
-            padding: Zeros added on every side of the input.
-            bias: Whether to add a learned per-filter bias.
-        """
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -49,14 +39,6 @@ class Conv2d(nn.Module):
             self.register_parameter("bias", None)
 
     def pad(self, x: torch.Tensor) -> torch.Tensor:
-        """Surround ``x`` with ``self.padding`` rows and columns of zeros.
-
-        Args:
-            x: Tensor shaped ``(batch, channels, height, width)``.
-
-        Returns:
-            Zero-padded tensor, or ``x`` itself when padding is zero.
-        """
         if self.padding == 0:
             return x
         batch, channels, height, width = x.shape
@@ -73,14 +55,6 @@ class Conv2d(nn.Module):
         return padded
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Convolve ``x`` with the filter bank.
-
-        Args:
-            x: Tensor shaped ``(batch, in_channels, height, width)``.
-
-        Returns:
-            Tensor shaped ``(batch, out_channels, out_h, out_w)``.
-        """
         padded = self.pad(x)
         # im2col via strided views: (batch, in_ch, out_h, out_w, k, k)
         patches = padded.unfold(2, self.kernel_size, self.stride).unfold(

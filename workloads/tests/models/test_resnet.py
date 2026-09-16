@@ -1,8 +1,4 @@
-"""Randomly-initialized ResNets against ``torchvision``.
-
-Weights are random here so nothing is downloaded; the pretrained checkpoints
-are covered by the ``slow`` tests in :mod:`tests.models.test_checkpoints`.
-"""
+"""Randomly-initialized ResNets against ``torchvision``."""
 
 import pytest
 import torch
@@ -26,20 +22,11 @@ INPUT_SIZE = 64
 # ~1.5e4, so the *absolute* deviation from torchvision scales with that even
 # though the relative error stays at float32 reassociation noise (~1.5e-5,
 # the same as ResNet-50's). Bound the relative term and leave the absolute
-# term loose; the pretrained checkpoints in test_checkpoints.py, whose logits
-# are O(10), are asserted far more tightly.
+# term loose.
 TOLERANCE = {"rtol": 1e-4, "atol": 1e-2}
 
 
 def build_pair(name: str) -> tuple[ResNet, torch.nn.Module]:
-    """Build our ResNet and a torchvision one sharing random weights.
-
-    Args:
-        name: A key of ``RESNET_CONFIGS``, such as ``"ResNet-50"``.
-
-    Returns:
-        Our model and the reference model, both in eval mode.
-    """
     builder = getattr(torchvision.models, TORCHVISION_BUILDERS[name])
     reference = builder(weights=None).eval()
     ours = resnet(name)
@@ -49,18 +36,12 @@ def build_pair(name: str) -> tuple[ResNet, torch.nn.Module]:
 
 @pytest.mark.parametrize("name", DEPTHS)
 def test_state_dict_keys_match_torchvision(name: str) -> None:
-    """Our module layout reproduces torchvision's parameter names.
-
-    This covers the running statistics too, so a checkpoint's batch-norm
-    buffers land where they belong rather than being silently dropped.
-    """
     ours, reference = build_pair(name)
     assert set(ours.state_dict()) == set(reference.state_dict())
 
 
 @pytest.mark.parametrize("name", DEPTHS)
 def test_logits_match_torchvision(name: str) -> None:
-    """Eval-mode logits match torchvision at every depth."""
     ours, reference = build_pair(name)
     x = torch.randn(2, 3, INPUT_SIZE, INPUT_SIZE)
 
@@ -68,14 +49,11 @@ def test_logits_match_torchvision(name: str) -> None:
         actual, expected = ours(x), reference(x)
 
     torch.testing.assert_close(actual, expected, **TOLERANCE)
-    # Argmax agreement is the property that matters downstream and is
-    # insensitive to the tolerance above.
     assert torch.equal(actual.argmax(dim=-1), expected.argmax(dim=-1))
 
 
 @pytest.mark.parametrize("name", DEPTHS)
 def test_parameter_count_matches_torchvision(name: str) -> None:
-    """We allocate exactly the parameters torchvision does, no more."""
     ours, reference = build_pair(name)
     ours_total = sum(p.numel() for p in ours.parameters())
     reference_total = sum(p.numel() for p in reference.parameters())
@@ -94,7 +72,6 @@ def test_parameter_count_matches_torchvision(name: str) -> None:
 def test_stage_depths_and_expansion(
     name: str, expansion: int, blocks: tuple[int, ...]
 ) -> None:
-    """Each depth is assembled from the published block counts."""
     model = resnet(name)
     config = RESNET_CONFIGS[name]
     assert config.expansion == expansion
@@ -104,18 +81,13 @@ def test_stage_depths_and_expansion(
 
 
 def test_bottleneck_places_stride_on_the_3x3() -> None:
-    """ResNet-50 is the V1.5 variant, not the original V1 ordering.
-
-    In V1.5 the downsampling stride sits on the 3x3 convolution; the original
-    paper put it on the leading 1x1. Getting this backwards still loads a
-    checkpoint cleanly but computes different numbers, so pin it directly.
-    """
+    # The V1 ordering still loads a checkpoint cleanly but computes different
+    # numbers, so only a direct check catches it.
     block = resnet("ResNet-50").layer2[0]
     assert block.conv1.stride == 1
     assert block.conv2.stride == 2
 
 
 def test_unknown_depth_is_rejected() -> None:
-    """Asking for a depth we do not publish fails loudly."""
     with pytest.raises(KeyError, match="unknown ResNet depth"):
         resnet("ResNet-152")

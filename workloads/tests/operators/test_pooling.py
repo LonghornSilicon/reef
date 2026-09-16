@@ -42,7 +42,6 @@ ADAPTIVE_CASES = [
 def test_max_pool2d_matches_reference(
     size: int, kernel: int, stride: int, dtype: torch.dtype
 ) -> None:
-    """MaxPool2d matches ``F.max_pool2d``, including ragged edges."""
     x = torch.randn(2, 3, size, size, dtype=dtype)
     pool = MaxPool2d(kernel_size=kernel, stride=stride)
     assert_matches(pool(x), F.max_pool2d(x, kernel, stride), dtype)
@@ -52,7 +51,6 @@ def test_max_pool2d_matches_reference(
 def test_max_pool2d_stride_defaults_to_kernel_size(
     dtype: torch.dtype,
 ) -> None:
-    """Omitting the stride pools over non-overlapping windows."""
     x = torch.randn(2, 3, 12, 12, dtype=dtype)
     pool = MaxPool2d(kernel_size=3)
     assert_matches(pool(x), F.max_pool2d(x, 3), dtype)
@@ -65,11 +63,6 @@ def test_max_pool2d_stride_defaults_to_kernel_size(
 def test_max_pool2d_padding_matches_reference(
     size: int, kernel: int, stride: int, padding: int, dtype: torch.dtype
 ) -> None:
-    """Padded pooling matches ``F.max_pool2d``.
-
-    The padding must behave as -inf rather than as zero, which only shows up
-    when the real values under an overhanging window are all negative.
-    """
     x = torch.randn(2, 3, size, size, dtype=dtype)
     pool = MaxPool2d(kernel_size=kernel, stride=stride, padding=padding)
     expected = F.max_pool2d(x, kernel, stride, padding)
@@ -78,7 +71,6 @@ def test_max_pool2d_padding_matches_reference(
 
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_max_pool2d_padding_is_not_zero_fill(dtype: torch.dtype) -> None:
-    """An all-negative input never pools up to zero at the border."""
     x = -torch.rand(1, 1, 4, 4, dtype=dtype) - 1.0
     pool = MaxPool2d(kernel_size=3, stride=1, padding=1)
     assert (pool(x) < 0).all()
@@ -90,11 +82,6 @@ def test_max_pool2d_padding_is_not_zero_fill(dtype: torch.dtype) -> None:
 def test_adaptive_avg_pool2d_matches_reference(
     height: int, width: int, out_h: int, out_w: int, dtype: torch.dtype
 ) -> None:
-    """AdaptiveAvgPool2d matches ``F.adaptive_avg_pool2d``.
-
-    The non-divisible cases (13 -> 6 in particular) are the ones that pin down
-    PyTorch's window-bound convention.
-    """
     x = torch.randn(2, 3, height, width, dtype=dtype)
     pool = AdaptiveAvgPool2d((out_h, out_w))
     expected = F.adaptive_avg_pool2d(x, (out_h, out_w))

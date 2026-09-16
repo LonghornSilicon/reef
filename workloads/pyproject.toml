@@ -72,6 +72,10 @@ select = [
     "RET",    # return statement consistency
     "RUF",    # Ruff-specific rules
 ]
+ignore = ["D102", "D103", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

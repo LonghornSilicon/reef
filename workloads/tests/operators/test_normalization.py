@@ -1,4 +1,4 @@
-"""RMSNorm against the reference ``Qwen3RMSNorm`` from transformers."""
+"""Normalization operators against their torch and transformers references."""
 
 import pytest
 import torch
@@ -18,7 +18,6 @@ SHAPES = [(4, 32), (2, 5, 32), (2, 4, 6, 32)]
 def test_rmsnorm_matches_reference(
     shape: tuple[int, ...], dtype: torch.dtype
 ) -> None:
-    """RMSNorm matches ``Qwen3RMSNorm`` with the same learned gain."""
     ours = RMSNorm(32, eps=1e-6)
     ours.weight.data.normal_()
     reference = Qwen3RMSNorm(32, eps=1e-6)
@@ -31,14 +30,12 @@ def test_rmsnorm_matches_reference(
 
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_rmsnorm_preserves_dtype(dtype: torch.dtype) -> None:
-    """The float32 reduction does not leak into the output dtype."""
     layer = RMSNorm(32).to(dtype)
     assert layer(torch.randn(2, 32, dtype=dtype)).dtype == dtype
 
 
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_batchnorm2d_eval_matches_reference(dtype: torch.dtype) -> None:
-    """BatchNorm2d matches ``nn.BatchNorm2d`` using running statistics."""
     ours = BatchNorm2d(8)
     reference = torch.nn.BatchNorm2d(8)
     # Move the statistics off their defaults so a mistake cannot hide behind
@@ -55,7 +52,6 @@ def test_batchnorm2d_eval_matches_reference(dtype: torch.dtype) -> None:
 
 
 def test_batchnorm2d_train_matches_reference() -> None:
-    """In train mode both normalize by the same batch statistics."""
     ours, reference = BatchNorm2d(8).train(), torch.nn.BatchNorm2d(8).train()
     reference.weight.data.normal_()
     reference.bias.data.normal_()
@@ -66,11 +62,6 @@ def test_batchnorm2d_train_matches_reference() -> None:
 
 
 def test_batchnorm2d_running_statistics_track_reference() -> None:
-    """The running mean, variance and batch counter update identically.
-
-    PyTorch normalizes by the biased variance but accumulates the unbiased
-    one into ``running_var``; this is the test that pins that asymmetry.
-    """
     ours, reference = BatchNorm2d(8).train(), torch.nn.BatchNorm2d(8).train()
 
     for _ in range(3):
@@ -84,7 +75,6 @@ def test_batchnorm2d_running_statistics_track_reference() -> None:
 
 
 def test_batchnorm2d_state_dict_keys_match_reference() -> None:
-    """Our buffer names match, so checkpoints load without renaming."""
     ours = BatchNorm2d(8)
     reference = torch.nn.BatchNorm2d(8)
     assert set(ours.state_dict()) == set(reference.state_dict())
@@ -95,7 +85,6 @@ def test_batchnorm2d_state_dict_keys_match_reference() -> None:
 def test_gemma_rmsnorm_matches_reference(
     shape: tuple[int, ...], dtype: torch.dtype
 ) -> None:
-    """GemmaRMSNorm matches ``Gemma3RMSNorm`` with the same learned gain."""
     ours = GemmaRMSNorm(32, eps=1e-6)
     ours.weight.data.normal_()
     reference = Gemma3RMSNorm(32, eps=1e-6)
@@ -107,12 +96,6 @@ def test_gemma_rmsnorm_matches_reference(
 
 
 def test_gemma_rmsnorm_gain_is_an_offset_from_one() -> None:
-    """A zero weight is the identity gain, not a zero gain.
-
-    Gemma stores the gain as ``1 + weight``, so the zero-initialized default
-    must pass the normalized values through untouched. Under RMSNorm's
-    one-initialized convention this would return zeros.
-    """
     layer = GemmaRMSNorm(32)
     torch.testing.assert_close(layer.weight, torch.zeros(32))
 
@@ -122,7 +105,6 @@ def test_gemma_rmsnorm_gain_is_an_offset_from_one() -> None:
 
 
 def test_gemma_rmsnorm_preserves_dtype() -> None:
-    """The float32 reduction does not leak into the output dtype."""
     layer = GemmaRMSNorm(32).to(torch.bfloat16)
     x = torch.randn(2, 32, dtype=torch.bfloat16)
     assert layer(x).dtype == torch.bfloat16

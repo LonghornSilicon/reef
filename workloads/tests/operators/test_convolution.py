@@ -34,7 +34,6 @@ def test_conv2d_matches_reference(
     bias: bool,
     dtype: torch.dtype,
 ) -> None:
-    """Conv2d matches ``F.conv2d`` across strides, paddings and bias modes."""
     conv = Conv2d(
         in_channels,
         out_channels,
@@ -51,7 +50,6 @@ def test_conv2d_matches_reference(
 
 
 def test_conv2d_pad_places_the_input_in_the_centre() -> None:
-    """Zero padding surrounds the original values without shifting them."""
     conv = Conv2d(2, 2, 3, padding=2)
     x = torch.randn(1, 2, 4, 6)
     padded = conv.pad(x)

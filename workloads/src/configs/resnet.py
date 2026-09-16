@@ -1,14 +1,8 @@
-"""Hyperparameters for the published ResNet depths.
-
-Only the four depths the characterization covers are listed. All of them are
-the torchvision "V1.5" variant, which places the stride of a bottleneck on its
-3x3 convolution rather than on the leading 1x1.
-"""
+"""Hyperparameters for the published ResNet depths."""
 
 from dataclasses import dataclass
 from typing import Literal
 
-#: Which residual block a depth is built from.
 BlockKind = Literal["basic", "bottleneck"]
 
 #: Channel width of each of the four stages, before block expansion.
@@ -20,15 +14,7 @@ EXPANSION: dict[BlockKind, int] = {"basic": 1, "bottleneck": 4}
 
 @dataclass(frozen=True)
 class ResNetConfig:
-    """Architecture hyperparameters for one ResNet depth.
-
-    Attributes:
-        block: Residual block the depth is built from.
-        blocks_per_stage: Number of blocks in each of the four stages.
-        num_classes: Width of the final classification layer.
-        stem_channels: Output channels of the 7x7 stem convolution.
-        norm_eps: Epsilon of every batch normalization.
-    """
+    """Architecture hyperparameters for one ResNet depth."""
 
     block: BlockKind
     blocks_per_stage: tuple[int, int, int, int]
@@ -38,12 +24,10 @@ class ResNetConfig:
 
     @property
     def expansion(self) -> int:
-        """Output channels of a block divided by its ``planes``."""
         return EXPANSION[self.block]
 
     @property
     def feature_channels(self) -> int:
-        """Channels entering the classifier, i.e. the width after stage 4."""
         return STAGE_PLANES[-1] * self.expansion
 
 
@@ -62,7 +46,6 @@ RESNET_CONFIGS = {
     "ResNet-101": RESNET_101,
 }
 
-#: Maps our config names onto the torchvision builder that mirrors them.
 TORCHVISION_BUILDERS = {
     "ResNet-18": "resnet18",
     "ResNet-34": "resnet34",

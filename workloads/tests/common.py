@@ -15,15 +15,5 @@ BF16_TOLERANCE = {"rtol": 2e-2, "atol": 2e-2}
 def assert_matches(
     actual: torch.Tensor, expected: torch.Tensor, dtype: torch.dtype
 ) -> None:
-    """Assert ``actual`` matches ``expected`` at a dtype-appropriate bound.
-
-    float32 uses ``torch.testing.assert_close`` defaults; bfloat16 uses the
-    looser :data:`BF16_TOLERANCE`.
-
-    Args:
-        actual: Output of the from-scratch operator.
-        expected: Output of the PyTorch reference.
-        dtype: Dtype both tensors were computed in.
-    """
     tolerance = {} if dtype == torch.float32 else BF16_TOLERANCE
     torch.testing.assert_close(actual, expected, **tolerance)

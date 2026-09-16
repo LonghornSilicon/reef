@@ -28,22 +28,9 @@ def reference_attention(
     value: torch.Tensor,
     repeats: int,
 ) -> torch.Tensor:
-    """Run causal SDPA with the key/value heads repeated across their group.
-
-    ``is_causal=True`` is only usable when the query and key lengths match:
-    PyTorch aligns that mask to the top-left corner, whereas cached decoding
-    needs the queries to sit at the *end* of the key axis. For the ragged
-    cases the equivalent bottom-right mask is spelled out instead.
-
-    Args:
-        query: Tensor shaped ``(batch, num_heads, query_len, head_dim)``.
-        key: Tensor shaped ``(batch, num_kv_heads, key_len, head_dim)``.
-        value: Tensor shaped ``(batch, num_kv_heads, key_len, head_dim)``.
-        repeats: Query heads per key/value head.
-
-    Returns:
-        Tensor shaped ``(batch, num_heads, query_len, head_dim)``.
-    """
+    # is_causal=True aligns its mask top-left, but cached decoding needs the
+    # queries at the end of the key axis, so ragged cases spell out the
+    # bottom-right mask instead.
     key = key.repeat_interleave(repeats, dim=1)
     value = value.repeat_interleave(repeats, dim=1)
     query_len, key_len = query.shape[2], key.shape[2]
@@ -66,7 +53,6 @@ def test_grouped_query_attention_matches_reference(
     key_len: int,
     dtype: torch.dtype,
 ) -> None:
-    """Causal GQA matches SDPA, including when ``query_len < key_len``."""
     query = torch.randn(2, num_heads, query_len, HEAD_DIM, dtype=dtype)
     key = torch.randn(2, num_kv_heads, key_len, HEAD_DIM, dtype=dtype)
     value = torch.randn(2, num_kv_heads, key_len, HEAD_DIM, dtype=dtype)
@@ -78,7 +64,6 @@ def test_grouped_query_attention_matches_reference(
 
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_non_causal_attention_matches_reference(dtype: torch.dtype) -> None:
-    """With ``causal=False`` every query sees every key."""
     query = torch.randn(2, 4, 5, HEAD_DIM, dtype=dtype)
     key = torch.randn(2, 2, 5, HEAD_DIM, dtype=dtype)
     value = torch.randn(2, 2, 5, HEAD_DIM, dtype=dtype)
@@ -94,7 +79,6 @@ def test_non_causal_attention_matches_reference(dtype: torch.dtype) -> None:
 
 
 def test_expand_kv_repeats_each_head_within_its_group() -> None:
-    """Key/value heads are repeated in the order the query heads expect."""
     attention = GroupedQueryAttention(6, 3, HEAD_DIM)
     key = torch.randn(1, 3, 4, HEAD_DIM)
     expanded = attention.expand_kv(key)
@@ -103,7 +87,6 @@ def test_expand_kv_repeats_each_head_within_its_group() -> None:
 
 
 def test_causal_mask_is_bottom_right_aligned() -> None:
-    """A decode step attends to the whole cache plus itself."""
     attention = GroupedQueryAttention(4, 2, HEAD_DIM)
     mask = attention.causal_mask(1, 5, torch.device("cpu"))
     assert not mask.any()
@@ -136,7 +119,6 @@ def test_sliding_window_matches_reference(
     window: int,
     dtype: torch.dtype,
 ) -> None:
-    """A windowed layer matches SDPA given the same explicit mask."""
     torch.manual_seed(0)
     shape = (2, num_kv_heads, key_len, HEAD_DIM)
     query = torch.randn(2, num_heads, query_len, HEAD_DIM, dtype=dtype)
@@ -163,11 +145,8 @@ def test_sliding_window_matches_reference(
 
 
 def test_sliding_window_actually_excludes_distant_keys() -> None:
-    """Changing a key outside the window cannot change the output.
-
-    Without this, a window that is silently ignored would still match the
-    reference above, because both sides would then be plain causal.
-    """
+    # A silently ignored window would still pass the reference test above,
+    # because both sides would then be plain causal.
     window = 3
     layer = GroupedQueryAttention(4, 2, HEAD_DIM, sliding_window=window)
     query = torch.randn(1, 4, 8, HEAD_DIM)

@@ -15,31 +15,16 @@ class MaxPool2d(nn.Module):
         stride: int | None = None,
         padding: int = 0,
     ) -> None:
-        """Store the window geometry.
-
-        Args:
-            kernel_size: Height and width of the pooling window.
-            stride: Step between windows; defaults to ``kernel_size``.
-            padding: Implicit border added on every side of the input.
-        """
         super().__init__()
         self.kernel_size = kernel_size
         self.stride = kernel_size if stride is None else stride
         self.padding = padding
 
     def pad(self, x: torch.Tensor) -> torch.Tensor:
-        """Surround ``x`` with a border that can never win a maximum.
+        """Pad with -inf, not zero, as ``F.max_pool2d`` does.
 
-        The border is negative infinity rather than zero, so a window that
-        overhangs the edge reduces to the largest real value it covers. This
-        matches ``F.max_pool2d``, which treats padding as ``-inf`` rather than
-        as data.
-
-        Args:
-            x: Tensor shaped ``(batch, channels, height, width)``.
-
-        Returns:
-            Padded tensor, or ``x`` itself when padding is zero.
+        A window that overhangs the edge then reduces to the largest real
+        value it covers.
         """
         if self.padding == 0:
             return x
@@ -57,14 +42,6 @@ class MaxPool2d(nn.Module):
         return padded
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Take the maximum over each window of ``x``.
-
-        Args:
-            x: Tensor shaped ``(batch, channels, height, width)``.
-
-        Returns:
-            Tensor shaped ``(batch, channels, out_h, out_w)``.
-        """
         padded = self.pad(x)
         patches = padded.unfold(2, self.kernel_size, self.stride).unfold(
             3, self.kernel_size, self.stride
@@ -76,28 +53,10 @@ class AdaptiveAvgPool2d(nn.Module):
     """Average pooling onto a fixed output grid of any size."""
 
     def __init__(self, output_size: tuple[int, int]) -> None:
-        """Store the target grid size.
-
-        Args:
-            output_size: Desired ``(out_h, out_w)`` of the result.
-        """
         super().__init__()
         self.output_size = output_size
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Average ``x`` over the window that each output cell covers.
-
-        Window bounds follow PyTorch's convention, so input sizes that are not
-        divisible by the output size yield overlapping windows. When they do
-        divide evenly the windows tile the input, which the strided fast path
-        below handles in one vectorized reduction.
-
-        Args:
-            x: Tensor shaped ``(batch, channels, height, width)``.
-
-        Returns:
-            Tensor shaped ``(batch, channels) + self.output_size``.
-        """
         batch, channels, height, width = x.shape
         out_h, out_w = self.output_size
         if height % out_h == 0 and width % out_w == 0:
@@ -106,6 +65,8 @@ class AdaptiveAvgPool2d(nn.Module):
                 3, window_w, window_w
             )
             return patches.mean(dim=(-2, -1))
+        # PyTorch's window bounds: sizes that do not divide evenly yield
+        # overlapping windows.
         out = torch.zeros(
             (batch, channels, out_h, out_w), dtype=x.dtype, device=x.device
         )
