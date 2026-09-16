@@ -17,8 +17,7 @@ class RotaryEmbedding(nn.Module):
         self.head_dim = head_dim
         self.scaling_factor = scaling_factor
         exponent = torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim
-        # Linear context extension divides the positions by scaling_factor;
-        # dividing the frequencies is equivalent since angles are their product.
+        # Linear scaling divides positions; dividing inv_freq is equivalent.
         self.register_buffer(
             "inv_freq",
             1.0 / (theta**exponent) / scaling_factor,
@@ -41,7 +40,6 @@ class RotaryEmbedding(nn.Module):
     def apply_rotary(
         self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
     ) -> torch.Tensor:
-        # x: (batch, heads, length, head_dim)
         cos = cos[None, None, :, :]
         sin = sin[None, None, :, :]
         return x * cos + self.rotate_half(x) * sin

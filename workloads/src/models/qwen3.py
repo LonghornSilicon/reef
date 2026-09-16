@@ -172,7 +172,6 @@ class Qwen3ForCausalLM(nn.Module):
     def generate(
         self, input_ids: torch.Tensor, max_new_tokens: int
     ) -> torch.Tensor:
-        """Greedy decoding with the key/value cache."""
         logits, cache = self(input_ids)
         generated = input_ids
         for step in range(max_new_tokens):

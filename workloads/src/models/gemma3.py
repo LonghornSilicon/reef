@@ -165,8 +165,7 @@ class Gemma3TextModel(nn.Module):
             0 if past_key_values is None else past_key_values[0][0].shape[2]
         )
         x = self.embed_tokens(input_ids)
-        # The multiplier is cast to the hidden dtype before multiplying,
-        # matching the reference.
+        # A tensor in x.dtype, not a Python float, to round like the reference.
         scale = torch.tensor(
             self.config.hidden_size**0.5, dtype=x.dtype, device=x.device
         )
@@ -186,11 +185,7 @@ class Gemma3TextModel(nn.Module):
 
 
 class Gemma3ForCausalLM(nn.Module):
-    """Gemma 3 decoder with a language-modeling head.
-
-    Names follow ``transformers``' ``Gemma3ForCausalLM``, so a published
-    text-backbone ``state_dict`` loads with ``strict=True``.
-    """
+    """Gemma 3 decoder with a language-modeling head."""
 
     def __init__(self, config: Gemma3Config) -> None:
         super().__init__()
@@ -212,7 +207,6 @@ class Gemma3ForCausalLM(nn.Module):
     def generate(
         self, input_ids: torch.Tensor, max_new_tokens: int
     ) -> torch.Tensor:
-        """Greedy decoding with the key/value cache."""
         logits, cache = self(input_ids)
         generated = input_ids
         for step in range(max_new_tokens):

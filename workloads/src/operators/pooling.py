@@ -21,11 +21,7 @@ class MaxPool2d(nn.Module):
         self.padding = padding
 
     def pad(self, x: torch.Tensor) -> torch.Tensor:
-        """Pad with -inf, not zero, as ``F.max_pool2d`` does.
-
-        A window that overhangs the edge then reduces to the largest real
-        value it covers.
-        """
+        """Pad with -inf, not zero, as ``F.max_pool2d`` does."""
         if self.padding == 0:
             return x
         batch, channels, height, width = x.shape

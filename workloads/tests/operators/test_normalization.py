@@ -38,8 +38,7 @@ def test_rmsnorm_preserves_dtype(dtype: torch.dtype) -> None:
 def test_batchnorm2d_eval_matches_reference(dtype: torch.dtype) -> None:
     ours = BatchNorm2d(8)
     reference = torch.nn.BatchNorm2d(8)
-    # Move the statistics off their defaults so a mistake cannot hide behind
-    # mean 0 / variance 1.
+    # Off the mean 0 / variance 1 defaults, where mistakes hide.
     reference.weight.data.normal_()
     reference.bias.data.normal_()
     reference.running_mean.normal_()

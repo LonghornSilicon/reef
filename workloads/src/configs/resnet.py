@@ -5,10 +5,8 @@ from typing import Literal
 
 BlockKind = Literal["basic", "bottleneck"]
 
-#: Channel width of each of the four stages, before block expansion.
 STAGE_PLANES = (64, 128, 256, 512)
 
-#: Output channels of a block divided by its ``planes``.
 EXPANSION: dict[BlockKind, int] = {"basic": 1, "bottleneck": 4}
 
 

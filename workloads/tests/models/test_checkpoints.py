@@ -18,16 +18,12 @@ pytestmark = [pytest.mark.slow, pytest.mark.timeout(1800)]
 QWEN3_REPO = "Qwen/Qwen3-0.6B"
 PROMPT = "The capital of France is"
 
-# Our operators accumulate in a different order than the fused kernels, and
-# that drift compounds over Qwen3-0.6B's 28 layers. Measured worst case is
-# ~4e-5 absolute against logits spanning +/-19, so these bounds sit roughly an
-# order of magnitude above the observed error rather than at the assert_close
-# float32 defaults (rtol=1.3e-6, atol=1e-5), which are too tight here.
+# Measured worst case over Qwen3-0.6B's 28 layers is ~4e-5 absolute on logits
+# spanning +/-19; these bounds sit about 10x above it.
 QWEN3_TOLERANCE = {"rtol": 1e-5, "atol": 1e-4}
 ALEXNET_TOLERANCE = {"rtol": 1e-5, "atol": 1e-5}
-# Trained ResNet logits are O(10), so unlike the randomly-initialized
-# networks in test_resnet.py these bounds can stay tight even at 101
-# layers. Both block types are covered: 18 is BasicBlock, 50 Bottleneck.
+# Trained logits are O(10), so these stay tighter than test_resnet.TOLERANCE.
+# One depth per block type.
 RESNET_TOLERANCE = {"rtol": 1e-5, "atol": 1e-4}
 RESNET_REPOS = ["ResNet-18", "ResNet-50"]
 
@@ -65,8 +61,7 @@ def test_qwen3_0_6b_logits_match_reference() -> None:
         actual, _ = ours(input_ids)
 
     torch.testing.assert_close(actual, expected, **QWEN3_TOLERANCE)
-    # Argmax agreement is the property that actually matters downstream, and
-    # it is insensitive to the tolerance above.
+    # Argmax agreement is what matters downstream.
     assert torch.equal(actual.argmax(dim=-1), expected.argmax(dim=-1))
 
 
@@ -109,11 +104,8 @@ def test_pretrained_resnet_logits_match_torchvision(name: str) -> None:
     assert torch.equal(actual.argmax(dim=-1), expected.argmax(dim=-1))
 
 
-# The Gemma 3 repositories are gated: Hugging Face serves them only to an
-# account that has accepted Google's licence and is authenticated. Skip rather
-# than fail on a machine without those credentials, so the slow suite stays
-# runnable; the assertions below still run wherever `hf auth login` has been
-# done.
+# google/gemma-3-* is gated (licence acceptance + `hf auth login`), so the
+# Gemma 3 tests skip rather than fail where it is inaccessible.
 GEMMA3_HUB_SIZE = "Gemma3-270M"
 
 

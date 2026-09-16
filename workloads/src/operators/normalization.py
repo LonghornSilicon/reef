@@ -22,11 +22,7 @@ class RMSNorm(nn.Module):
 
 
 class BatchNorm2d(nn.Module):
-    """Normalize each channel of a feature map by its batch statistics.
-
-    Parameter and buffer names match ``torch.nn.BatchNorm2d`` so a torchvision
-    ``state_dict`` loads without renaming.
-    """
+    """Normalize each channel of a feature map by its batch statistics."""
 
     def __init__(
         self,
@@ -77,16 +73,7 @@ class BatchNorm2d(nn.Module):
 
 
 class GemmaRMSNorm(nn.Module):
-    """RMS normalization in Gemma's parameterization.
-
-    Two things differ from :class:`RMSNorm`, and both change the numbers
-    rather than just the spelling:
-
-    * the gain is stored as an offset from one and applied as ``1 + weight``,
-      so the parameter is zero-initialized rather than one-initialized;
-    * the gain multiply happens in float32 and the result is cast afterwards,
-      where :class:`RMSNorm` casts first and then multiplies.
-    """
+    """RMS normalization in Gemma's parameterization."""
 
     def __init__(self, dim: int, eps: float = 1e-6) -> None:
         super().__init__()
@@ -98,5 +85,6 @@ class GemmaRMSNorm(nn.Module):
         promoted = x.to(torch.float32)
         variance = promoted.pow(2).mean(-1, keepdim=True)
         normalized = promoted * torch.rsqrt(variance + self.eps)
+        # Multiply then cast, the reverse of RMSNorm, matching Gemma3RMSNorm.
         scaled = normalized * (1.0 + self.weight.to(torch.float32))
         return scaled.to(x.dtype)

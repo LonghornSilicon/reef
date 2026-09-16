@@ -4,11 +4,8 @@ import torch
 
 DTYPES = (torch.float32, torch.bfloat16)
 
-# bfloat16 keeps 8 mantissa bits, and our operators accumulate in a different
-# order than the fused PyTorch kernels they are checked against, so the
-# default assert_close bounds for bfloat16 (rtol=1.6e-2, atol=1e-5) are far
-# too tight on the absolute term. The worst deviation measured across this
-# suite is ~1.6e-2 absolute, on convolution.
+# Worst measured bfloat16 deviation from the fused kernels is ~1.6e-2 absolute
+# (convolution), far above assert_close's default atol of 1e-5.
 BF16_TOLERANCE = {"rtol": 2e-2, "atol": 2e-2}
 
 

@@ -40,8 +40,6 @@ def build_pair(
     ).eval()
 
     ours = Qwen3ForCausalLM(config)
-    # strict=True is the point of the test as much as the logits are: it pins
-    # our parameter names to the ones the published checkpoints ship with.
     ours.load_state_dict(reference.state_dict(), strict=True)
     return ours.eval(), reference
 

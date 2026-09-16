@@ -13,8 +13,7 @@ pytestmark = pytest.mark.unit
 TINY = {
     "hidden_size": 64,
     "intermediate_size": 128,
-    # Two full local/global periods, so the pattern and the global layers'
-    # separate RoPE table are each exercised twice.
+    # Two full local/global periods.
     "num_hidden_layers": 12,
     "num_attention_heads": 4,
     "num_key_value_heads": 2,
@@ -25,13 +24,11 @@ TINY = {
     "max_position_embeddings": 256,
 }
 BATCH = 2
-# Comfortably longer than the 4-token sliding window, so the local layers
-# really do have to mask something out.
+# Longer than the 4-token window, so local layers actually mask.
 PROMPT_LEN = 20
 DECODE_STEPS = 4
 
-# Global-layer RoPE extension factors: 270M and 1B ship without one, 4B and
-# larger ship with 8.0.
+# 270M and 1B ship without global RoPE scaling; 4B and up ship with 8.0.
 SCALINGS = [1.0, 8.0]
 
 
@@ -96,8 +93,7 @@ def test_cached_decode_matches_reference(scaling: float) -> None:
 
 
 def test_cached_decode_matches_a_full_forward() -> None:
-    # Catches an off-by-one in the sliding-window mask offset: a cached step
-    # measures the window from a different origin than a full forward.
+    # Catches an off-by-one in the cached sliding-window mask offset.
     ours, _ = build_pair()
     total = PROMPT_LEN + DECODE_STEPS
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, total))
@@ -138,8 +134,7 @@ def test_sliding_layers_carry_a_window_and_global_layers_do_not() -> None:
 
 
 def test_embeddings_are_scaled_by_sqrt_hidden_size() -> None:
-    # Captured from the real forward pass so this fails if the scaling is
-    # removed, rather than merely recomputing it here.
+    # Captured from the real forward pass, not recomputed here.
     ours, _ = build_pair()
     model = ours.model
     ids = torch.randint(0, TINY["vocab_size"], (1, 3))
@@ -169,8 +164,7 @@ def test_published_sizes_alternate_attention(name: str) -> None:
         index for index in layers if (index + 1) % ATTENTION_PATTERN == 0
     ]
     assert globals_ == expected
-    # Every published depth is long enough to reach the third global layer;
-    # 270M is the shortest at 18 layers, so it stops at 17.
+    # 270M, the shallowest at 18 layers, still reaches index 17.
     assert globals_[:3] == [5, 11, 17]
     assert all(config.is_sliding(index) for index in (0, 1, 2, 3, 4))
 

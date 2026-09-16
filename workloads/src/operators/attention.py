@@ -45,8 +45,7 @@ class GroupedQueryAttention(nn.Module):
         key_pos = torch.arange(key_len, device=device)[None, :]
         masked = key_pos > query_pos
         if self.sliding_window is not None:
-            # A key is in range when key_pos > query_pos - window, so the
-            # window counts the query's own position as one of its slots.
+            # The window includes the query's own position.
             masked = masked | (key_pos <= query_pos - self.sliding_window)
         return masked
 

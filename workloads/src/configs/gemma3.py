@@ -2,18 +2,12 @@
 
 from dataclasses import dataclass
 
-# Five of every six layers attend to a sliding window and the sixth to the
-# whole context, which caps the KV cache far below the context length.
 ATTENTION_PATTERN = 6
 
 
 @dataclass(frozen=True)
 class Gemma3Config:
-    """Text-backbone hyperparameters for one Gemma 3 size.
-
-    From 4B up the released checkpoints also carry a SigLIP vision tower,
-    which is not described here.
-    """
+    """Text-backbone hyperparameters for one Gemma 3 size."""
 
     hidden_size: int
     intermediate_size: int
@@ -23,7 +17,6 @@ class Gemma3Config:
     head_dim: int
     vocab_size: int
     sliding_window: int
-    # Attention logits are scaled by query_pre_attn_scalar ** -0.5.
     query_pre_attn_scalar: int
     max_position_embeddings: int
     rms_norm_eps: float = 1e-6
@@ -91,9 +84,7 @@ GEMMA3_12B = Gemma3Config(
     rope_global_scaling=8.0,
 )
 
-# 27B is the one size whose query_pre_attn_scalar is not head_dim: it is
-# hidden_size // num_attention_heads = 168, while head_dim is 128. Deriving
-# the attention scale from head_dim here would be wrong.
+# The only size where query_pre_attn_scalar (168) differs from head_dim (128).
 GEMMA3_27B = Gemma3Config(
     hidden_size=5376,
     intermediate_size=21504,

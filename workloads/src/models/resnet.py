@@ -58,11 +58,7 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    """1x1, 3x3, 1x1 with a 4x expansion, as in ResNet-50/101.
-
-    This is the torchvision "V1.5" ordering: the stride sits on the 3x3
-    convolution, not on the leading 1x1.
-    """
+    """1x1-3x3-1x1 block with the stride on the 3x3 (torchvision V1.5)."""
 
     expansion = 4
 
@@ -101,11 +97,7 @@ BLOCKS: dict[str, type[BasicBlock | Bottleneck]] = {
 
 
 class ResNet(nn.Module):
-    """Residual image classifier matching torchvision layer for layer.
-
-    Module names match torchvision's ``ResNet``, so its ``state_dict`` loads
-    with ``strict=True``.
-    """
+    """Residual image classifier matching torchvision layer for layer."""
 
     def __init__(self, config: ResNetConfig) -> None:
         super().__init__()

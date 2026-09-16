@@ -11,18 +11,12 @@ pytestmark = pytest.mark.unit
 
 DEPTHS = list(RESNET_CONFIGS)
 
-# 64x64 rather than 224x224: the im2col convolution is quadratic in the
-# feature-map size and ResNet-101 is 101 layers deep, so the full resolution
-# would dominate the unit suite. Every stage still downsamples (64 -> 32 -> 16
-# -> 8 -> 4 -> 2), so the layer geometry under test is unchanged.
+# Not 224: im2col is quadratic in feature-map size, and 64 still downsamples
+# through every stage.
 INPUT_SIZE = 64
 
-# A randomly-initialized ResNet-101 is not a trained network: with Kaiming
-# init the residual stream compounds across 101 layers until logits reach
-# ~1.5e4, so the *absolute* deviation from torchvision scales with that even
-# though the relative error stays at float32 reassociation noise (~1.5e-5,
-# the same as ResNet-50's). Bound the relative term and leave the absolute
-# term loose.
+# Random-init ResNet-101 logits reach ~1.5e4; relative error stays ~1.5e-5, but
+# absolute error scales with the logits, so atol is loose.
 TOLERANCE = {"rtol": 1e-4, "atol": 1e-2}
 
 
@@ -81,8 +75,7 @@ def test_stage_depths_and_expansion(
 
 
 def test_bottleneck_places_stride_on_the_3x3() -> None:
-    # The V1 ordering still loads a checkpoint cleanly but computes different
-    # numbers, so only a direct check catches it.
+    # The V1 ordering loads the same checkpoint but computes different numbers.
     block = resnet("ResNet-50").layer2[0]
     assert block.conv1.stride == 1
     assert block.conv2.stride == 2

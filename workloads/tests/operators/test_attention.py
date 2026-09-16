@@ -28,9 +28,7 @@ def reference_attention(
     value: torch.Tensor,
     repeats: int,
 ) -> torch.Tensor:
-    # is_causal=True aligns its mask top-left, but cached decoding needs the
-    # queries at the end of the key axis, so ragged cases spell out the
-    # bottom-right mask instead.
+    # is_causal=True aligns top-left; cached decoding needs bottom-right.
     key = key.repeat_interleave(repeats, dim=1)
     value = value.repeat_interleave(repeats, dim=1)
     query_len, key_len = query.shape[2], key.shape[2]
@@ -130,7 +128,6 @@ def test_sliding_window_matches_reference(
         num_heads, num_kv_heads, HEAD_DIM, sliding_window=window
     )
 
-    # Queries occupy the final query_len positions of the key axis.
     query_pos = torch.arange(key_len - query_len, key_len)[:, None]
     key_pos = torch.arange(key_len)[None, :]
     allowed = (key_pos <= query_pos) & (key_pos > query_pos - window)
@@ -145,16 +142,14 @@ def test_sliding_window_matches_reference(
 
 
 def test_sliding_window_actually_excludes_distant_keys() -> None:
-    # A silently ignored window would still pass the reference test above,
-    # because both sides would then be plain causal.
+    # An ignored window would still pass the reference test: both plain causal.
     window = 3
     layer = GroupedQueryAttention(4, 2, HEAD_DIM, sliding_window=window)
     query = torch.randn(1, 4, 8, HEAD_DIM)
     key, value = torch.randn(1, 2, 8, HEAD_DIM), torch.randn(1, 2, 8, HEAD_DIM)
 
     baseline = layer(query, key, value)
-    # Position 0 is outside the window of the final query, which can only see
-    # positions 5, 6 and 7.
+    # The final query sees only positions 5-7.
     value[:, :, 0] += 100.0
     perturbed = layer(query, key, value)
 
