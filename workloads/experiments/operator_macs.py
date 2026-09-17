@@ -2,12 +2,15 @@
 
 import csv
 import importlib
+import math
 import sys
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
 import torch
+from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 from torch import nn
 
 from models.language.gpt2 import Conv1D
@@ -286,6 +289,89 @@ def count(family: str, key: str, config: object) -> dict[str, list[int]]:
     return totals
 
 
+SURFACE = "#fcfcfb"
+BAR = "#2a78d6"
+INK = "#0b0b0b"
+SECONDARY_INK = "#52514e"
+MUTED_INK = "#898781"
+GRIDLINE = "#e1e0d9"
+BASELINE = "#c3c2b7"
+COLUMNS = 3
+Ranked = list[tuple[str, list[int]]]
+
+
+def readable(macs: float) -> str:
+    for unit, scale in (("G", 1e9), ("M", 1e6), ("k", 1e3)):
+        if macs >= scale:
+            value = macs / scale
+            # Not :.3g, which switches to exponent notation from 1000 up.
+            if value >= 100:
+                return f"{value:.0f} {unit}"
+            digits = 1 if value >= 10 else 2
+            return f"{value:.{digits}f}".rstrip("0").rstrip(".") + f" {unit}"
+    return f"{macs:.0f}"
+
+
+def percent(share: float) -> str:
+    if 0 < share < 0.001:
+        return "<0.1%"
+    return f"{share:.1%}"
+
+
+def plot(family: str, results: dict[str, Ranked], path: Path) -> None:
+    columns = min(COLUMNS, len(results))
+    rows = math.ceil(len(results) / columns)
+    bars = max(len(ranked) for ranked in results.values())
+    figure = Figure(
+        figsize=(5.5 * columns, (0.35 * bars + 1.2) * rows),
+        facecolor=SURFACE,
+        layout="constrained",
+    )
+    figure.get_layout_engine().set(h_pad=0.25)
+    figure.suptitle(
+        family,
+        x=0.01,
+        ha="left",
+        color=INK,
+        fontsize=13,
+    )
+    axes = list(figure.subplots(rows, columns, squeeze=False).flat)
+    for ax, (key, ranked) in zip(axes, results.items(), strict=False):
+        names = [operator for operator, _ in ranked]
+        macs = [value for _, (_, value) in ranked]
+        total = sum(macs)
+        positions = range(len(ranked))
+        # 0.45 of a 0.35 in slot at 150 dpi keeps bars under 24 px thick.
+        ax.barh(positions, macs, height=0.45, color=BAR)
+        ax.set_yticks(positions, names)
+        ax.invert_yaxis()
+        # Headroom so the value label on the longest bar is not clipped.
+        ax.set_xlim(0, max(macs) * 1.45)
+        for y, value in zip(positions, macs, strict=True):
+            label = f"  {readable(value)}  ({percent(value / total)})"
+            ax.text(
+                value, y, label, va="center", fontsize=8, color=SECONDARY_INK
+            )
+        ax.set_title(
+            f"{key}  ·  {readable(total)} MACs",
+            loc="left",
+            fontsize=10,
+            color=INK,
+        )
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: readable(x)))
+        ax.set_facecolor(SURFACE)
+        ax.grid(axis="x", color=GRIDLINE, linewidth=0.8)
+        ax.set_axisbelow(True)
+        for side in ("top", "right", "bottom"):
+            ax.spines[side].set_visible(False)
+        ax.spines["left"].set_color(BASELINE)
+        ax.tick_params(colors=MUTED_INK, labelsize=8, length=0)
+        ax.tick_params(axis="y", labelcolor=SECONDARY_INK)
+    for ax in axes[len(results) :]:
+        ax.set_visible(False)
+    figure.savefig(path, dpi=150, facecolor=SURFACE)
+
+
 def run(family: str) -> None:
     category = FAMILIES[family][0]
     configs = getattr(
@@ -293,11 +379,13 @@ def run(family: str) -> None:
         f"{family.upper()}_CONFIGS",
     )
     rows = []
+    results = {}
     for key, config in configs.items():
         totals = count(family, key, config)
         total = sum(macs for _, macs in totals.values())
         print(f"\n{key}: {total / 1e9:.3f} G MACs")
         ranked = sorted(totals.items(), key=lambda item: -item[1][1])
+        results[key] = ranked
         for operator, (calls, macs) in ranked:
             share = macs / total
             millions = macs / 1e6
@@ -311,6 +399,7 @@ def run(family: str) -> None:
         writer = csv.writer(file)
         writer.writerow(["model", "operator", "calls", "macs", "share"])
         writer.writerows(rows)
+    plot(family, results, folder / f"{family}.png")
 
 
 def main() -> None:
