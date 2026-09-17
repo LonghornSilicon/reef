@@ -5,10 +5,10 @@ import torch
 import torchvision
 import transformers
 
-from configs.qwen3 import QWEN3_0_6B
-from configs.resnet import TORCHVISION_BUILDERS
-from models.qwen3 import Qwen3ForCausalLM
-from models.resnet import resnet
+from configs.classification.resnet import TORCHVISION_BUILDERS
+from configs.language.qwen3 import QWEN3_0_6B
+from models.classification.resnet import resnet
+from models.language.qwen3 import Qwen3ForCausalLM
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(1800)]
 

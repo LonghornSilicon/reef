@@ -4,7 +4,7 @@ Each file rebuilds one architecture using only kernels from `operators/`.
 
 ---
 
-## Classification CNNs
+## Classification (`classification/`)
 
 Input `(B, 3, H, W)`, output `(B, num_classes)`.
 
@@ -32,7 +32,7 @@ MBConv blocks (expand, depthwise, squeeze-excitation, project) scaled in width a
 
 Blocks of depthwise 7x7 convolution, LayerNorm, a 4x MLP and LayerScale, downsampled by 2x2 stride-2 convolutions. Kernels: Conv2d, LayerNorm, ErfGELU, AdaptiveAvgPool2d, Linear.
 
-## Detection
+## Detection (`detection/`)
 
 Input `(B, 3, H, W)`, output `(B, 4 + num_classes, anchors)` of decoded boxes and class scores; `postprocess` applies NMS.
 
@@ -44,7 +44,7 @@ A CSP backbone with an SPPF pooling pyramid, a feature-pyramid neck, and an anch
 
 YOLOv8 with `C3k2` blocks and a `C2PSA` attention stage over the deepest feature map. Kernels: those of YOLOv8 plus GroupedQueryAttention.
 
-## Vision transformers
+## Vision transformers (`vision_transformer/`)
 
 Input `(B, 3, H, W)`; classifiers output `(B, num_labels)`.
 
@@ -68,7 +68,7 @@ ViT with LayerScale on both residual branches, a SwiGLU feed-forward in the gian
 
 Four encoder stages with overlapping patch embeddings, attention over spatially reduced keys and values, and a depthwise-convolution FFN; a decode head upsamples every stage to 1/4 resolution and fuses them. Output `(B, num_labels, H/4, W/4)`. Kernels: Conv2d, BatchNorm2d, LayerNorm, GroupedQueryAttention, ErfGELU, ReLU, Interpolate, Linear.
 
-## Image-text models
+## Vision-language models (`vision_language/`)
 
 Inputs `pixel_values` and `input_ids`; outputs unit-normalised image and text embeddings and their scaled cosine similarities.
 
@@ -80,7 +80,7 @@ A ViT image tower pooled at the class token and a causal text tower pooled at th
 
 CLIP without a class token: the image tower is pooled by a learned probe attending over the patches, the text tower at the last token, and the logits carry a learned bias. Kernels: Conv2d, Embedding, LayerNorm, GroupedQueryAttention, GELU, L2Norm, Linear.
 
-## Decoder language models
+## Language models (`language/`)
 
 Input `(B, L)` token ids and an optional KV cache; output `(B, L, vocab)` logits and the updated cache.
 

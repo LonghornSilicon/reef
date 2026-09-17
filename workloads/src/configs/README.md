@@ -1,6 +1,6 @@
 # Configs
 
-## Classification CNNs
+## Classification (`classification/`)
 
 ### `vgg.py`
 
@@ -44,7 +44,7 @@
 |---|---|
 | T / S / B / L / XL | 28.6M / 50.2M / 88.6M / 197.8M / 392.9M |
 
-## Detection
+## Detection (`detection/`)
 
 ### `yolov8.py`
 
@@ -59,7 +59,7 @@
 |---|---|
 | n / s / m / l / x | 2.6M / 9.5M / 20.1M / 25.4M / 57.0M |
 
-## Vision transformers
+## Vision transformers (`vision_transformer/`)
 
 ### `vit.py`
 
@@ -91,6 +91,8 @@
 |---|---|
 | B0 / B1 / B2 / B3 / B4 / B5 | 4.0M / 13.9M / 28.1M / 48.0M / 64.8M / 85.4M |
 
+## Vision-language models (`vision_language/`)
+
 ### `clip.py`
 
 | size | params |
@@ -103,7 +105,7 @@
 |---|---|
 | B/16 / L/16 / So400m/14 | 203.2M / 652.2M / 878.0M |
 
-## Decoder language models
+## Language models (`language/`)
 
 ### `gpt2.py`
 
