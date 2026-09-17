@@ -65,6 +65,21 @@ def resample_matrix(
     return matrix
 
 
+def gather_corners(
+    flat: torch.Tensor, corners: list[tuple[torch.Tensor, torch.Tensor]]
+) -> torch.Tensor:
+    """Weighted sum of ``(N, P)`` taps from ``flat (C, L)``: ``(N, C, P)``."""
+    channels = flat.shape[0]
+    out = None
+    for index, weight in corners:
+        gathered = flat[:, index.long().reshape(-1)].reshape(
+            channels, *index.shape
+        )
+        term = gathered.permute(1, 0, 2) * weight.to(flat.dtype)[:, None, :]
+        out = term if out is None else out + term
+    return out
+
+
 class Interpolate(nn.Module):
     """Resize the last two axes by nearest, bilinear or bicubic sampling."""
 
@@ -136,20 +151,17 @@ class GridSample(nn.Module):
         x1, y1 = x0 + 1, y0 + 1
         wx1, wy1 = ix - x0, iy - y0
         wx0, wy0 = 1 - wx1, 1 - wy1
-        flat = x.reshape(batch, channels, height * width)
-        out = torch.zeros(
-            batch, channels, out_h * out_w, dtype=x.dtype, device=x.device
-        )
-        corners = (
+        flat = x.permute(1, 0, 2, 3).reshape(channels, -1)
+        base = torch.arange(batch, device=x.device)[:, None] * (height * width)
+        corners = []
+        for xs, ys, weight in (
             (x0, y0, wx0 * wy0),
             (x1, y0, wx1 * wy0),
             (x0, y1, wx0 * wy1),
             (x1, y1, wx1 * wy1),
-        )
-        for xs, ys, weight in corners:
+        ):
             inside = (xs >= 0) & (xs < width) & (ys >= 0) & (ys < height)
             index = ys.clamp(0, height - 1) * width + xs.clamp(0, width - 1)
-            index = index.long()[:, None, :].expand(-1, channels, -1)
-            gathered = flat.gather(2, index)
-            out = out + gathered * (weight * inside).to(x.dtype)[:, None, :]
+            corners.append((base + index, weight * inside))
+        out = gather_corners(flat, corners)
         return out.reshape(batch, channels, out_h, out_w)

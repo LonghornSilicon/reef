@@ -7,6 +7,7 @@ from torch import nn
 
 from operators.activation import Sigmoid, Softmax
 from operators.convolution import Conv2d
+from operators.interpolation import gather_corners
 
 
 class BoxIoU(nn.Module):
@@ -218,25 +219,16 @@ class RoIAlign(nn.Module):
         hy, hx = 1 - ly, 1 - lx
         flat = features.permute(1, 0, 2, 3).reshape(channels, -1)
         base = batch_index[:, None] * (height * width)
-        out = torch.zeros(
-            ys.shape[0],
-            channels,
-            ys.shape[1],
-            dtype=features.dtype,
-            device=features.device,
-        )
-        corners = (
-            (y_low, x_low, hy * hx),
-            (y_low, x_high, hy * lx),
-            (y_high, x_low, ly * hx),
-            (y_high, x_high, ly * lx),
-        )
-        for y, x, weight in corners:
-            index = (base + y * width + x).long().reshape(-1)
-            gathered = flat[:, index].reshape(channels, *ys.shape)
-            gathered = gathered.permute(1, 0, 2)
-            out = out + gathered * (weight * inside).to(out.dtype)[:, None, :]
-        return out
+        corners = [
+            (base + y * width + x, weight * inside)
+            for y, x, weight in (
+                (y_low, x_low, hy * hx),
+                (y_low, x_high, hy * lx),
+                (y_high, x_low, ly * hx),
+                (y_high, x_high, ly * lx),
+            )
+        ]
+        return gather_corners(flat, corners)
 
     def forward(
         self, features: torch.Tensor, rois: torch.Tensor
