@@ -1,0 +1,15 @@
+model,operator,calls,macs,share
+MobileNetV3-Small,Conv2d,52,54899464,0.871891
+MobileNetV3-Small,BatchNorm2d,34,5663184,0.089940
+MobileNetV3-Small,Linear,2,1615848,0.025662
+MobileNetV3-Small,ReLU,14,470992,0.007480
+MobileNetV3-Small,AdaptiveAvgPool2d,10,316472,0.005026
+MobileNetV3-Small,Dropout,1,0,0.000000
+MobileNetV3-Small,Total,113,62965960,1
+MobileNetV3-Large,Conv2d,62,214086040,0.902610
+MobileNetV3-Large,BatchNorm2d,46,17623632,0.074303
+MobileNetV3-Large,Linear,2,2511080,0.010587
+MobileNetV3-Large,ReLU,19,2315392,0.009762
+MobileNetV3-Large,AdaptiveAvgPool2d,9,649464,0.002738
+MobileNetV3-Large,Dropout,1,0,0.000000
+MobileNetV3-Large,Total,139,237185608,1
