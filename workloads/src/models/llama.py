@@ -1,9 +1,11 @@
-"""Qwen3 causal language model built from the operator library."""
+"""Llama causal language model built from the operator library."""
+
+import math
 
 import torch
 from torch import nn
 
-from configs.qwen3 import QWEN3_CONFIGS, Qwen3Config
+from configs.llama import LLAMA_CONFIGS, LlamaConfig
 from operators.activation import SiLU
 from operators.attention import GroupedQueryAttention
 from operators.embedding import Embedding
@@ -14,10 +16,34 @@ from operators.positional import RotaryEmbedding
 LayerCache = tuple[torch.Tensor, torch.Tensor]
 
 
-class Qwen3Attention(nn.Module):
-    """Self-attention block with per-head Q/K normalization and RoPE."""
+def llama3_inv_freq(config: LlamaConfig) -> torch.Tensor:
+    scaling = config.rope_scaling
+    exponent = torch.arange(0, config.head_dim, 2, dtype=torch.float32)
+    inv_freq = 1.0 / (config.rope_theta ** (exponent / config.head_dim))
+    factor = scaling["factor"]
+    low_freq_factor = scaling["low_freq_factor"]
+    high_freq_factor = scaling["high_freq_factor"]
+    old_context_len = scaling["original_max_position_embeddings"]
+    low_freq_wavelen = old_context_len / low_freq_factor
+    high_freq_wavelen = old_context_len / high_freq_factor
+    wavelen = 2 * math.pi / inv_freq
+    # Wavelengths past the old context are divided by the factor; those
+    # shorter than the high-frequency cutoff are kept; between, interpolate.
+    scaled = torch.where(
+        wavelen > low_freq_wavelen, inv_freq / factor, inv_freq
+    )
+    smooth = (old_context_len / wavelen - low_freq_factor) / (
+        high_freq_factor - low_freq_factor
+    )
+    smoothed = (1 - smooth) * scaled / factor + smooth * scaled
+    medium = (wavelen >= high_freq_wavelen) & (wavelen <= low_freq_wavelen)
+    return torch.where(medium, smoothed, scaled)
 
-    def __init__(self, config: Qwen3Config, rotary: RotaryEmbedding) -> None:
+
+class LlamaAttention(nn.Module):
+    """Grouped-query self-attention with RoPE."""
+
+    def __init__(self, config: LlamaConfig, rotary: RotaryEmbedding) -> None:
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
@@ -29,8 +55,6 @@ class Qwen3Attention(nn.Module):
         self.k_proj = Linear(config.hidden_size, kv_dim, bias=bias)
         self.v_proj = Linear(config.hidden_size, kv_dim, bias=bias)
         self.o_proj = Linear(query_dim, config.hidden_size, bias=bias)
-        self.q_norm = RMSNorm(self.head_dim, eps=config.rms_norm_eps)
-        self.k_norm = RMSNorm(self.head_dim, eps=config.rms_norm_eps)
         self.rotary = rotary
         self.attention = GroupedQueryAttention(
             self.num_heads, self.num_kv_heads, self.head_dim
@@ -53,11 +77,9 @@ class Qwen3Attention(nn.Module):
         value = self.v_proj(x).reshape(
             batch, length, self.num_kv_heads, self.head_dim
         )
-        query = self.q_norm(query).transpose(1, 2)
-        key = self.k_norm(key).transpose(1, 2)
+        query = self.rotary.apply_rotary(query.transpose(1, 2), cos, sin)
+        key = self.rotary.apply_rotary(key.transpose(1, 2), cos, sin)
         value = value.transpose(1, 2)
-        query = self.rotary.apply_rotary(query, cos, sin)
-        key = self.rotary.apply_rotary(key, cos, sin)
         if past is not None:
             past_key, past_value = past
             key = torch.cat((past_key, key), dim=2)
@@ -69,28 +91,29 @@ class Qwen3Attention(nn.Module):
         return self.o_proj(out), (key, value)
 
 
-class Qwen3MLP(nn.Module):
+class LlamaMLP(nn.Module):
     """Gated feed-forward network with a SiLU gate."""
 
-    def __init__(self, config: Qwen3Config) -> None:
+    def __init__(self, config: LlamaConfig) -> None:
         super().__init__()
         hidden, inner = config.hidden_size, config.intermediate_size
-        self.gate_proj = Linear(hidden, inner, bias=False)
-        self.up_proj = Linear(hidden, inner, bias=False)
-        self.down_proj = Linear(inner, hidden, bias=False)
+        bias = config.mlp_bias
+        self.gate_proj = Linear(hidden, inner, bias=bias)
+        self.up_proj = Linear(hidden, inner, bias=bias)
+        self.down_proj = Linear(inner, hidden, bias=bias)
         self.act_fn = SiLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
 
-class Qwen3DecoderLayer(nn.Module):
+class LlamaDecoderLayer(nn.Module):
     """Pre-norm transformer block: attention then feed-forward."""
 
-    def __init__(self, config: Qwen3Config, rotary: RotaryEmbedding) -> None:
+    def __init__(self, config: LlamaConfig, rotary: RotaryEmbedding) -> None:
         super().__init__()
-        self.self_attn = Qwen3Attention(config, rotary)
-        self.mlp = Qwen3MLP(config)
+        self.self_attn = LlamaAttention(config, rotary)
+        self.mlp = LlamaMLP(config)
         self.input_layernorm = RMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
         )
@@ -113,16 +136,21 @@ class Qwen3DecoderLayer(nn.Module):
         return x, present
 
 
-class Qwen3Model(nn.Module):
+class LlamaModel(nn.Module):
     """Embedding table, decoder stack and final norm."""
 
-    def __init__(self, config: Qwen3Config) -> None:
+    def __init__(self, config: LlamaConfig) -> None:
         super().__init__()
         self.config = config
         self.embed_tokens = Embedding(config.vocab_size, config.hidden_size)
-        self.rotary = RotaryEmbedding(config.head_dim, config.rope_theta)
+        inv_freq = (
+            None if config.rope_scaling is None else llama3_inv_freq(config)
+        )
+        self.rotary = RotaryEmbedding(
+            config.head_dim, config.rope_theta, inv_freq=inv_freq
+        )
         self.layers = nn.ModuleList(
-            Qwen3DecoderLayer(config, self.rotary)
+            LlamaDecoderLayer(config, self.rotary)
             for _ in range(config.num_hidden_layers)
         )
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -149,13 +177,13 @@ class Qwen3Model(nn.Module):
         return self.norm(x), cache
 
 
-class Qwen3ForCausalLM(nn.Module):
-    """Qwen3 decoder with a language-modeling head."""
+class LlamaForCausalLM(nn.Module):
+    """Llama decoder with a language-modeling head."""
 
-    def __init__(self, config: Qwen3Config) -> None:
+    def __init__(self, config: LlamaConfig) -> None:
         super().__init__()
         self.config = config
-        self.model = Qwen3Model(config)
+        self.model = LlamaModel(config)
         self.lm_head = Linear(config.hidden_size, config.vocab_size, bias=False)
         if config.tie_word_embeddings:
             self.lm_head.weight = self.model.embed_tokens.weight
@@ -182,8 +210,8 @@ class Qwen3ForCausalLM(nn.Module):
         return generated
 
 
-def qwen3(key: str) -> Qwen3ForCausalLM:
-    if key not in QWEN3_CONFIGS:
-        known = ", ".join(QWEN3_CONFIGS)
-        raise KeyError(f"unknown Qwen3 size {key!r}; known sizes: {known}")
-    return Qwen3ForCausalLM(QWEN3_CONFIGS[key])
+def llama(key: str) -> LlamaForCausalLM:
+    if key not in LLAMA_CONFIGS:
+        known = ", ".join(LLAMA_CONFIGS)
+        raise KeyError(f"unknown Llama size {key!r}; known sizes: {known}")
+    return LlamaForCausalLM(LLAMA_CONFIGS[key])

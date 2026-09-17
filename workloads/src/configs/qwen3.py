@@ -30,56 +30,10 @@ QWEN3_0_6B = Qwen3Config(
     tie_word_embeddings=True,
 )
 
-QWEN3_1_7B = Qwen3Config(
-    hidden_size=2048,
-    intermediate_size=6144,
-    num_hidden_layers=28,
-    num_attention_heads=16,
-    num_key_value_heads=8,
-    tie_word_embeddings=True,
-)
-
-QWEN3_4B = Qwen3Config(
-    hidden_size=2560,
-    intermediate_size=9728,
-    num_hidden_layers=36,
-    num_attention_heads=32,
-    num_key_value_heads=8,
-    tie_word_embeddings=True,
-)
-
-QWEN3_8B = Qwen3Config(
-    hidden_size=4096,
-    intermediate_size=12288,
-    num_hidden_layers=36,
-    num_attention_heads=32,
-    num_key_value_heads=8,
-    tie_word_embeddings=False,
-)
-
-QWEN3_14B = Qwen3Config(
-    hidden_size=5120,
-    intermediate_size=17408,
-    num_hidden_layers=40,
-    num_attention_heads=40,
-    num_key_value_heads=8,
-    tie_word_embeddings=False,
-)
-
-QWEN3_32B = Qwen3Config(
-    hidden_size=5120,
-    intermediate_size=25600,
-    num_hidden_layers=64,
-    num_attention_heads=64,
-    num_key_value_heads=8,
-    tie_word_embeddings=False,
-)
-
 QWEN3_CONFIGS = {
     "Qwen3-0.6B": QWEN3_0_6B,
-    "Qwen3-1.7B": QWEN3_1_7B,
-    "Qwen3-4B": QWEN3_4B,
-    "Qwen3-8B": QWEN3_8B,
-    "Qwen3-14B": QWEN3_14B,
-    "Qwen3-32B": QWEN3_32B,
+}
+
+QWEN3_REPOS = {
+    "Qwen3-0.6B": "Qwen/Qwen3-0.6B",
 }

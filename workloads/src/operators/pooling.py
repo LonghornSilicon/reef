@@ -75,47 +75,6 @@ class MaxPool2d(nn.Module):
         return patches[:, :, :out_h, :out_w].amax(dim=(-2, -1))
 
 
-class AvgPool2d(nn.Module):
-    """Square-window average pooling."""
-
-    def __init__(
-        self,
-        kernel_size: int,
-        stride: int | None = None,
-        padding: Padding = 0,
-        ceil_mode: bool = False,
-        count_include_pad: bool = True,
-    ) -> None:
-        super().__init__()
-        self.kernel_size = kernel_size
-        self.stride = kernel_size if stride is None else stride
-        self.padding = padding
-        self.ceil_mode = ceil_mode
-        self.count_include_pad = count_include_pad
-
-    def total(self, x: torch.Tensor, out_h: int, out_w: int) -> torch.Tensor:
-        patches = windows2d(x, self.kernel_size, self.stride)
-        return patches[:, :, :out_h, :out_w].sum(dim=(-2, -1))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        padded, out_h, out_w = pad_windows(
-            x, self.kernel_size, self.stride, self.padding, self.ceil_mode, 0.0
-        )
-        # The divisor counts the explicit padding only when count_include_pad,
-        # and never the ceil_mode overhang, matching F.avg_pool2d.
-        counted = pad2d(
-            torch.ones_like(x[:1, :1]),
-            self.padding,
-            1.0 if self.count_include_pad else 0.0,
-        )
-        overhang_h = padded.shape[2] - counted.shape[2]
-        overhang_w = padded.shape[3] - counted.shape[3]
-        counted = pad2d(counted, (0, overhang_w, 0, overhang_h), 0.0)
-        return self.total(padded, out_h, out_w) / self.total(
-            counted, out_h, out_w
-        )
-
-
 class AdaptiveAvgPool2d(nn.Module):
     """Average pooling onto a fixed output grid of any size."""
 

@@ -1,49 +1,36 @@
-"""Gemma 3 causal language model built from the operator library."""
+"""Qwen2.5 causal language model built from the operator library."""
 
 import torch
 from torch import nn
 
-from configs.gemma3 import GEMMA3_CONFIGS, Gemma3Config
-from operators.activation import GELU
+from configs.qwen2 import QWEN2_CONFIGS, Qwen2Config
+from operators.activation import SiLU
 from operators.attention import GroupedQueryAttention
 from operators.embedding import Embedding
 from operators.linear import Linear
-from operators.normalization import GemmaRMSNorm
+from operators.normalization import RMSNorm
 from operators.positional import RotaryEmbedding
 
 LayerCache = tuple[torch.Tensor, torch.Tensor]
 
 
-class Gemma3Attention(nn.Module):
-    """Self-attention with per-head Q/K normalization and RoPE."""
+class Qwen2Attention(nn.Module):
+    """Grouped-query self-attention with RoPE and biased Q/K/V projections."""
 
-    def __init__(
-        self,
-        config: Gemma3Config,
-        rotary: RotaryEmbedding,
-        sliding: bool,
-    ) -> None:
+    def __init__(self, config: Qwen2Config, rotary: RotaryEmbedding) -> None:
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
-        self.head_dim = config.head_dim
-        self.sliding = sliding
-        query_dim = self.num_heads * self.head_dim
+        self.head_dim = config.hidden_size // self.num_heads
         kv_dim = self.num_kv_heads * self.head_dim
-        bias = config.attention_bias
-        self.q_proj = Linear(config.hidden_size, query_dim, bias=bias)
+        bias = config.qkv_bias
+        self.q_proj = Linear(config.hidden_size, config.hidden_size, bias=bias)
         self.k_proj = Linear(config.hidden_size, kv_dim, bias=bias)
         self.v_proj = Linear(config.hidden_size, kv_dim, bias=bias)
-        self.o_proj = Linear(query_dim, config.hidden_size, bias=bias)
-        self.q_norm = GemmaRMSNorm(self.head_dim, eps=config.rms_norm_eps)
-        self.k_norm = GemmaRMSNorm(self.head_dim, eps=config.rms_norm_eps)
+        self.o_proj = Linear(config.hidden_size, config.hidden_size, bias=False)
         self.rotary = rotary
         self.attention = GroupedQueryAttention(
-            self.num_heads,
-            self.num_kv_heads,
-            self.head_dim,
-            scale=config.query_pre_attn_scalar**-0.5,
-            sliding_window=config.sliding_window if sliding else None,
+            self.num_heads, self.num_kv_heads, self.head_dim
         )
 
     def forward(
@@ -53,7 +40,7 @@ class Gemma3Attention(nn.Module):
         sin: torch.Tensor,
         past: LayerCache | None,
     ) -> tuple[torch.Tensor, LayerCache]:
-        batch, length, _ = x.shape
+        batch, length, hidden = x.shape
         query = self.q_proj(x).reshape(
             batch, length, self.num_heads, self.head_dim
         )
@@ -63,54 +50,46 @@ class Gemma3Attention(nn.Module):
         value = self.v_proj(x).reshape(
             batch, length, self.num_kv_heads, self.head_dim
         )
-        query = self.q_norm(query).transpose(1, 2)
-        key = self.k_norm(key).transpose(1, 2)
+        query = self.rotary.apply_rotary(query.transpose(1, 2), cos, sin)
+        key = self.rotary.apply_rotary(key.transpose(1, 2), cos, sin)
         value = value.transpose(1, 2)
-        query = self.rotary.apply_rotary(query, cos, sin)
-        key = self.rotary.apply_rotary(key, cos, sin)
         if past is not None:
             past_key, past_value = past
             key = torch.cat((past_key, key), dim=2)
             value = torch.cat((past_value, value), dim=2)
         out = self.attention(query, key, value)
-        out = out.transpose(1, 2).reshape(
-            batch, length, self.num_heads * self.head_dim
-        )
+        out = out.transpose(1, 2).reshape(batch, length, hidden)
         return self.o_proj(out), (key, value)
 
 
-class Gemma3MLP(nn.Module):
-    """Gated feed-forward network with a GELU gate."""
+class Qwen2MLP(nn.Module):
+    """Gated feed-forward network with a SiLU gate."""
 
-    def __init__(self, config: Gemma3Config) -> None:
+    def __init__(self, config: Qwen2Config) -> None:
         super().__init__()
         hidden, inner = config.hidden_size, config.intermediate_size
         self.gate_proj = Linear(hidden, inner, bias=False)
         self.up_proj = Linear(hidden, inner, bias=False)
         self.down_proj = Linear(inner, hidden, bias=False)
-        self.act_fn = GELU()
+        self.act_fn = SiLU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
 
-class Gemma3DecoderLayer(nn.Module):
-    """Transformer block with both blocks normalized on entry and exit."""
+class Qwen2DecoderLayer(nn.Module):
+    """Pre-norm transformer block: attention then feed-forward."""
 
-    def __init__(
-        self,
-        config: Gemma3Config,
-        rotary: RotaryEmbedding,
-        sliding: bool,
-    ) -> None:
+    def __init__(self, config: Qwen2Config, rotary: RotaryEmbedding) -> None:
         super().__init__()
-        hidden, eps = config.hidden_size, config.rms_norm_eps
-        self.self_attn = Gemma3Attention(config, rotary, sliding)
-        self.mlp = Gemma3MLP(config)
-        self.input_layernorm = GemmaRMSNorm(hidden, eps=eps)
-        self.post_attention_layernorm = GemmaRMSNorm(hidden, eps=eps)
-        self.pre_feedforward_layernorm = GemmaRMSNorm(hidden, eps=eps)
-        self.post_feedforward_layernorm = GemmaRMSNorm(hidden, eps=eps)
+        self.self_attn = Qwen2Attention(config, rotary)
+        self.mlp = Qwen2MLP(config)
+        self.input_layernorm = RMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps
+        )
+        self.post_attention_layernorm = RMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps
+        )
 
     def forward(
         self,
@@ -122,38 +101,26 @@ class Gemma3DecoderLayer(nn.Module):
         attended, present = self.self_attn(
             self.input_layernorm(x), cos, sin, past
         )
-        x = x + self.post_attention_layernorm(attended)
-        fed = self.mlp(self.pre_feedforward_layernorm(x))
-        x = x + self.post_feedforward_layernorm(fed)
+        x = x + attended
+        x = x + self.mlp(self.post_attention_layernorm(x))
         return x, present
 
 
-class Gemma3TextModel(nn.Module):
+class Qwen2Model(nn.Module):
     """Embedding table, decoder stack and final norm."""
 
-    def __init__(self, config: Gemma3Config) -> None:
+    def __init__(self, config: Qwen2Config) -> None:
         super().__init__()
         self.config = config
         self.embed_tokens = Embedding(config.vocab_size, config.hidden_size)
-        self.rotary_local = RotaryEmbedding(
-            config.head_dim, config.rope_local_base_freq
-        )
-        self.rotary_global = RotaryEmbedding(
-            config.head_dim,
-            config.rope_global_base_freq,
-            scaling_factor=config.rope_global_scaling,
+        self.rotary = RotaryEmbedding(
+            config.hidden_size // config.num_attention_heads, config.rope_theta
         )
         self.layers = nn.ModuleList(
-            Gemma3DecoderLayer(
-                config,
-                self.rotary_local
-                if config.is_sliding(index)
-                else self.rotary_global,
-                sliding=config.is_sliding(index),
-            )
-            for index in range(config.num_hidden_layers)
+            Qwen2DecoderLayer(config, self.rotary)
+            for _ in range(config.num_hidden_layers)
         )
-        self.norm = GemmaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(
         self,
@@ -165,32 +132,25 @@ class Gemma3TextModel(nn.Module):
             0 if past_key_values is None else past_key_values[0][0].shape[2]
         )
         x = self.embed_tokens(input_ids)
-        # A tensor in x.dtype, not a Python float, to round like the reference.
-        scale = torch.tensor(
-            self.config.hidden_size**0.5, dtype=x.dtype, device=x.device
-        )
-        x = x * scale
         positions = torch.arange(
             past_length, past_length + length, device=input_ids.device
         )
-        local = self.rotary_local(positions, x.dtype)
-        glob = self.rotary_global(positions, x.dtype)
+        cos, sin = self.rotary(positions, x.dtype)
         cache: list[LayerCache] = []
         for index, layer in enumerate(self.layers):
             past = None if past_key_values is None else past_key_values[index]
-            cos, sin = local if self.config.is_sliding(index) else glob
             x, present = layer(x, cos, sin, past)
             cache.append(present)
         return self.norm(x), cache
 
 
-class Gemma3ForCausalLM(nn.Module):
-    """Gemma 3 decoder with a language-modeling head."""
+class Qwen2ForCausalLM(nn.Module):
+    """Qwen2.5 decoder with a language-modeling head."""
 
-    def __init__(self, config: Gemma3Config) -> None:
+    def __init__(self, config: Qwen2Config) -> None:
         super().__init__()
         self.config = config
-        self.model = Gemma3TextModel(config)
+        self.model = Qwen2Model(config)
         self.lm_head = Linear(config.hidden_size, config.vocab_size, bias=False)
         if config.tie_word_embeddings:
             self.lm_head.weight = self.model.embed_tokens.weight
@@ -217,8 +177,8 @@ class Gemma3ForCausalLM(nn.Module):
         return generated
 
 
-def gemma3(name: str) -> Gemma3ForCausalLM:
-    if name not in GEMMA3_CONFIGS:
-        known = ", ".join(GEMMA3_CONFIGS)
-        raise KeyError(f"unknown Gemma 3 size {name!r}; known sizes: {known}")
-    return Gemma3ForCausalLM(GEMMA3_CONFIGS[name])
+def qwen2(key: str) -> Qwen2ForCausalLM:
+    if key not in QWEN2_CONFIGS:
+        known = ", ".join(QWEN2_CONFIGS)
+        raise KeyError(f"unknown Qwen2.5 size {key!r}; known sizes: {known}")
+    return Qwen2ForCausalLM(QWEN2_CONFIGS[key])

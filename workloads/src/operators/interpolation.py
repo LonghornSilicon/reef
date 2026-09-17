@@ -1,4 +1,4 @@
-"""Resampling operators built from per-axis index and weight tables."""
+"""Resizing by nearest, bilinear or bicubic sampling."""
 
 import math
 
@@ -65,21 +65,6 @@ def resample_matrix(
     return matrix
 
 
-def gather_corners(
-    flat: torch.Tensor, corners: list[tuple[torch.Tensor, torch.Tensor]]
-) -> torch.Tensor:
-    """Weighted sum of ``(N, P)`` taps from ``flat (C, L)``: ``(N, C, P)``."""
-    channels = flat.shape[0]
-    out = None
-    for index, weight in corners:
-        gathered = flat[:, index.long().reshape(-1)].reshape(
-            channels, *index.shape
-        )
-        term = gathered.permute(1, 0, 2) * weight.to(flat.dtype)[:, None, :]
-        out = term if out is None else out + term
-    return out
-
-
 class Interpolate(nn.Module):
     """Resize the last two axes by nearest, bilinear or bicubic sampling."""
 
@@ -123,45 +108,3 @@ class Interpolate(nn.Module):
         rows = rows.to(dtype=x.dtype, device=x.device)
         cols = cols.to(dtype=x.dtype, device=x.device)
         return torch.matmul(rows, torch.matmul(x, cols.transpose(0, 1)))
-
-
-class GridSample(nn.Module):
-    """Bilinear sampling at normalized coordinates, zero outside the input."""
-
-    def __init__(self, align_corners: bool = False) -> None:
-        super().__init__()
-        self.align_corners = align_corners
-
-    def unnormalize(self, coords: torch.Tensor, size: int) -> torch.Tensor:
-        if self.align_corners:
-            return (coords + 1) / 2 * (size - 1)
-        return ((coords + 1) * size - 1) / 2
-
-    def forward(self, x: torch.Tensor, grid: torch.Tensor) -> torch.Tensor:
-        # x: (batch, channels, height, width)
-        # grid: (batch, out_h, out_w, 2) holding (x, y) in [-1, 1]
-        batch, channels, height, width = x.shape
-        out_h, out_w = grid.shape[1:3]
-        # Coordinates in float32: F.grid_sample's bf16 kernel keeps them in
-        # bf16 and picks the wrong tap near integers (measured 6e-2 off fp32).
-        coords = grid.reshape(batch, -1, 2).to(torch.float32)
-        ix = self.unnormalize(coords[..., 0], width)
-        iy = self.unnormalize(coords[..., 1], height)
-        x0, y0 = ix.floor(), iy.floor()
-        x1, y1 = x0 + 1, y0 + 1
-        wx1, wy1 = ix - x0, iy - y0
-        wx0, wy0 = 1 - wx1, 1 - wy1
-        flat = x.permute(1, 0, 2, 3).reshape(channels, -1)
-        base = torch.arange(batch, device=x.device)[:, None] * (height * width)
-        corners = []
-        for xs, ys, weight in (
-            (x0, y0, wx0 * wy0),
-            (x1, y0, wx1 * wy0),
-            (x0, y1, wx0 * wy1),
-            (x1, y1, wx1 * wy1),
-        ):
-            inside = (xs >= 0) & (xs < width) & (ys >= 0) & (ys < height)
-            index = ys.clamp(0, height - 1) * width + xs.clamp(0, width - 1)
-            corners.append((base + index, weight * inside))
-        out = gather_corners(flat, corners)
-        return out.reshape(batch, channels, out_h, out_w)

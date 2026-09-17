@@ -11,13 +11,6 @@ class ReLU(nn.Module):
         return torch.where(x > 0, x, torch.zeros_like(x))
 
 
-class ReLU6(nn.Module):
-    """Rectified linear unit capped at 6."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x.clamp(min=0.0, max=6.0)
-
-
 class SiLU(nn.Module):
     """Sigmoid linear unit, ``x * sigmoid(x)``."""
 
@@ -30,13 +23,6 @@ class Sigmoid(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(x)
-
-
-class Tanh(nn.Module):
-    """Hyperbolic tangent."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.tanh(x)
 
 
 class Softmax(nn.Module):
@@ -53,7 +39,7 @@ class Softmax(nn.Module):
 
 
 class GELU(nn.Module):
-    """GELU, tanh approximation (Gemma 3's gelu_pytorch_tanh, not erf)."""
+    """GELU, tanh approximation (gelu_pytorch_tanh, not erf)."""
 
     #: sqrt(2 / pi).
     COEFFICIENT = 0.7978845608028654

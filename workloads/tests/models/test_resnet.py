@@ -83,4 +83,4 @@ def test_bottleneck_places_stride_on_the_3x3() -> None:
 
 def test_unknown_depth_is_rejected() -> None:
     with pytest.raises(KeyError, match="unknown ResNet depth"):
-        resnet("ResNet-152")
+        resnet("ResNet-200")

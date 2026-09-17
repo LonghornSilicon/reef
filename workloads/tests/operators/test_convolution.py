@@ -16,7 +16,7 @@ CASES = [
     (6, 4, 5, 2, 2, True),
     (4, 4, 1, 1, 0, False),
     (2, 5, 3, 2, 0, False),
-    (3, 64, 11, 4, 2, True),  # AlexNet's first convolution.
+    (3, 64, 11, 4, 2, True),  # 11x11 stride-4 stem.
 ]
 
 

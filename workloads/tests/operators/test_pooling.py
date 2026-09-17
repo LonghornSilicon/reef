@@ -15,7 +15,7 @@ MAXPOOL_CASES = [
     (14, 3, 2),
     (16, 2, 2),
     (8, 3, 1),
-    (55, 3, 2),  # AlexNet's first pooling stage at 224x224 input.
+    (55, 3, 2),  # First pooling stage of a 224x224 conv stem.
 ]
 
 # (input_size, kernel_size, stride, padding)
@@ -29,7 +29,7 @@ MAXPOOL_PADDED_CASES = [
 # (input_h, input_w, output_h, output_w)
 ADAPTIVE_CASES = [
     (13, 13, 6, 6),  # Not divisible: windows overlap.
-    (7, 7, 6, 6),  # AlexNet's avgpool at 256x256 input.
+    (7, 7, 6, 6),  # 7x7 map onto a 6x6 grid: overlapping windows.
     (6, 6, 6, 6),  # Identity.
     (12, 12, 6, 6),  # Exactly divisible.
     (10, 10, 3, 4),  # Non-square output.
