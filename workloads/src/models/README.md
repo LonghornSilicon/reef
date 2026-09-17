@@ -2,8 +2,6 @@
 
 Each file rebuilds one architecture using only kernels from `operators/`.
 
-Not kernels, and written as plain tensor code: reshapes, concatenation, windowing, patch folding, KV-cache concatenation, residual adds, and one-off inline expressions (QuickGELU, Hardswish, LayerScale, ALiBi slopes).
-
 ---
 
 ## Classification CNNs
