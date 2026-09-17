@@ -9,7 +9,6 @@ __pycache__/
 .venv/
 
 # Workload artifacts
-results/
 logs/
 *.onnx
 *.pt
