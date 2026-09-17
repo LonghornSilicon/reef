@@ -10,6 +10,7 @@ __pycache__/
 
 # Workload artifacts
 logs/
+results/**/*.png
 *.onnx
 *.pt
 *.safetensors
