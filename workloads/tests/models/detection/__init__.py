@@ -1,1 +1,0 @@
-"""Detection model equivalence tests."""

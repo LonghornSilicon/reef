@@ -1,9 +1,0 @@
-model,operator,calls,macs,share
-Qwen3-0.6B,Linear,197,76286001152,0.973733
-Qwen3-0.6B,GroupedQueryAttention,28,1886388224,0.024078
-Qwen3-0.6B,RMSNorm,113,74204544,0.000947
-Qwen3-0.6B,RotaryEmbedding,57,38576128,0.000492
-Qwen3-0.6B,Softmax,28,36700160,0.000468
-Qwen3-0.6B,SiLU,28,22020096,0.000281
-Qwen3-0.6B,Embedding,1,0,0.000000
-Qwen3-0.6B,Total,452,78343890304,1

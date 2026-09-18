@@ -49,13 +49,3 @@ class GELU(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         inner = self.COEFFICIENT * (x + self.CUBIC * x.pow(3))
         return 0.5 * x * (1.0 + torch.tanh(inner))
-
-
-class ErfGELU(nn.Module):
-    """GELU, exact form (BERT and ViT's ``gelu``, not the tanh one)."""
-
-    #: 1 / sqrt(2).
-    SCALE = 0.7071067811865476
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return 0.5 * x * (1.0 + torch.erf(x * self.SCALE))

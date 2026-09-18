@@ -13,7 +13,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 from torch import nn
 
-from models.language.gpt2 import Conv1D
+from models.gpt2 import Conv1D
 from operators.pooling import AdaptiveAvgPool2d
 
 RESULTS = Path(__file__).resolve().parents[1] / "results" / "operator_macs"
@@ -88,12 +88,6 @@ def batch_norm(
     return 4 * x.numel() + 2 * x.shape[1]
 
 
-def l2_norm(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
-    x = args[0]
-    vectors = x.numel() // x.shape[module.dim]
-    return 3 * x.numel() + 2 * vectors
-
-
 def max_pool(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     return out.numel() * module.kernel_size**2
 
@@ -115,22 +109,6 @@ def adaptive_avg_pool(
     return batch * channels * area + out.numel()
 
 
-INTERPOLATION_TAPS = {"nearest": 1, "bilinear": 2, "bicubic": 4}
-
-
-def interpolate(
-    module: nn.Module, args: tuple, kwargs: dict, out: object
-) -> int:
-    x = args[0]
-    height, width = x.shape[-2:]
-    out_h, out_w = out.shape[-2:]
-    leading = x.numel() // (height * width)
-    taps = INTERPOLATION_TAPS[module.mode]
-    # Separable R x Qᵀ counted by its nonzero taps, not the dense matmul the
-    # kernel runs: columns first, then rows.
-    return leading * taps * (height * out_w + out_h * out_w)
-
-
 def rotary_tables(
     module: nn.Module, args: tuple, kwargs: dict, out: object
 ) -> int:
@@ -145,13 +123,6 @@ def rotary_apply(module: nn.Module, x: torch.Tensor) -> int:
     return 3 * rotated + rotated // 2
 
 
-def distance_to_box(
-    module: nn.Module, args: tuple, kwargs: dict, out: object
-) -> int:
-    # Two subtracts and two adds per anchor; xywh adds six more.
-    return out.numel() * 5 // 2 if module.xywh else out.numel()
-
-
 def free(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     return 0
 
@@ -164,20 +135,15 @@ FORMULAS: dict[str, Formula] = {
     "ReLU": elementwise(1),
     "Sigmoid": elementwise(1),
     "SiLU": elementwise(2),
-    "ErfGELU": elementwise(5),
     "GELU": elementwise(9),
     "LayerNorm": layer_norm,
     "RMSNorm": rms_norm,
     "BatchNorm2d": batch_norm,
-    "L2Norm": l2_norm,
     "MaxPool2d": max_pool,
     "AdaptiveAvgPool2d": adaptive_avg_pool,
-    "Interpolate": interpolate,
     "RotaryEmbedding": rotary_tables,
     "Embedding": free,
     "Dropout": free,
-    "DFL": free,
-    "DistanceToBox": distance_to_box,
 }
 
 
@@ -234,51 +200,22 @@ def image(size: int) -> Callable[[object], Inputs]:
     return lambda config: (torch.randn(BATCH, 3, size, size),)
 
 
-def config_image(config: object) -> Inputs:
-    size = config.image_size
-    return (torch.randn(BATCH, 3, size, size),)
-
-
 def tokens(config: object) -> Inputs:
     return (torch.randint(0, 100, (BATCH, SEQ_LEN)),)
 
 
-def text_image(config: object) -> Inputs:
-    length = config.text.max_position_embeddings
-    size = config.vision.image_size
-    return (
-        torch.randint(0, 100, (BATCH, length)),
-        torch.randn(BATCH, 3, size, size),
-    )
-
-
-FAMILIES: dict[str, tuple[str, Callable[[object], Inputs]]] = {
-    "vgg": ("classification", image(224)),
-    "googlenet": ("classification", image(224)),
-    "resnet": ("classification", image(224)),
-    "mobilenet_v3": ("classification", image(224)),
-    "efficientnet": ("classification", image(224)),
-    "convnext": ("classification", image(224)),
-    "yolov8": ("detection", image(640)),
-    "yolo11": ("detection", image(640)),
-    "vit": ("vision_transformer", config_image),
-    "swin": ("vision_transformer", config_image),
-    "mobilevit": ("vision_transformer", config_image),
-    "dinov2": ("vision_transformer", config_image),
-    "segformer": ("vision_transformer", image(512)),
-    "clip": ("vision_language", text_image),
-    "siglip": ("vision_language", text_image),
-    "gpt2": ("language", tokens),
-    "bloom": ("language", tokens),
-    "llama": ("language", tokens),
-    "qwen2": ("language", tokens),
-    "qwen3": ("language", tokens),
+FAMILIES: dict[str, Callable[[object], Inputs]] = {
+    "googlenet": image(224),
+    "resnet": image(224),
+    "efficientnet": image(224),
+    "gpt2": tokens,
+    "llama": tokens,
 }
 
 
 def count(family: str, key: str, config: object) -> dict[str, list[int]]:
-    category, inputs = FAMILIES[family]
-    module = importlib.import_module(f"models.{category}.{family}")
+    inputs = FAMILIES[family]
+    module = importlib.import_module(f"models.{family}")
     build = getattr(module, family)
     # Meta tensors carry shapes without storage, so even the billion-parameter
     # models cost nothing to run.
@@ -373,9 +310,8 @@ def plot(family: str, results: dict[str, Ranked], path: Path) -> None:
 
 
 def run(family: str) -> None:
-    category = FAMILIES[family][0]
     configs = getattr(
-        importlib.import_module(f"configs.{category}.{family}"),
+        importlib.import_module(f"configs.{family}"),
         f"{family.upper()}_CONFIGS",
     )
     rows = []
@@ -393,13 +329,12 @@ def run(family: str) -> None:
             rows.append([key, operator, calls, macs, f"{share:.6f}"])
         calls = sum(calls for calls, _ in totals.values())
         rows.append([key, "Total", calls, total, "1"])
-    folder = RESULTS / category
-    folder.mkdir(parents=True, exist_ok=True)
-    with open(folder / f"{family}.csv", "w", newline="") as file:
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    with open(RESULTS / f"{family}.csv", "w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["model", "operator", "calls", "macs", "share"])
         writer.writerows(rows)
-    plot(family, results, folder / f"{family}.png")
+    plot(family, results, RESULTS / f"{family}.png")
 
 
 def main() -> None:

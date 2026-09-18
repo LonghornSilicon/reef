@@ -75,14 +75,6 @@ All apply to each element on its own.
 \mathrm{GELU}(x) = \frac{x}{2} \left( 1 + \tanh\left( \sqrt{2/\pi} \, \left( x + 0.044715 \, x^3 \right) \right) \right)
 ```
 
-### ErfGELU
-
-The exact form, $x$ times the Gaussian CDF:
-
-```math
-\mathrm{GELU}(x) = \frac{x}{2} \left( 1 + \mathrm{erf}\left( \frac{x}{\sqrt{2}} \right) \right)
-```
-
 ### Softmax
 
 Turns a vector into probabilities that sum to 1. Subtracting the maximum $m = \max_j x_j$ first leaves the result unchanged but keeps $e^{x}$ from overflowing:
@@ -121,14 +113,6 @@ Subtracts the mean and divides by the standard deviation over the last axis, the
 \mu = \frac{1}{d} \sum_{i=1}^{d} x_i, \qquad
 \sigma^2 = \frac{1}{d} \sum_{i=1}^{d} (x_i - \mu)^2, \qquad
 y = \gamma \odot \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta
-```
-
-### L2Norm
-
-Scales each vector along an axis to unit length. The clamp keeps a zero vector from dividing by zero:
-
-```math
-y = \frac{x}{\max(\|x\|_2, \epsilon)}
 ```
 
 ### BatchNorm2d
@@ -192,32 +176,13 @@ Averages over windows sized to hit a fixed output grid $H_o \times W_o$. Output 
 
 and columns work the same way. $y_{c,i,j}$ is the mean of the input inside that window. When $H$ is not a multiple of $H_o$, neighbouring windows overlap.
 
-## `interpolation.py`
-
-### Interpolate
-
-Resizes the last two axes separably: one weight matrix per axis, $R \in \mathbb{R}^{H_o \times H}$ and $Q \in \mathbb{R}^{W_o \times W}$, so that
-
-```math
-y = R \, x \, Q^\top
-```
-
-Output index $i$ maps to source coordinate $u$ with ratio $\rho = H / H_o$ (or $1 / \text{scale factor}$ when one is given):
-
-```math
-u = (i + \tfrac12)\, \rho - \tfrac12 \quad\text{(default)}, \qquad
-u = i \, \frac{H - 1}{H_o - 1} \quad\text{(align corners)}
-```
-
-Row $i$ of $R$ then holds the tap weights around $u$: one weight of 1 at $\lfloor i \rho \rfloor$ for `nearest`; $(1 - t, t)$ at $\lfloor u \rfloor, \lfloor u \rfloor + 1$ with $t = u - \lfloor u \rfloor$ for `bilinear` (after clamping $u \ge 0$); and Keys' cubic kernel with $a = -0.75$ on the four taps $\lfloor u \rfloor - 1 \ldots \lfloor u \rfloor + 2$ for `bicubic`. Taps past the edge clamp to the edge, so their weights pile up on the border pixel.
-
 ## `attention.py`
 
 ### GroupedQueryAttention
 
 Inputs are queries $Q$ of shape $(B, h, L_q, d)$ and keys and values $K, V$ of shape $(B, h_{kv}, L_k, d)$. Each of the $h_{kv}$ key/value heads is shared by $h / h_{kv}$ query heads, so $K$ and $V$ are first repeated along the head axis to $h$ heads.
 
-**1. Scores.** How much each query matches each key. The scale is $1/\sqrt{d}$ by default. An optional additive bias $A$ (Swin's relative position table, ALiBi) is added here:
+**1. Scores.** How much each query matches each key. The scale is $1/\sqrt{d}$ by default. An optional additive bias $A$ (ALiBi) is added here:
 
 ```math
 S = \frac{Q K^\top}{\sqrt{d}} + A
@@ -235,44 +200,10 @@ and, with a sliding window of size $w$, also
 j > q - w \qquad \text{(only the } w \text{ most recent positions, including itself)}
 ```
 
-An optional boolean mask (true where disallowed) is OR-ed in; padding masks and Swin's shifted-window mask arrive this way. Disallowed scores are set to $-\infty$, which the code approximates with the dtype's most negative value, so a fully masked row softmaxes to uniform rather than NaN.
+An optional boolean mask (true where disallowed) is OR-ed in; padding masks arrive this way. Disallowed scores are set to $-\infty$, which the code approximates with the dtype's most negative value, so a fully masked row softmaxes to uniform rather than NaN.
 
 **3. Weights and output.** Each query's scores become probabilities, which mix the values:
 
 ```math
 \mathrm{Attention}(Q, K, V) = \mathrm{softmax}(S) \, V
 ```
-
-## `detection.py`
-
-Boxes are $(x_1, y_1, x_2, y_2)$ unless stated.
-
-### BoxIoU
-
-Intersection over union of every pair from two sets:
-
-```math
-\mathrm{IoU}(a, b) = \frac{|a \cap b|}{|a| + |b| - |a \cap b|}
-```
-
-### DistanceToBox
-
-YOLOv8's anchor-free decode from distances $(l, t, r, b)$ to the four sides around an anchor point $(p_x, p_y)$:
-
-```math
-(x_1, y_1) = (p_x - l,\ p_y - t), \qquad (x_2, y_2) = (p_x + r,\ p_y + b)
-```
-
-optionally returned as centre and size.
-
-### DFL
-
-Each side distance is predicted as a distribution over $n$ integer bins. The decoded distance is the expected bin index, computed as a softmax followed by a fixed $1 \times 1$ convolution whose weights are $0, 1, \dots, n - 1$:
-
-```math
-d = \sum_{k=0}^{n-1} k \; \mathrm{softmax}(z)_k
-```
-
-### NMS
-
-Greedy suppression. Boxes are visited in decreasing score order; each kept box removes every later box overlapping it by more than the IoU threshold. Class-aware suppression shifts each class's boxes by $\text{class} \cdot (\max \text{coordinate} + 1)$ so boxes of different classes can never overlap.

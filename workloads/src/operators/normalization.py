@@ -45,20 +45,6 @@ class LayerNorm(nn.Module):
         return out
 
 
-class L2Norm(nn.Module):
-    """Scale each vector along an axis to unit Euclidean length."""
-
-    def __init__(self, dim: int = -1, eps: float = 1e-12) -> None:
-        super().__init__()
-        self.dim = dim
-        self.eps = eps
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        norm = x.to(torch.float32).pow(2).sum(self.dim, keepdim=True).sqrt()
-        # Clamp, not add: F.normalize divides by max(norm, eps).
-        return x / norm.clamp(min=self.eps).to(x.dtype)
-
-
 class BatchNorm2d(nn.Module):
     """Normalize each channel of a feature map by its batch statistics."""
 

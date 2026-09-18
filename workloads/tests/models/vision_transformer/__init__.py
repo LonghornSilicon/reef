@@ -1,1 +1,0 @@
-"""Vision transformer equivalence tests."""
