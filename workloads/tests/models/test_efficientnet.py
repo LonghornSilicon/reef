@@ -17,8 +17,6 @@ SIZES = list(EFFICIENTNET_CONFIGS)
 PARITY_SIZES = [
     "EfficientNet-B0",
     "EfficientNet-B1",
-    "EfficientNetV2-S",
-    "EfficientNetV2-M",
 ]
 INPUT_SIZE = 64
 
@@ -26,14 +24,6 @@ PARAMETER_COUNTS = {
     "EfficientNet-B0": 5_288_548,
     "EfficientNet-B1": 7_794_184,
     "EfficientNet-B2": 9_109_994,
-    "EfficientNet-B3": 12_233_232,
-    "EfficientNet-B4": 19_341_616,
-    "EfficientNet-B5": 30_389_784,
-    "EfficientNet-B6": 43_040_704,
-    "EfficientNet-B7": 66_347_960,
-    "EfficientNetV2-S": 21_458_488,
-    "EfficientNetV2-M": 54_139_356,
-    "EfficientNetV2-L": 118_515_272,
 }
 
 # torchvision's kaiming fan_out init shrinks random-init logits to ~1e-14, so

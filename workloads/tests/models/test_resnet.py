@@ -15,9 +15,9 @@ DEPTHS = list(RESNET_CONFIGS)
 # through every stage.
 INPUT_SIZE = 64
 
-# Random-init ResNet-101 logits reach ~1.5e4; relative error stays ~1.5e-5, but
-# absolute error scales with the logits, so atol is loose.
-TOLERANCE = {"rtol": 1e-4, "atol": 1e-2}
+# Worst measured deviation across the three depths is ~8e-6 absolute on
+# random-init logits spanning +/-30.
+TOLERANCE = {"rtol": 1e-4, "atol": 1e-4}
 
 
 def build_pair(name: str) -> tuple[ResNet, torch.nn.Module]:
@@ -60,7 +60,6 @@ def test_parameter_count_matches_torchvision(name: str) -> None:
         ("ResNet-18", 1, (2, 2, 2, 2)),
         ("ResNet-34", 1, (3, 4, 6, 3)),
         ("ResNet-50", 4, (3, 4, 6, 3)),
-        ("ResNet-101", 4, (3, 4, 23, 3)),
     ],
 )
 def test_stage_depths_and_expansion(

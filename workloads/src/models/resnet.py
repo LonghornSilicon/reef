@@ -15,16 +15,13 @@ from operators.normalization import BatchNorm2d
 from operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 
 
-def conv3x3(
-    in_channels: int, out_channels: int, stride: int = 1, groups: int = 1
-) -> Conv2d:
+def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> Conv2d:
     return Conv2d(
         in_channels,
         out_channels,
         kernel_size=3,
         stride=stride,
         padding=1,
-        groups=groups,
         bias=False,
     )
 
@@ -76,18 +73,14 @@ class Bottleneck(nn.Module):
         stride: int = 1,
         downsample: nn.Module | None = None,
         norm_eps: float = 1e-5,
-        groups: int = 1,
-        base_width: int = 64,
     ) -> None:
         super().__init__()
-        # ResNeXt widens the 3x3 to groups * base_width per 64 planes.
-        width = int(planes * (base_width / 64.0)) * groups
         out_channels = planes * self.expansion
-        self.conv1 = conv1x1(in_channels, width)
-        self.bn1 = BatchNorm2d(width, eps=norm_eps)
-        self.conv2 = conv3x3(width, width, stride, groups)
-        self.bn2 = BatchNorm2d(width, eps=norm_eps)
-        self.conv3 = conv1x1(width, out_channels)
+        self.conv1 = conv1x1(in_channels, planes)
+        self.bn1 = BatchNorm2d(planes, eps=norm_eps)
+        self.conv2 = conv3x3(planes, planes, stride)
+        self.bn2 = BatchNorm2d(planes, eps=norm_eps)
+        self.conv3 = conv1x1(planes, out_channels)
         self.bn3 = BatchNorm2d(out_channels, eps=norm_eps)
         self.relu = ReLU()
         self.downsample = downsample
@@ -145,14 +138,7 @@ class ResNet(nn.Module):
         blocks: int,
         stride: int,
     ) -> nn.Sequential:
-        config = self.config
-        eps = config.norm_eps
-        extra = {}
-        if block is Bottleneck:
-            extra = {
-                "groups": config.groups,
-                "base_width": config.width_per_group,
-            }
+        eps = self.config.norm_eps
         out_channels = planes * block.expansion
         downsample = None
         if stride != 1 or self.in_channels != out_channels:
@@ -161,18 +147,11 @@ class ResNet(nn.Module):
                 BatchNorm2d(out_channels, eps=eps),
             )
         layers = [
-            block(
-                self.in_channels,
-                planes,
-                stride,
-                downsample,
-                norm_eps=eps,
-                **extra,
-            )
+            block(self.in_channels, planes, stride, downsample, norm_eps=eps)
         ]
         self.in_channels = out_channels
         layers.extend(
-            block(self.in_channels, planes, norm_eps=eps, **extra)
+            block(self.in_channels, planes, norm_eps=eps)
             for _ in range(1, blocks)
         )
         return nn.Sequential(*layers)

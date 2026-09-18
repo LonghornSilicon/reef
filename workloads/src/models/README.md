@@ -14,11 +14,11 @@ Inception blocks that run 1x1, 3x3, 5x5 and pooled branches and concatenate them
 
 ### `resnet.py`
 
-Residual blocks, basic for shallow depths and bottleneck (1x1, 3x3, 1x1) for deep ones; ResNeXt makes the 3x3 a grouped convolution. Kernels: Conv2d, BatchNorm2d, ReLU, MaxPool2d, AdaptiveAvgPool2d, Linear.
+Residual blocks, basic for ResNet-18/34 and bottleneck (1x1, 3x3, 1x1) for ResNet-50. Kernels: Conv2d, BatchNorm2d, ReLU, MaxPool2d, AdaptiveAvgPool2d, Linear.
 
 ### `efficientnet.py`
 
-MBConv blocks (expand, depthwise, squeeze-excitation, project) scaled in width and depth; V2 fuses the early blocks into single 3x3 convolutions. Kernels: Conv2d, BatchNorm2d, SiLU, Sigmoid, AdaptiveAvgPool2d, Linear.
+MBConv blocks (expand, depthwise, squeeze-excitation, project) scaled in width and depth. Kernels: Conv2d, BatchNorm2d, SiLU, Sigmoid, AdaptiveAvgPool2d, Linear.
 
 ## Language models
 

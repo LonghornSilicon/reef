@@ -108,49 +108,6 @@ class MBConv(nn.Module):
         return out + x if self.use_res_connect else out
 
 
-class FusedMBConv(nn.Module):
-    """MBConv with the expand and depthwise convolutions fused into one kxk."""
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        expand_ratio: int,
-        kernel_size: int,
-        stride: int,
-        config: EfficientNetConfig,
-    ) -> None:
-        super().__init__()
-        self.use_res_connect = stride == 1 and in_channels == out_channels
-        expanded = make_divisible(in_channels * expand_ratio)
-        if expanded != in_channels:
-            layers = [
-                conv_norm_act(
-                    in_channels, expanded, kernel_size, config, stride=stride
-                ),
-                conv_norm_act(
-                    expanded, out_channels, 1, config, activation=False
-                ),
-            ]
-        else:
-            layers = [
-                conv_norm_act(
-                    in_channels, out_channels, kernel_size, config, stride
-                )
-            ]
-        self.block = nn.Sequential(*layers)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.block(x)
-        return out + x if self.use_res_connect else out
-
-
-BLOCKS: dict[str, type[MBConv | FusedMBConv]] = {
-    "mbconv": MBConv,
-    "fused": FusedMBConv,
-}
-
-
 class EfficientNet(nn.Module):
     """Compound-scaled MBConv classifier matching torchvision layer by layer."""
 
@@ -163,16 +120,17 @@ class EfficientNet(nn.Module):
             conv_norm_act(3, stem_channels, 3, config, stride=2)
         ]
         out_channels = stem_channels
-        for expand, kernel, stride, in_base, out_base, count, kind in rows:
-            block = BLOCKS[kind]
+        for expand, kernel, stride, in_base, out_base, count in rows:
             in_channels = make_divisible(in_base * config.width_mult)
             out_channels = make_divisible(out_base * config.width_mult)
             depth = math.ceil(count * config.depth_mult)
             stage = [
-                block(in_channels, out_channels, expand, kernel, stride, config)
+                MBConv(
+                    in_channels, out_channels, expand, kernel, stride, config
+                )
             ]
             stage.extend(
-                block(out_channels, out_channels, expand, kernel, 1, config)
+                MBConv(out_channels, out_channels, expand, kernel, 1, config)
                 for _ in range(1, depth)
             )
             layers.append(nn.Sequential(*stage))
