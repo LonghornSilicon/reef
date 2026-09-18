@@ -29,6 +29,13 @@ dev = [
     "pytest-timeout>=2.4.0",
     "ruff==0.16.5",
 ]
+experiments = [
+    "datasets",
+    "matplotlib",
+]
+
+[tool.uv]
+default-groups = ["dev", "experiments"]
 
 [tool.hatch.build.targets.wheel]
 packages = [
