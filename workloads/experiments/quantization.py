@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, Subset
 from configs.gpt2 import GPT2_REPOS
 from configs.llama import LLAMA_REPOS
 from experiments import quant, tracer
-from experiments.plots import SERIES, SURFACE, panels
+from experiments.plots import BASELINE, SERIES, SURFACE, panels
 from operators.attention import GroupedQueryAttention
 
 RESULTS = Path(__file__).resolve().parents[1] / "results" / "quantization"
@@ -40,8 +40,12 @@ SCHEMES = {
     "W4A8KV4": (4, 8, 4),
 }
 VISION_SCHEMES = ("fp32", "W8", "W4", "A8", "W8A8", "W4A8")
+# One panel per knob, in SCHEMES order.
+AXES = ("weight", "activation", "KV")
 WINDOW = 1024
 STRIDE = 512
+# KV cache depth priced into the footprint axis.
+CONTEXT = 4096
 # amax, scale, round and clamp per element; the dequantizing multiply folds
 # into the consumer's output scale.
 QUANT_OPS = 4
@@ -289,33 +293,116 @@ def rows_for(
     return rows
 
 
+def retained(metric: str, value: float, baseline: float) -> float:
+    # Perplexity is a loss, so its retention is the reciprocal ratio; both
+    # metrics then read 100 at fp32 and fall as quality degrades.
+    ratio = baseline / value if metric == "perplexity" else value / baseline
+    return 100 * ratio
+
+
 def plot(rows: list[list], path: Path) -> None:
     metrics = list(dict.fromkeys(row[2] for row in rows))
     models = list(dict.fromkeys(row[0] for row in rows))
     colors = dict(zip(models, SERIES, strict=False))
-    figure, axes = panels("quality against weight storage", 1, len(metrics))
+    figure, axes = panels("quality against memory footprint", 1, len(metrics))
     for ax, metric in zip(axes, metrics, strict=True):
+        cached = False
         for row in rows:
-            model, scheme, kind, _, delta, _, weight_bytes, *_ = row
+            model, scheme, kind, value, delta = row[:5]
             if kind != metric:
                 continue
-            ax.scatter(
-                float(weight_bytes) / 1e6,
-                float(delta),
-                color=colors[model],
-                s=30,
-                zorder=3,
+            weight_bytes, kv_bytes = float(row[6]), float(row[7])
+            cached = cached or kv_bytes > 0
+            value, delta = float(value), float(delta)
+            point = (
+                (weight_bytes + kv_bytes * CONTEXT) / 1e6,
+                retained(metric, value, value - delta),
             )
+            ax.scatter(*point, color=colors[model], s=30, zorder=3)
             ax.annotate(
                 scheme,
-                (float(weight_bytes) / 1e6, float(delta)),
+                point,
                 fontsize=6,
                 xytext=(3, 3),
                 textcoords="offset points",
             )
-        ax.set_xlabel("weight MB")
-        ax.set_ylabel(f"{metric} change from fp32")
+        ax.axhline(100, color=BASELINE, linewidth=0.8, zorder=2)
+        ax.set_xlabel(
+            f"weights + KV at {CONTEXT} tokens (MB)" if cached else "weight MB"
+        )
+        ax.set_ylabel("quality retained (%)")
         ax.set_title(metric, loc="left")
+    handles = [
+        Line2D([], [], marker="o", linestyle="", color=colors[m], label=m)
+        for m in models
+    ]
+    figure.legend(handles=handles, loc="outside lower center", ncol=8)
+    figure.savefig(path, dpi=150, facecolor=SURFACE)
+
+
+def sweep(index: int) -> list[str]:
+    """Schemes varying only ``AXES[index]``, coarsening left to right."""
+    names = [
+        name
+        for name, scheme in SCHEMES.items()
+        if all(
+            bits is None for axis, bits in enumerate(scheme) if axis != index
+        )
+    ]
+    # None is bf16, the widest, so it sorts first.
+    return sorted(names, key=lambda name: -(SCHEMES[name][index] or 16))
+
+
+def plot_sweeps(rows: list[list], path: Path) -> None:
+    metrics = list(dict.fromkeys(row[2] for row in rows))
+    models = list(dict.fromkeys(row[0] for row in rows))
+    colors = dict(zip(models, SERIES, strict=False))
+    quality = {
+        (row[0], row[2], row[1]): retained(
+            row[2], float(row[3]), float(row[3]) - float(row[4])
+        )
+        for row in rows
+    }
+    columns = [sweep(index) for index in range(len(AXES))]
+    swept = {name for names in columns for name in names}
+    # Shared so a short sweep lines its precisions up with the long ones.
+    span = max(len(names) for names in columns)
+    figure, axes = panels("one knob at a time", len(metrics), len(AXES))
+    for index, metric in enumerate(metrics):
+        values = [
+            value
+            for (_, kind, name), value in quality.items()
+            if kind == metric and name in swept
+        ]
+        # A shared scale keeps a 1% panel from reading like a 30% one.
+        pad = max((max(values) - min(values)) * 0.08, 0.5)
+        panel = zip(axes[index * len(AXES) :], columns, strict=False)
+        for column, (ax, names) in enumerate(panel):
+            for model in models:
+                picked = [
+                    (position, quality[(model, metric, name)])
+                    for position, name in enumerate(names)
+                    if (model, metric, name) in quality
+                ]
+                if picked:
+                    ax.plot(
+                        *zip(*picked, strict=True),
+                        marker="o",
+                        markersize=5,
+                        color=colors[model],
+                        zorder=3,
+                    )
+            ax.axhline(100, color=BASELINE, linewidth=0.8, zorder=2)
+            ax.set_xticks(range(len(names)))
+            ax.set_xticklabels(
+                [precision(SCHEMES[name][column]) for name in names]
+            )
+            ax.set_xlim(-0.15, span - 0.85)
+            ax.set_ylim(min(values) - pad, max(values) + pad)
+            ax.set_xlabel("precision")
+            ax.set_title(AXES[column], loc="left")
+            if column == 0:
+                ax.set_ylabel(f"{metric} retained (%)")
     handles = [
         Line2D([], [], marker="o", linestyle="", color=colors[m], label=m)
         for m in models
@@ -348,6 +435,7 @@ def main() -> None:
             writer.writerow(HEADER)
             writer.writerows(rows)
     plot(language_rows + vision_rows, RESULTS / "quality.png")
+    plot_sweeps(language_rows + vision_rows, RESULTS / "sweeps.png")
 
 
 if __name__ == "__main__":
