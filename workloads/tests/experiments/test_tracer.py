@@ -93,12 +93,16 @@ def test_decode_gemms_have_batch_rows_and_context_plus_one_keys() -> None:
         assert record.input_numel == 3 * 64 * (9 + 2 * 3 * 11)
 
 
-@pytest.mark.parametrize("family", ["gpt2", "llama"])
+@pytest.mark.parametrize("family", ["gpt2", "llama", "gpt_neo"])
 def test_prefill_rejects_positions_the_model_cannot_represent(
     family: str,
 ) -> None:
-    key = {"gpt2": "GPT-2", "llama": "SmolLM2-135M"}[family]
-    limit = {"gpt2": 1024, "llama": 8192}[family]
+    key = {
+        "gpt2": "GPT-2",
+        "llama": "SmolLM2-135M",
+        "gpt_neo": "TinyStories-Instruct-8M",
+    }[family]
+    limit = {"gpt2": 1024, "llama": 8192, "gpt_neo": 2048}[family]
     tracer.prefill(family, key, batch=1, length=limit)
     with pytest.raises(AssertionError):
         tracer.prefill(family, key, batch=1, length=limit + 1)
@@ -107,14 +111,24 @@ def test_prefill_rejects_positions_the_model_cannot_represent(
 
 
 @pytest.mark.parametrize(
-    ("family", "key"), [("gpt2", "GPT-2"), ("llama", "SmolLM2-135M")]
+    ("family", "key"),
+    [
+        ("gpt2", "GPT-2"),
+        ("llama", "SmolLM2-135M"),
+        ("gpt_neo", "TinyStories-Instruct-8M"),
+    ],
 )
 def test_records_reproduce_the_tracked_mac_totals(
     family: str, key: str
 ) -> None:
     records = tracer.prefill(family, key, batch=1, length=128)
     with open(RESULTS / f"{family}.csv", newline="") as file:
-        rows = {row["operator"]: row for row in csv.DictReader(file)}
+        # A family holds one row group per size, each ending in a Total.
+        rows = {
+            row["operator"]: row
+            for row in csv.DictReader(file)
+            if row["model"] == key
+        }
 
     assert sum(record.macs for record in records) == int(rows["Total"]["macs"])
     assert len(records) == int(rows["Total"]["calls"])

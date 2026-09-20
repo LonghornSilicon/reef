@@ -45,6 +45,7 @@ FAMILIES: dict[str, Callable[[object], Inputs]] = {
     "efficientnet": image(224),
     "gpt2": tokens,
     "llama": tokens,
+    "gpt_neo": tokens,
 }
 
 

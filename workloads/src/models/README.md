@@ -31,3 +31,7 @@ Learned position embeddings, fused QKV attention and a tanh-GELU MLP. Kernels: E
 ### `llama.py`
 
 RMSNorm, rotary position embeddings, grouped-query attention and a SwiGLU MLP. Kernels: Embedding, RMSNorm, RotaryEmbedding, GroupedQueryAttention, SiLU, Linear.
+
+### `gpt_neo.py`
+
+Learned position embeddings, separate bias-free QKV projections and a tanh-GELU MLP. Attention is unscaled and alternates global with a 256-wide sliding window. Kernels: Embedding, LayerNorm, GroupedQueryAttention, GELU, Linear.
