@@ -30,7 +30,6 @@ dev = [
     "ruff==0.16.5",
 ]
 experiments = [
-    "datasets",
     "matplotlib",
 ]
 
