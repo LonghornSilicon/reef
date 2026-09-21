@@ -1,0 +1,280 @@
+model,prompt,words,story
+TinyStories-Instruct-1M,Summary only,153,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she found a kitten in the garden. The kitten was very cute and had a big smile.
+
+Lily wanted to help the kitten, so she asked her mommy if she could help. Her mommy said yes and they went to the garden.
+
+When they got to the garden, Lily saw a kitten. She was so happy and wanted to help. She ran to the kitten and said, ""Look, Mommy! The kitten is so cute!""
+
+Her mommy smiled and said, ""Yes, it is. But you have to be careful and take care of it.""
+
+Lily was so excited to see the kitten and said, ""I'm glad I found it!""
+
+Her mommy smiled and said, ""That's great, Lily. You are very kind and kind.""
+
+Lily smiled and said, ""I love you too, mommy."""
+TinyStories-Instruct-1M,Summary + Words,168,"Once upon a time, there was a boy named Tom. Tom loved to build sandcastles and build sandcastles. One day, he decided to build a sandcastle. He built a sandcastle and built a sandcastle. He was so proud of his work.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work.
+
+He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work."
+TinyStories-Instruct-1M,Summary + Dialogue,245,"Possible story:
+
+Ben was a little boy who liked to play with his toys. He had a big box of toys, a big box. He wanted to see what was inside the box. He asked his mom, ""Can I open it, please?""
+
+His mom said, ""No, Ben, you can't open the box. It is too heavy for you. It is too heavy for you.""
+
+Ben was sad. He wanted to see the moon. He wanted to see what was inside. He saw a big, red moon. He wanted to see what was inside. He saw a big, red moon. It was a moon. It was a moon. It was a moon.
+
+Ben said, ""Look, Mom, I found a moon. It is so bright. It is so bright and bright. It is so bright and bright. It has stars and stars. It has stars and stars. It has stars and stars. It is very pretty.
+
+Ben said, ""Wow, look at the moon. It is so pretty. It is so pretty. It is so pretty. It can make it look pretty. It is very pretty. It has stars and stars. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It has stars and stars."
+TinyStories-Instruct-1M,"Summary + Twist, BadEnding",172,"Once upon a time, there was a little girl named Anna. She was three years old and loved to play with her red balloon. One day, she went to the park and saw a shiny rock. She wanted to add it to her balloon, but it was too hard.
+
+Anna asked her mom, ""Can I have a balloon?""
+
+Her mom said, ""Yes, but be careful. The rock is very shiny and it can be shiny.""
+
+Anna was so excited. She wanted to trade her balloon, but she was too small. She asked her mom, ""Can I have a balloon?""
+
+Her mom said, ""Yes, you can have it. But first, you have to give it to you.""
+
+Anna was sad, but she knew she had to give her balloon. She said, ""Okay, I will give it to you.""
+
+So, she took the balloon and put it in her pocket. She was so happy! She thanked her mom and said, ""Thank you, Mom!""
+
+Her mom smiled and said, ""You're welcome, Anna. You're the best!"""
+TinyStories-Instruct-1M,Everything at once,141,"Once upon a time, there was a brave little girl named Mia. She was always scared of the dark. One day, she was walking in the woods when she saw a little scared bunny. She was scared and didn't know what to do.
+
+Mia's mom came in and said, ""Don't worry, Mia. I will give you a new lantern to keep you safe."" Mia was so happy and she ran to the door.
+
+Mia's mom said, ""Let's go and see what's inside. It's so dark and scary."" Mia was so excited. She ran to the door and opened it. Inside, she found a bright light inside.
+
+Mia was so happy and she thanked her mom. She said, ""I'm glad you like it. I'm glad you like it.""
+
+Mia smiled and said, ""I'm glad you like it. I'm glad you like it."""
+TinyStories-Instruct-3M,Summary only,140,"Once upon a time there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was walking in the garden when she saw something very strange. It was a kitten!
+
+Lily was so excited and she ran to her mom. ""Mommy, look! A kitten!"" she said.
+
+Her mom smiled and said, ""Yes, Lily. Let's take it home and take it home.""
+
+Lily and her mom took the kitten home and put it in a special place. They took it home and put it in a special place.
+
+The kitten was so happy to be back with its family. Lily was so happy to have found the kitten and she hugged it tightly.
+
+The kitten purred and Lily smiled. She was so happy to have found a new friend."
+TinyStories-Instruct-3M,Summary + Words,113,"Once upon a time, there was a little boy named Tom. Tom was very proud of his sandcastle. He loved to build things with it.
+
+One day, Tom decided to build a sandcastle. He worked hard and soon he had built a big sandcastle. He was so proud of his sandcastle that he wanted to show it to everyone.
+
+Tom worked hard and soon he was building a new sandcastle. He was so proud of his sandcastle that he wanted to show it to everyone.
+
+Tom was so proud of his sandcastle and he was so proud of it. He had built a new sandcastle and he was so proud of his creation."
+TinyStories-Instruct-3M,Summary + Dialogue,265,"Possible story:
+
+Ben was a big boy who liked to play with his toys. He had a lot of toys, but his favorite was a big red car that he could drive. He liked to make it go fast and make loud noises.
+
+One day, he saw a big red button on the wall. He wanted to see what was inside. He pushed the button and heard a loud noise. He turned around and saw a big red button. He did not know what it was.
+
+""Who is this?"" he asked his grandma.
+
+""It is a button, Ben. It is a button that can make things go fast and make noises. Do you know what it is?"" she said.
+
+Ben looked at the button and saw that it was not a button. It was a button that could make things go fast and make noises. He felt a little scared.
+
+""I don't know, grandma. Maybe it is a button. Maybe it is a button. Maybe it is a button. Maybe it can make things go fast and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and"
+TinyStories-Instruct-3M,"Summary + Twist, BadEnding",268,"Possible story:
+
+Anna liked to trade toys with her friends. She had many toys, but her favorite was a red balloon. She took it everywhere she went. She wanted to trade it for a shiny rock.
+
+One day, she found a big rock in the park. She thought it would be fun to trade her balloon for a shiny rock. She took the rock and ran to the pond. She put the rock in the water and waited for it to go away.
+
+But then, something unexpected happened. The rock started to move! Anna was surprised. She did not know that the rock was moving. She looked around and saw a big, green frog. The frog was not real. It was a big, green frog.
+
+The frog said, ""Hello, I am a magic frog. I can make your balloon come to life. I can make your balloon come to life. I can make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come to life. I will make your balloon come"
+TinyStories-Instruct-3M,Everything at once,148,"Once upon a time there was a brave little girl named Mia. She loved to play outside in the sunshine. One day, she was playing with her lantern when her brother came in. He was so scared that he wouldn't let her.
+
+Mia was brave and she wanted to share her lantern with him. She held the lantern up high and said, ""I'm sorry, I didn't mean to make you scared. I just wanted to play with you.""
+
+Her brother was so happy and he said, ""Thank you, Mia! You are so brave!""
+
+Mia smiled and said, ""It's okay, I'm just happy to share my lantern with you.""
+
+The two of them played together for a while, and Mia was so happy that she had shared her lantern with her brother.
+
+The moral of the story is that it's important to share with others, even if it's scary."
+TinyStories-Instruct-8M,Summary only,169,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she was walking in the garden when she saw something strange. It was a little kitten!
+
+Lily was so excited that she ran to the kitten and said, ""Hi there! What's your name?""
+
+The kitten meowed and Lily smiled. She said, ""My name is Lily. What's your name?""
+
+The kitten meowed again and Lily said, ""My name is Lily. What's yours?""
+
+The kitten meowed again and Lily said, ""My name is Emily. I'm so happy to meet you!""
+
+Lily and Emily became the best of friends. They played together every day and had lots of fun.
+
+One day, Lily said to Emily, ""I'm so glad you're here. I'm so glad I found you.""
+
+Emily smiled and said, ""Me too! I'm so glad I found you.""
+
+Lily and Emily were so happy to have each other. They were the best of friends and they were always happy together."
+TinyStories-Instruct-8M,Summary + Words,130,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it even bigger and better. So he went to the beach and started to build.
+
+Tom worked hard and built a big sandcastle. He was so proud of it. He was so proud of it.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it even bigger.
+
+But then he had an idea. He started to build a new sandcastle further up the beach. He worked hard and built it even bigger than before.
+
+Tom was so proud of his new sandcastle. He was proud of it too. He was proud of his sandcastle and he was proud of it too."
+TinyStories-Instruct-8M,Summary + Dialogue,239,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the moon and the stars. They saw a big, round moon in the sky. It was very bright and shiny.
+
+""Wow, look at that moon!"" Ben said. ""It is so big and bright. I want to touch it.""
+
+""Me too,"" Lily said. ""But how can we get it?""
+
+They looked around and saw a ladder leaning on the wall. They had an idea.
+
+""Maybe we can use the ladder,"" Ben said. ""We can use it to get the moon.""
+
+""OK, let's try,"" Lily said. ""But we have to be careful. The ladder is very high and strong.""
+
+They climbed the ladder and reached the moon. They were very happy. They hugged the moon and said, ""We did it! We got the moon!""
+
+They climbed down the ladder and ran to the house. They told their mom and dad about their adventure. They said they wanted to go to the moon and see it again.
+
+Their mom and dad smiled and said, ""That's wonderful, Ben and Lily. You are very brave and smart. But you also need to be careful. The moon is very high and very bright. You can't reach it. But you can still have fun. You can play with the moon and make it shine. You can make it shine too.""
+
+Ben and Lily nodded and said, ""Yes, mom and dad. We"
+TinyStories-Instruct-8M,"Summary + Twist, BadEnding",128,"Once upon a time, there was a little girl named Anna. She was very happy and loved to play. One day, she was playing in the park and she saw a shiny red balloon. She wanted it so badly, so she decided to trade it for a shiny rock.
+
+Anna was so excited to have the shiny rock. She took it home and put it in her pocket. She was so proud of her new balloon.
+
+But then, something unexpected happened. When Anna went to show her mom the shiny rock, it was gone! She looked everywhere but couldn't find it.
+
+Anna was very sad. She had wanted to keep the shiny rock, but it was gone. She had lost her special balloon and it was all gone."
+TinyStories-Instruct-8M,Everything at once,163,"Once upon a time there was a brave little girl named Mia. She was only three years old and loved to explore the world around her. One day, Mia was playing in her garden when she saw a lantern. She was so excited and wanted to keep it for herself.
+
+Mia's brother, Tom, saw her holding the lantern and said, ""Mia, why don't you share it with me? We can both be brave and have fun together.""
+
+Mia thought about it for a moment and then said, ""Okay, I will share it with you.""
+
+Tom smiled and said, ""That's a great idea. Sharing is caring!""
+
+Mia smiled back and said, ""Yes, I'm very proud of you.""
+
+The two of them played together with the lantern until it was time for Mia to go inside. Mia was so happy that she had shared the lantern with her brother.
+
+The moral of the story is that it's important to share with others and be brave."
+TinyStories-Instruct-28M,Summary only,179,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help finding its mother.""
+
+Lily was so happy to hear this. She wanted to help the kitten find its mother. She asked her mom, ""Can I help the kitten find its mother?"" Her mom smiled and said, ""Yes, you can help the kitten find its mother.""
+
+So Lily and the kitten went on a search. They looked everywhere, but they couldn't find the mother. Finally, they found the mother cat. The kitten was so happy to see its mother again.
+
+Lily was so proud that she had helped the kitten find its mother. She smiled and said, ""I'm so glad I could help."""
+TinyStories-Instruct-28M,Summary + Words,136,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it bigger and bigger. So he went to the beach and started to build.
+
+Tom worked hard and soon he had built a big sandcastle. He was so proud of it. He wanted to show it to everyone.
+
+But then, a big wave came and washed away the sandcastle. Tom was sad. He was so sad that he couldn't build his sandcastle anymore.
+
+But then, Tom had an idea. He started to build a new sandcastle further up the beach. He worked hard and soon he had built a new sandcastle. He was so proud of it.
+
+Tom was happy again. He was proud of his sandcastle and he knew he could build it again."
+TinyStories-Instruct-28M,Summary + Dialogue,139,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's a good idea. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not get too close to the moon."
+TinyStories-Instruct-28M,"Summary + Twist, BadEnding",189,"Once upon a time, there was a little girl named Anna. She was very happy and loved to play with her toys. One day, Anna saw a big, shiny, red balloon in the park. She wanted it so badly, but she didn't have any money.
+
+Suddenly, Anna had an idea. She decided to trade her red balloon for the shiny, shiny rock she had in her pocket. She was so excited to get the rock, but when she opened her pocket, she found something disgusting. It was a big, slimy, smelly mud puddle!
+
+Anna was so disgusted by the mud puddle that she quickly threw the rock away. But when she looked closer, she saw that the rock was actually a beautiful, shiny rock. Anna was so happy that she had made a good trade.
+
+But then, something unexpected happened. As Anna was about to take the rock, she noticed that it was actually a bit dirty. She was so disappointed that she threw it away.
+
+Anna was sad that she had made a bad trade, but she was also happy that she had found a beautiful, shiny rock."
+TinyStories-Instruct-28M,Everything at once,171,"Once upon a time, there was a brave little girl named Mia. She was afraid of the dark and always stayed tucked away in her bed. One night, Mia was feeling very scared and she wished she had a lantern to help her feel safe.
+
+Suddenly, her brother came into her room and said, ""Hey Mia, I have a lantern. Would you like to share it with me?"" Mia was so happy and she said, ""Yes, please!""
+
+Her brother gave her the lantern and Mia held it up high. She held the lantern up high so everyone could see. Mia felt so brave and happy that she had a lantern to share with her brother.
+
+The next day, Mia saw a young child who was also scared of the dark. She remembered how brave she was and decided to share her lantern with the young child. The young child was so happy and thanked Mia for sharing.
+
+Mia learned that sharing can make you feel brave and help you feel safe."
+TinyStories-Instruct-33M,Summary only,150,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry animal. It was a kitten!
+
+Lily was so excited. She ran to the kitten and said, ""Hi there! What's your name?""
+
+The kitten looked up at her and meowed. Lily knew that the kitten was lost and needed help. She said, ""Don't worry, I'll help you find your mommy.""
+
+Lily and the kitten looked all around the garden. They looked under the bushes and behind the trees. Finally, they found the kitten's mommy.
+
+The mommy was so happy to see her little one. She said, ""Thank you for helping my kitten. You are so kind and compassionate.""
+
+Lily smiled and said, ""You're welcome. I'm glad I could help."""
+TinyStories-Instruct-33M,Summary + Words,153,"Once upon a time, there was a little boy named Tom. Tom loved to build things. One day, he decided to build a sandcastle at the beach. He worked hard and soon he had a big sandcastle. He was so proud of his work.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it again. He started to build a new sandcastle, but this time he made it even bigger. He was so proud of his work.
+
+Tom was so happy with his new sandcastle. He wanted to show it to his mom. He ran to her and said, ""Mom, look at my sandcastle!"" His mom was so proud of him. She said, ""That's wonderful, Tom! You did a great job!""
+
+Tom was so happy. He had built a new sandcastle and he was proud of himself. He knew he could build anything he wanted."
+TinyStories-Instruct-33M,Summary + Dialogue,195,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the sky and see the stars. They saw a big round thing with holes and a long tail. It was the moon.
+
+""Look, Ben, the moon is following us!"" Lily said.
+
+""Why does the moon follow us?"" Ben asked.
+
+""Because it is far away. The moon is like a big ball of fire. It goes up and down, left and right, up and down. It is like a big ball of light in the sky,"" Lily explained.
+
+""Wow, the moon is very big and bright. It is like a big ball of fire in the sky. It is like a big ball of fire in the sky,"" Ben said.
+
+They watched the moon for a long time. They saw many stars and planets. They heard many noises and voices. They felt very happy and curious.
+
+""Can we go to the moon?"" Ben asked.
+
+""Maybe one day, when we are big and bright,"" Lily said.
+
+They hugged each other and smiled. They loved the moon. They loved their garden. They loved their mom. They loved their mom. They loved their moon."
+TinyStories-Instruct-33M,"Summary + Twist, BadEnding",165,"Once upon a time, there was a little girl named Anna. She was three years old and loved to play outside. One day, Anna saw a shiny red balloon in the sky. She wanted it so much, so she decided to trade her red balloon for it.
+
+Anna was so excited to have the balloon, so she ran to the park to play. She was having so much fun, but then something strange happened. She saw a big, shiny rock in the sky. It was so shiny and beautiful!
+
+Anna wanted to get the rock, so she ran to the park to find it. When she got there, she saw a big, shiny rock. She was so excited, she wanted to get it. But when she touched it, it was really hot!
+
+Anna was so sad. She had wanted the shiny rock so much, but now it was too hot to touch. She had to go home without the rock, and she was very disappointed."
+TinyStories-Instruct-33M,Everything at once,123,"Once upon a time, there was a little girl named Mia. She was very brave and loved to explore the world. One day, Mia was walking in the woods when she saw a lantern. She was so excited and wanted to take it home. But when she tried to pick it up, she was scared.
+
+Suddenly, Mia heard a voice. It was her brother. He said, ""Don't be scared, Mia. I will share my lantern with you."" Mia was so happy and thanked her brother.
+
+Mia and her brother went home together. They shared the lantern and it made them both feel brave.
+
+Mia learned an important lesson that day. She learned that when you share, you can make others feel brave too."
