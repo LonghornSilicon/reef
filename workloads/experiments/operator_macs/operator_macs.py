@@ -25,7 +25,7 @@ from experiments.plots import (
     readable,
 )
 
-RESULTS = Path(__file__).resolve().parents[1] / "results" / "operator_macs"
+RESULTS = Path(__file__).resolve().parents[2] / "results" / "operator_macs"
 BATCH = 1
 SEQ_LEN = 128
 Inputs = tuple[torch.Tensor, ...]

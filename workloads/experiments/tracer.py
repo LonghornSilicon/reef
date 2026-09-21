@@ -59,7 +59,9 @@ def argument(args: tuple, kwargs: dict, index: int, name: str) -> object:
 # Reshapes, copies, selects and masked fills cost nothing.
 #
 # Traffic is what each operator module reads and writes: input, parameters
-# and buffers, output. results/README.md lists what that leaves out.
+# and buffers, output. Module hooks cannot see residual adds, the SwiGLU gate
+# multiply, GPT-2's wte + wpe add or EfficientNet's squeeze-excite multiply,
+# so none of those are counted.
 
 
 def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
