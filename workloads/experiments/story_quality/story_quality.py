@@ -21,34 +21,34 @@ END = "<|endoftext|>"
 # emit a header of their own to get back on pattern.
 PROMPTS = [
     (
-        "Summary only",
+        "summary_only",
         "Summary: Lily finds a lost kitten in the garden and helps it find "
         "its mother.\n"
         "Story: \n\n",
     ),
     (
-        "Summary + Words",
+        "summary_words",
         "Summary: Tom builds a sandcastle at the beach and a big wave washes "
         "it away, so he builds a new one further up.\n"
         "Words: build, wave, proud\n"
         "Story: \n\n",
     ),
     (
-        "Summary + Dialogue",
+        "summary_dialogue",
         "Features: Dialogue\n"
         "Summary: Ben asks his grandma why the moon follows them home, and "
         "she explains it is very far away.\n"
         "Story: \n\n",
     ),
     (
-        "Summary + Twist, BadEnding",
+        "summary_twist_badending",
         "Features: Twist, BadEnding\n"
         "Summary: Anna trades her red balloon for a shiny rock, and then "
         "discovers the rock is just painted mud.\n"
         "Story: \n\n",
     ),
     (
-        "Everything at once",
+        "everything_at_once",
         "Features: Dialogue, MoralValue\n"
         "Words: share, lantern, brave\n"
         "Summary: Mia is afraid of the dark until her brother lends her his "
@@ -85,23 +85,28 @@ def tell(model: nn.Module, tokenizer: object, prompt: str) -> str:
 
 def main() -> None:
     keys = sys.argv[1:] or list(GPT_NEO_CONFIGS)
-    rows = []
+    # Keyed by prompt, because each prompt becomes one file holding every
+    # model, which is the comparison worth reading. Models stay the outer
+    # loop so each checkpoint is loaded once.
+    stories: dict[str, list[list[object]]] = {name: [] for name, _ in PROMPTS}
     for key in keys:
         print(f"\n{key}\n")
         model, tokenizer = load(key)
-        for label, prompt in PROMPTS:
-            assert tokenizer.decode(tokenizer.encode(prompt)) == prompt, label
+        for name, prompt in PROMPTS:
+            assert tokenizer.decode(tokenizer.encode(prompt)) == prompt, name
             story = tell(model, tokenizer, prompt)
             words = len(story.split())
-            print(f"  {label:<28}{words:>5} words")
-            rows.append([key, label, words, story])
+            print(f"  {name:<28}{words:>5} words")
+            stories[name].append([key, words, story])
     RESULTS.mkdir(parents=True, exist_ok=True)
-    output = RESULTS / "stories.csv"
-    with open(output, "w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["model", "prompt", "words", "story"])
-        writer.writerows(rows)
-    print(f"\nwrote {output}")
+    for index, (name, _) in enumerate(PROMPTS, start=1):
+        # Numbered so the files sort in the order the prompts add constraints.
+        output = RESULTS / f"{index}_{name}.csv"
+        with open(output, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["model", "words", "story"])
+            writer.writerows(stories[name])
+        print(f"wrote {output}")
 
 
 if __name__ == "__main__":
