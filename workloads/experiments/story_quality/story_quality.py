@@ -10,6 +10,7 @@ from torch import nn
 
 from configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
 from models.gpt_neo import gpt_neo
+from operators.linear import quantize
 
 RESULTS = Path(__file__).resolve().parents[2] / "results" / "story_quality"
 MAX_NEW_TOKENS = 320
@@ -69,6 +70,7 @@ def load(key: str) -> tuple[nn.Module, object]:
     ).eval()
     model = gpt_neo(key)
     model.load_state_dict(reference.state_dict(), strict=True)
+    model = quantize(model)
     tokenizer = transformers.AutoTokenizer.from_pretrained(repo)
     return model.eval(), tokenizer
 
