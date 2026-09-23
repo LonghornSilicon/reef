@@ -1,9 +1,9 @@
 """Hand-derived multiply-add (MAC) counts per operator for every reef model."""
 
+import argparse
 import csv
 import importlib
 import math
-import sys
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -146,7 +146,15 @@ def run(family: str) -> None:
 
 
 def main() -> None:
-    for family in sys.argv[1:] or FAMILIES:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "families",
+        nargs="*",
+        choices=list(FAMILIES),
+        metavar="family",
+        help=f"any of {', '.join(FAMILIES)} (default: all)",
+    )
+    for family in parser.parse_args().families or FAMILIES:
         run(family)
 
 

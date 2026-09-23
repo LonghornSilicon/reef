@@ -1,7 +1,7 @@
 """Greedy TinyStories-Instruct completions for every published GPT-Neo size."""
 
+import argparse
 import csv
-import sys
 from pathlib import Path
 
 import torch
@@ -83,8 +83,21 @@ def tell(model: nn.Module, tokenizer: object, prompt: str) -> str:
     return text.split(END)[0].strip()
 
 
+def csv_path(index: int, name: str) -> Path:
+    # Numbered so the files sort in the order the prompts add constraints.
+    return RESULTS / f"{index}_{name}.csv"
+
+
 def main() -> None:
-    keys = sys.argv[1:] or list(GPT_NEO_CONFIGS)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "keys",
+        nargs="*",
+        choices=list(GPT_NEO_CONFIGS),
+        metavar="model",
+        help=f"any of {', '.join(GPT_NEO_CONFIGS)} (default: all)",
+    )
+    keys = parser.parse_args().keys or list(GPT_NEO_CONFIGS)
     # Keyed by prompt, because each prompt becomes one file holding every
     # model, which is the comparison worth reading. Models stay the outer
     # loop so each checkpoint is loaded once.
@@ -100,8 +113,7 @@ def main() -> None:
             stories[name].append([key, words, story])
     RESULTS.mkdir(parents=True, exist_ok=True)
     for index, (name, _) in enumerate(PROMPTS, start=1):
-        # Numbered so the files sort in the order the prompts add constraints.
-        output = RESULTS / f"{index}_{name}.csv"
+        output = csv_path(index, name)
         with open(output, "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow(["model", "words", "story"])
