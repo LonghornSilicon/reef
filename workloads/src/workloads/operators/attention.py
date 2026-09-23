@@ -3,7 +3,7 @@
 import torch
 from torch import nn
 
-from operators.activation import Softmax
+from workloads.operators.activation import Softmax
 
 
 class GroupedQueryAttention(nn.Module):

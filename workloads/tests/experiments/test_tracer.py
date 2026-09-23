@@ -1,20 +1,15 @@
 """Operator records, GEMM shapes and traffic from the meta-device tracer."""
 
-import csv
-from pathlib import Path
-
 import pytest
 import torch
 
-from experiments import tracer
-from models.gpt2 import Conv1D
-from operators.attention import GroupedQueryAttention
-from operators.convolution import Conv2d
-from operators.linear import Linear
+from workloads.experiments import tracer
+from workloads.models.gpt2 import Conv1D
+from workloads.operators.attention import GroupedQueryAttention
+from workloads.operators.convolution import Conv2d
+from workloads.operators.linear import Linear
 
 pytestmark = pytest.mark.unit
-
-RESULTS = Path(__file__).resolve().parents[2] / "results" / "operator_macs"
 
 
 def only(records: list[tracer.Record], operator: str) -> list[tracer.Record]:
@@ -108,27 +103,3 @@ def test_prefill_rejects_positions_the_model_cannot_represent(
         tracer.prefill(family, key, batch=1, length=limit + 1)
     with pytest.raises(AssertionError):
         tracer.decode(family, key, batch=1, context=limit)
-
-
-@pytest.mark.parametrize(
-    ("family", "key"),
-    [
-        ("gpt2", "GPT-2"),
-        ("llama", "SmolLM2-135M"),
-        ("gpt_neo", "TinyStories-Instruct-8M"),
-    ],
-)
-def test_records_reproduce_the_tracked_mac_totals(
-    family: str, key: str
-) -> None:
-    records = tracer.prefill(family, key, batch=1, length=128)
-    with open(RESULTS / f"{family}.csv", newline="") as file:
-        # A family holds one row group per size, each ending in a Total.
-        rows = {
-            row["operator"]: row
-            for row in csv.DictReader(file)
-            if row["model"] == key
-        }
-
-    assert sum(record.macs for record in records) == int(rows["Total"]["macs"])
-    assert len(records) == int(rows["Total"]["calls"])

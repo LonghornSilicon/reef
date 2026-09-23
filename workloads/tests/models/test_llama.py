@@ -4,9 +4,9 @@ import pytest
 import torch
 import transformers
 
-from configs.llama import LLAMA_CONFIGS, LlamaConfig
-from models.llama import LlamaForCausalLM, llama
 from tests.common import DTYPES, assert_matches
+from workloads.configs.llama import LLAMA_CONFIGS, LlamaConfig
+from workloads.models.llama import LlamaForCausalLM, llama
 
 pytestmark = pytest.mark.unit
 

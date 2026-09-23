@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 import torch
 from torch import nn
 
-from models.gpt2 import Conv1D
-from operators.attention import GroupedQueryAttention
-from operators.pooling import AdaptiveAvgPool2d
+from workloads.models.gpt2 import Conv1D
+from workloads.operators.attention import GroupedQueryAttention
+from workloads.operators.pooling import AdaptiveAvgPool2d
 
 Formula = Callable[[nn.Module, tuple, dict, object], int]
 # (M, N, K, count): count independent (M, K) by (K, N) products.
@@ -220,7 +220,7 @@ def operator_name(module: nn.Module) -> str | None:
     # GPT-2's Conv1D is a Linear with a transposed weight, defined in the model.
     if isinstance(module, Conv1D):
         return "Linear"
-    if type(module).__module__.startswith("operators."):
+    if type(module).__module__.startswith("workloads.operators."):
         return type(module).__name__
     return None
 
@@ -325,7 +325,7 @@ def instrument(model: nn.Module) -> list[Record]:
 
 def build(family: str, key: str) -> nn.Module:
     """Construct a model on the meta device: shapes only, no storage."""
-    module = importlib.import_module(f"models.{family}")
+    module = importlib.import_module(f"workloads.models.{family}")
     with torch.device("meta"):
         return getattr(module, family)(key).eval()
 

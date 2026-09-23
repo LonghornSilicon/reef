@@ -4,9 +4,9 @@ import pytest
 import torch
 import transformers
 
-from configs.gpt_neo import GPTNeoConfig
-from models.gpt_neo import GPTNeoForCausalLM, gpt_neo
 from tests.common import DTYPES, assert_matches
+from workloads.configs.gpt_neo import GPTNeoConfig
+from workloads.models.gpt_neo import GPTNeoForCausalLM, gpt_neo
 
 pytestmark = pytest.mark.unit
 

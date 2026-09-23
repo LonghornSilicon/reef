@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from operators.convolution import Conv2d
 from tests.common import DTYPES, assert_matches
+from workloads.operators.convolution import Conv2d
 
 pytestmark = pytest.mark.unit
 

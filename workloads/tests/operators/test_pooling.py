@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 from tests.common import DTYPES, assert_matches
+from workloads.operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 
 pytestmark = pytest.mark.unit
 

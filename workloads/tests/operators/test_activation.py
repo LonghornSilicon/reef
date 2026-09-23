@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from operators.activation import GELU, ReLU, SiLU, Softmax
 from tests.common import DTYPES, assert_matches
+from workloads.operators.activation import GELU, ReLU, SiLU, Softmax
 
 pytestmark = pytest.mark.unit
 

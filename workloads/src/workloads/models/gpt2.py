@@ -3,12 +3,12 @@
 import torch
 from torch import nn
 
-from configs.gpt2 import GPT2_CONFIGS, GPT2Config
-from operators.activation import GELU
-from operators.attention import GroupedQueryAttention
-from operators.embedding import Embedding
-from operators.linear import Linear
-from operators.normalization import LayerNorm
+from workloads.configs.gpt2 import GPT2_CONFIGS, GPT2Config
+from workloads.operators.activation import GELU
+from workloads.operators.attention import GroupedQueryAttention
+from workloads.operators.embedding import Embedding
+from workloads.operators.linear import Linear
+from workloads.operators.normalization import LayerNorm
 
 LayerCache = tuple[torch.Tensor, torch.Tensor]
 

@@ -37,11 +37,7 @@ experiments = [
 default-groups = ["dev", "experiments"]
 
 [tool.hatch.build.targets.wheel]
-packages = [
-    "src/configs",
-    "src/models",
-    "src/operators",
-]
+packages = ["src/workloads"]
 
 [tool.pytest.ini_options]
 markers = [

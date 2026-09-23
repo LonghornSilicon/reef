@@ -1,9 +1,9 @@
 """Hand-derived multiply-add (MAC) counts per operator for every reef model."""
 
+import argparse
 import csv
 import importlib
 import math
-import sys
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
@@ -12,8 +12,8 @@ import torch
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 
-from experiments import tracer
-from experiments.plots import (
+from workloads.experiments import tracer
+from workloads.experiments.plots import (
     BAR,
     BASELINE,
     GRIDLINE,
@@ -25,7 +25,7 @@ from experiments.plots import (
     readable,
 )
 
-RESULTS = Path(__file__).resolve().parents[2] / "results" / "operator_macs"
+RESULTS = Path(__file__).resolve().parents[4] / "results" / "operator_macs"
 BATCH = 1
 SEQ_LEN = 128
 Inputs = tuple[torch.Tensor, ...]
@@ -119,7 +119,7 @@ def plot(family: str, results: dict[str, Ranked], path: Path) -> None:
 
 def run(family: str) -> None:
     configs = getattr(
-        importlib.import_module(f"configs.{family}"),
+        importlib.import_module(f"workloads.configs.{family}"),
         f"{family.upper()}_CONFIGS",
     )
     rows = []
@@ -146,7 +146,15 @@ def run(family: str) -> None:
 
 
 def main() -> None:
-    for family in sys.argv[1:] or FAMILIES:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "families",
+        nargs="*",
+        choices=list(FAMILIES),
+        metavar="family",
+        help=f"any of {', '.join(FAMILIES)} (default: all)",
+    )
+    for family in parser.parse_args().families or FAMILIES:
         run(family)
 
 

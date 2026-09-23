@@ -5,12 +5,12 @@ import torch
 import torchvision
 import transformers
 
-from configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
-from configs.llama import LLAMA_CONFIGS, LLAMA_REPOS
-from configs.resnet import TORCHVISION_BUILDERS
-from models.gpt_neo import GPTNeoForCausalLM
-from models.llama import LlamaForCausalLM
-from models.resnet import resnet
+from workloads.configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
+from workloads.configs.llama import LLAMA_CONFIGS, LLAMA_REPOS
+from workloads.configs.resnet import TORCHVISION_BUILDERS
+from workloads.models.gpt_neo import GPTNeoForCausalLM
+from workloads.models.llama import LlamaForCausalLM
+from workloads.models.resnet import resnet
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(1800)]
 
