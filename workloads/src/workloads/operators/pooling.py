@@ -5,7 +5,12 @@ import math
 import torch
 from torch import nn
 
-from operators.convolution import Padding, expand_padding, pad2d, windows2d
+from workloads.operators.convolution import (
+    Padding,
+    expand_padding,
+    pad2d,
+    windows2d,
+)
 
 
 def pooled_size(

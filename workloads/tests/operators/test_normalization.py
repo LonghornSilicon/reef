@@ -4,8 +4,8 @@ import pytest
 import torch
 from transformers.models.qwen3.modeling_qwen3 import Qwen3RMSNorm
 
-from operators.normalization import BatchNorm2d, RMSNorm
 from tests.common import DTYPES, assert_matches
+from workloads.operators.normalization import BatchNorm2d, RMSNorm
 
 pytestmark = pytest.mark.unit
 

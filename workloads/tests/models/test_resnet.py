@@ -4,8 +4,8 @@ import pytest
 import torch
 import torchvision
 
-from configs.resnet import RESNET_CONFIGS, TORCHVISION_BUILDERS
-from models.resnet import ResNet, resnet
+from workloads.configs.resnet import RESNET_CONFIGS, TORCHVISION_BUILDERS
+from workloads.models.resnet import ResNet, resnet
 
 pytestmark = pytest.mark.unit
 

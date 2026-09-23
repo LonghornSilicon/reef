@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 import torch
 
-from experiments import tracer
-from models.gpt2 import Conv1D
-from operators.attention import GroupedQueryAttention
-from operators.convolution import Conv2d
-from operators.linear import Linear
+from workloads.experiments import tracer
+from workloads.models.gpt2 import Conv1D
+from workloads.operators.attention import GroupedQueryAttention
+from workloads.operators.convolution import Conv2d
+from workloads.operators.linear import Linear
 
 pytestmark = pytest.mark.unit
 

@@ -4,12 +4,12 @@ import pytest
 import torch
 import torchvision
 
-from configs.googlenet import (
+from tests.common import assert_matches
+from workloads.configs.googlenet import (
     GOOGLENET_CONFIGS,
     TORCHVISION_BUILDERS,
 )
-from models.googlenet import GoogLeNet, googlenet
-from tests.common import assert_matches
+from workloads.models.googlenet import GoogLeNet, googlenet
 
 pytestmark = pytest.mark.unit
 

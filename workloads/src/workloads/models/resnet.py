@@ -3,16 +3,16 @@
 import torch
 from torch import nn
 
-from configs.resnet import (
+from workloads.configs.resnet import (
     RESNET_CONFIGS,
     STAGE_PLANES,
     ResNetConfig,
 )
-from operators.activation import ReLU
-from operators.convolution import Conv2d
-from operators.linear import Linear
-from operators.normalization import BatchNorm2d
-from operators.pooling import AdaptiveAvgPool2d, MaxPool2d
+from workloads.operators.activation import ReLU
+from workloads.operators.convolution import Conv2d
+from workloads.operators.linear import Linear
+from workloads.operators.normalization import BatchNorm2d
+from workloads.operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 
 
 def conv3x3(in_channels: int, out_channels: int, stride: int = 1) -> Conv2d:

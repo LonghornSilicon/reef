@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from operators.linear import Linear
 from tests.common import DTYPES, assert_matches
+from workloads.operators.linear import Linear
 
 pytestmark = pytest.mark.unit
 

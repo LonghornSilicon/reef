@@ -8,10 +8,10 @@ import torch
 import transformers
 from torch import nn
 
-from configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
-from models.gpt_neo import gpt_neo
+from workloads.configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
+from workloads.models.gpt_neo import gpt_neo
 
-RESULTS = Path(__file__).resolve().parents[2] / "results" / "story_quality"
+RESULTS = Path(__file__).resolve().parents[4] / "results" / "story_quality"
 MAX_NEW_TOKENS = 320
 END = "<|endoftext|>"
 

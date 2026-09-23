@@ -12,8 +12,8 @@ import torch
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 
-from experiments import tracer
-from experiments.plots import (
+from workloads.experiments import tracer
+from workloads.experiments.plots import (
     BAR,
     BASELINE,
     GRIDLINE,
@@ -25,7 +25,7 @@ from experiments.plots import (
     readable,
 )
 
-RESULTS = Path(__file__).resolve().parents[2] / "results" / "operator_macs"
+RESULTS = Path(__file__).resolve().parents[4] / "results" / "operator_macs"
 BATCH = 1
 SEQ_LEN = 128
 Inputs = tuple[torch.Tensor, ...]
@@ -119,7 +119,7 @@ def plot(family: str, results: dict[str, Ranked], path: Path) -> None:
 
 def run(family: str) -> None:
     configs = getattr(
-        importlib.import_module(f"configs.{family}"),
+        importlib.import_module(f"workloads.configs.{family}"),
         f"{family.upper()}_CONFIGS",
     )
     rows = []

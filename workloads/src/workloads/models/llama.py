@@ -3,13 +3,13 @@
 import torch
 from torch import nn
 
-from configs.llama import LLAMA_CONFIGS, LlamaConfig
-from operators.activation import SiLU
-from operators.attention import GroupedQueryAttention
-from operators.embedding import Embedding
-from operators.linear import Linear
-from operators.normalization import RMSNorm
-from operators.positional import RotaryEmbedding
+from workloads.configs.llama import LLAMA_CONFIGS, LlamaConfig
+from workloads.operators.activation import SiLU
+from workloads.operators.attention import GroupedQueryAttention
+from workloads.operators.embedding import Embedding
+from workloads.operators.linear import Linear
+from workloads.operators.normalization import RMSNorm
+from workloads.operators.positional import RotaryEmbedding
 
 LayerCache = tuple[torch.Tensor, torch.Tensor]
 

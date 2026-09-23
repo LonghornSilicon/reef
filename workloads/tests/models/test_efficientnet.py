@@ -4,12 +4,12 @@ import pytest
 import torch
 import torchvision
 
-from configs.efficientnet import (
+from tests.common import BF16_TOLERANCE, assert_matches
+from workloads.configs.efficientnet import (
     EFFICIENTNET_CONFIGS,
     TORCHVISION_BUILDERS,
 )
-from models.efficientnet import EfficientNet, efficientnet
-from tests.common import BF16_TOLERANCE, assert_matches
+from workloads.models.efficientnet import EfficientNet, efficientnet
 
 pytestmark = pytest.mark.unit
 

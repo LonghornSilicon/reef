@@ -4,9 +4,9 @@ import pytest
 import torch
 import transformers
 
-from configs.gpt2 import GPT2Config
-from models.gpt2 import GPT2LMHeadModel, gpt2
 from tests.common import DTYPES, assert_matches
+from workloads.configs.gpt2 import GPT2Config
+from workloads.models.gpt2 import GPT2LMHeadModel, gpt2
 
 pytestmark = pytest.mark.unit
 

@@ -5,16 +5,16 @@ import math
 import torch
 from torch import nn
 
-from configs.efficientnet import (
+from workloads.configs.efficientnet import (
     EFFICIENTNET_CONFIGS,
     EfficientNetConfig,
 )
-from operators.activation import Sigmoid, SiLU
-from operators.convolution import Conv2d
-from operators.dropout import Dropout
-from operators.linear import Linear
-from operators.normalization import BatchNorm2d
-from operators.pooling import AdaptiveAvgPool2d
+from workloads.operators.activation import Sigmoid, SiLU
+from workloads.operators.convolution import Conv2d
+from workloads.operators.dropout import Dropout
+from workloads.operators.linear import Linear
+from workloads.operators.normalization import BatchNorm2d
+from workloads.operators.pooling import AdaptiveAvgPool2d
 
 
 def make_divisible(value: float, divisor: int = 8) -> int:

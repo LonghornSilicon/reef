@@ -3,17 +3,17 @@
 import torch
 from torch import nn
 
-from configs.googlenet import (
+from workloads.configs.googlenet import (
     GOOGLENET_CONFIGS,
     GoogLeNetConfig,
     InceptionSpec,
 )
-from operators.activation import ReLU
-from operators.convolution import Conv2d
-from operators.dropout import Dropout
-from operators.linear import Linear
-from operators.normalization import BatchNorm2d
-from operators.pooling import AdaptiveAvgPool2d, MaxPool2d
+from workloads.operators.activation import ReLU
+from workloads.operators.convolution import Conv2d
+from workloads.operators.dropout import Dropout
+from workloads.operators.linear import Linear
+from workloads.operators.normalization import BatchNorm2d
+from workloads.operators.pooling import AdaptiveAvgPool2d, MaxPool2d
 
 AUX_POOLED_SIZE = 4
 AUX_CHANNELS = 128

@@ -4,8 +4,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from operators.attention import GroupedQueryAttention
 from tests.common import DTYPES, assert_matches
+from workloads.operators.attention import GroupedQueryAttention
 
 pytestmark = pytest.mark.unit
 
