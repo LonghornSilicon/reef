@@ -57,7 +57,7 @@ Run experiments from `workloads/`. Each one takes `--help`.
 | `operator_macs` | Which operators do each model's multiply-adds (MACs) go to? | `uv run python src/workloads/experiments/operator_macs/main.py [family ...]` | `results/operator_macs/gpt_neo.csv` and `.png` |
 | `story_quality` | How well does each TinyStories size write the story it is asked for? | `uv run python src/workloads/experiments/story_quality/main.py [model ...]` | `results/story_quality/<#>_<prompt>.csv` |
 
-`operator_macs` counts on PyTorch's meta device, so it downloads nothing and finishes in seconds. `story_quality` has [its own README](src/workloads/experiments/story_quality/README.md) covering its method, findings and regression test.
+`operator_macs` counts on PyTorch's meta device, so it downloads nothing and finishes in seconds. Each experiment has its own README covering its method, findings and tests: [operator_macs](src/workloads/experiments/operator_macs/README.md), [story_quality](src/workloads/experiments/story_quality/README.md).
 
 ## Contributing
 
@@ -65,6 +65,7 @@ Run experiments from `workloads/`. Each one takes `--help`.
 - **An experiment** is a folder `src/workloads/experiments/<name>/` with a `main.py` that:
   - runs on its own as `uv run python src/workloads/experiments/<name>/main.py`, and parses its arguments with `argparse` so that `--help` works;
   - writes its outputs to `results/<name>/`;
+  - has a `README.md` giving the question it answers, its method, how to run it, its outputs and what they show;
   - uses absolute imports (`from workloads.models.gpt_neo import gpt_neo`).
 
   Code that several experiments share goes directly in `src/workloads/experiments/`.
