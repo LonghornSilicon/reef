@@ -55,9 +55,10 @@ Run experiments from `workloads/`. Each one takes `--help`.
 | experiment | question | command | output |
 |---|---|---|---|
 | `operator_macs` | Which operators do each model's multiply-adds (MACs) go to? | `uv run python src/workloads/experiments/operator_macs/main.py [family ...]` | `results/operator_macs/gpt_neo.csv` and `.png` |
+| `kv_cache_size` | How big is the KV cache for each size, up to 2,048 tokens, in fp32, bf16, int8 and int4? | `uv run python src/workloads/experiments/kv_cache_size/main.py [model ...]` | `results/kv_cache_size/gpt_neo.csv` and `.png` |
 | `story_quality` | How well does each TinyStories size write the story it is asked for? | `uv run python src/workloads/experiments/story_quality/main.py [model ...]` | `results/story_quality/<#>_<prompt>.csv` |
 
-`operator_macs` counts on PyTorch's meta device, so it downloads nothing and finishes in seconds. Each experiment has its own README covering its method, findings and tests: [operator_macs](src/workloads/experiments/operator_macs/README.md), [story_quality](src/workloads/experiments/story_quality/README.md).
+`operator_macs` and `kv_cache_size` download nothing and finish in seconds. Each experiment has its own README covering its method, findings and tests: [operator_macs](src/workloads/experiments/operator_macs/README.md), [kv_cache_size](src/workloads/experiments/kv_cache_size/README.md), [story_quality](src/workloads/experiments/story_quality/README.md).
 
 ## Contributing
 
