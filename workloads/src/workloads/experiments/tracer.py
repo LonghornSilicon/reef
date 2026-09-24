@@ -1,4 +1,4 @@
-"""Per-call operator records (MACs, element traffic, GEMM shapes) on meta."""
+"""Per-call operator records (FLOPs, element traffic, GEMM shapes) on meta."""
 
 import importlib
 from collections.abc import Callable
@@ -21,7 +21,7 @@ class Record:
 
     operator: str
     path: str
-    macs: int
+    flops: int
     input_numel: int
     weight_numel: int
     output_numel: int
@@ -51,9 +51,10 @@ def argument(args: tuple, kwargs: dict, index: int, name: str) -> object:
     return args[index] if len(args) > index else kwargs.get(name)
 
 
-# Convention: one MAC per scalar multiply, add, subtract, divide, compare or
-# nonlinearity (exp, erf, tanh, rsqrt, ...); a d-wide dot product costs d.
-# Reshapes, copies, selects and masked fills cost nothing.
+# Convention: one FLOP per scalar multiply, add, subtract, divide, compare or
+# nonlinearity (exp, erf, tanh, rsqrt, ...); a d-wide dot product costs 2d, a
+# multiply and an add per term. Reshapes, copies, selects and masked fills
+# cost nothing.
 #
 # Traffic is what each operator module reads and writes: input, parameters
 # and buffers, output. Module hooks cannot see residual adds or the wte + wpe
@@ -64,7 +65,7 @@ def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     d_in, d_out = args[0].shape[-1], out.shape[-1]
     positions = out.numel() // d_out
     bias = positions * d_out if module.bias is not None else 0
-    return positions * d_in * d_out + bias
+    return 2 * positions * d_in * d_out + bias
 
 
 def attention(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
@@ -74,7 +75,7 @@ def attention(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     bias = scores if argument(args, kwargs, 5, "bias") is not None else 0
     # QKᵀ and softmax(S)·V are each a head_dim dot product per score; the
     # scale is one multiply per score. Softmax is counted under its own row.
-    return 2 * scores * head_dim + scores + bias
+    return 2 * 2 * scores * head_dim + scores + bias
 
 
 def elementwise(ops: int) -> Formula:
@@ -172,7 +173,7 @@ def record(
     return Record(
         operator=name,
         path=path,
-        macs=FORMULAS[name](module, args, kwargs, out),
+        flops=FORMULAS[name](module, args, kwargs, out),
         input_numel=inputs,
         weight_numel=state_numel(module),
         output_numel=numel(out),

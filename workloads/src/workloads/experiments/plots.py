@@ -2,10 +2,19 @@
 
 SURFACE = "#fcfcfb"
 BAR = "#2a78d6"
-# Categorical slots 1-4 (blue, orange, aqua, yellow), assigned in this order.
-# Aqua and yellow are 2.7:1 and 2.1:1 against SURFACE, so lines in these colors
-# also carry direct labels.
-SERIES = ("#2a78d6", "#eb6834", "#1baf7a", "#eda100")
+# Categorical slots 1-8 (blue, orange, aqua, yellow, magenta, green, violet,
+# red), assigned in this order. Aqua, yellow and magenta are under 3:1 against
+# SURFACE, so lines in these colors also carry direct labels.
+SERIES = (
+    "#2a78d6",
+    "#eb6834",
+    "#1baf7a",
+    "#eda100",
+    "#e87ba4",
+    "#008300",
+    "#4a3aa7",
+    "#e34948",
+)
 INK = "#0b0b0b"
 SECONDARY_INK = "#52514e"
 MUTED_INK = "#898781"

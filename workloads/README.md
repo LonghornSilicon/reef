@@ -1,6 +1,6 @@
 # workloads
 
-Workload characterization for Reef. This directory rebuilds TinyStories-Instruct (GPT-Neo), the language model Reef might run, using only a small library of operators written from scratch in PyTorch. Tests check every operator and the model against PyTorch and `transformers`. Experiments then measure the model, for example where its multiply-adds go and how good its output is, to inform the chip's design.
+Workload characterization for Reef. This directory rebuilds TinyStories-Instruct (GPT-Neo), the language model Reef might run, using only a small library of operators written from scratch in PyTorch. Tests check every operator and the model against PyTorch and `transformers`. Experiments then measure the model, for example how many FLOPs it takes and how good its output is, to inform the chip's design.
 
 ```
 src/workloads/
@@ -8,7 +8,7 @@ src/workloads/
   models/       TinyStories-Instruct (GPT-Neo), built only from operators/
   configs/      hyperparameters for each published model size
   experiments/  one folder per experiment, each with a runnable main.py,
-                plus helpers the experiments share (tracer.py, plots.py)
+                plus helpers the experiments share (tracer.py, quantization.py, plots.py)
 tests/          mirrors src/workloads/
 results/        experiment outputs, one folder per experiment
 ```
@@ -54,11 +54,11 @@ Run experiments from `workloads/`. Each one takes `--help`.
 
 | experiment | question | command | output |
 |---|---|---|---|
-| `operator_macs` | Which operators do each model's multiply-adds (MACs) go to? | `uv run python src/workloads/experiments/operator_macs/main.py [family ...]` | `results/operator_macs/gpt_neo.csv` and `.png` |
+| `flops` | How many FLOPs do prefill and decode take at each size, length and precision, and which operators do they go to? | `uv run python src/workloads/experiments/flops/main.py [model ...]` | `results/flops/gpt_neo.csv`, `prefill_decode.png` and `operators.png` |
 | `kv_cache_size` | How big is the KV cache for each size, up to 2,048 tokens, in fp32, bf16, int8 and int4? | `uv run python src/workloads/experiments/kv_cache_size/main.py [model ...]` | `results/kv_cache_size/gpt_neo.csv` and `.png` |
 | `story_quality` | How well does each TinyStories size write the story it is asked for, at fp32, bf16, int8 and int4? | `uv run python src/workloads/experiments/story_quality/main.py [model ...] [--precision p]` | `results/story_quality/<#>_<prompt>.csv` |
 
-`operator_macs` and `kv_cache_size` download nothing and finish in seconds. Each experiment has its own README covering its method, findings and tests: [operator_macs](src/workloads/experiments/operator_macs/README.md), [kv_cache_size](src/workloads/experiments/kv_cache_size/README.md), [story_quality](src/workloads/experiments/story_quality/README.md).
+`kv_cache_size` finishes in seconds and `flops` in about a minute; neither downloads anything. Each experiment has its own README covering its method, findings and tests: [flops](src/workloads/experiments/flops/README.md), [kv_cache_size](src/workloads/experiments/kv_cache_size/README.md), [story_quality](src/workloads/experiments/story_quality/README.md).
 
 ## Contributing
 

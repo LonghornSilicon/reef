@@ -10,16 +10,18 @@ import transformers
 from torch import nn
 
 from workloads.configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
+from workloads.experiments.quantization import (
+    INT4_GROUP,
+    PRECISIONS,
+    is_quantized,
+)
 from workloads.models.gpt_neo import gpt_neo
-from workloads.operators.linear import Linear
 
 RESULTS = Path(__file__).resolve().parents[4] / "results" / "story_quality"
 MAX_NEW_TOKENS = 320
 END = "<|endoftext|>"
 # int8 and int4 are simulated: values are rounded to the integer grid and
 # the arithmetic runs in fp32.
-PRECISIONS = ("fp32", "bf16", "int8", "int4")
-INT4_GROUP = 32
 
 # Field order was randomised in training, but Story always comes last. The
 # marker is "Story:" plus a space and a BLANK line, as in the train split; the
@@ -100,8 +102,7 @@ def convert(model: nn.Module, precision: str) -> nn.Module:
     if precision == "fp32":
         return model
     for name, module in model.named_modules():
-        # lm_head shares its weight with the token embedding; both stay fp32.
-        if not isinstance(module, Linear) or name == "lm_head":
+        if not is_quantized(name, type(module).__name__):
             continue
         weight = module.weight.data
         if precision == "int8":

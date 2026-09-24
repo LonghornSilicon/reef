@@ -14,14 +14,15 @@ def only(records: list[tracer.Record], operator: str) -> list[tracer.Record]:
     return [record for record in records if record.operator == operator]
 
 
-def test_linear_record_counts_macs_elements_and_one_gemm() -> None:
+def test_linear_record_counts_flops_elements_and_one_gemm() -> None:
     with torch.device("meta"):
         module = Linear(8, 16)
         x = torch.zeros(2, 3, 8)
     (record,) = tracer.trace(module, x)
 
     assert record.gemms == [(6, 16, 8, 1)]
-    assert record.macs == 6 * 8 * 16 + 6 * 16
+    # A multiply and an add per weight per position, then the bias add.
+    assert record.flops == 2 * 6 * 8 * 16 + 6 * 16
     assert record.input_numel == 48
     assert record.weight_numel == 16 * 8 + 16
     assert record.output_numel == 96
@@ -38,6 +39,8 @@ def test_attention_records_two_gemms_and_materialized_scores() -> None:
     (softmax,) = only(records, "Softmax")
 
     assert attention.gemms == [(6, 6, 16, 4), (6, 16, 6, 4)]
+    # Two 16-wide dot products per score, then the scale.
+    assert attention.flops == 4 * (4 * 6 * 6) * 16 + 4 * 6 * 6
     assert attention.intermediate_numel == 2 * 4 * 6 * 6
     assert attention.input_numel == query.numel() + 2 * key.numel()
     assert attention.fused_numel == attention.numel - 2 * 4 * 6 * 6
