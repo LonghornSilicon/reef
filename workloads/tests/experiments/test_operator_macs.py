@@ -20,19 +20,10 @@ def test_runs_standalone_with_help() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("family", "key"),
-    [
-        ("gpt2", "GPT-2"),
-        ("llama", "SmolLM2-135M"),
-        ("gpt_neo", "TinyStories-Instruct-8M"),
-    ],
-)
-def test_records_reproduce_the_tracked_mac_totals(
-    family: str, key: str
-) -> None:
-    records = tracer.prefill(family, key, batch=1, length=operator_macs.SEQ_LEN)
-    with open(operator_macs.RESULTS / f"{family}.csv", newline="") as file:
+def test_records_reproduce_the_tracked_mac_totals() -> None:
+    key = "TinyStories-Instruct-8M"
+    records = tracer.prefill("gpt_neo", key, 1, operator_macs.SEQ_LEN)
+    with open(operator_macs.RESULTS / "gpt_neo.csv", newline="") as file:
         # A family holds one row group per size, each ending in a Total.
         rows = {
             row["operator"]: row

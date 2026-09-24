@@ -1,12 +1,11 @@
 # workloads
 
-Workload characterization for Reef. This directory rebuilds the neural networks Reef might run, using only a small library of operators written from scratch in PyTorch. Tests check every operator and model against PyTorch, `transformers` and `torchvision`. Experiments then measure the models, for example where the multiply-adds go and how good a small language model's output is, to inform the chip's design.
+Workload characterization for Reef. This directory rebuilds TinyStories-Instruct (GPT-Neo), the language model Reef might run, using only a small library of operators written from scratch in PyTorch. Tests check every operator and the model against PyTorch and `transformers`. Experiments then measure the model, for example where its multiply-adds go and how good its output is, to inform the chip's design.
 
 ```
 src/workloads/
   operators/    the kernels, from scratch in PyTorch (the README gives the math)
-  models/       GoogLeNet, ResNet, EfficientNet, GPT-2, SmolLM2 (Llama), TinyStories (GPT-Neo),
-                built only from operators/
+  models/       TinyStories-Instruct (GPT-Neo), built only from operators/
   configs/      hyperparameters for each published model size
   experiments/  one folder per experiment, each with a runnable main.py,
                 plus helpers the experiments share (tracer.py, plots.py)
@@ -24,7 +23,7 @@ cd reef/workloads
 uv sync
 ```
 
-On Linux, torch and torchvision come from the CUDA 12.6 wheel index; everywhere else they come from PyPI. Nothing here needs a GPU.
+On Linux, torch comes from the CUDA 12.6 wheel index; everywhere else it comes from PyPI. Nothing here needs a GPU.
 
 To update:
 
@@ -44,10 +43,10 @@ uv run pytest                 # adds the slow tests below
 
 The slow tests compare against published checkpoints:
 
-- `tests/models/test_checkpoints.py` covers SmolLM2-135M and TinyStories-Instruct-8M against `transformers`, and ResNet-18/50 against `torchvision`.
+- `tests/models/test_checkpoints.py` checks TinyStories-Instruct-8M's config and logits against `transformers`.
 - `tests/experiments/test_story_quality.py` regenerates every story in `results/story_quality/` and requires an exact match.
 
-The first slow run needs network access to Hugging Face and download.pytorch.org, and about 2 GB of disk for the Hugging Face and torch caches. Once the downloads are cached, the slow tests take about 30 s on an Apple-silicon laptop CPU.
+The first slow run needs network access to Hugging Face and about 1.5 GB of disk for its cache. Once the downloads are cached, the slow tests take about 30 s on an Apple-silicon laptop CPU.
 
 ## Experiments
 
@@ -55,7 +54,7 @@ Run experiments from `workloads/`. Each one takes `--help`.
 
 | experiment | question | command | output |
 |---|---|---|---|
-| `operator_macs` | Which operators do each model's multiply-adds (MACs) go to? | `uv run python src/workloads/experiments/operator_macs/main.py [family ...]` | `results/operator_macs/<family>.csv` and `.png` |
+| `operator_macs` | Which operators do each model's multiply-adds (MACs) go to? | `uv run python src/workloads/experiments/operator_macs/main.py [family ...]` | `results/operator_macs/gpt_neo.csv` and `.png` |
 | `story_quality` | How well does each TinyStories size write the story it is asked for? | `uv run python src/workloads/experiments/story_quality/main.py [model ...]` | `results/story_quality/<#>_<prompt>.csv` |
 
 `operator_macs` counts on PyTorch's meta device, so it downloads nothing and finishes in seconds. `story_quality` has [its own README](src/workloads/experiments/story_quality/README.md) covering its method, findings and regression test.

@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from tests.common import DTYPES, assert_matches
-from workloads.operators.activation import GELU, ReLU, SiLU, Softmax
+from workloads.operators.activation import GELU, Softmax
 
 pytestmark = pytest.mark.unit
 
@@ -23,18 +23,6 @@ def test_softmax_is_stable_for_large_inputs(dtype: torch.dtype) -> None:
     actual = Softmax(dim=-1)(x)
     assert torch.isfinite(actual).all()
     assert_matches(actual, torch.softmax(x, dim=-1), dtype)
-
-
-@pytest.mark.parametrize("dtype", DTYPES)
-def test_silu_matches_reference(dtype: torch.dtype) -> None:
-    x = torch.randn(4, 6, 8, dtype=dtype)
-    assert_matches(SiLU()(x), F.silu(x), dtype)
-
-
-@pytest.mark.parametrize("dtype", DTYPES)
-def test_relu_matches_reference(dtype: torch.dtype) -> None:
-    x = torch.randn(4, 6, 8, dtype=dtype)
-    assert_matches(ReLU()(x), F.relu(x), dtype)
 
 
 @pytest.mark.parametrize("dtype", DTYPES)

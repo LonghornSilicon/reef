@@ -4,27 +4,6 @@ import torch
 from torch import nn
 
 
-class ReLU(nn.Module):
-    """Rectified linear unit."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.where(x > 0, x, torch.zeros_like(x))
-
-
-class SiLU(nn.Module):
-    """Sigmoid linear unit, ``x * sigmoid(x)``."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return x * torch.sigmoid(x)
-
-
-class Sigmoid(nn.Module):
-    """Logistic function."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.sigmoid(x)
-
-
 class Softmax(nn.Module):
     """Numerically stable softmax over a single axis."""
 

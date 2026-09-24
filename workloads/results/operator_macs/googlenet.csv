@@ -1,9 +1,0 @@
-model,operator,calls,macs,share
-GoogLeNet,Conv2d,57,1497352192,0.980503
-GoogLeNet,BatchNorm2d,57,12919200,0.008460
-GoogLeNet,MaxPool2d,13,12553408,0.008220
-GoogLeNet,ReLU,57,3226160,0.002113
-GoogLeNet,Linear,1,1025000,0.000671
-GoogLeNet,AdaptiveAvgPool2d,1,51200,0.000034
-GoogLeNet,Dropout,1,0,0.000000
-GoogLeNet,Total,187,1527127160,1

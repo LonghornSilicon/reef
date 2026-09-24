@@ -7,9 +7,7 @@ from dataclasses import dataclass, field
 import torch
 from torch import nn
 
-from workloads.models.gpt2 import Conv1D
 from workloads.operators.attention import GroupedQueryAttention
-from workloads.operators.pooling import AdaptiveAvgPool2d
 
 Formula = Callable[[nn.Module, tuple, dict, object], int]
 # (M, N, K, count): count independent (M, K) by (K, N) products.
@@ -30,7 +28,6 @@ class Record:
     # Materialized attention scores and probabilities; zero when fused.
     intermediate_numel: int = 0
     gemms: list[Gemm] = field(default_factory=list)
-    depthwise: bool = False
     # False for the Softmax inside attention, which a fused kernel absorbs.
     in_fused: bool = True
 
@@ -59,9 +56,8 @@ def argument(args: tuple, kwargs: dict, index: int, name: str) -> object:
 # Reshapes, copies, selects and masked fills cost nothing.
 #
 # Traffic is what each operator module reads and writes: input, parameters
-# and buffers, output. Module hooks cannot see residual adds, the SwiGLU gate
-# multiply, GPT-2's wte + wpe add or EfficientNet's squeeze-excite multiply,
-# so none of those are counted.
+# and buffers, output. Module hooks cannot see residual adds or the wte + wpe
+# add, so neither is counted.
 
 
 def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
@@ -69,12 +65,6 @@ def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     positions = out.numel() // d_out
     bias = positions * d_out if module.bias is not None else 0
     return positions * d_in * d_out + bias
-
-
-def conv2d(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
-    taps = module.in_channels // module.groups * module.kernel_size**2
-    bias = out.numel() if module.bias is not None else 0
-    return out.numel() * taps + bias
 
 
 def attention(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
@@ -107,92 +97,23 @@ def layer_norm(
     return per_element * x.numel() + 4 * vectors
 
 
-def rms_norm(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
-    x = args[0]
-    vectors = x.numel() // x.shape[-1]
-    return 4 * x.numel() + 3 * vectors
-
-
-def batch_norm(
-    module: nn.Module, args: tuple, kwargs: dict, out: object
-) -> int:
-    x = args[0]
-    return 4 * x.numel() + 2 * x.shape[1]
-
-
-def max_pool(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
-    return out.numel() * module.kernel_size**2
-
-
-def window_span(size: int, out_size: int) -> int:
-    """Total input rows covered by all adaptive-pooling windows on one axis."""
-    return sum(
-        -(-(i + 1) * size // out_size) - i * size // out_size
-        for i in range(out_size)
-    )
-
-
-def adaptive_avg_pool(
-    module: AdaptiveAvgPool2d, args: tuple, kwargs: dict, out: object
-) -> int:
-    batch, channels, height, width = args[0].shape
-    out_h, out_w = module.output_size
-    area = window_span(height, out_h) * window_span(width, out_w)
-    return batch * channels * area + out.numel()
-
-
-def rotary_tables(
-    module: nn.Module, args: tuple, kwargs: dict, out: object
-) -> int:
-    length, pairs = args[0].numel(), module.rotary_dim // 2
-    # position * frequency, then cos and sin over both halves.
-    return length * pairs + 2 * length * module.rotary_dim
-
-
-def rotary_apply(module: nn.Module, x: torch.Tensor) -> int:
-    rotated = x.numel() // module.head_dim * module.rotary_dim
-    # x·cos, x·sin and their sum per element, plus negating half of them.
-    return 3 * rotated + rotated // 2
-
-
 def free(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
     return 0
 
 
 FORMULAS: dict[str, Formula] = {
     "Linear": linear,
-    "Conv2d": conv2d,
     "GroupedQueryAttention": attention,
     "Softmax": elementwise(5),
-    "ReLU": elementwise(1),
-    "Sigmoid": elementwise(1),
-    "SiLU": elementwise(2),
     "GELU": elementwise(9),
     "LayerNorm": layer_norm,
-    "RMSNorm": rms_norm,
-    "BatchNorm2d": batch_norm,
-    "MaxPool2d": max_pool,
-    "AdaptiveAvgPool2d": adaptive_avg_pool,
-    "RotaryEmbedding": rotary_tables,
     "Embedding": free,
-    "Dropout": free,
 }
 
 
 def linear_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
-    # Shapes come from the activations, not the weight: Conv1D stores its
-    # weight as (in, out).
     d_in, d_out = args[0].shape[-1], out.shape[-1]
     return [(out.numel() // d_out, d_out, d_in, 1)]
-
-
-def conv2d_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
-    if is_depthwise(module):
-        return []
-    batch, out_channels, out_h, out_w = out.shape
-    groups = module.groups
-    taps = module.in_channels // groups * module.kernel_size**2
-    return [(batch * out_h * out_w, out_channels // groups, taps, groups)]
 
 
 def attention_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
@@ -207,19 +128,11 @@ def attention_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
 
 GEMMS: dict[str, Gemms] = {
     "Linear": linear_gemms,
-    "Conv2d": conv2d_gemms,
     "GroupedQueryAttention": attention_gemms,
 }
 
 
-def is_depthwise(module: nn.Module) -> bool:
-    return module.groups == module.in_channels == module.out_channels
-
-
 def operator_name(module: nn.Module) -> str | None:
-    # GPT-2's Conv1D is a Linear with a transposed weight, defined in the model.
-    if isinstance(module, Conv1D):
-        return "Linear"
     if type(module).__module__.startswith("workloads.operators."):
         return type(module).__name__
     return None
@@ -265,7 +178,6 @@ def record(
         output_numel=numel(out),
         intermediate_numel=intermediate,
         gemms=gemms,
-        depthwise=name == "Conv2d" and is_depthwise(module),
     )
 
 
@@ -295,31 +207,6 @@ def instrument(model: nn.Module) -> list[Record]:
             records.append(entry)
 
         module.register_forward_hook(hook, with_kwargs=True)
-        if name == "RotaryEmbedding":
-            # Models call apply_rotary directly, bypassing forward hooks.
-            original = module.apply_rotary
-
-            def apply_rotary(
-                x: torch.Tensor,
-                cos: torch.Tensor,
-                sin: torch.Tensor,
-                module: nn.Module = module,
-                path: str = path,
-                original: Callable = original,
-            ) -> torch.Tensor:
-                records.append(
-                    Record(
-                        operator="RotaryEmbedding",
-                        path=path,
-                        macs=rotary_apply(module, x),
-                        input_numel=x.numel() + cos.numel() + sin.numel(),
-                        weight_numel=0,
-                        output_numel=x.numel(),
-                    )
-                )
-                return original(x, cos, sin)
-
-            module.apply_rotary = apply_rotary
     return records
 
 
@@ -338,10 +225,7 @@ def trace(model: nn.Module, *inputs: object) -> list[Record]:
 
 
 def max_positions(model: nn.Module) -> int:
-    config = model.config
-    if hasattr(config, "n_positions"):
-        return config.n_positions
-    return config.max_position_embeddings
+    return model.config.max_position_embeddings
 
 
 def lengths(family: str, key: str, wanted: tuple[int, ...]) -> tuple[int, ...]:
@@ -369,8 +253,3 @@ def decode(family: str, key: str, batch: int, context: int) -> list[Record]:
     with torch.no_grad():
         _, cache = model(tokens(batch, context))
     return trace(model, tokens(batch, 1), cache)
-
-
-def classify(family: str, key: str, batch: int, size: int) -> list[Record]:
-    model = build(family, key)
-    return trace(model, torch.zeros(batch, 3, size, size, device="meta"))

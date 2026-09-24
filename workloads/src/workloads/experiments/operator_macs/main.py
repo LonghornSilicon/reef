@@ -31,20 +31,11 @@ SEQ_LEN = 128
 Inputs = tuple[torch.Tensor, ...]
 
 
-def image(size: int) -> Callable[[object], Inputs]:
-    return lambda config: (torch.zeros(BATCH, 3, size, size, device="meta"),)
-
-
 def tokens(config: object) -> Inputs:
     return (torch.zeros(BATCH, SEQ_LEN, dtype=torch.long, device="meta"),)
 
 
 FAMILIES: dict[str, Callable[[object], Inputs]] = {
-    "googlenet": image(224),
-    "resnet": image(224),
-    "efficientnet": image(224),
-    "gpt2": tokens,
-    "llama": tokens,
     "gpt_neo": tokens,
 }
 
