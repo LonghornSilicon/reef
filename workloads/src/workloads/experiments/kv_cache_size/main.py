@@ -32,9 +32,9 @@ CACHES = ("stored", "needed")
 # Size is linear in length except for one bend at window_size (256), itself a
 # power of two, so straight lines through these points are exact.
 LENGTHS = tuple(2**exponent for exponent in range(12))
-# The plot covers short prompts only. Below window_size, stored and needed
+# The plot stops at window_size (256): up to there stored and needed
 # are the same size, so it shows one line per precision.
-PLOT_TOKENS = 64
+PLOT_TOKENS = 256
 
 
 def kv_bytes(
@@ -97,7 +97,7 @@ def plot(keys: list[str], path: Path) -> None:
         # Headroom so the end labels are not clipped.
         ax.set_xlim(0, PLOT_TOKENS * 1.32)
         ax.set_ylim(0, None)
-        ax.set_xticks([1, 16, 32, 48, 64])
+        ax.set_xticks([1, 64, 128, 192, 256])
         ax.set_xlabel("sequence length (tokens)", fontsize=8, color=MUTED_INK)
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: megabytes(y)))
         ax.set_facecolor(SURFACE)

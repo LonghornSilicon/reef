@@ -41,7 +41,7 @@ The run writes two files to `results/kv_cache_size/`:
   | `bytes` | KV cache size |
 
   The size grows in straight lines between these lengths. Its only bend is at 256, which is one of them, so the CSV captures the whole curve.
-- **`gpt_neo.png`** (gitignored): one panel per size, from 1 to 64 tokens, with a line for each precision. Stored and needed are the same size below 256 tokens, so the plot shows one line per precision; the CSV has the full range.
+- **`gpt_neo.png`** (gitignored): one panel per size, from 1 to 256 tokens of generation, with a line for each precision. Stored and needed are the same size up to 256 tokens, the local window, so the plot shows one line per precision; the CSV has the full range to 2,048.
 
 ## Observations
 
