@@ -1,58 +1,247 @@
-model,words,story
-TinyStories-Instruct-1M,139,"Once upon a time, there was a little girl called Lily. She was three years old and loved to explore. One day, she found a kitten in the garden. The kitten was very happy and she wanted to help it.
+model,precision,words,story
+TinyStories-Instruct-1M,fp32,153,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she found a kitten in the garden. The kitten was very cute and had a big smile.
 
-Lily decided to take the kitten home and put it in the garden. She was so excited to see it was a kitten. She ran to the kitten and asked if she could help her. The kitten was so happy and she ran to the garden.
+Lily wanted to help the kitten, so she asked her mommy if she could help. Her mommy said yes and they went to the garden.
 
-The kitten was so happy and thanked Lily for helping. Lily was so happy and thanked the kitten. She thanked the kitten and went back to playing in the garden.
+When they got to the garden, Lily saw a kitten. She was so happy and wanted to help. She ran to the kitten and said, ""Look, Mommy! The kitten is so cute!""
 
-The kitten was so happy and thanked Lily for her help. She knew that she could always count her kitten and the kitten."
-TinyStories-Instruct-3M,185,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+Her mommy smiled and said, ""Yes, it is. But you have to be careful and take care of it.""
 
-One day, she was walking in the garden when she saw something strange. It was a kitten! Lily was so excited and she wanted to take it home.
+Lily was so excited to see the kitten and said, ""I'm glad I found it!""
 
-She picked up the kitten and put it in her pocket. As she walked away, she noticed something strange. The kitten was lost!
+Her mommy smiled and said, ""That's great, Lily. You are very kind and kind.""
 
-Lily was so sad and she started to cry. But then she saw a little girl walking towards her. She asked the girl what was wrong.
+Lily smiled and said, ""I love you too, mommy."""
+TinyStories-Instruct-1M,bf16,155,"Once upon a time, there was a little girl called Lily. She was three years old and loved to explore. One day, she found a kitten in the garden. The kitten was very happy and she wanted to help it.
 
-The girl said, ""I lost my kitten. I can't find it anywhere.""
+Lily decided to take the kitten home and put it in a jar. She put it in the jar and went to the garden. She saw a beautiful garden and decided to pick it up. She picked it up and put it in her pocket.
 
-Lily was so happy to help. She said, ""Don't worry, I'll help you find your kitten!""
+The kitten was so happy to see the kitten. It was a little kitten! Lily was so happy and thanked the kitten. She thanked the kitten and went to play with her mom.
 
-So Lily and the girl searched the garden together. They searched and searched until they found the kitten's mom. The kitten was so happy and Lily was so happy to have found her kitten.
+The kitten was so happy that she had found a new friend. She thanked the kitten for her help and they became good friends. From that day on, Lily always looked for the kitten and the kitten."
+TinyStories-Instruct-1M,int8,149,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she found a kitten in the garden. She was so excited that she ran to the kitten and asked her mom if she could have a kitten. 
 
-The girl said, ""Thank you, Lily! You are so kind!""
+The kitten was so happy and she ran to the kitten. She ran and ran until she found a kitten. The kitten was so cute and cute! Lily was so happy and ran to the kitten. 
 
-Lily smiled and said, ""You're welcome! I'm glad I could help you."""
-TinyStories-Instruct-8M,183,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she was walking in the garden when she saw something strange. It was a little kitten! Lily was so excited and she wanted to take it home.
+The kitten was so happy and she thanked her mom for her. She hugged the kitten and said goodbye. She was so happy that she had found a kitten. 
 
-Lily picked up the kitten and held it in her hands. She was so happy to have found it. She wanted to keep it, but she knew it must be lost. She decided to take the kitten home with her.
+The kitten was so happy and she thanked her mom for her help. She went back to the garden and found a cozy spot to hide. She was so happy and grateful for the kitten."
+TinyStories-Instruct-1M,int4,73,"Inside the woods were two birds. The birds were singing and birds and birds. The birds were singing and birds. One was a big birds had never a bird had been lost.
 
-When they got home, Lily's mom was very surprised to see the kitten. She asked Lily where she got it from. Lily told her mom about the kitten and her mom said it must have been lost.
+One day, like the birds had been singing. The birds were singing and birds. The birds were singing and birds. One was lost a little birds. One was lost a little was near the woods. The end, small birds and birds."
+TinyStories-Instruct-3M,fp32,140,"Once upon a time there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was walking in the garden when she saw something very strange. It was a kitten!
 
-Lily was so happy to have found the kitten. She knew it was very special and she wanted to keep it safe. She gave the kitten a big hug and said goodbye.
+Lily was so excited and she ran to her mom. ""Mommy, look! A kitten!"" she said.
 
-Lily was so happy that she had found the kitten. She knew she would always remember the day she found the kitten in the garden."
-TinyStories-Instruct-28M,160,"Once upon a time, there was a little girl named Lily. She was very curious and loved to explore. One day, she was playing in the garden when she saw a small, fluffy kitten. She was so excited and wanted to take it home.
+Her mom smiled and said, ""Yes, Lily. Let's take it home and take it home.""
 
-Lily asked her mom, ""Can I keep the kitten?"" Her mom said, ""Yes, but you must be very careful. You must always be gentle with it.""
+Lily and her mom took the kitten home and put it in a special place. They took it home and put it in a special place.
 
-Lily was so happy and hugged the kitten tightly. She took it home and named it Fluffy. She played with it every day and took care of it.
+The kitten was so happy to be back with its family. Lily was so happy to have found the kitten and she hugged it tightly.
 
-One day, Lily noticed that Fluffy was looking for its mom. She asked her mom, ""Where is Fluffy's mom?"" Her mom said, ""I don't know, but I'm sure she'll be happy to see her.""
+The kitten purred and Lily smiled. She was so happy to have found a new friend."
+TinyStories-Instruct-3M,bf16,165,"Once upon a time there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was walking in the garden when she saw something very strange. It was a kitten!
 
-Lily was so happy that she could help the kitten find its mom. She knew that she had to be careful and always keep an eye on Fluffy."
-TinyStories-Instruct-33M,168,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something very strange. It was a small, furry animal. It was a kitten!
+Lily was so excited and she ran to her mommy and asked, ""Mommy, what is this kitten?""
+
+Her mommy smiled and said, ""That's a kitten, Lily. It's very small and it's very small and it's very small. But it's very small and it needs a little bit of life.""
+
+Lily was so happy to hear that she had found a kitten. She asked her mommy if she could take it home with her. Her mommy said yes and Lily was so excited to take the kitten home.
+
+When they got home, Lily's mommy said, ""Let's take the kitten home and take care of it."" Lily was so happy to have a new kitten and she was so happy to have a new pet."
+TinyStories-Instruct-3M,int8,175,"Once upon a time there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was walking in the garden when she saw something very strange. It was a kitten!
+
+Lily was so excited and she ran to her mommy and asked, ""Mommy, what is this kitten?""
+
+Her mommy smiled and said, ""That's a kitten, Lily. It's very small and it's very small. But it's very small and it's very small. We need to find it.""
+
+Lily was so excited to help the kitten. She asked her mommy, ""Can I help the kitten?""
+
+Her mommy said, ""Yes, you can help the kitten. Let's take it to the house and find its mommy.""
+
+So they went to the house and they found the kitten's mommy. She was so happy to see the kitten and she said, ""Thank you for helping me find my kitten. You are so brave!""
+
+Lily smiled and said, ""I'm glad I could help. I'm glad I could help the kitten."""
+TinyStories-Instruct-3M,int4,190,"Once upon a time there was a little girl named Lily. She was very brave and she was always brave. One day she was playing in the garden when she saw a small, old and sad one.
+
+Lily asked her mommy, ""What's wrong, mommy. Can I help you?""
+
+Her mommy said, ""Let's help her find your mommy. She is in the garden, and I'm here.""
+
+Lily was scared, but her mommy was there. She said, ""Don't worry, Lily. I'll be there.""
+
+Lily wanted to help her mommy. She looked around and saw a small, old, old, and a small, old, and a small, old, old, and a small, old, old, was a small, old, old, and sad.
+
+Lily asked, ""Where is your mommy?""
+
+""She is in the corner. I'm here!""
+
+Lily said, ""What's your mommy?""
+
+""It's your mommy. She's your mommy's me!""
+
+Lily said, ""I'm here to help you. I'm so brave!""
+
+Lily said, ""I'm here. I'm so brave!""
+
+Lily said, ""Let's help. I'm sure you have a look!""
+
+Lily and her mommy looked at the old, old, old, and saw that it was an old, old, old, old, old,"
+TinyStories-Instruct-8M,fp32,169,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she was walking in the garden when she saw something strange. It was a little kitten!
+
+Lily was so excited that she ran to the kitten and said, ""Hi there! What's your name?""
+
+The kitten meowed and Lily smiled. She said, ""My name is Lily. What's your name?""
+
+The kitten meowed again and Lily said, ""My name is Lily. What's yours?""
+
+The kitten meowed again and Lily said, ""My name is Emily. I'm so happy to meet you!""
+
+Lily and Emily became the best of friends. They played together every day and had lots of fun.
+
+One day, Lily said to Emily, ""I'm so glad you're here. I'm so glad I found you.""
+
+Emily smiled and said, ""Me too! I'm so glad I found you.""
+
+Lily and Emily were so happy to have each other. They were the best of friends and they were always happy together."
+TinyStories-Instruct-8M,bf16,169,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she was walking in the garden when she saw something strange. It was a little kitten!
+
+Lily was so excited that she ran to the kitten and said, ""Hi there! What's your name?""
+
+The kitten meowed and Lily smiled. She said, ""My name is Lily. What's your name?""
+
+The kitten meowed again and Lily said, ""My name is Lily. What's yours?""
+
+The kitten meowed again and Lily said, ""My name is Emily. I'm so happy to meet you!""
+
+Lily and Emily became the best of friends. They played together every day and had lots of fun.
+
+One day, Lily said to Emily, ""I'm so glad you're here. I'm so glad I found you.""
+
+Emily smiled and said, ""Me too! I'm so glad I found you.""
+
+Lily and Emily were so happy to have each other. They were the best of friends and they were always so happy."
+TinyStories-Instruct-8M,int8,153,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore. One day, she was walking in the garden when she saw something strange. It was a little kitten!
+
+Lily was so excited that she ran to the kitten and said, ""Hi there! What's your name?""
+
+The kitten looked up at her and said, ""My name is Mittens. I'm lost and I don't know how to get home.""
+
+Lily smiled and said, ""Don't worry, Mittens. I'll help you find your way home.""
+
+So, Lily and Mittens started walking together. They looked for the kitten's mom and soon they found her.
+
+Lily said, ""Look, Mittens! We found your mom!""
+
+Mittens meowed happily and said, ""Thank you, Lily. You're the best friend ever!""
+
+Lily smiled and said, ""You're welcome, Mittens. I'm glad I could help you.""
+
+And they both went on their way, happy and content."
+TinyStories-Instruct-8M,int4,144,"Once upon a time, there was a little girl named Lily. She was only three years old.
+
+One day, Lily was playing in the garden. She was having lots of fun. Suddenly, she saw something. It was a kitten!
+
+Lily was so excited. She ran to the kitten and said, ""Hi, kitten!""
+
+The kitten looked up at her and said, ""Hi, Lily!""
+
+Lily was so happy. She wanted to take the kitten home with her. She said, ""I'm sorry, kitten. I won't take you with me. I'm going to take you home with me!""
+
+The kitten looked at her and said, ""But I'm so scared, I'm scared too!""
+
+Lily smiled and said, ""Don't worry, kitten. I'll help you. I'll be with you, and I'll be with you.""
+
+Lily and the kitten went back to playing in the garden. They were best friends.
+
+The end."
+TinyStories-Instruct-28M,fp32,179,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help finding its mother.""
+
+Lily was so happy to hear this. She wanted to help the kitten find its mother. She asked her mom, ""Can I help the kitten find its mother?"" Her mom smiled and said, ""Yes, you can help the kitten find its mother.""
+
+So Lily and the kitten went on a search. They looked everywhere, but they couldn't find the mother. Finally, they found the mother cat. The kitten was so happy to see its mother again.
+
+Lily was so proud that she had helped the kitten find its mother. She smiled and said, ""I'm so glad I could help."""
+TinyStories-Instruct-28M,bf16,162,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+Lily asked her mom, ""What is that?"" Her mom said, ""It's a kitten. It's lost and needs help.""
+
+Lily was so happy to help the kitten. She asked her mom, ""Can I help the kitten find its mom?"" Her mom said, ""Yes, you can help the kitten. Let's go look for its mom.""
+
+Lily and her mom searched the garden and soon found the kitten's mom. The kitten was so happy to see its mom and Lily was so proud that she helped the kitten.
+
+The kitten's mom said, ""Thank you for helping my kitten. You are so kind."" Lily smiled and said, ""You're welcome!"""
+TinyStories-Instruct-28M,int8,187,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry creature with big eyes.
+
+Lily was curious and wanted to know what it was. She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That is a kitten, Lily. It's lost and needs help.""
+
+Lily was so excited. She wanted to help the kitten find its mom. She asked her mom, ""Can I help the kitten find its mom?"" Her mom smiled and said, ""Yes, you can help the kitten. Let's go look for its mom.""
+
+Lily and her mom searched the garden and eventually found the kitten's mom. The kitten was so happy to see its mom and Lily was so proud that she helped the kitten find its mom.
+
+The moral of the story is that it is important to help others when they need it. Even if it seems like a small act of kindness, it can make a big difference."
+TinyStories-Instruct-28M,int4,215,"Once upon a time, there was a little girl named Lily. She was very happy and loved to play in the garden. One day, she was playing in the garden when she saw something strange. It was a big, round thing with a lot of buttons. She was very curious and wanted to know what it was.
+
+Lily asked her mom, ""What is that?"" Her mom said, ""That is a telephone. It is a telephone."" Lily was very excited and asked her mom to tell her more. Her mom said, ""Let's go and see if it is available.""
+
+So, they went to the telephone and Lily was so happy. She picked it up and said, ""Hello?"" But no one answered. She was confused and asked her mom, ""Where is the telephone?"" Her mom said, ""I don't know, but let's keep looking.""
+
+So, Lily and her mom kept looking for the telephone. Finally, they found it! It was a little kitten who was lost. Lily was so happy to have found the telephone. She said, ""I found it! I'm so glad it's available!""
+
+Lily and her mom took the telephone home and the kitten was so happy to have a new home. From that day on, Lily and her new kitten were the best of friends."
+TinyStories-Instruct-33M,fp32,150,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry animal. It was a kitten!
 
 Lily was so excited. She ran to the kitten and said, ""Hi there! What's your name?""
 
-The kitten meowed and said, ""My name is Fluffy. I'm lost and I don't know where to go.""
+The kitten looked up at her and meowed. Lily knew that the kitten was lost and needed help. She said, ""Don't worry, I'll help you find your mommy.""
 
-Lily said, ""Don't worry, Fluffy. I'll help you find your mom. Let's look around the garden together.""
+Lily and the kitten looked all around the garden. They looked under the bushes and behind the trees. Finally, they found the kitten's mommy.
 
-So, Lily and Fluffy started to look around the garden. They looked under the bushes, behind the trees, and even in the pond. After a while, they found Fluffy's mom.
+The mommy was so happy to see her little one. She said, ""Thank you for helping my kitten. You are so kind and compassionate.""
 
-Lily was so happy. She said, ""We did it! We found Fluffy's mom!""
+Lily smiled and said, ""You're welcome. I'm glad I could help."""
+TinyStories-Instruct-33M,bf16,199,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry animal. It was a kitten!
 
-Fluffy's mom said, ""Thank you for helping Fluffy. You are so kind and compassionate.""
+Lily was so excited. She ran to the kitten and said, ""Hi there! What's your name?""
 
-Lily smiled and said, ""You're welcome, Fluffy. I'm glad I could help."""
+The kitten meowed and looked up at Lily. It seemed to say, ""My name is Fluffy. I'm lost and I need help finding my mommy.""
+
+Lily smiled and said, ""Don't worry, Fluffy. I'll help you find your mommy. Let's go look together.""
+
+So, Lily and Fluffy went on a search. They looked everywhere, but they couldn't find Fluffy's mommy. Just when they were about to give up, they heard a meow.
+
+It was Fluffy's mommy! She had been looking for her baby. Lily was so happy to have helped Fluffy find her mommy. She gave Fluffy a big hug and said, ""I'm so glad you're safe now.""
+
+The two of them went back home, and Lily was so proud of herself for helping Fluffy find her mommy. She knew that she had done a good thing."
+TinyStories-Instruct-33M,int8,182,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry animal. It was a kitten!
+
+Lily was so excited. She ran over to the kitten and said, ""Hi there! What's your name?""
+
+The kitten meowed and said, ""My name is Fluffy. I'm lost and I need help finding my mommy.""
+
+Lily was so compassionate. She wanted to help Fluffy find his mommy. She said, ""Let's look around the garden together. Maybe we can find your mommy.""
+
+So, Lily and Fluffy started to look around the garden. They looked under the bushes, behind the trees, and even in the pond. After a while, they found Fluffy's mommy.
+
+Lily was so happy. She had been able to help Fluffy find his mommy. She said, ""I'm so glad I could help Fluffy find his mommy. You are so compassionate, Lily.""
+
+Lily smiled and said, ""I'm glad I could help. Now, let's go home."""
+TinyStories-Instruct-33M,int4,249,"Possible story:
+
+Lily was a little girl who liked to play with her toys. She had a doll, a ball, a car and a book. She liked to make up stories with her toys and pretend they were her friends.
+
+One day, she found a new toy in her room. It was a small, furry animal with big ears and a long tail. It was a kitten, but it was very scared. It was hiding under the bed, looking for a place to hide.
+
+Lily was curious about the kitten. She wanted to see it and touch it and cuddle it. She decided to look for it in the garden. She put on her shoes and her hat and went outside.
+
+She saw the kitten under a bush. It was very small and scared. It was trembling and meowing. Lily felt sorry for it. She wanted to help it. She walked slowly to the bush and said, ""Hello, little kitten. Are you lost?""
+
+The kitten looked at Lily with big, green eyes. It did not run away. It was trembling and shaking. Lily smiled and said, ""Don't be afraid, little one. I will help you. Where is your mommy?""
+
+She looked around and saw a big, black cat with yellow eyes and a black spot on its nose. It was the kitten's mommy. She was looking for it. She saw Lily and the kitten and ran to them. She said, ""There you are, little one. You are safe now."

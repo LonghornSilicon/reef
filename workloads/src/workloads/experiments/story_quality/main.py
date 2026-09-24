@@ -1,6 +1,7 @@
-"""Greedy TinyStories-Instruct completions for every published GPT-Neo size."""
+"""Greedy TinyStories-Instruct completions per GPT-Neo size and precision."""
 
 import argparse
+import copy
 import csv
 from pathlib import Path
 
@@ -10,11 +11,15 @@ from torch import nn
 
 from workloads.configs.gpt_neo import GPT_NEO_CONFIGS, GPT_NEO_REPOS
 from workloads.models.gpt_neo import gpt_neo
-from workloads.operators.linear import quantize
+from workloads.operators.linear import Linear
 
 RESULTS = Path(__file__).resolve().parents[4] / "results" / "story_quality"
 MAX_NEW_TOKENS = 320
 END = "<|endoftext|>"
+# int8 and int4 are simulated: values are rounded to the integer grid and
+# the arithmetic runs in fp32.
+PRECISIONS = ("fp32", "bf16", "int8", "int4")
+INT4_GROUP = 32
 
 # Field order was randomised in training, but Story always comes last. The
 # marker is "Story:" plus a space and a BLANK line, as in the train split; the
@@ -70,9 +75,47 @@ def load(key: str) -> tuple[nn.Module, object]:
     ).eval()
     model = gpt_neo(key)
     model.load_state_dict(reference.state_dict(), strict=True)
-    model = quantize(model)
     tokenizer = transformers.AutoTokenizer.from_pretrained(repo)
     return model.eval(), tokenizer
+
+
+def quantize(x: torch.Tensor, bits: int, dim: int) -> torch.Tensor:
+    """Symmetric rounding with one scale per vector along ``dim``."""
+    limit = 2 ** (bits - 1) - 1
+    amax = x.abs().amax(dim=dim, keepdim=True)
+    # An all-zero vector has amax 0; keep the scale finite so 0 / scale is 0.
+    scale = amax.clamp(min=torch.finfo(x.dtype).tiny) / limit
+    return torch.clamp(torch.round(x / scale), -limit, limit) * scale
+
+
+def quantize_input(module: nn.Module, args: tuple) -> tuple:
+    return (quantize(args[0], 8, dim=-1), *args[1:])
+
+
+def convert(model: nn.Module, precision: str) -> nn.Module:
+    """A copy of the fp32 ``model`` running at ``precision``."""
+    model = copy.deepcopy(model)
+    if precision == "bf16":
+        return model.to(torch.bfloat16)
+    if precision == "fp32":
+        return model
+    for name, module in model.named_modules():
+        # lm_head shares its weight with the token embedding; both stay fp32.
+        if not isinstance(module, Linear) or name == "lm_head":
+            continue
+        weight = module.weight.data
+        if precision == "int8":
+            # One scale per output channel for the weight, and one per token
+            # for the input, as dynamic int8 kernels do.
+            weight.copy_(quantize(weight, 8, dim=1))
+            module.register_forward_pre_hook(quantize_input)
+        else:
+            # Weight-only, one scale per 32 inputs of each output channel.
+            out_features, in_features = weight.shape
+            assert in_features % INT4_GROUP == 0, name
+            groups = weight.reshape(out_features, -1, INT4_GROUP)
+            weight.copy_(quantize(groups, 4, dim=2).reshape(weight.shape))
+    return model
 
 
 def tell(model: nn.Module, tokenizer: object, prompt: str) -> str:
@@ -99,26 +142,37 @@ def main() -> None:
         metavar="model",
         help=f"any of {', '.join(GPT_NEO_CONFIGS)} (default: all)",
     )
-    keys = parser.parse_args().keys or list(GPT_NEO_CONFIGS)
+    parser.add_argument(
+        "--precision",
+        action="append",
+        choices=PRECISIONS,
+        help="repeatable (default: all of " + ", ".join(PRECISIONS) + ")",
+    )
+    args = parser.parse_args()
+    keys = args.keys or list(GPT_NEO_CONFIGS)
+    precisions = args.precision or list(PRECISIONS)
     # Keyed by prompt, because each prompt becomes one file holding every
-    # model, which is the comparison worth reading. Models stay the outer
-    # loop so each checkpoint is loaded once.
+    # model and precision, which is the comparison worth reading. Models stay
+    # the outer loop so each checkpoint is loaded once.
     stories: dict[str, list[list[object]]] = {name: [] for name, _ in PROMPTS}
     for key in keys:
-        print(f"\n{key}\n")
-        model, tokenizer = load(key)
-        for name, prompt in PROMPTS:
-            assert tokenizer.decode(tokenizer.encode(prompt)) == prompt, name
-            story = tell(model, tokenizer, prompt)
-            words = len(story.split())
-            print(f"  {name:<28}{words:>5} words")
-            stories[name].append([key, words, story])
+        fp32, tokenizer = load(key)
+        for precision in precisions:
+            print(f"\n{key} {precision}\n")
+            model = convert(fp32, precision)
+            for name, prompt in PROMPTS:
+                decoded = tokenizer.decode(tokenizer.encode(prompt))
+                assert decoded == prompt, name
+                story = tell(model, tokenizer, prompt)
+                words = len(story.split())
+                print(f"  {name:<28}{words:>5} words")
+                stories[name].append([key, precision, words, story])
     RESULTS.mkdir(parents=True, exist_ok=True)
     for index, (name, _) in enumerate(PROMPTS, start=1):
         output = csv_path(index, name)
         with open(output, "w", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow(["model", "words", "story"])
+            writer.writerow(["model", "precision", "words", "story"])
             writer.writerows(stories[name])
         print(f"wrote {output}")
 
