@@ -1,0 +1,181 @@
+model,precision,words,story
+TinyStories-Instruct-1M,fp32,168,"Once upon a time, there was a boy named Tom. Tom loved to build sandcastles and build sandcastles. One day, he decided to build a sandcastle. He built a sandcastle and built a sandcastle. He was so proud of his work.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work.
+
+He had built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle with his bucket.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work."
+TinyStories-Instruct-1M,bf16,139,"Once upon a time, there was a boy named Tom. Tom loved to build sandcastles and build sandcastles. One day, he decided to build a sandcastle. He was so excited to build a sandcastle.
+
+Tom built a sandcastle and built a sandcastle. He was so proud of it. He was so proud of his work.
+
+Tom built a sandcastle with his bucket. He was so proud of his work. He had built a sandcastle and built a sandcastle.
+
+Tom was so proud of his work. He had built a sandcastle. He was so proud of his work.
+
+Tom was so proud of his work. He had built a sandcastle with his bucket. He was so proud of his work.
+
+Tom was so proud of his work. He had built a new sandcastle. He was so proud of his work."
+TinyStories-Instruct-1M,int8,165,"Once upon a time, there was a boy named Tom. Tom loved to build sandcastles. One day, he decided to build a sandcastle. He built a sandcastle and built a sandcastle. He was so proud of it.
+
+Tom was so excited! He wanted to build a sandcastle. He put his bucket in a bucket and started to build a sandcastle. He built a sandcastle and built a sandcastle.
+
+Tom was so proud of his work. He had built a sandcastle. He was so proud of his work. He had built a sandcastle!
+
+Tom was so proud of his work. He had built a sandcastle! He was so proud of his work. He had built a sandcastle and built a sandcastle.
+
+Tom was so proud of his work. He had built a sandcastle and built a sandcastle. He was so proud of his work.
+
+Tom was so proud of his work. He had built a sandcastle with his work. He was so proud of his work."
+TinyStories-Instruct-1M,int4,119,"One day, there was a big waves. It was soy and it was so pretty. It was so pretty. It wanted to sail too.
+
+One day, in a big wave went. It was a fun in the park. It was a big wave. The waves went up the sky. The waves were so, it could a big wave.
+
+One day, in a big wave went. It was a wave. The wave was so, it could a big wave. The wave was so, it could it was so pretty.
+
+The rest of, brave wave wanted to see the wave. It was a fun and it was so pretty.
+
+The rest of, brave wave wanted to sail again.
+
+The end, sparkly."
+TinyStories-Instruct-3M,fp32,113,"Once upon a time, there was a little boy named Tom. Tom was very proud of his sandcastle. He loved to build things with it.
+
+One day, Tom decided to build a sandcastle. He worked hard and soon he had built a big sandcastle. He was so proud of his sandcastle that he wanted to show it to everyone.
+
+Tom worked hard and soon he was building a new sandcastle. He was so proud of his sandcastle that he wanted to show it to everyone.
+
+Tom was so proud of his sandcastle and he was so proud of it. He had built a new sandcastle and he was so proud of his creation."
+TinyStories-Instruct-3M,bf16,96,"Once upon a time, there was a little boy named Tom. Tom was very proud of his building. He wanted to build something special.
+
+Tom went to the beach and started to build a sandcastle. He worked hard and soon he was building a big sandcastle.
+
+Suddenly, a big wave came and washed the sand away. Tom was so proud of his sandcastle. He ran back to his house and started building a new one.
+
+Tom was so proud of his building. He had built a new one and he was so proud of his creation."
+TinyStories-Instruct-3M,int8,113,"Once upon a time, there was a little boy named Tom. Tom was very proud of his building. He wanted to build something new.
+
+One day, Tom decided to build a sandcastle. He worked very hard and soon he was building a new sandcastle.
+
+Tom was so proud of his creation. He had built a big sandcastle and he was so proud of his creation.
+
+Tom was so proud of his creation. He had built a new sandcastle and he was so proud of his creation.
+
+Tom was so proud of his building and he was so proud of his creation. He had built a new sandcastle and it was so much fun!"
+TinyStories-Instruct-3M,int4,139,"Once there was a very proud little boy named Tom. He loved to build things with his blocks. He had a big bucket and he would make a big, tall wall.
+
+One day, Tom was building a new, big, tall wall. He was so proud of his creation, he wanted to build something special. So Tom decided to build something special. He worked very hard and he was so proud.
+
+He worked very hard and he was so proud. He built a beautiful, tall, tall wall. Tom was so proud of his creation, he was so proud of his creation.
+
+Tom was so proud of his creation he was so proud of his creation. He was so proud of his creation and he knew it would be the most proud little boy in the little boy had ever one."
+TinyStories-Instruct-8M,fp32,130,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it even bigger and better. So he went to the beach and started to build.
+
+Tom worked hard and built a big sandcastle. He was so proud of it. He was so proud of it.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it even bigger.
+
+But then he had an idea. He started to build a new sandcastle further up the beach. He worked hard and built it even bigger than before.
+
+Tom was so proud of his new sandcastle. He was proud of it too. He was proud of his sandcastle and he was proud of it too."
+TinyStories-Instruct-8M,bf16,128,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it even bigger and better. So he went to the beach and started to build.
+
+Tom worked hard and built a big sandcastle. He was so proud of it. He was so proud of it.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it even bigger.
+
+But then he had an idea. He started to build a new sandcastle further up the beach. He worked hard and built it even bigger.
+
+Tom was so proud of his new sandcastle. He was proud of it too. He was proud of his sandcastle and he was proud of it too."
+TinyStories-Instruct-8M,int8,121,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it even bigger and better. So he went to the beach and started to build.
+
+Tom worked hard and built a big sandcastle. He was so proud of it. He was so proud of it.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it even bigger.
+
+But then he had an idea. He started to build a new sandcastle further up. He worked hard and built it even bigger than before.
+
+Tom was so proud of his sandcastle. He was proud of it too. He was so proud of his sandcastle."
+TinyStories-Instruct-8M,int4,146,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build something special. So he decided to build a sandcastle at the beach.
+
+Tom worked hard and built a big sandcastle. He was so proud of it. He was so proud of it.
+
+Then, a big wave came and washed away his sandcastle. Tom was so sad. He wanted to make his sandcastle even bigger.
+
+But then he had an idea. He decided to build a new sandcastle further away from the big wave. He worked hard and built a new sandcastle.
+
+Tom was so proud of his new sandcastle. He was so proud of it. He was so proud of it.
+
+Tom was so happy that he had built something so special. He was proud of his sandcastle and he was proud of it too."
+TinyStories-Instruct-28M,fp32,136,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it bigger and bigger. So he went to the beach and started to build.
+
+Tom worked hard and soon he had built a big sandcastle. He was so proud of it. He wanted to show it to everyone.
+
+But then, a big wave came and washed away the sandcastle. Tom was sad. He was so sad that he couldn't build his sandcastle anymore.
+
+But then, Tom had an idea. He started to build a new sandcastle further up the beach. He worked hard and soon he had built a new sandcastle. He was so proud of it.
+
+Tom was happy again. He was proud of his sandcastle and he knew he could build it again."
+TinyStories-Instruct-28M,bf16,137,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it bigger and bigger. So, he went to the beach and started to build.
+
+Tom worked hard and soon he had built a big sandcastle. He was so proud of it. He wanted to show it to everyone.
+
+But then, a big wave came and washed away the sandcastle. Tom was so sad. He was so sad that he couldn't build his sandcastle again.
+
+But then, Tom had an idea. He started to build a new sandcastle further up the beach. He worked hard and soon he had built a new sandcastle. He was so proud of it.
+
+Tom was happy again. He was proud of his sandcastle and he knew he could build it again."
+TinyStories-Instruct-28M,int8,129,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it bigger and bigger.
+
+Tom went to the beach and started to build. He worked hard and soon he had built a big sandcastle. He was so proud of it.
+
+Suddenly, a big wave came and washed away the sandcastle. Tom was sad. He was so sad that he couldn't build his sandcastle anymore.
+
+But then, Tom had an idea. He started to build a new sandcastle further up the beach. He worked hard and soon he had built a new sandcastle. He was so proud of it.
+
+Tom was happy again. He was proud of his new sandcastle and he was proud of himself for building it."
+TinyStories-Instruct-28M,int4,141,"Once upon a time, there was a boy named Tom. Tom was very proud of his sandcastle. He wanted to build it up in the ocean.
+
+Tom got to work. He got his buckets and shovels and started to build. He worked and worked, and soon he had built a big sandcastle.
+
+Tom was so proud of his sandcastle. He wanted to show it to everyone. He ran to the beach and waved his arms in the air.
+
+Suddenly, a big wave came and washed away Tom's sandcastle. Tom was so sad. He was so sad that his sandcastle was gone.
+
+But then, Tom had an idea. He started to build a new sandcastle further up the beach. He was so proud of his new sandcastle. He waved goodbye to it as he ran off to show it to his friends."
+TinyStories-Instruct-33M,fp32,153,"Once upon a time, there was a little boy named Tom. Tom loved to build things. One day, he decided to build a sandcastle at the beach. He worked hard and soon he had a big sandcastle. He was so proud of his work.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it again. He started to build a new sandcastle, but this time he made it even bigger. He was so proud of his work.
+
+Tom was so happy with his new sandcastle. He wanted to show it to his mom. He ran to her and said, ""Mom, look at my sandcastle!"" His mom was so proud of him. She said, ""That's wonderful, Tom! You did a great job!""
+
+Tom was so happy. He had built a new sandcastle and he was proud of himself. He knew he could build anything he wanted."
+TinyStories-Instruct-33M,bf16,120,"Once upon a time, there was a little boy named Tom. Tom loved to build things. One day, he decided to build a sandcastle at the beach. He was so proud of his sandcastle.
+
+Tom started to build the sandcastle with his hands. He worked hard and soon he had a big sandcastle. He was so proud of his work.
+
+Suddenly, a big wave came and washed away the sandcastle. Tom was sad. He wanted to build it again.
+
+Tom decided to build a new sandcastle further up the beach. He worked hard and soon he had a new sandcastle. He was so proud of his work.
+
+Tom was happy and he smiled. He was proud of his new sandcastle."
+TinyStories-Instruct-33M,int8,126,"Once upon a time, there was a little boy named Tom. Tom loved to build things. One day, he decided to build a sandcastle at the beach. He was so proud of his sandcastle.
+
+Tom started to build the sandcastle with his hands. He worked hard and soon he had a big sandcastle. He was so proud of his work.
+
+Suddenly, a big wave came and washed away the sandcastle. Tom was sad. He wanted to build it again.
+
+Tom decided to build a new sandcastle further up a higher place. He worked hard and soon he had a new sandcastle. He was so proud of his work.
+
+Tom was happy and he smiled. He had built a new sandcastle and he was proud of himself."
+TinyStories-Instruct-33M,int4,132,"Once upon a time, there was a little boy named Tom. Tom loved to build things. He would build castles, towers and bridges. One day, Tom decided to build a sandcastle at the beach. He was so proud of his sandcastle.
+
+Suddenly, a big wave came and washed away his sandcastle. Tom was sad. He wanted to build it again. He started to build again. He built and built until he had a big, beautiful sandcastle.
+
+Tom was so proud of his sandcastle. He was happy that he had built it so well. He smiled and waved at the wave. The wave came and washed away his sandcastle.
+
+Tom was so happy that he had built his sandcastle again. He was proud of himself. He knew he had done a good job."

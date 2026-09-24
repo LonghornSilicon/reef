@@ -1,0 +1,84 @@
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [ { index = "pytorch-cu126", marker = "sys_platform == 'linux'" } ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reef"
+version = "0.1.0"
+description = "Workload characterization for Reef (Coral NPU extension)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch",
+    "transformers>=5.12.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
+    "ruff==0.16.5",
+]
+experiments = [
+    "matplotlib",
+]
+
+[tool.uv]
+default-groups = ["dev", "experiments"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/workloads"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow",
+    "unit: fast isolated tests",
+    "integration: multiple components",
+    "regression: previously-fixed bugs",
+    "experiment: end-to-end research experiments",
+    "benchmark: performance tests",
+]
+timeout = 300
+testpaths = ["tests"]
+norecursedirs = [
+    "logs",
+    "results",
+]
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # import sorting
+    "B",      # bugbear
+    "UP",     # modern Python syntax
+    "SIM",    # simplify code
+    "ANN",    # type annotations
+    "D",      # docstrings
+    "RET",    # return statement consistency
+    "RUF",    # Ruff-specific rules
+]
+ignore = ["D102", "D103", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
