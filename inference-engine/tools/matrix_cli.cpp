@@ -1,4 +1,4 @@
-#include "inference_engine/matrix.hpp"
+#include "inference_engine/operator/matrix.hpp"
 
 #include <iomanip>
 #include <iostream>
