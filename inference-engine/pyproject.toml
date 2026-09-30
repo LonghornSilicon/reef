@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "inference-engine"
 version = "0.1.0"
 description = "Minimal C++ inference engine for Reef."
-readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 

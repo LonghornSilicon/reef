@@ -1,10 +1,14 @@
-# Tests to add with implementation
+# Tests
 
-- `python/`: pytest checks for host build/run orchestration, reference-output
-  comparison, and a short experiment run.
-- `cpp/`: focused kernel and model tests using a C++ test framework selected
-  with the implementation. A pytest fixture should build and invoke them.
-- Mark simulator tests `slow` if they cannot run in the fast local suite.
+`uv run pytest` is the module's single test entry point. The session fixture
+builds the C++ targets in a temporary directory.
 
-The current Python test only checks package installation. There is no test of
-inference behavior yet.
+- `cpp/test_matrix.cpp` checks native matrix multiplication and shape errors;
+  pytest launches it through CTest.
+- `python/test_matrix.py` sends matrices through the Python-to-C++ command-line
+  bridge and checks the returned result.
+- `python/test_package.py` checks that the Python package imports.
+
+TODO: Add focused operator tests, a short end-to-end inference experiment,
+and simulator tests as those components are implemented. Mark simulator tests
+`slow` when they are too expensive for the fast local suite.
