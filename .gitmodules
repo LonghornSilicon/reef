@@ -1,0 +1,10 @@
+[submodule "perf-model/ext/map"]
+	path = perf-model/ext/map
+	url = https://github.com/sparcians/map.git
+[submodule "perf-model/ext/coralnpu-mpact"]
+	path = perf-model/ext/coralnpu-mpact
+	url = https://github.com/google-coral/coralnpu-mpact.git
+	ignore = untracked
+[submodule "perf-model/ext/yaml-cpp"]
+	path = perf-model/ext/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
