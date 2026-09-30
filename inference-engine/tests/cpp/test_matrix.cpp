@@ -1,4 +1,4 @@
-#include "inference_engine/matrix.hpp"
+#include "inference_engine/operator/matrix.hpp"
 
 #include <stdexcept>
 
@@ -18,8 +18,9 @@ int main() {
     } catch (const std::invalid_argument&) {
         rejected_incompatible_dimensions = true;
     }
-    if (!rejected_incompatible_dimensions)
+    if (!rejected_incompatible_dimensions) {
         return 2;
+    }
 
     bool rejected_bad_storage = false;
     try {
@@ -28,8 +29,9 @@ int main() {
     } catch (const std::invalid_argument&) {
         rejected_bad_storage = true;
     }
-    if (!rejected_bad_storage)
+    if (!rejected_bad_storage) {
         return 3;
+    }
 
     return 0;
 }

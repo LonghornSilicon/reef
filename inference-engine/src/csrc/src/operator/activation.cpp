@@ -1,4 +1,4 @@
-#include "inference_engine/activation.hpp"
+#include "inference_engine/operator/activation.hpp"
 
 // @ MLP team
 // TODO: Implement gelu declared in activation.hpp.
