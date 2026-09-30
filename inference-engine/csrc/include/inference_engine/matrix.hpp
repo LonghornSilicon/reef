@@ -15,4 +15,4 @@ Tensor matmul(const Tensor& left, const Tensor& right);
 // workloads reference. Decide how an absent bias is represented.
 Tensor linear(const Tensor& input, const Tensor& weight, const Tensor* bias);
 
-}  // namespace inference_engine
+} // namespace inference_engine

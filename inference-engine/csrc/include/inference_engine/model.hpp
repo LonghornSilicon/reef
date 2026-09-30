@@ -15,4 +15,4 @@ struct ModelState;
 Tensor infer(const TokenIds& ids, const ModelWeights& weights,
              ModelState& state);
 
-}  // namespace inference_engine
+} // namespace inference_engine

@@ -13,4 +13,4 @@ struct MlpWeights;
 // Check intermediate width and output shape against a fixed reference case.
 Tensor mlp_forward(const Tensor& input, const MlpWeights& weights);
 
-}  // namespace inference_engine
+} // namespace inference_engine

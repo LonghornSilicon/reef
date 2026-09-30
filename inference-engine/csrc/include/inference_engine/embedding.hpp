@@ -22,4 +22,4 @@ Tensor add_position_embeddings(const Tensor& token_embeddings,
                                const Tensor& position_table,
                                std::size_t position_offset);
 
-}  // namespace inference_engine
+} // namespace inference_engine

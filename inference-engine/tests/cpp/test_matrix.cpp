@@ -11,21 +11,25 @@ int main() {
         return 1;
     }
 
+    bool rejected_incompatible_dimensions = false;
     try {
-        inference_engine::matmul(left, inference_engine::Tensor{{2, 2},
-                                                                 {1, 2, 3, 4}});
-        return 2;
+        inference_engine::matmul(
+            left, inference_engine::Tensor{{2, 2}, {1, 2, 3, 4}});
     } catch (const std::invalid_argument&) {
-        // Expected: incompatible inner dimensions.
+        rejected_incompatible_dimensions = true;
     }
+    if (!rejected_incompatible_dimensions)
+        return 2;
 
+    bool rejected_bad_storage = false;
     try {
         inference_engine::matmul(inference_engine::Tensor{{2, 3}, {1, 2}},
                                  right);
-        return 3;
     } catch (const std::invalid_argument&) {
-        // Expected: shape does not match storage.
+        rejected_bad_storage = true;
     }
+    if (!rejected_bad_storage)
+        return 3;
 
     return 0;
 }
