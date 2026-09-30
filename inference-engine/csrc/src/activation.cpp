@@ -1,4 +1,7 @@
 #include "inference_engine/activation.hpp"
 
-// TODO: Implement the chosen activation after its reference and tolerance
-// have been agreed.
+// @ MLP team
+// TODO: Implement gelu declared in activation.hpp.
+
+// @ Attention team
+// TODO: Implement softmax_last_dim declared in activation.hpp.
