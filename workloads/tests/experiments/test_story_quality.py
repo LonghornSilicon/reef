@@ -2,6 +2,7 @@
 
 import csv
 import itertools
+import platform
 import subprocess
 import sys
 
@@ -85,6 +86,10 @@ def test_int4_rounds_each_group_of_32_and_leaves_the_tied_head() -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(
+    (platform.system(), platform.machine()) != ("Darwin", "arm64"),
+    reason="the committed stories reproduce only on Apple silicon",
+)
 @pytest.mark.timeout(1800)
 @pytest.mark.parametrize(
     ("key", "precision"),

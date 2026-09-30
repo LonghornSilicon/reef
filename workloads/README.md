@@ -44,7 +44,7 @@ uv run pytest                 # adds the slow tests below
 The slow tests compare against published checkpoints:
 
 - `tests/models/test_checkpoints.py` checks TinyStories-Instruct-8M's config and logits against `transformers`.
-- `tests/experiments/test_story_quality.py` regenerates every story in `results/story_quality/` and requires an exact match.
+- `tests/experiments/test_story_quality.py` regenerates every story in `results/story_quality/` and requires an exact match. It runs only on Apple-silicon Macs.
 
 The first slow run needs network access to Hugging Face and about 1.5 GB of disk for its cache. Once the downloads are cached, the slow tests take about 2 min on an Apple-silicon laptop CPU.
 
