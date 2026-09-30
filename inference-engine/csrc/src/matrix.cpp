@@ -40,4 +40,4 @@ Tensor matmul(const Tensor& left, const Tensor& right) {
 // @ MLP team
 // TODO: Implement linear declared in matrix.hpp using the shared weight layout.
 
-}  // namespace inference_engine
+} // namespace inference_engine

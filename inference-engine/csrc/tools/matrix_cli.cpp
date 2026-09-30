@@ -36,7 +36,8 @@ int main() {
     try {
         const auto result = inference_engine::matmul(left, right);
         std::cout << result.shape[0] << ' ' << result.shape[1] << '\n';
-        std::cout << std::setprecision(std::numeric_limits<float>::max_digits10);
+        std::cout << std::setprecision(
+            std::numeric_limits<float>::max_digits10);
         for (const auto value : result.values) {
             std::cout << value << ' ';
         }

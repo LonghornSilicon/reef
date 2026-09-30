@@ -42,4 +42,4 @@ Tensor attention_context(const Qkv& qkv, const KvCache& cache,
 Tensor attention_forward(const Tensor& input, const AttentionWeights& weights,
                          KvCache& cache);
 
-}  // namespace inference_engine
+} // namespace inference_engine

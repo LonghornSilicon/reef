@@ -13,4 +13,4 @@ struct Tensor {
     std::vector<float> values;
 };
 
-}  // namespace inference_engine
+} // namespace inference_engine

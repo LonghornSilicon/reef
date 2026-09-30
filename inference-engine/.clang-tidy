@@ -1,0 +1,4 @@
+# CLI and test main() functions can allocate, so exception-escape adds noise.
+Checks: '-*,bugprone-*,clang-analyzer-*,performance-*,-bugprone-exception-escape'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*inference-engine/csrc/include/.*'

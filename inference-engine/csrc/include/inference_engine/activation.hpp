@@ -14,4 +14,4 @@ Tensor gelu(const Tensor& input);
 // behavior for masked rows and the chosen accumulation precision.
 Tensor softmax_last_dim(const Tensor& input);
 
-}  // namespace inference_engine
+} // namespace inference_engine

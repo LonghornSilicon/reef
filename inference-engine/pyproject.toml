@@ -10,7 +10,13 @@ requires-python = ">=3.12,<3.13"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=9.1.1", "pytest-timeout>=2.4.0", "ruff==0.16.5"]
+dev = [
+    "clang-format==21.1.6",
+    "clang-tidy==21.1.6",
+    "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
+    "ruff==0.16.5",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/inference_engine"]
@@ -27,4 +33,30 @@ timeout = 300
 
 [tool.ruff]
 line-length = 80
+indent-width = 4
 target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # import sorting
+    "B",   # bugbear
+    "UP",  # modern Python syntax
+    "SIM", # simplify code
+    "ANN", # type annotations
+    "D",   # docstrings
+    "RET", # return statement consistency
+    "RUF", # Ruff-specific rules
+]
+ignore = ["D102", "D103", "D105", "D107"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
