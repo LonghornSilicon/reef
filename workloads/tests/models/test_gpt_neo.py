@@ -35,6 +35,7 @@ PUBLISHED_PARAMETERS = {
 def build_pair(
     tie_word_embeddings: bool,
 ) -> tuple[GPTNeoForCausalLM, transformers.GPTNeoForCausalLM]:
+    """Ours and transformers' tiny GPT-Neo sharing one set of weights."""
     config = GPTNeoConfig(
         tie_word_embeddings=tie_word_embeddings,
         window_size=WINDOW_SIZE,
@@ -63,6 +64,7 @@ def build_pair(
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_state_dict_keys_match_reference(tie_word_embeddings: bool) -> None:
+    """Same keys, so checkpoints load strictly; lm_head tied only on request."""
     ours, reference = build_pair(tie_word_embeddings)
     assert set(ours.state_dict()) == set(reference.state_dict())
     tied = ours.lm_head.weight is ours.transformer.wte.weight
@@ -74,6 +76,7 @@ def test_state_dict_keys_match_reference(tie_word_embeddings: bool) -> None:
 def test_prefill_logits_match_reference(
     tie_word_embeddings: bool, dtype: torch.dtype
 ) -> None:
+    """Logits match in fp32 and bf16; one prompt-long cache per layer."""
     ours, reference = build_pair(tie_word_embeddings)
     ours, reference = ours.to(dtype), reference.to(dtype)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
@@ -93,6 +96,7 @@ def test_prefill_logits_match_reference(
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_cached_decode_matches_reference(tie_word_embeddings: bool) -> None:
+    """Each of ``DECODE_STEPS`` cached fp32 steps matches the reference."""
     ours, reference = build_pair(tie_word_embeddings)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
 
@@ -121,6 +125,7 @@ def test_cached_decode_matches_reference(tie_word_embeddings: bool) -> None:
 
 @pytest.mark.parametrize("tie_word_embeddings", [True, False])
 def test_greedy_generate_matches_reference(tie_word_embeddings: bool) -> None:
+    """Token ids equal transformers' greedy ``generate`` exactly."""
     ours, reference = build_pair(tie_word_embeddings)
     input_ids = torch.randint(0, TINY["vocab_size"], (BATCH, PROMPT_LEN))
 
@@ -136,6 +141,7 @@ def test_greedy_generate_matches_reference(tie_word_embeddings: bool) -> None:
 
 @pytest.mark.parametrize(("name", "expected"), PUBLISHED_PARAMETERS.items())
 def test_published_size_parameter_count(name: str, expected: int) -> None:
+    """Meta-built parameter counts equal the published ones, head tied."""
     with torch.device("meta"):
         model = gpt_neo(name)
     assert sum(p.numel() for p in model.parameters()) == expected
@@ -143,6 +149,7 @@ def test_published_size_parameter_count(name: str, expected: int) -> None:
 
 
 def test_local_layers_use_a_sliding_window() -> None:
+    """Layers alternate global (no window) and local (``WINDOW_SIZE``)."""
     ours, _ = build_pair(tie_word_embeddings=True)
     windows = [
         block.attn.attention.attention.sliding_window
@@ -152,5 +159,6 @@ def test_local_layers_use_a_sliding_window() -> None:
 
 
 def test_unknown_size_is_rejected() -> None:
+    """`gpt_neo` raises KeyError instead of building a default size."""
     with pytest.raises(KeyError, match="unknown GPT-Neo size"):
         gpt_neo("TinyStories-Instruct-99M")

@@ -8,10 +8,12 @@ class Softmax(nn.Module):
     """Numerically stable softmax over a single axis."""
 
     def __init__(self, dim: int = -1) -> None:
+        """``dim`` is the axis normalized to sum to one."""
         super().__init__()
         self.dim = dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Shaped like ``x``; subtracts the max along ``dim`` first."""
         shifted = x - x.amax(dim=self.dim, keepdim=True)
         exponentiated = torch.exp(shifted)
         return exponentiated / exponentiated.sum(dim=self.dim, keepdim=True)
@@ -26,5 +28,6 @@ class GELU(nn.Module):
     CUBIC = 0.044715
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Elementwise; same shape and dtype as ``x``."""
         inner = self.COEFFICIENT * (x + self.CUBIC * x.pow(3))
         return 0.5 * x * (1.0 + torch.tanh(inner))

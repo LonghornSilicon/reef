@@ -17,6 +17,7 @@ class GPTNeoSelfAttention(nn.Module):
     """Self-attention with separate, bias-free query/key/value projections."""
 
     def __init__(self, config: GPTNeoConfig, attention_type: str) -> None:
+        """A "local" ``attention_type`` attends within ``window_size``."""
         super().__init__()
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_heads
@@ -39,6 +40,7 @@ class GPTNeoSelfAttention(nn.Module):
     def forward(
         self, x: torch.Tensor, past: LayerCache | None
     ) -> tuple[torch.Tensor, LayerCache]:
+        """Output shaped like ``x``, and ``past`` extended by this call."""
         batch, length, _ = x.shape
         heads = (batch, length, self.num_heads, self.head_dim)
         query = self.q_proj(x).reshape(heads).transpose(1, 2)
@@ -57,6 +59,7 @@ class GPTNeoAttention(nn.Module):
     """Holder giving the reference's ``attn.attention`` parameter names."""
 
     def __init__(self, config: GPTNeoConfig, layer: int) -> None:
+        """Global or local attention, as ``config`` assigns ``layer``."""
         super().__init__()
         self.attention = GPTNeoSelfAttention(
             config, config.attention_type(layer)
@@ -65,6 +68,7 @@ class GPTNeoAttention(nn.Module):
     def forward(
         self, x: torch.Tensor, past: LayerCache | None
     ) -> tuple[torch.Tensor, LayerCache]:
+        """Same contract as `GPTNeoSelfAttention.forward`."""
         return self.attention(x, past)
 
 
@@ -72,6 +76,7 @@ class GPTNeoMLP(nn.Module):
     """Two-layer feed-forward network with a tanh-approximated GELU."""
 
     def __init__(self, config: GPTNeoConfig) -> None:
+        """Inner width is ``intermediate_size``, else ``4 * hidden_size``."""
         super().__init__()
         inner = (
             4 * config.hidden_size
@@ -83,6 +88,7 @@ class GPTNeoMLP(nn.Module):
         self.act = GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Same shape as ``x``; widens to the inner size and back."""
         return self.c_proj(self.act(self.c_fc(x)))
 
 
@@ -90,6 +96,7 @@ class GPTNeoBlock(nn.Module):
     """Pre-norm transformer block: attention then feed-forward."""
 
     def __init__(self, config: GPTNeoConfig, layer: int) -> None:
+        """``layer`` selects global or local attention via ``config``."""
         super().__init__()
         eps = config.layer_norm_epsilon
         self.ln_1 = LayerNorm(config.hidden_size, eps=eps)
@@ -100,6 +107,7 @@ class GPTNeoBlock(nn.Module):
     def forward(
         self, x: torch.Tensor, past: LayerCache | None
     ) -> tuple[torch.Tensor, LayerCache]:
+        """Residual stream shaped like ``x``, and this layer's cache."""
         attended, present = self.attn(self.ln_1(x), past)
         x = x + attended
         x = x + self.mlp(self.ln_2(x))
@@ -110,6 +118,7 @@ class GPTNeoModel(nn.Module):
     """Token and learned position embeddings, block stack and final norm."""
 
     def __init__(self, config: GPTNeoConfig) -> None:
+        """Learned positions cap inputs at ``max_position_embeddings``."""
         super().__init__()
         self.config = config
         self.wte = Embedding(config.vocab_size, config.hidden_size)
@@ -124,6 +133,7 @@ class GPTNeoModel(nn.Module):
         input_ids: torch.Tensor,
         past_key_values: list[LayerCache] | None = None,
     ) -> tuple[torch.Tensor, list[LayerCache]]:
+        """Positions start after the cached tokens; one cache per layer."""
         length = input_ids.shape[1]
         past_length = (
             0 if past_key_values is None else past_key_values[0][0].shape[2]
@@ -144,6 +154,7 @@ class GPTNeoForCausalLM(nn.Module):
     """GPT-Neo decoder with a language-modeling head."""
 
     def __init__(self, config: GPTNeoConfig) -> None:
+        """``lm_head`` shares ``wte``'s weight if ``tie_word_embeddings``."""
         super().__init__()
         self.config = config
         self.transformer = GPTNeoModel(config)
@@ -156,6 +167,7 @@ class GPTNeoForCausalLM(nn.Module):
         input_ids: torch.Tensor,
         past_key_values: list[LayerCache] | None = None,
     ) -> tuple[torch.Tensor, list[LayerCache]]:
+        """Logits (batch, length, vocab) and each layer's (key, value)."""
         hidden, cache = self.transformer(input_ids, past_key_values)
         return self.lm_head(hidden), cache
 
@@ -163,6 +175,7 @@ class GPTNeoForCausalLM(nn.Module):
     def generate(
         self, input_ids: torch.Tensor, max_new_tokens: int
     ) -> torch.Tensor:
+        """Prompt plus ``max_new_tokens`` greedy tokens; no EOS stop."""
         logits, cache = self(input_ids)
         generated = input_ids
         for step in range(max_new_tokens):
@@ -174,6 +187,7 @@ class GPTNeoForCausalLM(nn.Module):
 
 
 def gpt_neo(key: str) -> GPTNeoForCausalLM:
+    """A randomly initialized model for a `GPT_NEO_CONFIGS` key."""
     if key not in GPT_NEO_CONFIGS:
         known = ", ".join(GPT_NEO_CONFIGS)
         raise KeyError(f"unknown GPT-Neo size {key!r}; known sizes: {known}")

@@ -91,6 +91,7 @@ def count(records: list[tracer.Record], precision: str) -> Totals:
 
 
 def total(totals: Totals) -> int:
+    """FLOPs summed over every operator in ``totals``."""
     return sum(value for _, value in totals.values())
 
 
@@ -110,6 +111,7 @@ def generation(key: str, precision: str) -> dict[str, list[int]]:
 
 
 def style(ax: object) -> None:
+    """Surface color, no top or right spine, muted ticks."""
     ax.set_facecolor(SURFACE)
     ax.set_axisbelow(True)
     ax.spines["top"].set_visible(False)
@@ -118,6 +120,7 @@ def style(ax: object) -> None:
 
 
 def grid(keys: list[str], height: float) -> tuple[Figure, list]:
+    """Up to 3 columns, one axes per key, ``height`` inches per row."""
     columns = min(3, len(keys))
     rows = math.ceil(len(keys) / columns)
     figure = Figure(
@@ -133,6 +136,7 @@ def grid(keys: list[str], height: float) -> tuple[Figure, list]:
 
 
 def title(figure: Figure, text: str) -> None:
+    """A left-aligned figure title."""
     figure.suptitle(text, x=0.01, ha="left", color=INK, fontsize=13)
 
 
@@ -154,6 +158,7 @@ def label_ends(ax: object, ends: list[tuple[float, str]]) -> None:
 
 
 def plot_generation(keys: list[str], path: Path) -> None:
+    """Plot int8 prefill and cumulative decode FLOPs per key to ``path``."""
     figure, axes = grid(keys, 3.6)
     title(
         figure,
@@ -212,6 +217,7 @@ def plot_generation(keys: list[str], path: Path) -> None:
 def plot_operators(
     results: dict[tuple, Totals], keys: list[str], path: Path
 ) -> None:
+    """Plot int8 decode FLOPs per operator, log scale, to ``path``."""
     figure, axes = grid(keys, 3.6)
     title(
         figure,
@@ -289,6 +295,7 @@ def plot_operators(
 
 
 def main() -> None:
+    """Write ``results/flops/gpt_neo.csv`` and both plots per chosen size."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "keys",
