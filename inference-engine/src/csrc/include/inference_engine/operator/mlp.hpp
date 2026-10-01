@@ -17,7 +17,7 @@ class MLP {
 
     // TODO: Compose linear -> GELU -> linear. Check intermediate width and
     // output shape against a fixed reference case.
-    Tensor forward(const Tensor& input) const;
+    [[nodiscard]] Tensor forward(const Tensor& input) const;
 
   private:
     const MlpWeights& weights_;
