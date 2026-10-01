@@ -13,3 +13,4 @@ WARN_AS_ERROR          = FAIL_ON_WARNINGS
 QUIET                  = YES
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
+HAVE_DOT               = NO
