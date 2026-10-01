@@ -6,8 +6,8 @@
 namespace inference_engine {
 
 // @ MLP team
-Tensor matmul(const Tensor& left, const Tensor& right) {
-    const auto valid_matrix = [](const Tensor& tensor) {
+Tensor<float> matmul(const Tensor<float>& left, const Tensor<float>& right) {
+    const auto valid_matrix = [](const Tensor<float>& tensor) {
         return tensor.shape.size() == 2 && tensor.shape[0] > 0 &&
                tensor.shape[1] > 0 &&
                tensor.shape[0] <=
@@ -24,7 +24,8 @@ Tensor matmul(const Tensor& left, const Tensor& right) {
     const auto rows = left.shape[0];
     const auto inner = left.shape[1];
     const auto columns = right.shape[1];
-    Tensor result{{rows, columns}, std::vector<float>(rows * columns, 0.0F)};
+    Tensor<float> result{{rows, columns},
+                         std::vector<float>(rows * columns, 0.0F)};
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t column = 0; column < columns; ++column) {
             for (std::size_t index = 0; index < inner; ++index) {

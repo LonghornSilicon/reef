@@ -5,9 +5,9 @@
 // append_kv_cache. Match head counts and weight layout in workloads.
 
 // @ Attention team
-// TODO: Implement Attention::mask_scores and Attention::context, checking
+// TODO: Implement Attention::context and concrete masking policies, checking
 // prefill/decode outputs and cached-token offsets against workloads.
 
 // @ Attention team
-// TODO: Implement LocalAttention's constructor and mask_scores, including
-// sliding-window boundaries.
+// TODO: Implement GlobalAttention and LocalAttention constructors and masks,
+// including sliding-window boundaries.

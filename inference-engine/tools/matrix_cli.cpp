@@ -16,10 +16,10 @@ int main() {
         return 1;
     }
 
-    inference_engine::Tensor left{{rows, inner},
-                                  std::vector<float>(rows * inner)};
-    inference_engine::Tensor right{{inner, columns},
-                                   std::vector<float>(inner * columns)};
+    inference_engine::Tensor<float> left{{rows, inner},
+                                         std::vector<float>(rows * inner)};
+    inference_engine::Tensor<float> right{{inner, columns},
+                                          std::vector<float>(inner * columns)};
     for (auto& value : left.values) {
         if (!(std::cin >> value)) {
             std::cerr << "missing left matrix value\n";
