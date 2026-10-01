@@ -20,6 +20,7 @@ class GPTNeoConfig:
     tie_word_embeddings: bool = True
 
     def attention_type(self, layer: int) -> str:
+        """Either "global" or "local", cycling through ``attention_types``."""
         return self.attention_types[layer % len(self.attention_types)]
 
 

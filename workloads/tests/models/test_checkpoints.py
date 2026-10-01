@@ -16,6 +16,7 @@ TINYSTORIES_TOLERANCE = {"rtol": 1e-5, "atol": 1e-4}
 
 
 def test_tinystories_instruct_8m_config_matches_the_hub() -> None:
+    """Every architecture field of our 8M config equals the hub's."""
     ours = GPT_NEO_CONFIGS[TINYSTORIES]
     hub = transformers.AutoConfig.from_pretrained(GPT_NEO_REPOS[TINYSTORIES])
 
@@ -34,6 +35,7 @@ def test_tinystories_instruct_8m_config_matches_the_hub() -> None:
 
 
 def test_tinystories_instruct_8m_logits_match_reference() -> None:
+    """Published 8M weights: logits within tolerance and the same argmax."""
     repo = GPT_NEO_REPOS[TINYSTORIES]
     reference = transformers.GPTNeoForCausalLM.from_pretrained(
         repo, dtype=torch.float32, attn_implementation="eager"
