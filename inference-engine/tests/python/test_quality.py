@@ -31,11 +31,13 @@ def test_doxygen_builds_without_warnings(tmp_path: Path) -> None:
     output_dir = tmp_path / "doxygen"
     config = (MODULE_ROOT / "Doxyfile").read_text()
     config += f'\nOUTPUT_DIRECTORY = "{output_dir}"\n'
-    subprocess.run(
+    result = subprocess.run(
         ["doxygen", "-"],
         input=config,
         text=True,
         cwd=MODULE_ROOT,
-        check=True,
+        capture_output=True,
+        check=False,
     )
+    assert result.returncode == 0, result.stderr or result.stdout
     assert (output_dir / "html" / "index.html").is_file()
