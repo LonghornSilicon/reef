@@ -8,6 +8,7 @@ class LayerNorm(nn.Module):
     """Normalize over the last axis, then apply a gain and optional shift."""
 
     def __init__(self, dim: int, eps: float = 1e-5, bias: bool = True) -> None:
+        """Gain starts at 1 and shift at 0; ``bias=False`` drops the shift."""
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
@@ -17,6 +18,7 @@ class LayerNorm(nn.Module):
             self.register_parameter("bias", None)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Same shape and dtype as ``x``; statistics are computed in fp32."""
         promoted = x.to(torch.float32)
         mean = promoted.mean(-1, keepdim=True)
         centred = promoted - mean

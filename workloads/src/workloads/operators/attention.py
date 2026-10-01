@@ -17,6 +17,7 @@ class GroupedQueryAttention(nn.Module):
         scale: float | None = None,
         sliding_window: int | None = None,
     ) -> None:
+        """``num_heads`` must be a multiple of ``num_kv_heads``."""
         super().__init__()
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
@@ -27,6 +28,7 @@ class GroupedQueryAttention(nn.Module):
         self.softmax = Softmax(dim=-1)
 
     def expand_kv(self, x: torch.Tensor) -> torch.Tensor:
+        """Each KV head repeated ``repeats`` times, adjacent, along dim 1."""
         if self.repeats == 1:
             return x
         batch, heads, length, dim = x.shape
@@ -57,10 +59,13 @@ class GroupedQueryAttention(nn.Module):
         mask: torch.Tensor | None = None,
         bias: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        # query: (batch, num_heads, query_len, head_dim)
-        # key, value: (batch, num_kv_heads, key_len, head_dim)
-        # mask: bool, true where disallowed; bias: additive scores. Both
-        # broadcast to (batch, num_heads, query_len, key_len).
+        """Attend ``query`` to ``key`` and ``value``; shaped like ``query``.
+
+        query is (batch, num_heads, query_len, head_dim); key and value are
+        (batch, num_kv_heads, key_len, head_dim). ``mask`` is true where
+        disallowed and ``bias`` adds to the scores; both broadcast to
+        (batch, num_heads, query_len, key_len).
+        """
         key = self.expand_kv(key)
         value = self.expand_kv(value)
         scores = torch.matmul(query, key.transpose(-1, -2)) * self.scale

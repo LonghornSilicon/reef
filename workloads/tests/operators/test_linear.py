@@ -18,6 +18,7 @@ SHAPES = [(4, 32), (2, 5, 32), (2, 3, 5, 32)]
 def test_linear_matches_reference(
     shape: tuple[int, ...], bias: bool, dtype: torch.dtype
 ) -> None:
+    """2-D to 4-D inputs, with and without bias, against ``F.linear``."""
     layer = Linear(32, 16, bias=bias).to(dtype)
     x = torch.randn(*shape, dtype=dtype)
     expected = F.linear(x, layer.weight, layer.bias)
@@ -25,4 +26,5 @@ def test_linear_matches_reference(
 
 
 def test_linear_without_bias_registers_none() -> None:
+    """``bias=False`` leaves ``bias`` as None, as `torch.nn.Linear` does."""
     assert Linear(8, 4, bias=False).bias is None

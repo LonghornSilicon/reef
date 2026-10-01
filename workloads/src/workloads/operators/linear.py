@@ -15,6 +15,7 @@ class Linear(nn.Module):
     def __init__(
         self, in_features: int, out_features: int, bias: bool = True
     ) -> None:
+        """Weight and bias start U(±1/√in_features), as in `torch.nn.Linear`."""
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -30,6 +31,7 @@ class Linear(nn.Module):
             self.register_parameter("bias", None)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """``(..., in_features)`` to ``(..., out_features)``."""
         out = torch.matmul(x, self.weight.transpose(-1, -2))
         if self.bias is not None:
             out = out + self.bias
@@ -48,6 +50,7 @@ class QuantizedLinear(DynamicQuantizedLinear):
 
     @classmethod
     def from_float(cls, linear: Linear) -> "QuantizedLinear":
+        """A new int8 module with ``linear``'s weight and float bias."""
         observer = default_dynamic_qconfig.weight()
         observer(linear.weight)
         qweight = _quantize_weight(linear.weight.float(), observer)

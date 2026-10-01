@@ -15,6 +15,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_runs_standalone_with_help() -> None:
+    """``--help`` works when the file runs as a script, not a module."""
     subprocess.run(
         [sys.executable, kv_cache_size.__file__, "--help"],
         check=True,
@@ -27,6 +28,7 @@ def test_runs_standalone_with_help() -> None:
 def test_stored_fp32_size_matches_the_model_cache(
     key: str, length: int
 ) -> None:
+    """Unwindowed fp32 `kv_bytes` equals the meta model's cache bytes."""
     model = tracer.build("gpt_neo", key)
     with torch.no_grad():
         _, cache = model(tracer.tokens(1, length))
@@ -44,6 +46,7 @@ def test_stored_fp32_size_matches_the_model_cache(
 def test_needed_matches_stored_up_to_the_window_then_falls_behind(
     precision: str,
 ) -> None:
+    """Equal at ``window_size`` tokens; windowed is smaller one token later."""
     config = GPT_NEO_CONFIGS["TinyStories-Instruct-8M"]
 
     def size(length: int, windowed: bool) -> int:
@@ -55,6 +58,7 @@ def test_needed_matches_stored_up_to_the_window_then_falls_behind(
 
 
 def test_committed_csv_matches_the_formula() -> None:
+    """Every row of the committed gpt_neo.csv equals `kv_bytes`."""
     with open(kv_cache_size.RESULTS / "gpt_neo.csv", newline="") as file:
         rows = list(csv.DictReader(file))
 

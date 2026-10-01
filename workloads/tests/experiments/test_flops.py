@@ -29,6 +29,7 @@ def linear_weights_and_biases() -> tuple[int, int]:
 
 
 def total(totals: flops.Totals, operators: tuple[str, ...]) -> int:
+    """FLOPs summed over just ``operators``."""
     return sum(
         value
         for (operator, _), (_, value) in totals.items()
@@ -37,6 +38,7 @@ def total(totals: flops.Totals, operators: tuple[str, ...]) -> int:
 
 
 def test_runs_standalone_with_help() -> None:
+    """``--help`` works when the file runs as a script, not a module."""
     subprocess.run(
         [sys.executable, flops.__file__, "--help"],
         check=True,
@@ -47,6 +49,7 @@ def test_runs_standalone_with_help() -> None:
 @pytest.mark.parametrize("phase", flops.PHASES)
 @pytest.mark.parametrize("length", [128, 2048])
 def test_committed_csv_matches_a_fresh_trace(phase: str, length: int) -> None:
+    """Each precision's rows in gpt_neo.csv equal `count` on a new trace."""
     committed: dict[str, dict] = defaultdict(dict)
     with open(flops.RESULTS / "gpt_neo.csv", newline="") as file:
         for row in csv.DictReader(file):
@@ -65,6 +68,7 @@ def test_committed_csv_matches_a_fresh_trace(phase: str, length: int) -> None:
 
 
 def test_decode_linear_is_constant_and_attention_grows_linearly() -> None:
+    """Linear equals the hand count ``2 * weights + biases`` at every length."""
     weights, biases = linear_weights_and_biases()
     lengths = (2, 64, 2048)
     counts = [
@@ -83,6 +87,7 @@ def test_decode_linear_is_constant_and_attention_grows_linearly() -> None:
 
 @pytest.mark.parametrize("phase", flops.PHASES)
 def test_precision_changes_only_the_overhead(phase: str) -> None:
+    """Non-overhead FLOPs match fp32; fp32 and bf16 add no overhead."""
     records = flops.trace(KEY, phase, 64)
 
     def core(precision: str) -> dict[str, int]:
@@ -104,6 +109,7 @@ def test_precision_changes_only_the_overhead(phase: str) -> None:
 def test_quantization_overhead_matches_the_quantized_linears(
     phase: str,
 ) -> None:
+    """int8 overhead is hand-counted per token; int4 is one per weight."""
     length = 64
     tokens = length if phase == "prefill" else 1
     weights, _ = linear_weights_and_biases()

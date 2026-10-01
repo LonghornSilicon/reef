@@ -40,6 +40,7 @@ PLOT_TOKENS = 256
 def kv_bytes(
     config: GPTNeoConfig, length: int, precision: str, windowed: bool
 ) -> int:
+    """Batch-1 K and V bytes with scales; ``windowed`` trims local layers."""
     assert length <= config.max_position_embeddings
     total = 0
     for layer in range(config.num_layers):
@@ -55,10 +56,12 @@ def kv_bytes(
 
 
 def megabytes(value: float) -> str:
+    """Byte count with a k/M/G prefix, e.g. "1.5 MB"; "0" for zero."""
     return "0" if value == 0 else readable(value) + "B"
 
 
 def plot(keys: list[str], path: Path) -> None:
+    """Plot the stored cache size per precision and key to ``path``."""
     lengths = [length for length in LENGTHS if length <= PLOT_TOKENS]
     columns = min(3, len(keys))
     rows = math.ceil(len(keys) / columns)
@@ -124,6 +127,7 @@ def plot(keys: list[str], path: Path) -> None:
 
 
 def main() -> None:
+    """Write ``results/kv_cache_size/gpt_neo.csv`` and the plot."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "keys",

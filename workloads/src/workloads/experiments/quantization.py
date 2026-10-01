@@ -7,6 +7,7 @@ INT4_GROUP = 32
 
 
 def is_quantized(path: str, operator: str) -> bool:
+    """Whether int8 and int4 round it: every `Linear` except ``lm_head``."""
     # lm_head shares its weight with the token embedding, a lookup table,
     # so both stay in floating point.
     return operator == "Linear" and path != "lm_head"

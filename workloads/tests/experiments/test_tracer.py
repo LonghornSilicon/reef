@@ -11,10 +11,12 @@ pytestmark = pytest.mark.unit
 
 
 def only(records: list[tracer.Record], operator: str) -> list[tracer.Record]:
+    """Records of a single operator type."""
     return [record for record in records if record.operator == operator]
 
 
 def test_linear_record_counts_flops_elements_and_one_gemm() -> None:
+    """Hand counts for a (2, 3, 8) input through an 8 → 16 `Linear`."""
     with torch.device("meta"):
         module = Linear(8, 16)
         x = torch.zeros(2, 3, 8)
@@ -30,6 +32,7 @@ def test_linear_record_counts_flops_elements_and_one_gemm() -> None:
 
 
 def test_attention_records_two_gemms_and_materialized_scores() -> None:
+    """Hand counts for 4 query and 2 KV heads over 6 tokens of width 16."""
     with torch.device("meta"):
         module = GroupedQueryAttention(4, 2, 16)
         query = torch.zeros(1, 4, 6, 16)
@@ -49,6 +52,7 @@ def test_attention_records_two_gemms_and_materialized_scores() -> None:
 
 
 def test_decode_gemms_have_batch_rows_and_context_plus_one_keys() -> None:
+    """Batch 3 after 10 cached tokens: Linear M is 3, attention sees 11."""
     records = tracer.decode(
         "gpt_neo", "TinyStories-Instruct-8M", batch=3, context=10
     )
@@ -61,6 +65,7 @@ def test_decode_gemms_have_batch_rows_and_context_plus_one_keys() -> None:
 
 
 def test_prefill_rejects_positions_the_model_cannot_represent() -> None:
+    """2048 positions trace; 2049 fail in both prefill and decode."""
     key, limit = "TinyStories-Instruct-8M", 2048
     tracer.prefill("gpt_neo", key, batch=1, length=limit)
     with pytest.raises(AssertionError):
