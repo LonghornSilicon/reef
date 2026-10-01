@@ -4,4 +4,4 @@
 // TODO: Implement gelu declared in activation.hpp.
 
 // @ Attention team
-// TODO: Implement softmax_last_dim declared in activation.hpp.
+// TODO: Implement dimension-aware softmax declared in activation.hpp.
