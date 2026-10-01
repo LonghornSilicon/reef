@@ -1,0 +1,3 @@
+# Scripts and sources are used from Linux/WSL; keep LF even on Windows checkouts.
+* text=auto eol=lf
+*.elf binary
