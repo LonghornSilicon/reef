@@ -26,18 +26,18 @@ class Attention {
   protected:
     // TODO: Mask future positions using the cached-token offset. Override in
     // LocalAttention to mask positions outside its sliding window too.
-    virtual Tensor mask_scores(const Tensor& scores,
-                               std::size_t query_start) const;
+    [[nodiscard]] virtual Tensor mask_scores(const Tensor& scores,
+                                             std::size_t query_start) const;
 
   private:
     // TODO: Compute and reshape separate query, key, and value projections.
-    Qkv project_qkv(const Tensor& input) const;
+    [[nodiscard]] Qkv project_qkv(const Tensor& input) const;
 
     // TODO: Append new keys and values; define cache capacity and overflow.
     void append_kv_cache(const Tensor& key, const Tensor& value);
 
     // TODO: Use unscaled GPT-Neo scores, masking, softmax, and weighted values.
-    Tensor context(const Qkv& qkv) const;
+    [[nodiscard]] Tensor context(const Qkv& qkv) const;
 
     const AttentionWeights& weights_;
     KvCache& cache_;
@@ -51,8 +51,8 @@ class LocalAttention : public Attention {
                    std::size_t window_size);
 
   protected:
-    Tensor mask_scores(const Tensor& scores,
-                       std::size_t query_start) const override;
+    [[nodiscard]] Tensor mask_scores(const Tensor& scores,
+                                     std::size_t query_start) const override;
 
   private:
     std::size_t window_size_;

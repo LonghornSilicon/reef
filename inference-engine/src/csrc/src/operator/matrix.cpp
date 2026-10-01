@@ -28,9 +28,9 @@ Tensor matmul(const Tensor& left, const Tensor& right) {
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t column = 0; column < columns; ++column) {
             for (std::size_t index = 0; index < inner; ++index) {
-                result.values[row * columns + column] +=
-                    left.values[row * inner + index] *
-                    right.values[index * columns + column];
+                result.values[(row * columns) + column] +=
+                    left.values[(row * inner) + index] *
+                    right.values[(index * columns) + column];
             }
         }
     }
