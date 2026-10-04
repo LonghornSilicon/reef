@@ -1,0 +1,287 @@
+model,precision,words,story
+TinyStories-Instruct-1M,fp32,245,"Possible story:
+
+Ben was a little boy who liked to play with his toys. He had a big box of toys, a big box. He wanted to see what was inside the box. He asked his mom, ""Can I open it, please?""
+
+His mom said, ""No, Ben, you can't open the box. It is too heavy for you. It is too heavy for you.""
+
+Ben was sad. He wanted to see the moon. He wanted to see what was inside. He saw a big, red moon. He wanted to see what was inside. He saw a big, red moon. It was a moon. It was a moon. It was a moon.
+
+Ben said, ""Look, Mom, I found a moon. It is so bright. It is so bright and bright. It is so bright and bright. It has stars and stars. It has stars and stars. It has stars and stars. It is very pretty.
+
+Ben said, ""Wow, look at the moon. It is so pretty. It is so pretty. It is so pretty. It can make it look pretty. It is very pretty. It has stars and stars. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It is very pretty. It has stars and stars. It has stars and stars. It has stars and stars."
+TinyStories-Instruct-1M,bf16,239,"Possible story:
+
+Ben was a little boy who liked to play with his toys. He had a big box of toys, a big box and a big box. He wanted to see what was inside. He asked his mom, ""Can I open the box, please?""
+
+His mom said, ""No, Ben, you can't open the box. It is too big and heavy. It is not safe. It is not safe. It is not safe. It is a big, heavy box. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It is locked. It"
+TinyStories-Instruct-1M,int8,252,"Possible story:
+
+Ben was a little boy who liked to play with his toys. He had a big, red ball that he liked to play with. He had a red ball, a blue ball, a blue ball, and a blue ball. He liked to play with his ball and run around the house.
+
+One day, Ben saw a big, red ball in the yard. He wanted to play with it. He ran to the ball and ran to the ball. He ran to the ball and said, ""Look, Mom! I found a ball!""
+
+His mom looked at the ball and said, ""That's a ball, Ben. It's a ball. It is a ball. It can be fun. Do you want to play with it?""
+
+Ben nodded. He wanted to play with the ball. He took the ball and ran to the ball. He threw it in the air and it flew high in the air. He felt the wind in his hair and the ball. He felt happy.
+
+He ran to his mom and said, ""Mom, I saw a big ball. It is a ball. It is a ball. It is a ball. It has a ball and a ball. It is a ball. It has a ball and a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has a ball. It has"
+TinyStories-Instruct-1M,int4,115,"Lily was named Lily. She was very small and it was very pretty. Lily was scared and she didn't know. She wanted to see a big, scary noise.
+
+""Hi! What are! Welcome! Do you know what is so,,,? ""What's a big, look! What is! Welcome are going to see what is so,,,, and you're going to see anything. It is so, and it's called you to see anything.”
+
+Lily felt scared her little girl. She wanted to see a big, scary noise. She looked inside the door it was so, and it was so big andnaments. She looked in the sky was so small andnaments. The end, small things may seem to unlock things andnaments."
+TinyStories-Instruct-3M,fp32,265,"Possible story:
+
+Ben was a big boy who liked to play with his toys. He had a lot of toys, but his favorite was a big red car that he could drive. He liked to make it go fast and make loud noises.
+
+One day, he saw a big red button on the wall. He wanted to see what was inside. He pushed the button and heard a loud noise. He turned around and saw a big red button. He did not know what it was.
+
+""Who is this?"" he asked his grandma.
+
+""It is a button, Ben. It is a button that can make things go fast and make noises. Do you know what it is?"" she said.
+
+Ben looked at the button and saw that it was not a button. It was a button that could make things go fast and make noises. He felt a little scared.
+
+""I don't know, grandma. Maybe it is a button. Maybe it is a button. Maybe it is a button. Maybe it can make things go fast and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and make noises. Maybe it can make noises and"
+TinyStories-Instruct-3M,bf16,237,"Possible story:
+
+Ben was a little boy who liked to play with his toys. He had a big sister named Lily who liked to play with her. She had a doll, a doll, and a doll. Ben liked to make her talk and laugh.
+
+One day, Ben and Lily went to the park with their mom. They saw a big tree with a hole in it. Ben wanted to see what was inside. He asked his mom, ""Can we go inside the hole?""
+
+His mom said, ""No, Ben, it is not safe. It is very deep and dangerous. You might get hurt or hurt yourself.""
+
+Ben was sad. He wanted to play with Lily. He said, ""But mom, I want to see the moon. It is so pretty and pretty.""
+
+His mom said, ""Ben, you can't go inside the hole. It is not safe. It is dangerous. You might get hurt or hurt yourself.""
+
+Ben said, ""But mom, I want to see the moon. It is so pretty and pretty.""
+
+His mom said, ""Ben, you can't go inside the hole. It is not safe. It is dangerous and can hurt you. You have to be careful and stay away from the hole. You have to be careful and listen to me.""
+
+Ben said, ""I'm sorry, mom. I will be careful. I will be careful and listen to me.""
+
+His mom said, ""I love you, Ben. Now, let's"
+TinyStories-Instruct-3M,int8,256,"Possible story:
+
+Ben was a big boy who liked to play with his toys. He had a lot of toys, but his favorite was a big red car that he could drive on. He liked to make noises and pretend he was driving the car.
+
+One day, he saw a big red car parked on the street. It was a big red car that looked like a real car. Ben wanted to drive it, but he did not know how. He asked his mom, ""Mom, can you help me drive the car?""
+
+His mom smiled and said, ""Sure, Ben. I will help you. But first, you have to be careful with the car. It is very fast and you might get hurt.""
+
+Ben nodded and said, ""Okay, mom. I will be careful. I will be careful."" He drove the car around the house, making noises and noises. He was having fun.
+
+But then, he saw a big red car coming towards him. It was a big red car that had a long horn. Ben was scared and ran to his mom. He said, ""Mom, mom, there is a big red car in the car. It is not a toy. It is a big red car. It is a big red car. It is not a toy. It is a big red car. It is not a toy. It is a big red car. It is not a toy. It is a big red car. It is a big red car. It is very big and shiny."
+TinyStories-Instruct-3M,int4,244,"Possible story:
+
+Ben was a very impatient boy. He liked to go to his grandma's house. She was a big girl and she was busy. She had a lot of things to do. She took Ben's things and made him feel bad.
+
+One day, Ben and her grandma went to the attic. She wanted to see the things. She saw a big box of jewelry box. She wanted to use it. She asked her grandma.
+
+""Grandma,"" Ben said. ""Mommy, grandma's jewelry. I don't know what is inside. I don't know what is inside.""
+
+Grandma looked at the box. She saw the jewelry. It was shiny and had a lot of jewelry. She had a lot of jewelry that she used to make a lot of jewelry.
+
+""Wow, this is for you,"" Ben said. ""Can I have a jewelry too?""
+
+""Sure, grandma,"" grandma said. ""But you have to follow the rules. You can also follow the rules. You can also follow the rules. That is a good thing to do. Do you know what you are in those things?""
+
+Ben looked at the rules. He saw the jewelry on the shelf. He saw the jewelry on the shelf. He wanted to try it. He grabbed a small piece of jewelry and put it on the floor. He put the jewelry on the floor and saw the jewelry on the floor. It was a lot of jewelry.
+
+""Wow, this is a nice thing to look at."
+TinyStories-Instruct-8M,fp32,239,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the moon and the stars. They saw a big, round moon in the sky. It was very bright and shiny.
+
+""Wow, look at that moon!"" Ben said. ""It is so big and bright. I want to touch it.""
+
+""Me too,"" Lily said. ""But how can we get it?""
+
+They looked around and saw a ladder leaning on the wall. They had an idea.
+
+""Maybe we can use the ladder,"" Ben said. ""We can use it to get the moon.""
+
+""OK, let's try,"" Lily said. ""But we have to be careful. The ladder is very high and strong.""
+
+They climbed the ladder and reached the moon. They were very happy. They hugged the moon and said, ""We did it! We got the moon!""
+
+They climbed down the ladder and ran to the house. They told their mom and dad about their adventure. They said they wanted to go to the moon and see it again.
+
+Their mom and dad smiled and said, ""That's wonderful, Ben and Lily. You are very brave and smart. But you also need to be careful. The moon is very high and very bright. You can't reach it. But you can still have fun. You can play with the moon and make it shine. You can make it shine too.""
+
+Ben and Lily nodded and said, ""Yes, mom and dad. We"
+TinyStories-Instruct-8M,bf16,228,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the stars and the moon. They saw a big, round moon in the sky. It was very bright and shiny.
+
+""Wow, look at that moon!"" Ben said. ""It is so big and bright. I want to touch it.""
+
+""Me too,"" Lily said. ""But how can we get it?""
+
+They looked around and saw a ladder leaning on the wall. They had an idea.
+
+""Maybe we can use the ladder,"" Ben said. ""We can use it to get closer to the moon.""
+
+""OK, let's try it,"" Lily said. ""But we have to be careful. The ladder is very high and the moon is very far away.""
+
+They climbed the ladder and reached the moon. They touched it with their hands. It was soft and warm.
+
+""Wow, it is so pretty,"" Ben said. ""But we have to be careful. The moon is very far away.""
+
+""Yes, we have to be careful,"" Lily said. ""The moon is very far away. We have to look for it.""
+
+They climbed the ladder and looked for the moon. They saw it in the sky. It was big and round and had many stars.
+
+""Look, it is so pretty,"" Ben said. ""Let's touch it.""
+
+""OK, but be careful,"" Lily said. ""The moon is very far away. We have to be"
+TinyStories-Instruct-8M,int8,180,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the moon and the stars. They saw a big, round moon in the sky. It was very bright and shiny.
+
+""Wow, look at that moon!"" Ben said. ""It is so big and bright. I want to touch it.""
+
+""Me too,"" Lily said. ""But how can we get it?""
+
+They looked around and saw a ladder. It was on the ground. They had an idea.
+
+""Maybe we can use the ladder,"" Ben said. ""We can climb up and get the moon.""
+
+""OK, let's try,"" Lily said. ""But we have to be careful. The ladder is very high.""
+
+They climbed the ladder and reached the moon. They were very happy. They hugged the moon and said, ""We did it! We got the moon!""
+
+They climbed down the ladder and ran to the garden. They played with the moon and the moon. They had a lot of fun.
+
+They were very happy. They liked the moon. They liked the moon. They liked each other. They were good friends."
+TinyStories-Instruct-8M,int4,253,"Possible story:
+
+Ben loves the moon. He likes to look at the stars and hear the moon ring. He likes to eat the moon's food and play with the stars.
+
+One night, Ben asks his grandma, ""Why do the moon follow us?""
+
+Grandma smiles and says, ""The moon follows us, Ben. It is very far away, but it is very good. It is very good, too. It is very good for us.""
+
+Ben nods and says, ""I want to be like the moon. I want to be like the moon too.""
+
+Grandma laughs and says, ""You are not afraid to be afraid, Ben. You are very brave and strong. But you also have to be careful and not to get lost. The moon is very far away, but it is very good. It is very good to see it. It is very good to see it. It is very good to see it. It is very good to see it. It is very good to see it. It is very good to see you.""
+
+Ben thinks for a moment. He does not want to get lost. He wants to be like the moon. He wants to be brave and strong. He also wants to be like the moon. He says, ""I am sorry, grandma. I did not want to get lost. I want to be like the moon. I want to be like the moon. I want to be like the moon. I want to be like the moon. I want to be"
+TinyStories-Instruct-28M,fp32,139,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's a good idea. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not get too close to the moon."
+TinyStories-Instruct-28M,bf16,136,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's a good idea. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not forget the moon."
+TinyStories-Instruct-28M,int8,128,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Grandma, why is the moon following us?""
+
+Grandma smiled and said, ""The moon is very far away, Ben. It's very distant, so it's hard to see it.""
+
+Ben was amazed and asked, ""Can I touch it?""
+
+Grandma laughed and said, ""No, Ben. The moon is too far away. But it will always be here, and it will always be here to follow us.""
+
+Ben smiled and said, ""I love the moon!"""
+TinyStories-Instruct-28M,int4,158,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world. One day, he was playing in his backyard when he noticed something strange. He saw the moon in the sky. He was so excited and wanted to know why the moon was there.
+
+He asked his mom, ""Mommy, why is the moon here?"" His mom smiled and said, ""That's a good question, Ben. The moon is here to stay and shine at night.""
+
+Ben was so happy to know why the moon was there. He asked his mom, ""Can I go and see the moon?"" His mom said, ""No, Ben. The moon is too far away. But you can look at it and enjoy its beauty.""
+
+Ben was so excited to see the moon. He looked up at the moon and said, ""Moon, you are so good!"" He was so happy to have seen the moon."
+TinyStories-Instruct-33M,fp32,195,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the sky and see the stars. They saw a big round thing with holes and a long tail. It was the moon.
+
+""Look, Ben, the moon is following us!"" Lily said.
+
+""Why does the moon follow us?"" Ben asked.
+
+""Because it is far away. The moon is like a big ball of fire. It goes up and down, left and right, up and down. It is like a big ball of light in the sky,"" Lily explained.
+
+""Wow, the moon is very big and bright. It is like a big ball of fire in the sky. It is like a big ball of fire in the sky,"" Ben said.
+
+They watched the moon for a long time. They saw many stars and planets. They heard many noises and voices. They felt very happy and curious.
+
+""Can we go to the moon?"" Ben asked.
+
+""Maybe one day, when we are big and bright,"" Lily said.
+
+They hugged each other and smiled. They loved the moon. They loved their garden. They loved their mom. They loved their mom. They loved their moon."
+TinyStories-Instruct-33M,bf16,258,"Possible story:
+
+Ben and Lily were playing in the garden. They liked to look at the sky and the birds. They saw many things: clouds, birds, cars, and people.
+
+""Look, Ben, the moon is so big and bright!"" Lily said.
+
+""Yes, it is. Do you know why the moon follows us?"" Ben asked.
+
+Lily shook her head. She did not know.
+
+""Because the moon follows us. It follows us to the earth. It follows the sun to the moon. It follows the stars to the moon. It follows the stars to the earth. It follows the moon to the earth. It follows the stars to the earth. It follows the moon to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars to the earth. It follows the stars"
+TinyStories-Instruct-33M,int8,262,"Possible story:
+
+Ben and Lily were playing in the park with their ball. They liked to kick the ball to each other and run after it. Sometimes they missed the ball and it rolled away. Then they had to chase it before it went too far.
+
+One day, they saw a big, round moon in the sky. It was very bright and shiny. Ben said, ""Look, Lily, the moon is following us!"" Lily said, ""Maybe it wants to play with us!""
+
+They ran after the moon, but it was very fast. It flew over the trees and the houses and the cars. Ben and Lily tried to catch it, but it was too high. They asked a man who was walking by, ""Why is the moon following us?""
+
+The man smiled and said, ""The moon is following us because it is very far away. It is like a big ball that goes on a journey. It is like a big ball that goes on a journey. It is like a big ball that goes on a journey. It is like a big ball that goes on a journey.""
+
+Ben and Lily looked at the moon again. They thought it was very pretty and mysterious. They wondered what it would be like to be on a journey with the moon. They decided to ask the man if they could go with him. They said, ""Maybe we can ask him to take us with him. Maybe we can see the moon up close.""
+
+The man was very kind. He said, ""Of course, you can"
+TinyStories-Instruct-33M,int4,234,"Possible story:
+
+Ben and Lily were playing in the park when they saw a big, round moon in the sky. They were curious and wanted to know more about it.
+
+""Look, Lily, the moon is so bright and shiny!"" Ben said.
+
+""Yes, it is. Do you know why the moon follows us?"" Lily asked.
+
+Ben shook his head. He did not know.
+
+""Maybe it wants to go to the moon. Maybe it wants to play with us and the moon,"" Ben said.
+
+Lily smiled. She liked the moon. She wanted to touch it and see it up close.
+
+""Maybe we can ask the moon,"" she said.
+
+Ben nodded. He thought that was a good idea. He looked around and saw a big tree. He had an idea.
+
+""Let's ask the moon if it wants to come with us. Maybe it wants to play with us and the moon,"" he said.
+
+Lily agreed. She thought that was a good idea. She thought the moon would like to play with the moon.
+
+""Okay, let's ask the moon. Maybe it will like us and the moon likes us,"" she said.
+
+They ran to the tree and waved at the moon. The moon seemed to wave back and smile.
+
+""Hello, moon! We are Ben and Lily. We are playing with you. Do you want to play with us?"" Ben asked.
+
+The moon nodded. It seemed to like them"
