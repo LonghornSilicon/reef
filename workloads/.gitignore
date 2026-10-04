@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.ruff_cache/
+
+# uv / virtualenv
+.venv/
+
+# Workload artifacts
+logs/
+results/**/*.png
+*.onnx
+*.pt
+*.safetensors
+
+# Hugging Face / torch caches if pointed inside the repo
+.cache/
+
+# macOS
+.DS_Store

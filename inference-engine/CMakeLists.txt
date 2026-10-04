@@ -10,7 +10,6 @@ add_library(inference_engine STATIC
     src/csrc/src/operator/matrix.cpp
     src/csrc/src/operator/mlp.cpp
     src/csrc/src/model.cpp
-    src/csrc/src/tensor.cpp
 )
 target_compile_features(inference_engine PUBLIC cxx_std_17)
 target_include_directories(inference_engine PUBLIC src/csrc/include)
