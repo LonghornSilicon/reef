@@ -8,24 +8,29 @@
 
 namespace inference_engine {
 
-/** Weights and biases for the two linear layers. */
-// TODO: Define the representation after the shared Tensor contract is agreed.
-/** Parameters for the GPT-Neo feed-forward block. */
+/** Weights and biases for the two linear layers.
+ *
+ * The feed-forward block is:
+ *   W_2 GELU(W_1 x + b_1) + b_2
+ */
 struct MlpWeights {
-    /// First projection weights: [intermediate_size, hidden_size].
-    Tensor<float> c_fc_weight;
-    /// First projection bias: [intermediate_size].
-    Tensor<float> c_fc_bias;
-    /// Second projection weights: [hidden_size, intermediate_size].
-    Tensor<float> c_proj_weight;
-    /// Second projection bias: [hidden_size].
-    Tensor<float> c_proj_bias;
+    /** Input feature width; also the output feature width of the projection. */
+    std::size_t input_size{};
+    /** Hidden/expanded width of the first layer. */
+    std::size_t hidden_size{};
+    /** First linear layer weight matrix, stored as [hidden_size, input_size].
+     */
+    Tensor<float> W_1{};
+    /** First linear layer bias values, shaped [hidden_size]. */
+    Tensor<float> b_1{};
+    /** Second linear layer weight matrix, stored as [input_size, hidden_size].
+     */
+    Tensor<float> W_2{};
+    /** Second linear layer bias values, shaped [input_size]. */
+    Tensor<float> b_2{};
 };
 
 /** Apply the model's two-layer feed-forward block. */
-// @ MLP team
-// TODO: Keep the two layer weights together and make forward usable by model
-// tests and experiments. Match GPTNeoMLP in workloads.
 class MLP {
   public:
     /** Bind externally owned layer parameters.
@@ -39,8 +44,6 @@ class MLP {
      * @param input Input tensor.
      * @return Output tensor after the feed-forward block.
      */
-    // TODO: Compose linear -> GELU -> linear. Check intermediate width and
-    // output shape against a fixed reference case.
     [[nodiscard]] Tensor<float> forward(const Tensor<float>& input) const;
 
   private:
