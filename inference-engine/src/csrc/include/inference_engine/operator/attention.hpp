@@ -4,13 +4,12 @@
  *  @brief Attention interface and position-mask variants.
  */
 
-#include "inference_engine/operator/activation.hpp"
-#include "inference_engine/operator/matrix.hpp"
-#include "inference_engine/tensor.hpp"
+#include "../tensor.hpp"
+#include "activation.hpp"
+#include "matrix.hpp"
 
 #include <algorithm>
 #include <cstddef>
-#include <vector>
 
 namespace inference_engine {
 
@@ -68,8 +67,19 @@ template <typename Scalar> class Attention {
      */
     [[nodiscard]] virtual Tensor<Scalar>
     mask_scores(const Tensor<Scalar>& scores, std::size_t query_start) const {
-        const std::vector<Scalar>::const_iterator first = scores.values.begin() + std::min(query_start + 1, scores.values.size());
-        std::fill(first, scores.values.end(), -std::numeric_limits<Scalar>::infinity());
+        Tensor<Scalar> out = scores;
+
+        const std::size_t num_queries = scores.shape[0];
+        const std::size_t num_keys = scores.shape[1];
+        constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
+
+        for (std::size_t i = 0; i < num_queries; ++i) {
+            const std::size_t visible_end =
+                std::min(query_start + i + 1, num_keys);
+            Scalar* row = out.values.data() + (i * num_keys);
+            std::fill(row + visible_end, row + num_keys, kNegInf);
+        }
+        return out;
     }
 
   private:
@@ -128,7 +138,8 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
      * @param window_size Maximum number of visible key positions.
      */
     LocalAttention(const AttentionWeights<Scalar>& weights,
-                   KvCache<Scalar>& cache, std::size_t window_size);
+                   KvCache<Scalar>& cache, std::size_t window_size)
+        : window_size_(window_size), cache_(cache), weights_(weights) {}
 
   protected:
     /** Mask future keys and keys outside the context window.
@@ -139,10 +150,30 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
      */
     [[nodiscard]] Tensor<Scalar>
     mask_scores(const Tensor<Scalar>& scores,
-                std::size_t query_start) const override;
+                std::size_t query_start) const override {
+        // causal part
+        Tensor<Scalar> out =
+            Attention<Scalar>::mask_scores(scores, query_start);
+
+        const std::size_t num_queries = scores.shape[0];
+        const std::size_t num_keys = scores.shape[1];
+        constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
+
+        // context window trim
+        for (std::size_t i = 0; i < num_queries; ++i) {
+            const std::size_t pos = query_start + i;
+            const std::size_t lo =
+                (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
+            Scalar* row = out.values.data() + (i * num_keys);
+            std::fill(row, row + std::min(lo, num_keys), kNegInf);
+        }
+        return out;
+    }
 
   private:
     std::size_t window_size_;
+    const AttentionWeights<Scalar>& weights_;
+    KvCache<Scalar>& cache_;
 };
 
 // Definitions stay header-visible so any scalar type can instantiate them
@@ -185,27 +216,34 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
     // Raw scores matmul
     Tensor<Scalar> scores{
         {batch, heads, query_len, key_len},
-        std::vector<Scalar>(batch * heads * query_len * key_len, Scalar{0})};
+        std::vector<Scalar>(batch * heads * query_len * key_len, Scalar{0}),
+    };
 
     for (std::size_t b = 0; b < batch; ++b) {
         for (std::size_t h = 0; h < heads; ++h) {
-            const std::size_t q_off = (b * heads + h) * query_len * head_dim;
-            const std::size_t k_off = (b * heads + h) * key_len * head_dim;
+            const std::size_t q_off = ((b * heads) + h) * query_len * head_dim;
+            const std::size_t k_off = ((b * heads) + h) * key_len * head_dim;
             const Tensor<Scalar> query_slice{
                 {query_len, head_dim},
-                {query.values.begin() + q_off,
-                 query.values.begin() + q_off + (query_len * head_dim)}};
+                {
+                    query.values.begin() + q_off,
+                    query.values.begin() + q_off + (query_len * head_dim),
+                },
+            };
             const Tensor<Scalar> key_slice{
                 {key_len, head_dim},
-                {key.values.begin() + k_off,
-                 key.values.begin() + k_off + (key_len * head_dim)}};
+                {
+                    key.values.begin() + k_off,
+                    key.values.begin() + k_off + (key_len * head_dim),
+                },
+            };
 
             const Tensor<Scalar> head_scores =
                 matmul(query_slice, transpose(key_slice, 0, 1));
 
             std::copy(head_scores.values.begin(), head_scores.values.end(),
                       scores.values.begin() +
-                          ((b * heads + h) * query_len * key_len));
+                          (((b * heads) + h) * query_len * key_len));
         }
     }
 
@@ -217,26 +255,33 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
     // Probabilities weighted sum matmul
     Tensor<Scalar> mixed{
         {batch, heads, query_len, head_dim},
-        std::vector<Scalar>(batch * heads * query_len * head_dim, Scalar{0})};
+        std::vector<Scalar>(batch * heads * query_len * head_dim, Scalar{0}),
+    };
 
     for (std::size_t b = 0; b < batch; ++b) {
         for (std::size_t h = 0; h < heads; ++h) {
-            const std::size_t w_off = (b * heads + h) * query_len * key_len;
-            const std::size_t v_off = (b * heads + h) * key_len * head_dim;
+            const std::size_t w_off = ((b * heads) + h) * query_len * key_len;
+            const std::size_t v_off = ((b * heads) + h) * key_len * head_dim;
             const Tensor<Scalar> probs_slice{
                 {query_len, key_len},
-                {probs.values.begin() + w_off,
-                 probs.values.begin() + w_off + (query_len * key_len)}};
+                {
+                    probs.values.begin() + w_off,
+                    probs.values.begin() + w_off + (query_len * key_len),
+                },
+            };
             const Tensor<Scalar> value_slice{
                 {key_len, head_dim},
-                {value.values.begin() + v_off,
-                 value.values.begin() + v_off + (key_len * head_dim)}};
+                {
+                    value.values.begin() + v_off,
+                    value.values.begin() + v_off + (key_len * head_dim),
+                },
+            };
 
             const Tensor<Scalar> head_mix = matmul(probs_slice, value_slice);
 
             std::copy(head_mix.values.begin(), head_mix.values.end(),
                       mixed.values.begin() +
-                          ((b * heads + h) * query_len * head_dim));
+                          (((b * heads) + h) * query_len * head_dim));
         }
     }
 
