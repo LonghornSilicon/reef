@@ -1,4 +1,4 @@
-#include "inference_engine/operator/matrix.hpp"
+#include "inference_engine/operator/tensor.hpp"
 
 #include <iomanip>
 #include <iostream>

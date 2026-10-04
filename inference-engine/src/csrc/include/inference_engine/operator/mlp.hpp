@@ -4,7 +4,7 @@
  *  @brief Feed-forward operator interface.
  */
 
-#include "inference_engine/tensor.hpp"
+#include "inference_engine/operator/tensor.hpp"
 
 namespace inference_engine {
 
