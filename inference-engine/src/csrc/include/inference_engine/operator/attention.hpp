@@ -6,9 +6,15 @@
 
 #include "inference_engine/tensor.hpp"
 
+#include <limits>
+#include <algorithm>
 #include <cstddef>
 
 namespace inference_engine {
+
+using Scalar = float;
+using Vector = Tensor<float>;
+using Matrix = Tensor<float>;
 
 /** Query, key, value, and output projection parameters. */
 // TODO: Define the representation after the shared Tensor contract is agreed.
@@ -54,7 +60,7 @@ class Attention {
      * @return Scores with disallowed positions masked.
      */
     [[nodiscard]] virtual Tensor<float>
-    mask_scores(const Tensor<float>& scores, std::size_t query_start) const = 0;
+    mask_scores(const Tensor<float>& scores, std::size_t query_start) const;
 
   private:
     // TODO: Compute and reshape separate query, key, and value projections.
