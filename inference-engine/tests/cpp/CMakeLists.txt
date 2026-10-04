@@ -18,3 +18,10 @@ include(GoogleTest)
 gtest_discover_tests(test_matrix_cpp)
 
 # TODO: Add focused tests for attention, embeddings, and MLP as implemented.
+
+
+
+# Embeddings
+add_executable(test_embedding_cpp test_embedding.cpp)
+target_link_libraries(test_embedding_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_embedding_cpp)
