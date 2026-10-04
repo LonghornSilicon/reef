@@ -115,7 +115,9 @@ template <typename Scalar> class Attention {
         return out;
     }
 
+    /// Externally owned projection parameters.
     const AttentionWeights<Scalar>& weights_;
+    /// Externally owned key and value cache, updated on each forward.
     KvCache<Scalar>& cache_;
 
   private:
