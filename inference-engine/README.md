@@ -1,8 +1,6 @@
 # Inference Engine
 
-This module is the starting point for a minimal inference engine in Reef. The core tensor operations are written in C++, with Python used for integration and, eventually, experiments.
-
-Matrix multiplication currently works end to end. Attention, tokenizer and embedding, MLP, and model code are still being developed. The current Python matrix function calls a compiled C++ executable; it is an initial integration path, not a native Python binding.
+This module is the starting point for a minimal inference engine in Reef.
 
 ## Requirements
 
