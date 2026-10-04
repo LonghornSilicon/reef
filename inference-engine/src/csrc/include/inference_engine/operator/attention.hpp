@@ -192,18 +192,18 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
             const Tensor<Scalar> query_slice{
                 {query_len, head_dim},
                 {query.values.begin() + q_off,
-                 query.values.begin() + q_off + query_len * head_dim}};
+                 query.values.begin() + q_off + (query_len * head_dim)}};
             const Tensor<Scalar> key_slice{
                 {key_len, head_dim},
                 {key.values.begin() + k_off,
-                 key.values.begin() + k_off + key_len * head_dim}};
+                 key.values.begin() + k_off + (key_len * head_dim)}};
 
             const Tensor<Scalar> head_scores =
                 matmul(query_slice, transpose(key_slice, 0, 1));
 
             std::copy(head_scores.values.begin(), head_scores.values.end(),
                       scores.values.begin() +
-                          (b * heads + h) * query_len * key_len);
+                          ((b * heads + h) * query_len * key_len));
         }
     }
 
@@ -224,17 +224,17 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
             const Tensor<Scalar> probs_slice{
                 {query_len, key_len},
                 {probs.values.begin() + w_off,
-                 probs.values.begin() + w_off + query_len * key_len}};
+                 probs.values.begin() + w_off + (query_len * key_len)}};
             const Tensor<Scalar> value_slice{
                 {key_len, head_dim},
                 {value.values.begin() + v_off,
-                 value.values.begin() + v_off + key_len * head_dim}};
+                 value.values.begin() + v_off + (key_len * head_dim)}};
 
             const Tensor<Scalar> head_mix = matmul(probs_slice, value_slice);
 
             std::copy(head_mix.values.begin(), head_mix.values.end(),
                       mixed.values.begin() +
-                          (b * heads + h) * query_len * head_dim);
+                          ((b * heads + h) * query_len * head_dim));
         }
     }
 
