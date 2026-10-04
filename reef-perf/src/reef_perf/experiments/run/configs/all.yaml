@@ -1,0 +1,20 @@
+# Sweep: every workload once, on the Reef M3 simulation config, with no
+# parameter overrides. This reproduces the old scripts/run_all.sh.
+#
+# This is an *experiment* config (which artifacts to collect). It is not a
+# simulation config: the simulated machine is described by `sim_config`.
+
+# Artifacts go to results/run/<name>/<variant>/<workload>.json.
+name: all
+
+# Simulation config, relative to the reef-perf directory.
+sim_config: configs/m3.yaml
+
+# "all" or a list of workload names from workloads/, e.g. [alu_chain, gemv_int8].
+workloads: all
+
+# Variant name -> Sparta parameter overrides applied to every workload.
+# Add entries to sweep a parameter, e.g.
+#   fetch2: {top.core.fetch.params.fetch_interval: 2}
+variants:
+  m3: {}

@@ -1,0 +1,57 @@
+# Reef M3-baseline configuration for the coarse perf model.
+#
+# Reef's starting point is the CoralNPU M3 release. Right now every value
+# equals the model's built-in default: a SUPER-COARSE, generic in-order core
+# that does NOT yet correlate with the M3 RTL.
+# The beginner tickets (docs/tickets-beginner.md) replace these values, and
+# add missing behaviour, one step at a time. When you change a value, add a
+# comment saying where the new number came from (RTL file:line or a B01
+# measurement).
+#
+# Use it:              reef_perf --elf x.elf -c configs/m3.yaml
+# Override one value:  -p top.core.fetch.params.fetch_interval 2
+# List all parameters: reef_perf --elf x.elf --show-parameters --no-run
+#
+# This is the *simulation* config (what machine to simulate). Experiment
+# configs, which describe sweeps of runs, live under
+# src/reef_perf/experiments/<experiment>/configs/.
+
+top:
+  core:
+    fetch:
+      params:
+        fetch_width: 4          # 128-bit fetch = 4 instructions
+        fetch_interval: 1       # B04: M3 starts a fetch only every other cycle
+        redirect_penalty: 1     # B05: replace with static prediction + penalties
+    dispatch:
+      params:
+        dispatch_width: 4
+        ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
+    execute:
+      params:
+        alu_count: 4
+        alu_latency: 1
+        mul_count: 1
+        mul_latency: 2          # B11: measure (arbiter + 2 queued stages)
+        mul_occupancy: 1
+        div_latency: 32         # B12: data-dependent on M3
+        div_occupancy: 32
+        fpu_latency: 3          # B11: fpnew PipeRegs=3; measure
+        fpu_occupancy: 1
+        fdiv_latency: 12        # B11: measure
+        fdiv_occupancy: 12
+        lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
+        lsu_latency: 2          # B13: measure load-to-use
+        lsu_line_bytes: 16      # 128-bit data bus
+        lsu_cycles_per_line: 1  # B13: measure
+        vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
+        vec_units: 2            # B15: replace with per-type functional units
+        vlen_bits: 128
+        vec_latency: 4          # B15: measure per class
+        vec_cycles_per_uop: 1   # B15
+        vec_div_cycles_per_uop: 8   # B15
+        vec_to_scalar_latency: 2    # B17: measure
+    rob:
+      params:
+        rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
+        retire_width: 4         # B10: confirm from RetirementBuffer.scala
