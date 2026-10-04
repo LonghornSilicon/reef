@@ -10,30 +10,41 @@
 
 namespace inference_engine {
 
-/** Query, key, value, and output projection parameters. */
+/** Query, key, value, and output projection parameters.
+ *
+ * @tparam Scalar Tensor value type.
+ */
 // TODO: Define the representation after the shared Tensor contract is agreed.
-struct AttentionWeights;
-/** Projected query, key, and value tensors. */
-struct Qkv;
-/** Mutable key and value tensors retained across decode steps. */
-struct KvCache;
+template <typename Scalar> struct AttentionWeights;
+/** Projected query, key, and value tensors.
+ *
+ * @tparam Scalar Tensor value type.
+ */
+template <typename Scalar> struct Qkv;
+/** Mutable key and value tensors retained across decode steps.
+ *
+ * @tparam Scalar Tensor value type.
+ */
+template <typename Scalar> struct KvCache;
 
 /** Shared attention pipeline with a required position-mask policy.
  *
  * This is abstract because every concrete attention variant must supply a
  * position mask. Weights and decode state remain externally owned.
+ *
+ * @tparam Scalar Tensor value type.
  */
 // @ Attention team
 // TODO: Keep weights and decode cache as shared state. Tests can call forward
 // repeatedly for prefill and decode instead of passing that state each time.
-class Attention {
+template <typename Scalar> class Attention {
   public:
     /** Bind externally owned parameters and decode cache.
      *
      * @param weights Immutable projection parameters.
      * @param cache Mutable key and value cache.
      */
-    Attention(const AttentionWeights& weights, KvCache& cache);
+    Attention(const AttentionWeights<Scalar>& weights, KvCache<Scalar>& cache);
     /// Destroy through the abstract base class.
     virtual ~Attention() = default;
 
@@ -44,7 +55,7 @@ class Attention {
      */
     // TODO: Compose projection, cache update, masked attention, and output
     // projection for one prefill or decode call.
-    Tensor<float> forward(const Tensor<float>& input);
+    Tensor<Scalar> forward(const Tensor<Scalar>& input);
 
   protected:
     /** Mask scores according to the concrete attention policy.
@@ -53,33 +64,39 @@ class Attention {
      * @param query_start Position of the first query in the decode stream.
      * @return Scores with disallowed positions masked.
      */
-    [[nodiscard]] virtual Tensor<float>
-    mask_scores(const Tensor<float>& scores, std::size_t query_start) const = 0;
+    [[nodiscard]] virtual Tensor<Scalar>
+    mask_scores(const Tensor<Scalar>& scores,
+                std::size_t query_start) const = 0;
 
   private:
     // TODO: Compute and reshape separate query, key, and value projections.
-    [[nodiscard]] Qkv project_qkv(const Tensor<float>& input) const;
+    [[nodiscard]] Qkv<Scalar> project_qkv(const Tensor<Scalar>& input) const;
 
     // TODO: Append new keys and values; define cache capacity and overflow.
-    void append_kv_cache(const Tensor<float>& key, const Tensor<float>& value);
+    void append_kv_cache(const Tensor<Scalar>& key,
+                         const Tensor<Scalar>& value);
 
     // TODO: Define score scaling, then mask, softmax, and weight values.
-    [[nodiscard]] Tensor<float> context(const Qkv& qkv) const;
+    [[nodiscard]] Tensor<Scalar> context(const Qkv<Scalar>& qkv) const;
 
-    const AttentionWeights& weights_;
-    KvCache& cache_;
+    const AttentionWeights<Scalar>& weights_;
+    KvCache<Scalar>& cache_;
 };
 
-/** Apply a causal mask that permits every earlier key position. */
+/** Apply a causal mask that permits every earlier key position.
+ *
+ * @tparam Scalar Tensor value type.
+ */
 // @ Attention team
-class GlobalAttention : public Attention {
+template <typename Scalar> class GlobalAttention : public Attention<Scalar> {
   public:
     /** Bind parameters and cache for unrestricted causal attention.
      *
      * @param weights Immutable projection parameters.
      * @param cache Mutable key and value cache.
      */
-    GlobalAttention(const AttentionWeights& weights, KvCache& cache);
+    GlobalAttention(const AttentionWeights<Scalar>& weights,
+                    KvCache<Scalar>& cache);
 
   protected:
     /** Mask future key positions.
@@ -88,15 +105,18 @@ class GlobalAttention : public Attention {
      * @param query_start Position of the first query in the decode stream.
      * @return Causally masked scores.
      */
-    [[nodiscard]] Tensor<float>
-    mask_scores(const Tensor<float>& scores,
+    [[nodiscard]] Tensor<Scalar>
+    mask_scores(const Tensor<Scalar>& scores,
                 std::size_t query_start) const override;
 };
 
-/** Apply a causal mask limited to a sliding context window. */
+/** Apply a causal mask limited to a sliding context window.
+ *
+ * @tparam Scalar Tensor value type.
+ */
 // @ Attention team
 // TODO: Specialize only the attention mask for local GPT-Neo layers.
-class LocalAttention : public Attention {
+template <typename Scalar> class LocalAttention : public Attention<Scalar> {
   public:
     /** Bind parameters, cache, and context-window length.
      *
@@ -104,8 +124,8 @@ class LocalAttention : public Attention {
      * @param cache Mutable key and value cache.
      * @param window_size Maximum number of visible key positions.
      */
-    LocalAttention(const AttentionWeights& weights, KvCache& cache,
-                   std::size_t window_size);
+    LocalAttention(const AttentionWeights<Scalar>& weights,
+                   KvCache<Scalar>& cache, std::size_t window_size);
 
   protected:
     /** Mask future keys and keys outside the context window.
@@ -114,8 +134,8 @@ class LocalAttention : public Attention {
      * @param query_start Position of the first query in the decode stream.
      * @return Causally and locally masked scores.
      */
-    [[nodiscard]] Tensor<float>
-    mask_scores(const Tensor<float>& scores,
+    [[nodiscard]] Tensor<Scalar>
+    mask_scores(const Tensor<Scalar>& scores,
                 std::size_t query_start) const override;
 
   private:

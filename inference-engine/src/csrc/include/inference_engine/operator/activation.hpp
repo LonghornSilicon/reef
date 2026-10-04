@@ -21,13 +21,15 @@ Tensor<float> gelu(const Tensor<float>& input);
 
 /** Apply softmax along one tensor dimension, including axis zero for 1-D data.
  *
+ * @tparam Scalar Tensor value type.
  * @param input Input values.
  * @param dim Zero-based dimension to normalize.
  * @return Tensor with the same shape and normalized values along @p dim.
  */
 // @ Attention team
 // TODO: Implement a numerically stable operation; define masked-row behavior
-// and accumulation precision.
-Tensor<float> softmax(const Tensor<float>& input, std::size_t dim);
+// and accumulation precision. Define a scale for integer output tensors.
+template <typename Scalar>
+Tensor<Scalar> softmax(const Tensor<Scalar>& input, std::size_t dim);
 
 } // namespace inference_engine

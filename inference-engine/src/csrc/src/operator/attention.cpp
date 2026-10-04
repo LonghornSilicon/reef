@@ -2,7 +2,9 @@
 
 // @ Attention team
 // TODO: Implement Attention's constructor, forward, project_qkv, and
-// append_kv_cache. Match head counts and weight layout in workloads.
+// append_kv_cache. Keep template definitions header-visible or explicitly
+// instantiate supported types. Match head counts and weight layout in
+// workloads.
 
 // @ Attention team
 // TODO: Implement Attention::context and concrete masking policies, checking

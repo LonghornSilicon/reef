@@ -4,4 +4,5 @@
 // TODO: Implement gelu declared in activation.hpp.
 
 // @ Attention team
-// TODO: Implement dimension-aware softmax declared in activation.hpp.
+// TODO: Implement the softmax template in a header (or explicitly instantiate
+// supported scalar types) after defining integer output scaling.
