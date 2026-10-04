@@ -74,7 +74,8 @@ template <typename Scalar> class Attention {
      * @param weights Immutable projection parameters.
      * @param cache Mutable key and value cache.
      */
-    Attention(const AttentionWeights<Scalar>& weights, KvCache<Scalar>& cache);
+    Attention(const AttentionWeights<Scalar>& weights, KvCache<Scalar>& cache)
+        : weights_(weights), cache_(cache) {}
     /// Destroy through the abstract base class.
     virtual ~Attention() = default;
 
@@ -114,6 +115,9 @@ template <typename Scalar> class Attention {
         return out;
     }
 
+    const AttentionWeights<Scalar>& weights_;
+    KvCache<Scalar>& cache_;
+
   private:
     // TODO: Compute and reshape separate query, key, and value projections.
     [[nodiscard]] Qkv<Scalar> project_qkv(const Tensor<Scalar>& input) const;
@@ -123,9 +127,6 @@ template <typename Scalar> class Attention {
                          const Tensor<Scalar>& value);
 
     [[nodiscard]] Tensor<Scalar> context(const Qkv<Scalar>& qkv) const;
-
-    const AttentionWeights<Scalar>& weights_;
-    KvCache<Scalar>& cache_;
 };
 
 /** Apply a causal mask that permits every earlier key position.
@@ -171,7 +172,7 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
      */
     LocalAttention(const AttentionWeights<Scalar>& weights,
                    KvCache<Scalar>& cache, std::size_t window_size)
-        : window_size_(window_size), cache_(cache), weights_(weights) {}
+        : Attention<Scalar>(weights, cache), window_size_(window_size) {}
 
   protected:
     /** Mask future keys and keys outside the context window.
@@ -212,12 +213,6 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
 
 // Definitions stay header-visible so any scalar type can instantiate them
 // once the weight and cache struct representations are defined.
-
-template <typename Scalar>
-Attention<Scalar>::Attention(const AttentionWeights<Scalar>& weights,
-                             KvCache<Scalar>& cache)
-    : weights_(weights), cache_(cache) {}
-
 template <typename Scalar>
 Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
     if (input.shape.size() != 3 || weights_.num_heads == 0 ||
