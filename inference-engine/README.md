@@ -36,3 +36,29 @@ ctest --test-dir build --output-on-failure
 ```
 
 The build produces the C++ library and `matrix_cli` executable. Google Test is fetched during the first CMake configuration.
+
+## Contributing
+
+When adding a component, put public C++ declarations in
+`src/csrc/include/inference_engine/` and their implementations in
+`src/csrc/src/`. Add new implementation files to `CMakeLists.txt` and cover
+the component with Google Test cases in `tests/cpp/`. Put importable Python
+code in `src/inference_engine/` and add an integration test when Python calls
+new C++ functionality.
+
+Within `src/`, only experiments should run standalone from the command line.
+Put each experiment under `src/inference_engine/experiments/` with its own README,
+`main.py` for one artifact, `run.py` for a configured sweep, and `plot.py`
+for the sweep results. Do not add a main function elsewhere in `src/`.
+
+Before a PR is complete, verify all of the following:
+
+1. `nullptr` represents only unallocated memory (for example, a pointer set
+   to `nullptr` after `delete`). It never represents an optional value or
+   argument; use `std::optional` for those.
+2. New C++ behavior has Google Test coverage, and any new Python-to-C++ path
+   has a Python integration test. Mark every pytest case as `unit`,
+   `integration`, or `experiment`, and mark long-running cases as `slow`.
+3. `uv run pytest` passes. For C++ changes, also run the C++-only build and
+   CTest commands above. The full pytest run checks Ruff, clang-format,
+   clang-tidy, and Doxygen in addition to the tests.
