@@ -1,6 +1,6 @@
 #include "inference_engine/operator/attention.hpp"
 
-namespace inference_engine{
+namespace inference_engine {
 
 // @ Attention team
 // TODO: Implement Attention's constructor, forward, project_qkv, and
@@ -16,4 +16,4 @@ namespace inference_engine{
 // TODO: Implement GlobalAttention and LocalAttention constructors and masks,
 // including sliding-window boundaries.
 
-};
+} // namespace inference_engine
