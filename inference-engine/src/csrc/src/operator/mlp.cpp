@@ -1,6 +1,7 @@
 #include "inference_engine/operator/mlp.hpp"
 
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -16,7 +17,9 @@ float gelu_tanh(float x) {
 
 void validate_matrix_shape(const Tensor<float>& tensor, std::size_t rows,
                            std::size_t columns, const char* name) {
-    if (tensor.shape.size() != 2 || tensor.shape[0] != rows ||
+    if ((columns != 0 &&
+         rows > std::numeric_limits<std::size_t>::max() / columns) ||
+        tensor.shape.size() != 2 || tensor.shape[0] != rows ||
         tensor.shape[1] != columns || tensor.values.size() != rows * columns) {
         throw std::invalid_argument(
             std::string(name) + " must have shape [" + std::to_string(rows) +
@@ -48,6 +51,8 @@ Tensor<float> MLP::forward(const Tensor<float>& input) const {
         throw std::invalid_argument(
             "MLP input width does not match the weight layout");
     }
+
+    validate_matrix_shape(input, input.shape[0], weights_.input_size, "input");
 
     validate_matrix_shape(weights_.W_1, weights_.hidden_size,
                           weights_.input_size, "W_1");

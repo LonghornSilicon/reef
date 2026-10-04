@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -117,6 +118,104 @@ TEST(MlpTest, SupportsTinyStoriesInstruct28MDimensions) {
     ASSERT_EQ(output.values.size(), kHidden);
     for (const float value : output.values) {
         EXPECT_FLOAT_EQ(value, 0.25F);
+    }
+}
+
+namespace {
+MlpWeights make_test_weights() {
+    return {2,
+            3,
+            Tensor<float>{{3, 2}, {1, 1, 2, 1, 0, -1}},
+            Tensor<float>{{3}, {0.5F, -0.25F, 1.0F}},
+            Tensor<float>{{2, 3}, {1, 2, 3, -2, 1, 0.5F}},
+            Tensor<float>{{2}, {0.25F, -0.5F}}};
+}
+
+constexpr Tensor<float> MlpWeights::* kParameters[] = {
+    &MlpWeights::W_1, &MlpWeights::b_1, &MlpWeights::W_2, &MlpWeights::b_2};
+} // namespace
+
+TEST(MlpTest, RejectsWrongInputRank) {
+    const MlpWeights weights = make_test_weights();
+    const MLP mlp(weights);
+    const Tensor<float> input{{2}, {1, -2}};
+    EXPECT_THROW(static_cast<void>(mlp.forward(input)), std::invalid_argument);
+}
+
+TEST(MlpTest, RejectsWrongInputWidth) {
+    const MlpWeights weights = make_test_weights();
+    const MLP mlp(weights);
+    const Tensor<float> input{{1, 3}, {1, -2, 3}};
+    EXPECT_THROW(static_cast<void>(mlp.forward(input)), std::invalid_argument);
+}
+
+TEST(MlpTest, RejectsShortInputStorage) {
+    const MlpWeights weights = make_test_weights();
+    const MLP mlp(weights);
+    const Tensor<float> input{{2, 2}, {1, -2, 3}};
+    EXPECT_THROW(static_cast<void>(mlp.forward(input)), std::invalid_argument);
+}
+
+TEST(MlpTest, RejectsExcessInputStorage) {
+    const MlpWeights weights = make_test_weights();
+    const MLP mlp(weights);
+    const Tensor<float> input{{1, 2}, {1, -2, 3}};
+    EXPECT_THROW(static_cast<void>(mlp.forward(input)), std::invalid_argument);
+}
+
+TEST(MlpTest, RejectsMalformedParameterShapes) {
+    for (const auto parameter : kParameters) {
+        MlpWeights weights = make_test_weights();
+        // Preserve the values so rejection must come from the shape.
+        (weights.*parameter).shape = {1, 1, 1};
+        const MLP mlp(weights);
+        EXPECT_THROW(
+            static_cast<void>(mlp.forward(Tensor<float>{{1, 2}, {1, -2}})),
+            std::invalid_argument);
+    }
+}
+
+TEST(MlpTest, RejectsShortParameterStorage) {
+    for (const auto parameter : kParameters) {
+        MlpWeights weights = make_test_weights();
+        // Every fixture parameter has at least two values, so the bias
+        // remains present after removing one value.
+        (weights.*parameter).values.pop_back();
+        const MLP mlp(weights);
+        EXPECT_THROW(
+            static_cast<void>(mlp.forward(Tensor<float>{{1, 2}, {1, -2}})),
+            std::invalid_argument);
+    }
+}
+
+TEST(MlpTest, RepeatedCallsPreserveInputsAndWeights) {
+    const MlpWeights weights = make_test_weights();
+    const MlpWeights original_weights = weights;
+    const MLP mlp(weights);
+    const Tensor<float> input{{1, 2}, {1, -2}};
+    const Tensor<float> original_input = input;
+    const Tensor<float> other_input{{2, 2}, {3, 4, -1, 2}};
+    const Tensor<float> original_other_input = other_input;
+
+    const auto first = mlp.forward(input);
+    const auto other_output = mlp.forward(other_input);
+    const auto repeated = mlp.forward(input);
+
+    ASSERT_EQ(other_output.shape, (std::vector<std::size_t>{2, 2}));
+    ASSERT_EQ(other_output.values.size(), 4U);
+    EXPECT_EQ(repeated.shape, first.shape);
+    EXPECT_EQ(repeated.values, first.values);
+    EXPECT_EQ(input.shape, original_input.shape);
+    EXPECT_EQ(input.values, original_input.values);
+    EXPECT_EQ(other_input.shape, original_other_input.shape);
+    EXPECT_EQ(other_input.values, original_other_input.values);
+    EXPECT_EQ(weights.input_size, original_weights.input_size);
+    EXPECT_EQ(weights.hidden_size, original_weights.hidden_size);
+    for (const auto parameter : kParameters) {
+        EXPECT_EQ((weights.*parameter).shape,
+                  (original_weights.*parameter).shape);
+        EXPECT_EQ((weights.*parameter).values,
+                  (original_weights.*parameter).values);
     }
 }
 
