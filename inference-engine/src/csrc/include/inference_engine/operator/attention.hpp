@@ -92,8 +92,10 @@ template <typename Scalar> class Attention {
      * @return Scores with disallowed positions masked.
      */
     [[nodiscard]] virtual Tensor<Scalar>
-    mask_scores(const Tensor<Scalar>& scores,
-                std::size_t query_start) const = 0;
+    mask_scores(const Tensor<Scalar>& scores, std::size_t query_start) const {
+        const std::vector<Scalar>::const_iterator first = scores.values.begin() + std::min(query_start + 1, scores.values.size());
+        std::fill(first, scores.values.end(), -std::numeric_limits<Scalar>::infinity());
+    }
 
   private:
     // TODO: Compute and reshape separate query, key, and value projections.
