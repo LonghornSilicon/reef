@@ -17,7 +17,7 @@ namespace inference_engine {
  */
 // @ MLP team
 // TODO: Implement and set a numeric tolerance for host and Coral comparisons.
-Tensor<float> gelu(const Tensor<float>& input);
+template <typename Scalar> Tensor<Scalar> gelu(const Tensor<Scalar>& input);
 
 /** Apply softmax along one tensor dimension, including axis zero for 1-D data.
  *
