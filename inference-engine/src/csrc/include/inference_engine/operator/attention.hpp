@@ -10,26 +10,51 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace inference_engine {
 
 /** Query, key, value, and output projection parameters.
  *
+ * Every head shares one full-width projection per role; heads are split
+ * after projection. Weights use the Hugging Face `[out, in]` layout, so each
+ * projection computes `input @ weight.T`.
+ *
  * @tparam Scalar Tensor value type.
  */
-// TODO: Define the representation after the shared Tensor contract is agreed.
-template <typename Scalar> struct AttentionWeights;
+template <typename Scalar> struct AttentionWeights {
+    std::size_t num_heads = 0;     ///< Heads that split the model width.
+    Tensor<Scalar> query_weights;  ///< [d_model, d_model], no bias.
+    Tensor<Scalar> key_weights;    ///< [d_model, d_model], no bias.
+    Tensor<Scalar> value_weights;  ///< [d_model, d_model], no bias.
+    Tensor<Scalar> output_weights; ///< [d_model, d_model].
+    Tensor<Scalar> output_bias;    ///< [d_model].
+};
+
 /** Projected query, key, and value tensors.
  *
  * @tparam Scalar Tensor value type.
  */
-template <typename Scalar> struct Qkv;
+template <typename Scalar> struct Qkv {
+    Tensor<Scalar> query; ///< [batch, heads, query_len, head_dim].
+    Tensor<Scalar> key;   ///< [batch, heads, query_len, head_dim].
+    Tensor<Scalar> value; ///< [batch, heads, query_len, head_dim].
+};
+
 /** Mutable key and value tensors retained across decode steps.
+ *
+ * The tensors hold only filled positions, so `key.shape[2]` is the number of
+ * cached tokens. An empty cache has shape `[batch, heads, 0, head_dim]`.
  *
  * @tparam Scalar Tensor value type.
  */
-template <typename Scalar> struct KvCache;
+template <typename Scalar> struct KvCache {
+    std::size_t capacity = 0; ///< Maximum cached positions per head.
+    Tensor<Scalar> key;       ///< [batch, heads, cached_len, head_dim].
+    Tensor<Scalar> value;     ///< [batch, heads, cached_len, head_dim].
+};
 
 /** Shared attention pipeline with a required position-mask policy.
  *
@@ -145,6 +170,76 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
 
 // Definitions stay header-visible so any scalar type can instantiate them
 // once the weight and cache struct representations are defined.
+
+template <typename Scalar>
+Attention<Scalar>::Attention(const AttentionWeights<Scalar>& weights,
+                             KvCache<Scalar>& cache)
+    : weights_(weights), cache_(cache) {}
+
+template <typename Scalar>
+Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
+    if (input.shape.size() != 3 || weights_.num_heads == 0 ||
+        input.shape[2] % weights_.num_heads != 0) {
+        throw std::invalid_argument(
+            "project_qkv requires [batch, length, d_model] input");
+    }
+    const std::size_t batch = input.shape[0];
+    const std::size_t length = input.shape[1];
+    const std::size_t hidden = input.shape[2];
+    const std::size_t head_dim = hidden / weights_.num_heads;
+    const Tensor<Scalar> rows = reshape(input, {batch * length, hidden});
+
+    // Project at full width, then split columns into heads:
+    // [batch * length, d_model] -> [batch, heads, length, head_dim].
+    const auto split_heads = [&](const Tensor<Scalar>& weight) {
+        const Tensor<Scalar> projected = linear<Scalar>(rows, weight);
+        return transpose(
+            reshape(projected, {batch, length, weights_.num_heads, head_dim}),
+            1, 2);
+    };
+    return {split_heads(weights_.query_weights),
+            split_heads(weights_.key_weights),
+            split_heads(weights_.value_weights)};
+}
+
+template <typename Scalar>
+void Attention<Scalar>::append_kv_cache(const Tensor<Scalar>& key,
+                                        const Tensor<Scalar>& value) {
+    const std::vector<std::size_t>& cached = cache_.key.shape;
+    if (key.shape.size() != 4 || value.shape != key.shape ||
+        cached.size() != 4 || key.shape[0] != cached[0] ||
+        key.shape[1] != cached[1] || key.shape[3] != cached[3]) {
+        throw std::invalid_argument("KV cache append shape mismatch");
+    }
+    const std::size_t old_len = cached[2];
+    const std::size_t new_len = key.shape[2];
+    if (old_len + new_len > cache_.capacity) {
+        throw std::length_error("KV cache capacity exceeded");
+    }
+
+    // Each (batch, head) block is contiguous, so new positions go at the end
+    // of every block rather than at the end of the whole tensor.
+    const std::size_t blocks = key.shape[0] * key.shape[1];
+    const std::size_t head_dim = key.shape[3];
+    const auto extend = [&](Tensor<Scalar>& stored,
+                            const Tensor<Scalar>& fresh) {
+        const auto old_block = static_cast<std::ptrdiff_t>(old_len * head_dim);
+        const auto new_block = static_cast<std::ptrdiff_t>(new_len * head_dim);
+        std::vector<Scalar> merged;
+        merged.reserve(stored.values.size() + fresh.values.size());
+        for (std::size_t block = 0; block < blocks; ++block) {
+            const auto index = static_cast<std::ptrdiff_t>(block);
+            const auto old_begin = stored.values.begin() + (index * old_block);
+            const auto new_begin = fresh.values.begin() + (index * new_block);
+            merged.insert(merged.end(), old_begin, old_begin + old_block);
+            merged.insert(merged.end(), new_begin, new_begin + new_block);
+        }
+        stored.values = std::move(merged);
+        stored.shape[2] = old_len + new_len;
+    };
+    extend(cache_.key, key);
+    extend(cache_.value, value);
+}
 
 template <typename Scalar>
 Tensor<Scalar> Attention<Scalar>::forward(const Tensor<Scalar>& input) {
