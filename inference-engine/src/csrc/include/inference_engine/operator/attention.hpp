@@ -4,9 +4,13 @@
  *  @brief Attention interface and position-mask variants.
  */
 
+#include "inference_engine/operator/activation.hpp"
+#include "inference_engine/operator/matrix.hpp"
 #include "inference_engine/tensor.hpp"
 
+#include <algorithm>
 #include <cstddef>
+#include <vector>
 
 namespace inference_engine {
 
@@ -53,8 +57,6 @@ template <typename Scalar> class Attention {
      * @param input Input tensor for prefill or decode.
      * @return Attention output tensor.
      */
-    // TODO: Compose projection, cache update, masked attention, and output
-    // projection for one prefill or decode call.
     Tensor<Scalar> forward(const Tensor<Scalar>& input);
 
   protected:
@@ -76,7 +78,6 @@ template <typename Scalar> class Attention {
     void append_kv_cache(const Tensor<Scalar>& key,
                          const Tensor<Scalar>& value);
 
-    // TODO: Define score scaling, then mask, softmax, and weight values.
     [[nodiscard]] Tensor<Scalar> context(const Qkv<Scalar>& qkv) const;
 
     const AttentionWeights<Scalar>& weights_;
@@ -141,5 +142,104 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
   private:
     std::size_t window_size_;
 };
+
+// Definitions stay header-visible so any scalar type can instantiate them
+// once the weight and cache struct representations are defined.
+
+template <typename Scalar>
+Tensor<Scalar> Attention<Scalar>::forward(const Tensor<Scalar>& input) {
+    // Project input to QKV and append to cache
+    Qkv<Scalar> qkv = project_qkv(input);
+    append_kv_cache(qkv.key, qkv.value);
+
+    // Compute context
+    Tensor<Scalar> mixed = context(qkv);
+
+    // Merge heads and project to output
+    Tensor<Scalar> swapped = transpose(mixed, 1, 2);
+    const std::size_t batch = swapped.shape[0];
+    const std::size_t query_len = swapped.shape[1];
+    const std::size_t hidden = swapped.shape[2] * swapped.shape[3];
+    Tensor<Scalar> merged = reshape(swapped, {batch * query_len, hidden});
+    Tensor<Scalar> out_proj = linear<Scalar>(merged, weights_.output_weights,
+                                             std::cref(weights_.output_bias));
+
+    // Reshape output to original shape
+    return reshape(out_proj, {batch, query_len, hidden});
+}
+
+template <typename Scalar>
+Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
+    const Tensor<Scalar>& query = qkv.query;
+    const Tensor<Scalar>& key = cache_.key;
+    const Tensor<Scalar>& value = cache_.value;
+
+    const std::size_t batch = query.shape[0];
+    const std::size_t heads = query.shape[1];
+    const std::size_t query_len = query.shape[2];
+    const std::size_t head_dim = query.shape[3];
+    const std::size_t key_len = key.shape[2];
+
+    // Raw scores matmul
+    Tensor<Scalar> scores{
+        {batch, heads, query_len, key_len},
+        std::vector<Scalar>(batch * heads * query_len * key_len, Scalar{0})};
+
+    for (std::size_t b = 0; b < batch; ++b) {
+        for (std::size_t h = 0; h < heads; ++h) {
+            const std::size_t q_off = (b * heads + h) * query_len * head_dim;
+            const std::size_t k_off = (b * heads + h) * key_len * head_dim;
+            const Tensor<Scalar> query_slice{
+                {query_len, head_dim},
+                {query.values.begin() + q_off,
+                 query.values.begin() + q_off + query_len * head_dim}};
+            const Tensor<Scalar> key_slice{
+                {key_len, head_dim},
+                {key.values.begin() + k_off,
+                 key.values.begin() + k_off + key_len * head_dim}};
+
+            const Tensor<Scalar> head_scores =
+                matmul(query_slice, transpose(key_slice, 0, 1));
+
+            std::copy(head_scores.values.begin(), head_scores.values.end(),
+                      scores.values.begin() +
+                          (b * heads + h) * query_len * key_len);
+        }
+    }
+
+    // Mask and softmax
+    const std::size_t query_start = key_len - query_len;
+    const Tensor<Scalar> masked = mask_scores(scores, query_start);
+    const Tensor<Scalar> probs = softmax(masked, 3);
+
+    // Probabilities weighted sum matmul
+    Tensor<Scalar> mixed{
+        {batch, heads, query_len, head_dim},
+        std::vector<Scalar>(batch * heads * query_len * head_dim, Scalar{0})};
+
+    for (std::size_t b = 0; b < batch; ++b) {
+        for (std::size_t h = 0; h < heads; ++h) {
+            const std::size_t w_off = (b * heads + h) * query_len * key_len;
+            const std::size_t v_off = (b * heads + h) * key_len * head_dim;
+            const Tensor<Scalar> probs_slice{
+                {query_len, key_len},
+                {probs.values.begin() + w_off,
+                 probs.values.begin() + w_off + query_len * key_len}};
+            const Tensor<Scalar> value_slice{
+                {key_len, head_dim},
+                {value.values.begin() + v_off,
+                 value.values.begin() + v_off + key_len * head_dim}};
+
+            const Tensor<Scalar> head_mix = matmul(probs_slice, value_slice);
+
+            std::copy(head_mix.values.begin(), head_mix.values.end(),
+                      mixed.values.begin() +
+                          (b * heads + h) * query_len * head_dim);
+        }
+    }
+
+    // Return mixed
+    return mixed;
+}
 
 } // namespace inference_engine
