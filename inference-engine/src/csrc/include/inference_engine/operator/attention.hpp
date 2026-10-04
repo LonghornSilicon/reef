@@ -207,8 +207,6 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
 
   private:
     std::size_t window_size_;
-    const AttentionWeights<Scalar>& weights_;
-    KvCache<Scalar>& cache_;
 };
 
 // Definitions stay header-visible so any scalar type can instantiate them
