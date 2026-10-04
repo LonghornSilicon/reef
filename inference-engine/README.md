@@ -51,7 +51,8 @@ Put each experiment under `src/inference_engine/experiments/` with its own READM
 `main.py` for one artifact, `run.py` for a configured sweep, and `plot.py`
 for the sweep results. Do not add a main function elsewhere in `src/`.
 
-Before a PR is complete, verify all of the following:
+The following is a growing list of rules that must be checked before a PR is
+complete:
 
 1. `nullptr` represents only unallocated memory (for example, a pointer set
    to `nullptr` after `delete`). It never represents an optional value or
