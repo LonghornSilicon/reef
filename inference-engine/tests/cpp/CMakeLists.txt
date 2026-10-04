@@ -1,8 +1,12 @@
 include(FetchContent)
+set(_gtest_extra "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    set(_gtest_extra DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/063de7e9578f82b369302001269680b4b1553359.zip
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    ${_gtest_extra}
 )
 set(BUILD_GMOCK OFF CACHE BOOL "Build Google Mock" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "Install Google Test" FORCE)
