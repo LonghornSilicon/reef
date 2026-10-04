@@ -15,7 +15,8 @@ namespace {
 // Helper function just needed for this file
 
 bool valid_table(const Tensor<float>& table) {
-    return table.shape.size() == 2 && table.shape[0] > 0 && table.shape[1] > 0 &&
+    return table.shape.size() == 2 && table.shape[0] > 0 &&
+           table.shape[1] > 0 &&
            table.shape[0] <=
                std::numeric_limits<std::size_t>::max() / table.shape[1] &&
            table.values.size() == table.shape[0] * table.shape[1];
