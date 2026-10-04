@@ -19,15 +19,12 @@ float gelu_tanh(float x) {
 TEST(MLPTest, ForwardAppliesTwoLinearLayersWithGelu) {
     const inference_engine::Tensor<float> input{{2, 2},
                                                 {1.0f, 2.0f, 3.0f, 4.0f}};
-    const inference_engine::Tensor<float> fc_weight{{2, 2},
-                                                    {1.0f, 0.0f, 0.0f, 1.0f}};
-    const inference_engine::Tensor<float> fc_bias{{2}, {0.0f, 0.0f}};
-    const inference_engine::Tensor<float> proj_weight{{2, 2},
-                                                      {1.0f, 1.0f, 0.0f, 1.0f}};
-    const inference_engine::Tensor<float> proj_bias{{2}, {0.0f, 0.0f}};
+    const inference_engine::Tensor<float> W_1{{2, 2}, {1.0f, 0.0f, 0.0f, 1.0f}};
+    const inference_engine::Tensor<float> b_1{{2}, {0.0f, 0.0f}};
+    const inference_engine::Tensor<float> W_2{{2, 2}, {1.0f, 1.0f, 0.0f, 1.0f}};
+    const inference_engine::Tensor<float> b_2{{2}, {0.0f, 0.0f}};
 
-    const inference_engine::MlpWeights weights{2,       2,           fc_weight,
-                                               fc_bias, proj_weight, proj_bias};
+    const inference_engine::MlpWeights weights{2, 2, W_1, b_1, W_2, b_2};
     const inference_engine::MLP mlp(weights);
 
     const auto output = mlp.forward(input);

@@ -17,18 +17,20 @@ float gelu_tanh(float x) {
 void validate_matrix_shape(const Tensor<float>& tensor, std::size_t rows,
                            std::size_t columns, const char* name) {
     if (tensor.shape.size() != 2 || tensor.shape[0] != rows ||
-        tensor.shape[1] != columns) {
-        throw std::invalid_argument(std::string(name) + " must have shape [" +
-                                    std::to_string(rows) + ", " +
-                                    std::to_string(columns) + "]");
+        tensor.shape[1] != columns || tensor.values.size() != rows * columns) {
+        throw std::invalid_argument(
+            std::string(name) + " must have shape [" + std::to_string(rows) +
+            ", " + std::to_string(columns) + "] and " + "matching storage");
     }
 }
 
 void validate_vector_shape(const Tensor<float>& tensor, std::size_t length,
                            const char* name) {
-    if (tensor.shape.size() != 1 || tensor.shape[0] != length) {
+    if (tensor.shape.size() != 1 || tensor.shape[0] != length ||
+        tensor.values.size() != length) {
         throw std::invalid_argument(std::string(name) + " must have shape [" +
-                                    std::to_string(length) + "]");
+                                    std::to_string(length) + "] and " +
+                                    "matching storage");
     }
 }
 
@@ -37,6 +39,8 @@ void validate_vector_shape(const Tensor<float>& tensor, std::size_t length,
 MLP::MLP(const MlpWeights& weights) : weights_(weights) {}
 
 Tensor<float> MLP::forward(const Tensor<float>& input) const {
+    // Standard GPT-Neo feed-forward block:
+    //   W_2 GELU(W_1 x + b_1) + b_2
     if (input.shape.size() != 2) {
         throw std::invalid_argument("MLP input must be a 2-D tensor");
     }
@@ -45,35 +49,33 @@ Tensor<float> MLP::forward(const Tensor<float>& input) const {
             "MLP input width does not match the weight layout");
     }
 
-    validate_matrix_shape(weights_.fc_weight, weights_.hidden_size,
-                          weights_.input_size, "fc_weight");
-    if (!weights_.fc_bias.values.empty()) {
-        validate_vector_shape(weights_.fc_bias, weights_.hidden_size,
-                              "fc_bias");
+    validate_matrix_shape(weights_.W_1, weights_.hidden_size,
+                          weights_.input_size, "W_1");
+    if (!weights_.b_1.values.empty()) {
+        validate_vector_shape(weights_.b_1, weights_.hidden_size, "b_1");
     }
-    validate_matrix_shape(weights_.proj_weight, weights_.input_size,
-                          weights_.hidden_size, "proj_weight");
-    if (!weights_.proj_bias.values.empty()) {
-        validate_vector_shape(weights_.proj_bias, weights_.input_size,
-                              "proj_bias");
+    validate_matrix_shape(weights_.W_2, weights_.input_size,
+                          weights_.hidden_size, "W_2");
+    if (!weights_.b_2.values.empty()) {
+        validate_vector_shape(weights_.b_2, weights_.input_size, "b_2");
     }
 
-    const auto rows = input.shape[0];
-    const auto columns = input.shape[1];
+    const size_t rows = input.shape[0];
+    const size_t columns = input.shape[1];
     Tensor<float> hidden{{rows, weights_.hidden_size},
                          std::vector<float>(rows * weights_.hidden_size, 0.0f)};
 
+    // layer 1: r_1 = GELU(W_1 * x + b_1)
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t out = 0; out < weights_.hidden_size; ++out) {
             float sum = 0.0f;
-            if (!weights_.fc_bias.values.empty()) {
-                sum += weights_.fc_bias.values[out];
+            if (!weights_.b_1.values.empty()) {
+                sum += weights_.b_1.values[out];
             }
             for (std::size_t in = 0; in < columns; ++in) {
-                const auto index = (row * columns) + in;
-                const auto weight_index = (out * columns) + in;
-                sum += input.values[index] *
-                       weights_.fc_weight.values[weight_index];
+                const uint64_t index = (row * columns) + in;
+                const uint64_t weight_index = (out * columns) + in;
+                sum += input.values[index] * weights_.W_1.values[weight_index];
             }
             hidden.values[(row * weights_.hidden_size) + out] = gelu_tanh(sum);
         }
@@ -82,19 +84,19 @@ Tensor<float> MLP::forward(const Tensor<float>& input) const {
     Tensor<float> output{{rows, columns},
                          std::vector<float>(rows * columns, 0.0f)};
 
+    // matmul 2: r_2 = W_2*r_1 + b_2
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t out = 0; out < columns; ++out) {
             float sum = 0.0f;
-            if (!weights_.proj_bias.values.empty()) {
-                sum += weights_.proj_bias.values[out];
+            if (!weights_.b_2.values.empty()) {
+                sum += weights_.b_2.values[out];
             }
             for (std::size_t hidden_index = 0;
                  hidden_index < weights_.hidden_size; ++hidden_index) {
-                const auto index = (row * weights_.hidden_size) + hidden_index;
-                const auto weight_index =
+                const int index = (row * weights_.hidden_size) + hidden_index;
+                const int weight_index =
                     (out * weights_.hidden_size) + hidden_index;
-                sum += hidden.values[index] *
-                       weights_.proj_weight.values[weight_index];
+                sum += hidden.values[index] * weights_.W_2.values[weight_index];
             }
             output.values[(row * columns) + out] = sum;
         }
