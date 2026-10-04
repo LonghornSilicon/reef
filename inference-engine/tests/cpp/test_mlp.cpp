@@ -66,7 +66,9 @@ TEST(MLPTest, ForwardHandlesDifferentWidthsAndNonzeroBiases) {
 
     ASSERT_EQ(output.shape, std::vector<std::size_t>({2, 2}));
     EXPECT_NEAR(output.values[0], h00 - h02 - 1.0f, 1e-6f);
-    EXPECT_NEAR(output.values[1], 2.0f * h00 + h01 + 0.5f * h02 + 0.25f, 1e-6f);
+    EXPECT_NEAR(output.values[1], (2.0f * h00) + h01 + (0.5f * h02) + 0.25f,
+                1e-6f);
     EXPECT_NEAR(output.values[2], h10 - h12 - 1.0f, 1e-6f);
-    EXPECT_NEAR(output.values[3], 2.0f * h10 + h11 + 0.5f * h12 + 0.25f, 1e-6f);
+    EXPECT_NEAR(output.values[3], (2.0f * h10) + h11 + (0.5f * h12) + 0.25f,
+                1e-6f);
 }
