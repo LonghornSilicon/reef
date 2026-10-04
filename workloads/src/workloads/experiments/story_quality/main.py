@@ -91,6 +91,7 @@ def quantize(x: torch.Tensor, bits: int, dim: int) -> torch.Tensor:
 
 
 def quantize_input(module: nn.Module, args: tuple) -> tuple:
+    """Forward pre-hook rounding a `Linear`'s input to the int8 grid."""
     return (quantize(args[0], 8, dim=-1), *args[1:])
 
 
@@ -130,11 +131,12 @@ def tell(model: nn.Module, tokenizer: object, prompt: str) -> str:
 
 
 def csv_path(index: int, name: str) -> Path:
-    # Numbered so the files sort in the order the prompts add constraints.
+    """Numbered so files sort in the order the prompts add constraints."""
     return RESULTS / f"{index}_{name}.csv"
 
 
 def main() -> None:
+    """Write one CSV per prompt under ``results/story_quality``."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "keys",

@@ -1,0 +1,33 @@
+# Python
+**/__pycache__/
+*.py[cod]
+*.so
+**/.pytest_cache/
+**/.ruff_cache/
+
+# uv / virtualenv
+**/.venv/
+
+# macOS
+**/.DS_Store
+
+# Build artifacts
+**/build
+**/cmake-build-*/ 
+**/dist/
+
+# Execution artifacts
+**/results/**/*.png
+*.onnx
+*.pt
+*.safetensors
+
+# Hugging Face / torch caches if pointed inside the repo
+**/.cache/
+
+# Workload artifacts
+workloads/logs/
+
+# Inference engine artifacts
+inference-engine/dist/
+inference-engine/results/ 

@@ -28,7 +28,7 @@ def reference_attention(
     value: torch.Tensor,
     repeats: int,
 ) -> torch.Tensor:
-    # is_causal=True aligns top-left; cached decoding needs bottom-right.
+    """SDPA with a bottom-right causal mask; ``is_causal`` is top-left."""
     key = key.repeat_interleave(repeats, dim=1)
     value = value.repeat_interleave(repeats, dim=1)
     query_len, key_len = query.shape[2], key.shape[2]
@@ -51,6 +51,7 @@ def test_grouped_query_attention_matches_reference(
     key_len: int,
     dtype: torch.dtype,
 ) -> None:
+    """Every `CASES` grouping and cache shape against SDPA on repeated KV."""
     query = torch.randn(2, num_heads, query_len, HEAD_DIM, dtype=dtype)
     key = torch.randn(2, num_kv_heads, key_len, HEAD_DIM, dtype=dtype)
     value = torch.randn(2, num_kv_heads, key_len, HEAD_DIM, dtype=dtype)
@@ -62,6 +63,7 @@ def test_grouped_query_attention_matches_reference(
 
 @pytest.mark.parametrize("dtype", DTYPES)
 def test_non_causal_attention_matches_reference(dtype: torch.dtype) -> None:
+    """``causal=False`` matches unmasked SDPA."""
     query = torch.randn(2, 4, 5, HEAD_DIM, dtype=dtype)
     key = torch.randn(2, 2, 5, HEAD_DIM, dtype=dtype)
     value = torch.randn(2, 2, 5, HEAD_DIM, dtype=dtype)
@@ -77,6 +79,7 @@ def test_non_causal_attention_matches_reference(dtype: torch.dtype) -> None:
 
 
 def test_expand_kv_repeats_each_head_within_its_group() -> None:
+    """KV head i becomes heads 2i and 2i + 1, as ``repeat_interleave``."""
     attention = GroupedQueryAttention(6, 3, HEAD_DIM)
     key = torch.randn(1, 3, 4, HEAD_DIM)
     expanded = attention.expand_kv(key)
@@ -85,6 +88,7 @@ def test_expand_kv_repeats_each_head_within_its_group() -> None:
 
 
 def test_causal_mask_is_bottom_right_aligned() -> None:
+    """One query sees every key; three queries see up to their offset."""
     attention = GroupedQueryAttention(4, 2, HEAD_DIM)
     mask = attention.causal_mask(1, 5, torch.device("cpu"))
     assert not mask.any()
@@ -117,6 +121,7 @@ def test_sliding_window_matches_reference(
     window: int,
     dtype: torch.dtype,
 ) -> None:
+    """Every `SLIDING_CASES` window against SDPA with a band mask."""
     torch.manual_seed(0)
     shape = (2, num_kv_heads, key_len, HEAD_DIM)
     query = torch.randn(2, num_heads, query_len, HEAD_DIM, dtype=dtype)
@@ -142,7 +147,7 @@ def test_sliding_window_matches_reference(
 
 
 def test_sliding_window_actually_excludes_distant_keys() -> None:
-    # An ignored window would still pass the reference test: both plain causal.
+    """An ignored window passes the reference test too: both plain causal."""
     window = 3
     layer = GroupedQueryAttention(4, 2, HEAD_DIM, sliding_window=window)
     query = torch.randn(1, 4, 8, HEAD_DIM)

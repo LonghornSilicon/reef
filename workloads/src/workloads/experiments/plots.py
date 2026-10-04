@@ -23,6 +23,7 @@ BASELINE = "#c3c2b7"
 
 
 def readable(value: float) -> str:
+    """``value`` with a G/M/k prefix and at most 3 significant digits."""
     for unit, scale in (("G", 1e9), ("M", 1e6), ("k", 1e3)):
         if value >= scale:
             scaled = value / scale
@@ -35,6 +36,7 @@ def readable(value: float) -> str:
 
 
 def percent(share: float) -> str:
+    """``share`` as a percentage to 0.1%; "<0.1%" for tiny nonzero shares."""
     if 0 < share < 0.001:
         return "<0.1%"
     return f"{share:.1%}"

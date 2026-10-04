@@ -74,7 +74,7 @@ Run experiments from `workloads/`. Each one takes `--help`.
   - Each experiment has a `tests/experiments/test_<name>.py` that imports its `main` module and, at minimum, checks that `--help` runs.
   - Mark tests that download files or take more than a few seconds with `@pytest.mark.slow`.
 - **Results:** commit small text outputs (CSV), since tests may compare against them. Plots (PNG) are gitignored; regenerate them locally.
-- **Lint** before pushing. CI runs the same checks with ruff 0.16.5, which is also the version `uv sync` installs. ruff requires a docstring on every module, package and class.
+- **Lint** before pushing. CI runs the same checks with ruff 0.16.5, which is also the version `uv sync` installs. ruff requires a docstring on every public module, package, class, function and method, `__init__` and tests included.
 
   ```sh
   uv run ruff format

@@ -19,6 +19,7 @@ TINY = GPTNeoConfig(hidden_size=64, num_layers=2, num_heads=4, vocab_size=1000)
 
 
 def quantized_linears(model: nn.Module) -> list[Linear]:
+    """Every `Linear` that `convert` rounds: all but ``lm_head``."""
     return [
         module
         for name, module in model.named_modules()
@@ -38,6 +39,7 @@ def assert_head_and_source_untouched(
     converted: GPTNeoForCausalLM,
     original: dict[str, torch.Tensor],
 ) -> None:
+    """``lm_head`` stays tied and unrounded; ``model`` is not mutated."""
     head = converted.lm_head.weight
     assert head is converted.transformer.wte.weight
     assert torch.equal(head, original["lm_head.weight"])
@@ -47,6 +49,7 @@ def assert_head_and_source_untouched(
 
 @pytest.mark.unit
 def test_runs_standalone_with_help() -> None:
+    """``--help`` works when the file runs as a script, not a module."""
     subprocess.run(
         [sys.executable, story_quality.__file__, "--help"],
         check=True,
@@ -56,6 +59,7 @@ def test_runs_standalone_with_help() -> None:
 
 @pytest.mark.unit
 def test_int8_rounds_each_linear_row_and_leaves_the_tied_head() -> None:
+    """Each weight row of every rounded Linear sits on its own int8 grid."""
     model = GPTNeoForCausalLM(TINY)
     original = {name: t.clone() for name, t in model.state_dict().items()}
 
@@ -70,6 +74,7 @@ def test_int8_rounds_each_linear_row_and_leaves_the_tied_head() -> None:
 
 @pytest.mark.unit
 def test_int4_rounds_each_group_of_32_and_leaves_the_tied_head() -> None:
+    """Each 32-wide weight group sits on its own int4 grid."""
     model = GPTNeoForCausalLM(TINY)
     original = {name: t.clone() for name, t in model.state_dict().items()}
 
@@ -98,6 +103,7 @@ def test_int4_rounds_each_group_of_32_and_leaves_the_tied_head() -> None:
 def test_greedy_stories_match_the_committed_results(
     key: str, precision: str
 ) -> None:
+    """Greedy stories equal the committed CSVs string for string."""
     fp32, tokenizer = story_quality.load(key)
     model = story_quality.convert(fp32, precision)
     for index, (name, prompt) in enumerate(story_quality.PROMPTS, start=1):

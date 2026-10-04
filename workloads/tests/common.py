@@ -12,5 +12,6 @@ BF16_TOLERANCE = {"rtol": 2e-2, "atol": 2e-2}
 def assert_matches(
     actual: torch.Tensor, expected: torch.Tensor, dtype: torch.dtype
 ) -> None:
+    """assert_close defaults in fp32, `BF16_TOLERANCE` for bfloat16."""
     tolerance = {} if dtype == torch.float32 else BF16_TOLERANCE
     torch.testing.assert_close(actual, expected, **tolerance)

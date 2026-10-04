@@ -33,6 +33,7 @@ class Record:
 
     @property
     def numel(self) -> int:
+        """Every element this call reads or writes, unfused."""
         return (
             self.input_numel
             + self.weight_numel
@@ -42,12 +43,14 @@ class Record:
 
     @property
     def fused_numel(self) -> int:
+        """Traffic with fused attention: no scores, no inner Softmax."""
         if not self.in_fused:
             return 0
         return self.input_numel + self.weight_numel + self.output_numel
 
 
 def argument(args: tuple, kwargs: dict, index: int, name: str) -> object:
+    """Argument ``index`` if passed positionally, else ``kwargs.get(name)``."""
     return args[index] if len(args) > index else kwargs.get(name)
 
 
@@ -62,6 +65,7 @@ def argument(args: tuple, kwargs: dict, index: int, name: str) -> object:
 
 
 def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
+    """FLOPs of one `Linear` call, bias add included."""
     d_in, d_out = args[0].shape[-1], out.shape[-1]
     positions = out.numel() // d_out
     bias = positions * d_out if module.bias is not None else 0
@@ -69,6 +73,7 @@ def linear(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
 
 
 def attention(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
+    """FLOPs of one `GroupedQueryAttention` call, bias add included."""
     batch, heads, query_len, head_dim = args[0].shape
     key_len = args[1].shape[2]
     scores = batch * heads * query_len * key_len
@@ -79,6 +84,8 @@ def attention(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
 
 
 def elementwise(ops: int) -> Formula:
+    """A formula charging ``ops`` FLOPs per input element."""
+
     def formula(
         module: nn.Module, args: tuple, kwargs: dict, out: object
     ) -> int:
@@ -90,6 +97,7 @@ def elementwise(ops: int) -> Formula:
 def layer_norm(
     module: nn.Module, args: tuple, kwargs: dict, out: object
 ) -> int:
+    """FLOPs of one `LayerNorm` call, shift included if present."""
     x = args[0]
     vectors = x.numel() // x.shape[-1]
     # mean, subtract, square, mean, multiply, gain (+ shift) per element;
@@ -99,6 +107,7 @@ def layer_norm(
 
 
 def free(module: nn.Module, args: tuple, kwargs: dict, out: object) -> int:
+    """Zero FLOPs, for lookups such as `Embedding`."""
     return 0
 
 
@@ -113,11 +122,13 @@ FORMULAS: dict[str, Formula] = {
 
 
 def linear_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
+    """One (positions, out_features, in_features, 1) product."""
     d_in, d_out = args[0].shape[-1], out.shape[-1]
     return [(out.numel() // d_out, d_out, d_in, 1)]
 
 
 def attention_gemms(module: nn.Module, args: tuple, out: object) -> list[Gemm]:
+    """QKᵀ then PV, each repeated once per (batch, head)."""
     batch, heads, query_len, head_dim = args[0].shape
     key_len = args[1].shape[2]
     count = batch * heads
@@ -134,12 +145,14 @@ GEMMS: dict[str, Gemms] = {
 
 
 def operator_name(module: nn.Module) -> str | None:
+    """Class name of a `workloads.operators` module, else None."""
     if type(module).__module__.startswith("workloads.operators."):
         return type(module).__name__
     return None
 
 
 def numel(value: object) -> int:
+    """Elements of a tensor or a nested tuple/list of them; 0 otherwise."""
     if isinstance(value, torch.Tensor):
         return value.numel()
     if isinstance(value, tuple | list):
@@ -148,6 +161,7 @@ def numel(value: object) -> int:
 
 
 def state_numel(module: nn.Module) -> int:
+    """Parameters and buffers owned by ``module`` itself, not children."""
     tensors = list(module.parameters(recurse=False))
     tensors += list(module.buffers(recurse=False))
     return sum(tensor.numel() for tensor in tensors)
@@ -161,6 +175,7 @@ def record(
     kwargs: dict,
     out: object,
 ) -> Record:
+    """The `Record` for one hooked call of operator ``name`` at ``path``."""
     gemms = GEMMS[name](module, args, out) if name in GEMMS else []
     if name == "GroupedQueryAttention":
         batch, heads, query_len, _ = args[0].shape
@@ -219,6 +234,7 @@ def build(family: str, key: str) -> nn.Module:
 
 
 def trace(model: nn.Module, *inputs: object) -> list[Record]:
+    """Records for one forward pass; the hooks stay on ``model``."""
     records = instrument(model)
     with torch.no_grad():
         model(*inputs)
@@ -226,6 +242,7 @@ def trace(model: nn.Module, *inputs: object) -> list[Record]:
 
 
 def max_positions(model: nn.Module) -> int:
+    """Longest sequence ``model``'s learned positions can represent."""
     return model.config.max_position_embeddings
 
 
@@ -236,10 +253,12 @@ def lengths(family: str, key: str, wanted: tuple[int, ...]) -> tuple[int, ...]:
 
 
 def tokens(batch: int, length: int) -> torch.Tensor:
+    """A (batch, length) meta tensor of token ids."""
     return torch.zeros(batch, length, dtype=torch.long, device="meta")
 
 
 def prefill(family: str, key: str, batch: int, length: int) -> list[Record]:
+    """Records for one ``length``-token prompt on a fresh meta model."""
     model = build(family, key)
     # Meta indexing does no bounds check, so an over-long prompt would
     # silently trace positions the model cannot represent.
