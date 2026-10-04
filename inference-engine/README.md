@@ -60,6 +60,8 @@ complete:
 2. New C++ behavior has Google Test coverage, and any new Python-to-C++ path
    has a Python integration test. Mark every pytest case as `unit`,
    `integration`, or `experiment`, and mark long-running cases as `slow`.
-3. `uv run pytest` passes. For C++ changes, also run the C++-only build and
+3. `bash tools/lint.sh` passes. It applies automatic Python fixes and C++
+   formatting, then checks both languages. Review its edits before committing.
+4. `uv run pytest` passes. For C++ changes, also run the C++-only build and
    CTest commands above. The full pytest run checks Ruff, clang-format,
    clang-tidy, and Doxygen in addition to the tests.
