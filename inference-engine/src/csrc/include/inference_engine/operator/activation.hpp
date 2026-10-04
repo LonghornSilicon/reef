@@ -4,7 +4,7 @@
  *  @brief Elementwise activations and dimension-aware softmax.
  */
 
-#include "../tensor.hpp"
+#include "tensor.hpp"
 
 #include <cmath>
 #include <cstddef>

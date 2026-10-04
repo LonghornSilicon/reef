@@ -4,9 +4,8 @@
  *  @brief Attention interface and position-mask variants.
  */
 
-#include "../tensor.hpp"
 #include "activation.hpp"
-#include "matrix.hpp"
+#include "tensor.hpp"
 
 #include <algorithm>
 #include <cstddef>
