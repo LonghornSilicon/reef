@@ -96,14 +96,19 @@ template <typename Scalar> class Attention {
     mask_scores(const Tensor<Scalar>& scores, std::size_t query_start) const {
         Tensor<Scalar> out = scores;
 
-        const std::size_t num_queries = scores.shape[0];
-        const std::size_t num_keys = scores.shape[1];
+        // Scores are [..., queries, keys]; mask every leading (batch, head)
+        // block the same way.
+        const std::size_t rank = scores.shape.size();
+        const std::size_t num_queries = scores.shape[rank - 2];
+        const std::size_t num_keys = scores.shape[rank - 1];
+        const std::size_t num_rows = scores.values.size() / num_keys;
         constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
 
-        for (std::size_t i = 0; i < num_queries; ++i) {
+        for (std::size_t r = 0; r < num_rows; ++r) {
+            const std::size_t i = r % num_queries;
             const std::size_t visible_end =
                 std::min(query_start + i + 1, num_keys);
-            Scalar* row = out.values.data() + (i * num_keys);
+            Scalar* row = out.values.data() + (r * num_keys);
             std::fill(row + visible_end, row + num_keys, kNegInf);
         }
         return out;
@@ -182,16 +187,18 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
         Tensor<Scalar> out =
             Attention<Scalar>::mask_scores(scores, query_start);
 
-        const std::size_t num_queries = scores.shape[0];
-        const std::size_t num_keys = scores.shape[1];
+        const std::size_t rank = scores.shape.size();
+        const std::size_t num_queries = scores.shape[rank - 2];
+        const std::size_t num_keys = scores.shape[rank - 1];
+        const std::size_t num_rows = scores.values.size() / num_keys;
         constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
 
         // context window trim
-        for (std::size_t i = 0; i < num_queries; ++i) {
-            const std::size_t pos = query_start + i;
+        for (std::size_t r = 0; r < num_rows; ++r) {
+            const std::size_t pos = query_start + (r % num_queries);
             const std::size_t lo =
                 (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
-            Scalar* row = out.values.data() + (i * num_keys);
+            Scalar* row = out.values.data() + (r * num_keys);
             std::fill(row, row + std::min(lo, num_keys), kNegInf);
         }
         return out;
