@@ -4,7 +4,7 @@
  *  @brief Matrix operators for the first host slice.
  */
 
-#include "inference_engine/tensor.hpp"
+#include "../tensor.hpp"
 
 #include <cstdint>
 #include <functional>
