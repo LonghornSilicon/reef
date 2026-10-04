@@ -10,7 +10,17 @@ namespace inference_engine {
 
 /** Weights and biases for the two linear layers. */
 // TODO: Define the representation after the shared Tensor contract is agreed.
-struct MlpWeights;
+/** Parameters for the GPT-Neo feed-forward block. */
+struct MlpWeights {
+    /// First projection weights: [intermediate_size, hidden_size].
+    Tensor<float> c_fc_weight;
+    /// First projection bias: [intermediate_size].
+    Tensor<float> c_fc_bias;
+    /// Second projection weights: [hidden_size, intermediate_size].
+    Tensor<float> c_proj_weight;
+    /// Second projection bias: [hidden_size].
+    Tensor<float> c_proj_bias;
+};
 
 /** Apply the model's two-layer feed-forward block. */
 // @ MLP team
