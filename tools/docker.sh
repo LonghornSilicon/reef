@@ -15,16 +15,7 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)" 
 NAME="$(whoami | LC_ALL=C tr -cd 'a-zA-Z0-9')" 
 IMAGE="${REEF_PERF_IMAGE:-$NAME-reef}"
-
-in_container() {
-    local tty=()
-    if [[ -t 0 && -t 1 ]]; then
-        tty=(-it)
-    fi
-    docker run "${tty[@]}" \
-        -v "${ROOT}:${WORKDIR}" -w "${WORKDIR}" \
-        "${IMAGE}" "$@"
-}
+CONTAINER="${NAME}-container" 
 
 case "${1:-}" in
 build)
@@ -41,16 +32,17 @@ build)
         --build-arg "JOBS=${JOBS:-4}" -t "${IMAGE}" "${ROOT}"
     ;;
 shell)
-    docker run -dit .
-    in_container bash
-    ;;
-test)
-    shift
-    in_container uv run pytest "$@"
-    ;;
-run)
-    shift
-    in_container "$@"
+    state="$(docker container inspect -f '{{.State.Running}}' "${CONTAINER}" 2>/dev/null || true)"
+    case "${state}" in
+    true)  ;;                                    # running: just attach
+    false) docker start "${CONTAINER}" >/dev/null ;;
+    *)     docker run -dit \
+               --name "${CONTAINER}" \
+               -v "${ROOT}:/app/reef" \
+               -w /app/reef \
+               "${IMAGE}" bash >/dev/null ;;
+    esac
+    exec docker exec -it -w /app/reef "${CONTAINER}" bash
     ;;
 *)
     sed -n '2,15p' "$0"
