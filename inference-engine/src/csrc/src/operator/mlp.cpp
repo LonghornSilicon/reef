@@ -73,8 +73,8 @@ Tensor<float> MLP::forward(const Tensor<float>& input) const {
                 sum += weights_.b_1.values[out];
             }
             for (std::size_t in = 0; in < columns; ++in) {
-                const uint64_t index = (row * columns) + in;
-                const uint64_t weight_index = (out * columns) + in;
+                const std::size_t index = (row * columns) + in;
+                const std::size_t weight_index = (out * columns) + in;
                 sum += input.values[index] * weights_.W_1.values[weight_index];
             }
             hidden.values[(row * weights_.hidden_size) + out] = gelu_tanh(sum);
@@ -93,8 +93,9 @@ Tensor<float> MLP::forward(const Tensor<float>& input) const {
             }
             for (std::size_t hidden_index = 0;
                  hidden_index < weights_.hidden_size; ++hidden_index) {
-                const int index = (row * weights_.hidden_size) + hidden_index;
-                const int weight_index =
+                const std::size_t index =
+                    (row * weights_.hidden_size) + hidden_index;
+                const std::size_t weight_index =
                     (out * weights_.hidden_size) + hidden_index;
                 sum += hidden.values[index] * weights_.W_2.values[weight_index];
             }
