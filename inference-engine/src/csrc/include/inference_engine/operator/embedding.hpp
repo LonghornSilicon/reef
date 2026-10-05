@@ -30,7 +30,7 @@ using TokenIds = std::vector<std::int32_t>;
 template <typename Scalar>
 Tensor<Scalar> lookup_token_embeddings(const TokenIds& ids,
                                        const Tensor<Scalar>& table) {
-    if (!detail::valid_matrix(table)) {
+    if (!valid_matrix(table)) {
         throw std::invalid_argument(
             "lookup_token_embeddings requires a valid 2D embedding table!");
     }
@@ -76,8 +76,7 @@ template <typename Scalar>
 Tensor<Scalar> add_position_embeddings(const Tensor<Scalar>& token_embeddings,
                                        const Tensor<Scalar>& position_table,
                                        std::size_t position_offset) {
-    if (!detail::valid_matrix(position_table) ||
-        token_embeddings.shape.size() != 2 ||
+    if (!valid_matrix(position_table) || token_embeddings.shape.size() != 2 ||
         token_embeddings.shape[1] != position_table.shape[1] ||
         token_embeddings.values.size() !=
             token_embeddings.shape[0] * token_embeddings.shape[1]) {

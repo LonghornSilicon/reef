@@ -1,7 +1,7 @@
 #pragma once
 
 /** @file
- *  @brief Storage for typed inference tensors and host matrix operators.
+ *  @brief Storage for typed inference tensors
  */
 
 #include <cstddef>
@@ -13,7 +13,7 @@
 
 namespace inference_engine {
 
-/** Host-side tensor with row-major values for two-dimensional operations.
+/**
  *
  * @tparam Scalar Type of each stored value.
  */
@@ -23,9 +23,6 @@ template <typename Scalar> struct Tensor {
     /// Values in row-major order for two-dimensional tensors.
     std::vector<Scalar> values;
 };
-
-/** Internal helpers for the host matrix reference implementation. */
-namespace detail {
 
 /** Check the storage and shape of one two-dimensional matrix.
  *
@@ -93,8 +90,6 @@ Scalar matrix_dot_product(const Tensor<Scalar>& left,
     return static_cast<Scalar>(sum);
 }
 
-} // namespace detail
-
 /** Multiply two row-major, two-dimensional arithmetic tensors.
  *
  * @tparam Scalar Arithmetic value type. Integers up to 32 bits are supported,
@@ -105,9 +100,6 @@ Scalar matrix_dot_product(const Tensor<Scalar>& left,
  * @throws std::invalid_argument If shapes or value counts are incompatible.
  * @throws std::overflow_error If an integer result cannot be represented.
  */
-// @ MLP team
-// TODO: Agree on target accumulation and quantization for inference kernels;
-// Attention will also use this host reference primitive.
 template <typename Scalar>
 Tensor<Scalar> matmul(const Tensor<Scalar>& left, const Tensor<Scalar>& right) {
     static_assert(std::is_arithmetic_v<Scalar> && !std::is_same_v<Scalar, bool>,
@@ -116,7 +108,7 @@ Tensor<Scalar> matmul(const Tensor<Scalar>& left, const Tensor<Scalar>& right) {
                       sizeof(Scalar) <= sizeof(std::uint32_t),
                   "matmul supports integers up to 32 bits");
 
-    if (!detail::valid_matrix(left) || !detail::valid_matrix(right) ||
+    if (!valid_matrix(left) || !valid_matrix(right) ||
         left.shape[1] != right.shape[0] ||
         left.shape[0] >
             std::numeric_limits<std::size_t>::max() / right.shape[1]) {
@@ -130,7 +122,7 @@ Tensor<Scalar> matmul(const Tensor<Scalar>& left, const Tensor<Scalar>& right) {
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t column = 0; column < columns; ++column) {
             result.values[(row * columns) + column] =
-                detail::matrix_dot_product(left, right, row, column);
+                matrix_dot_product(left, right, row, column);
         }
     }
     return result;
