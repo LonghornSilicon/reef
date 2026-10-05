@@ -87,13 +87,13 @@ TEST(TensorTest, TreatsEmptyShapeAsScalar) {
     EXPECT_FALSE(valid_tensor(Tensor<float>{{}, {}}));
 }
 
-// A zero dimension requires empty storage, even beside huge dimensions.
-TEST(TensorTest, ZeroDimensionRequiresEmptyStorage) {
+// A zero dimension is rejected, even beside huge dimensions.
+TEST(TensorTest, RejectsZeroDimension) {
     constexpr auto kHuge = std::numeric_limits<std::size_t>::max();
 
-    EXPECT_TRUE(valid_tensor(Tensor<float>{{0, 3}, {}}));
+    EXPECT_FALSE(valid_tensor(Tensor<float>{{0, 3}, {}}));
     EXPECT_FALSE(valid_tensor(Tensor<float>{{0, 3}, {1}}));
-    EXPECT_TRUE(valid_tensor(Tensor<float>{{kHuge, kHuge, 0}, {}}));
+    EXPECT_FALSE(valid_tensor(Tensor<float>{{kHuge, kHuge, 0}, {}}));
 }
 
 // A shape whose element count overflows is rejected rather than wrapping.

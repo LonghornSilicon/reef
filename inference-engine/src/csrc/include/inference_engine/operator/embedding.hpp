@@ -25,7 +25,7 @@ using TokenIds = std::vector<std::uint32_t>;
  * @param table Vocabulary-by-width embedding table.
  * @return Sequence-by-width embedding tensor.
  * @throws std::invalid_argument If the table is malformed, the sequence is
- * too long, or a token ID is outside the vocabulary.
+ * empty or too long, or a token ID is outside the vocabulary.
  */
 template <typename Scalar>
 Tensor<Scalar> lookup_token_embeddings(const TokenIds& ids,
@@ -33,6 +33,10 @@ Tensor<Scalar> lookup_token_embeddings(const TokenIds& ids,
     if (!valid_matrix(table)) {
         throw std::invalid_argument(
             "lookup_token_embeddings requires a valid 2D embedding table!");
+    }
+    if (ids.empty()) {
+        throw std::invalid_argument(
+            "lookup_token_embeddings requires at least one token ID!");
     }
 
     const std::size_t vocabulary = table.shape[0];

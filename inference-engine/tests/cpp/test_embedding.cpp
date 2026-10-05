@@ -31,12 +31,10 @@ TEST(EmbeddingTest, LooksUpRowsInIdOrder) {
     EXPECT_EQ(result.values, expected_values);
 }
 
-// No tokens gives a zero-row tensor that keeps the table width.
-TEST(EmbeddingTest, EmptySequenceGivesZeroRows) {
-    const auto result = lookup_token_embeddings(TokenIds{}, make_table());
-
-    EXPECT_EQ(result.shape, (std::vector<std::size_t>{0, 3}));
-    EXPECT_TRUE(result.values.empty());
+// An empty sequence is rejected because tensors cannot have zero rows.
+TEST(EmbeddingTest, RejectsEmptySequence) {
+    EXPECT_THROW(lookup_token_embeddings(TokenIds{}, make_table()),
+                 std::invalid_argument);
 }
 
 // IDs past the last row or below zero are rejected.

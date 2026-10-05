@@ -30,19 +30,14 @@ template <typename Scalar> struct Tensor {
  *
  * @tparam Scalar Tensor value type.
  * @param tensor Tensor to inspect.
- * @return Whether values.size() equals the product of the shape dimensions,
- * and that product fits in std::size_t.
+ * @return Whether every dimension is nonzero, values.size() equals the
+ * product of the shape dimensions, and that product fits in std::size_t.
  */
 template <typename Scalar> bool valid_tensor(const Tensor<Scalar>& tensor) {
     std::size_t count = 1;
     for (const auto dimension : tensor.shape) {
-        // A zero dimension makes the product zero whatever the others are.
-        if (dimension == 0) {
-            return tensor.values.empty();
-        }
-    }
-    for (const auto dimension : tensor.shape) {
-        if (count > std::numeric_limits<std::size_t>::max() / dimension) {
+        if (dimension == 0 ||
+            count > std::numeric_limits<std::size_t>::max() / dimension) {
             return false;
         }
         count *= dimension;
@@ -57,8 +52,7 @@ template <typename Scalar> bool valid_tensor(const Tensor<Scalar>& tensor) {
  * @return Whether the matrix has valid nonempty row-major storage.
  */
 template <typename Scalar> bool valid_matrix(const Tensor<Scalar>& tensor) {
-    return tensor.shape.size() == 2 && tensor.shape[0] > 0 &&
-           tensor.shape[1] > 0 && valid_tensor(tensor);
+    return tensor.shape.size() == 2 && valid_tensor(tensor);
 }
 
 /** Compute one matrix output value with checked integer accumulation.
