@@ -43,8 +43,6 @@ TEST(EmbeddingTest, EmptySequenceGivesZeroRows) {
 TEST(EmbeddingTest, RejectsIdsOutsideVocabulary) {
     EXPECT_THROW(lookup_token_embeddings(TokenIds{5}, make_table()),
                  std::invalid_argument);
-    EXPECT_THROW(lookup_token_embeddings(TokenIds{-1}, make_table()),
-                 std::invalid_argument);
 }
 
 // The embedding table must be two-dimensional.

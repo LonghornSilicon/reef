@@ -16,7 +16,7 @@
 namespace inference_engine {
 
 /** Ordered token IDs for a single sequence, one ID per token position. */
-using TokenIds = std::vector<std::int32_t>;
+using TokenIds = std::vector<std::uint32_t>;
 
 /** Look up one embedding vector for each token ID.
  *
@@ -46,8 +46,8 @@ Tensor<Scalar> lookup_token_embeddings(const TokenIds& ids,
 
     Tensor<Scalar> result{{length, width}, std::vector<Scalar>(length * width)};
     for (std::size_t position = 0; position < length; ++position) {
-        const std::int32_t id = ids[position];
-        if (id < 0 || static_cast<std::size_t>(id) >= vocabulary) {
+        const std::uint32_t id = ids[position];
+        if (id >= vocabulary) {
             throw std::invalid_argument(
                 "lookup_token_embeddings token ID is outside the vocabulary!");
         }
