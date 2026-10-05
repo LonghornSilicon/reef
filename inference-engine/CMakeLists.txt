@@ -7,7 +7,7 @@ add_library(inference_engine STATIC
     src/csrc/src/operator/activation.cpp
     src/csrc/src/operator/attention.cpp
     src/csrc/src/operator/embedding.cpp
-    src/csrc/src/operator/matrix.cpp
+    src/csrc/src/tensor.cpp
     src/csrc/src/operator/mlp.cpp
     src/csrc/src/model.cpp
 )
