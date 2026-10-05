@@ -77,9 +77,8 @@ Tensor<Scalar> add_position_embeddings(const Tensor<Scalar>& token_embeddings,
                                        const Tensor<Scalar>& position_table,
                                        std::size_t position_offset) {
     if (!valid_matrix(position_table) || token_embeddings.shape.size() != 2 ||
-        token_embeddings.shape[1] != position_table.shape[1] ||
-        token_embeddings.values.size() !=
-            token_embeddings.shape[0] * token_embeddings.shape[1]) {
+        !valid_tensor(token_embeddings) ||
+        token_embeddings.shape[1] != position_table.shape[1]) {
         throw std::invalid_argument(
             "add_position_embeddings requires 2D inputs of equal width!");
     }

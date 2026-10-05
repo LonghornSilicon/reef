@@ -93,6 +93,17 @@ TEST(EmbeddingTest, RejectsWidthMismatch) {
                  std::invalid_argument);
 }
 
+// Token embeddings whose value count disagrees with their shape are rejected.
+TEST(EmbeddingTest, RejectsMalformedTokenEmbeddings) {
+    const Tensor<float> short_storage{{2, 3}, {0, 0, 0}};
+    const Tensor<float> three_dimensional{{1, 1, 3}, {0, 0, 0}};
+
+    EXPECT_THROW(add_position_embeddings(short_storage, make_table(), 0),
+                 std::invalid_argument);
+    EXPECT_THROW(add_position_embeddings(three_dimensional, make_table(), 0),
+                 std::invalid_argument);
+}
+
 // Integer sums that land exactly on the int8 limits are allowed.
 TEST(EmbeddingTest, AddsIntegerPositionsWhenSumsFit) {
     const Tensor<std::int8_t> tokens{{1, 2}, {100, -100}};
