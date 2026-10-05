@@ -22,7 +22,7 @@ static_assert(
                                     std::size_t{})),
                    Tensor<std::int8_t>>);
 
-TEST(MatrixTest, MultipliesCompatibleMatrices) {
+TEST(MatmulTest, MultipliesCompatibleMatrices) {
     const Tensor<float> left{{2, 3}, {1, 2, 3, 4, 5, 6}};
     const Tensor<float> right{{3, 2}, {7, 8, 9, 10, 11, 12}};
 
@@ -34,7 +34,7 @@ TEST(MatrixTest, MultipliesCompatibleMatrices) {
     EXPECT_EQ(result.values, expected_values);
 }
 
-TEST(MatrixTest, AccumulatesInt8ValuesBeforeNarrowing) {
+TEST(MatmulTest, AccumulatesInt8ValuesBeforeNarrowing) {
     const Tensor<std::int8_t> left{{1, 2}, {100, 100}};
     const Tensor<std::int8_t> right{{2, 1}, {2, -2}};
 
@@ -44,21 +44,21 @@ TEST(MatrixTest, AccumulatesInt8ValuesBeforeNarrowing) {
     EXPECT_EQ(result.values, (std::vector<std::int8_t>{0}));
 }
 
-TEST(MatrixTest, RejectsInt8ResultOverflow) {
+TEST(MatmulTest, RejectsInt8ResultOverflow) {
     const Tensor<std::int8_t> left{{1, 1}, {127}};
     const Tensor<std::int8_t> right{{1, 1}, {2}};
 
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
-TEST(MatrixTest, RejectsIncompatibleDimensions) {
+TEST(MatmulTest, RejectsIncompatibleDimensions) {
     const Tensor<float> left{{2, 3}, {1, 2, 3, 4, 5, 6}};
     const Tensor<float> right{{2, 2}, {1, 2, 3, 4}};
 
     EXPECT_THROW(matmul(left, right), std::invalid_argument);
 }
 
-TEST(MatrixTest, RejectsInvalidStorage) {
+TEST(MatmulTest, RejectsInvalidStorage) {
     const Tensor<float> left{{2, 3}, {1, 2}};
     const Tensor<float> right{{3, 2}, {7, 8, 9, 10, 11, 12}};
 

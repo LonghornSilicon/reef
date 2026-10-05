@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from inference_engine.matrix import matmul
+from inference_engine.tensor import matmul
 
 
 @pytest.mark.unit
-def test_cpp_matrix_unit_tests(cpp_build_dir: Path) -> None:
+def test_cpp_tensor_unit_tests(cpp_build_dir: Path) -> None:
     """Run the native test target through the module's pytest command."""
     subprocess.run(
         ["ctest", "--test-dir", str(cpp_build_dir), "--output-on-failure"],
@@ -20,9 +20,9 @@ def test_cpp_matrix_unit_tests(cpp_build_dir: Path) -> None:
 
 
 @pytest.mark.integration
-def test_python_calls_cpp_matrix(cpp_build_dir: Path) -> None:
+def test_python_calls_cpp_tensor(cpp_build_dir: Path) -> None:
     """Send values from Python to C++ and read back the result."""
-    executable = cpp_build_dir / "bin" / "matrix_cli"
+    executable = cpp_build_dir / "bin" / "tensor_cli"
     result = matmul(
         [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
         [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
