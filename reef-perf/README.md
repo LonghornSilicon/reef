@@ -218,4 +218,4 @@ mkdir -p build && doxygen # C++ API docs into build/doxygen/html
   registers.
 
 Before a PR is complete: `bash tools/lint.sh` passes and `uv run pytest`
-passes.
+passes. 
