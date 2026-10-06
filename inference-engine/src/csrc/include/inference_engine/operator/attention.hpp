@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -46,20 +47,22 @@ template <typename Scalar> struct Qkv {
 /** Mutable key and value tensors retained across decode steps.
  *
  * The tensors hold only filled positions, so `key.shape[2]` is the number of
- * cached tokens. An empty cache has shape `[batch, heads, 0, head_dim]`.
+ * cached tokens. An empty cache has shape `[batch, heads, 0, head_dim]`, and
+ * a default-constructed cache bootstraps its shape from the first append.
  *
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct KvCache {
-    std::size_t capacity = 0; ///< Maximum cached positions per head.
+    std::size_t capacity = 0; ///< Maximum cached positions per head; 0 grows on demand.
     Tensor<Scalar> key;       ///< [batch, heads, cached_len, head_dim].
     Tensor<Scalar> value;     ///< [batch, heads, cached_len, head_dim].
 };
 
-/** Shared attention pipeline with a required position-mask policy.
+/** Shared attention pipeline with an overridable position-mask policy.
  *
- * This is abstract because every concrete attention variant must supply a
- * position mask. Weights and decode state remain externally owned.
+ * The base mask is the unrestricted causal policy; variants override
+ * mask_scores to restrict it further. Weights and decode state remain
+ * externally owned.
  *
  * @tparam Scalar Tensor value type.
  */
@@ -102,14 +105,14 @@ template <typename Scalar> class Attention {
         const std::size_t num_queries = scores.shape[rank - 2];
         const std::size_t num_keys = scores.shape[rank - 1];
         const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
+        constexpr Scalar kMasked = masked_score<Scalar>();
 
         for (std::size_t r = 0; r < num_rows; ++r) {
             const std::size_t i = r % num_queries;
             const std::size_t visible_end =
                 std::min(query_start + i + 1, num_keys);
             Scalar* row = out.values.data() + (r * num_keys);
-            std::fill(row + visible_end, row + num_keys, kNegInf);
+            std::fill(row + visible_end, row + num_keys, kMasked);
         }
         return out;
     }
@@ -143,18 +146,8 @@ template <typename Scalar> class GlobalAttention : public Attention<Scalar> {
      * @param cache Mutable key and value cache.
      */
     GlobalAttention(const AttentionWeights<Scalar>& weights,
-                    KvCache<Scalar>& cache);
-
-  protected:
-    /** Mask future key positions.
-     *
-     * @param scores Query-by-key attention scores.
-     * @param query_start Position of the first query in the decode stream.
-     * @return Causally masked scores.
-     */
-    [[nodiscard]] Tensor<Scalar>
-    mask_scores(const Tensor<Scalar>& scores,
-                std::size_t query_start) const override;
+                    KvCache<Scalar>& cache)
+        : Attention<Scalar>(weights, cache) {}
 };
 
 /** Apply a causal mask limited to a sliding context window.
@@ -193,7 +186,7 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
         const std::size_t num_queries = scores.shape[rank - 2];
         const std::size_t num_keys = scores.shape[rank - 1];
         const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr Scalar kNegInf = -std::numeric_limits<Scalar>::infinity();
+        constexpr Scalar kMasked = masked_score<Scalar>();
 
         // context window trim
         for (std::size_t r = 0; r < num_rows; ++r) {
@@ -201,7 +194,7 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
             const std::size_t lo =
                 (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
             Scalar* row = out.values.data() + (r * num_keys);
-            std::fill(row, row + std::min(lo, num_keys), kNegInf);
+            std::fill(row, row + std::min(lo, num_keys), kMasked);
         }
         return out;
     }
@@ -241,15 +234,25 @@ Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
 template <typename Scalar>
 void Attention<Scalar>::append_kv_cache(const Tensor<Scalar>& key,
                                         const Tensor<Scalar>& value) {
+    if (key.shape.size() != 4 || value.shape != key.shape) {
+        throw std::invalid_argument("KV cache append shape mismatch");
+    }
+    // A default-constructed cache bootstraps its shape from the first append.
+    if (cache_.key.shape.size() != 4) {
+        const std::vector<std::size_t> empty_shape{key.shape[0], key.shape[1],
+                                                   0, key.shape[3]};
+        cache_.key = Tensor<Scalar>{empty_shape, {}};
+        cache_.value = Tensor<Scalar>{empty_shape, {}};
+    }
     const std::vector<std::size_t>& cached = cache_.key.shape;
-    if (key.shape.size() != 4 || value.shape != key.shape ||
-        cached.size() != 4 || key.shape[0] != cached[0] ||
-        key.shape[1] != cached[1] || key.shape[3] != cached[3]) {
+    if (key.shape[0] != cached[0] || key.shape[1] != cached[1] ||
+        key.shape[3] != cached[3]) {
         throw std::invalid_argument("KV cache append shape mismatch");
     }
     const std::size_t old_len = cached[2];
     const std::size_t new_len = key.shape[2];
-    if (old_len + new_len > cache_.capacity) {
+    const std::size_t total_len = old_len + new_len;
+    if (cache_.capacity != 0 && total_len > cache_.capacity) {
         throw std::length_error("KV cache capacity exceeded");
     }
 
@@ -271,7 +274,7 @@ void Attention<Scalar>::append_kv_cache(const Tensor<Scalar>& key,
             merged.insert(merged.end(), new_begin, new_begin + new_block);
         }
         stored.values = std::move(merged);
-        stored.shape[2] = old_len + new_len;
+        stored.shape[2] = total_len;
     };
     extend(cache_.key, key);
     extend(cache_.value, value);

@@ -13,4 +13,11 @@ target_link_libraries(test_matrix_cpp PRIVATE inference_engine GTest::gtest_main
 include(GoogleTest)
 gtest_discover_tests(test_matrix_cpp)
 
-# TODO: Add focused tests for attention, embeddings, and MLP as implemented.
+# test_attention.cpp compiles against the real attention contract but cannot
+# link until the MLP team's linear() lands (the last undefined symbol in the
+# attention pipeline). Uncomment then.
+# add_executable(test_attention_cpp test_attention.cpp)
+# target_link_libraries(test_attention_cpp PRIVATE inference_engine GTest::gtest_main)
+# gtest_discover_tests(test_attention_cpp)
+
+# TODO: Add focused tests for embeddings and MLP as implemented.
