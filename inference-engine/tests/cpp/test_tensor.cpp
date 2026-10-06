@@ -34,19 +34,59 @@ TEST(MatmulTest, MultipliesCompatibleMatrices) {
     EXPECT_EQ(result.values, expected_values);
 }
 
-TEST(MatmulTest, AccumulatesInt8ValuesBeforeNarrowing) {
-    const Tensor<std::int8_t> left{{1, 2}, {100, 100}};
-    const Tensor<std::int8_t> right{{2, 1}, {2, -2}};
+static_assert(
+    std::is_same_v<decltype(matmul<std::int8_t, std::int32_t>(
+                       std::declval<const Tensor<std::int8_t>&>(),
+                       std::declval<const Tensor<std::int8_t>&>())),
+                   Tensor<std::int32_t>>);
 
-    const auto result = matmul(left, right);
+TEST(MatmulTest, ReturnsWiderAccumulatorType) {
+    const Tensor<std::int8_t> left{{1, 2}, {100, 100}};
+    const Tensor<std::int8_t> right{{2, 1}, {100, 100}};
+
+    const auto result = matmul<std::int8_t, std::int32_t>(left, right);
 
     EXPECT_EQ(result.shape, (std::vector<std::size_t>{1, 1}));
-    EXPECT_EQ(result.values, (std::vector<std::int8_t>{0}));
+    EXPECT_EQ(result.values, (std::vector<std::int32_t>{20000}));
+}
+
+TEST(MatmulTest, AccumulatesFloatInDouble) {
+    const Tensor<float> left{{1, 1}, {std::numeric_limits<float>::max()}};
+    const Tensor<float> right{{1, 1}, {2}};
+
+    const auto result = matmul<float, double>(left, right);
+
+    EXPECT_EQ(result.values,
+              (std::vector<double>{
+                  2.0 * static_cast<double>(std::numeric_limits<float>::max())}));
+}
+
+TEST(MatmulTest, RejectsInt32ProductOverflow) {
+    const Tensor<std::int32_t> left{{1, 1}, {1 << 16}};
+    const Tensor<std::int32_t> right{{1, 1}, {-(1 << 16)}};
+
+    EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
 TEST(MatmulTest, RejectsInt8ResultOverflow) {
     const Tensor<std::int8_t> left{{1, 1}, {127}};
     const Tensor<std::int8_t> right{{1, 1}, {2}};
+
+    EXPECT_THROW(matmul(left, right), std::overflow_error);
+}
+
+TEST(MatmulTest, RejectsFloatResultOverflow) {
+    const auto max = std::numeric_limits<float>::max();
+    const Tensor<float> left{{1, 2}, {max, max}};
+    const Tensor<float> right{{2, 1}, {1, 1}};
+
+    EXPECT_THROW(matmul(left, right), std::overflow_error);
+}
+
+TEST(MatmulTest, RejectsNegativeFloatResultOverflow) {
+    const auto max = std::numeric_limits<float>::max();
+    const Tensor<float> left{{1, 1}, {max}};
+    const Tensor<float> right{{1, 1}, {-2}};
 
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
