@@ -30,4 +30,8 @@ workloads/logs/
 
 # Inference engine artifacts
 inference-engine/dist/
-inference-engine/results/ 
+inference-engine/results/
+
+# Perf model artifacts
+reef-perf/results/
+reef-perf/**/workloads/build/
