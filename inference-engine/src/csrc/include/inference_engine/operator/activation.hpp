@@ -69,7 +69,7 @@ Tensor<Scalar> softmax(const Tensor<Scalar>& input, std::size_t dim) {
             Scalar* out = output.values.data() + start;
 
             // find max
-            Scalar m = masked_score<Scalar>();
+            auto m = masked_score<Scalar>();
             for (std::size_t k = 0; k < axis; ++k) {
                 m = std::max(m, in[k * stride]);
             }
