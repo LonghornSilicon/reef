@@ -34,11 +34,10 @@ TEST(MatmulTest, MultipliesCompatibleMatrices) {
     EXPECT_EQ(result.values, expected_values);
 }
 
-static_assert(
-    std::is_same_v<decltype(matmul<std::int8_t, std::int32_t>(
-                       std::declval<const Tensor<std::int8_t>&>(),
-                       std::declval<const Tensor<std::int8_t>&>())),
-                   Tensor<std::int32_t>>);
+static_assert(std::is_same_v<decltype(matmul<std::int8_t, std::int32_t>(
+                                 std::declval<const Tensor<std::int8_t>&>(),
+                                 std::declval<const Tensor<std::int8_t>&>())),
+                             Tensor<std::int32_t>>);
 
 TEST(MatmulTest, ReturnsWiderAccumulatorType) {
     const Tensor<std::int8_t> left{{1, 2}, {100, 100}};
@@ -56,9 +55,10 @@ TEST(MatmulTest, AccumulatesFloatInDouble) {
 
     const auto result = matmul<float, double>(left, right);
 
-    EXPECT_EQ(result.values,
-              (std::vector<double>{
-                  2.0 * static_cast<double>(std::numeric_limits<float>::max())}));
+    EXPECT_EQ(
+        result.values,
+        (std::vector<double>{
+            2.0 * static_cast<double>(std::numeric_limits<float>::max())}));
 }
 
 TEST(MatmulTest, RejectsInt32ProductOverflow) {

@@ -72,7 +72,8 @@ Accumulator checked_multiply(Accumulator left, Accumulator right) {
         bool overflow = false;
         if constexpr (std::is_signed_v<Accumulator>) {
             if (left > 0) {
-                overflow = right > 0 ? left > kMax / right : right < kMin / left;
+                overflow =
+                    right > 0 ? left > kMax / right : right < kMin / left;
             } else if (left < 0) {
                 overflow = right > 0 ? left < kMin / right
                                      : right < 0 && right < kMax / left;
@@ -176,7 +177,8 @@ Tensor<Accumulator> matmul(const Tensor<Scalar>& left,
     const auto rows = left.shape[0];
     const auto columns = right.shape[1];
     Tensor<Accumulator> result{
-        {rows, columns}, std::vector<Accumulator>(rows * columns, Accumulator{})};
+        {rows, columns},
+        std::vector<Accumulator>(rows * columns, Accumulator{})};
     for (std::size_t row = 0; row < rows; ++row) {
         for (std::size_t column = 0; column < columns; ++column) {
             result.values[(row * columns) + column] =
