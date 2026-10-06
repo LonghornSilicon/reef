@@ -48,12 +48,13 @@ template <typename Scalar> struct Qkv {
  *
  * The tensors hold only filled positions, so `key.shape[2]` is the number of
  * cached tokens. An empty cache has shape `[batch, heads, 0, head_dim]`, and
- * a default-constructed cache bootstraps its shape from the first append.
+ * a default-constructed cache bootstraps its shape from the first append. A
+ * capacity of 0 grows on demand.
  *
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct KvCache {
-    std::size_t capacity = 0; ///< Maximum cached positions per head; 0 grows on demand.
+    std::size_t capacity = 0; ///< Maximum cached positions per head.
     Tensor<Scalar> key;       ///< [batch, heads, cached_len, head_dim].
     Tensor<Scalar> value;     ///< [batch, heads, cached_len, head_dim].
 };
@@ -105,7 +106,7 @@ template <typename Scalar> class Attention {
         const std::size_t num_queries = scores.shape[rank - 2];
         const std::size_t num_keys = scores.shape[rank - 1];
         const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr Scalar kMasked = masked_score<Scalar>();
+        constexpr auto kMasked = masked_score<Scalar>();
 
         for (std::size_t r = 0; r < num_rows; ++r) {
             const std::size_t i = r % num_queries;
@@ -186,7 +187,7 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
         const std::size_t num_queries = scores.shape[rank - 2];
         const std::size_t num_keys = scores.shape[rank - 1];
         const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr Scalar kMasked = masked_score<Scalar>();
+        constexpr auto kMasked = masked_score<Scalar>();
 
         // context window trim
         for (std::size_t r = 0; r < num_rows; ++r) {
