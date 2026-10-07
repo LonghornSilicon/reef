@@ -1,4 +1,4 @@
-"""Call the small host C++ matrix executable from Python."""
+"""Call the small host C++ tensor executable from Python."""
 
 import subprocess
 from collections.abc import Sequence
@@ -34,12 +34,12 @@ def matmul(
     )
     output = completed.stdout.split()
     if len(output) < 2:
-        raise RuntimeError("C++ matrix executable returned no shape")
+        raise RuntimeError("C++ tensor executable returned no shape")
     rows, output_columns = map(int, output[:2])
     if (rows, output_columns) != (len(left), columns) or len(output) != (
         2 + rows * output_columns
     ):
-        raise RuntimeError("C++ matrix executable returned an invalid shape")
+        raise RuntimeError("C++ tensor executable returned an invalid shape")
     numbers = list(map(float, output[2:]))
     return [
         numbers[index : index + output_columns]
