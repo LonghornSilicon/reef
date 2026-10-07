@@ -1,6 +1,7 @@
 #include "inference_engine/operator/activation.hpp"
 #include "inference_engine/operator/attention.hpp"
 #include "inference_engine/tensor.hpp"
+#include "inference_engine/util.hpp"
 
 #include <gtest/gtest.h>
 

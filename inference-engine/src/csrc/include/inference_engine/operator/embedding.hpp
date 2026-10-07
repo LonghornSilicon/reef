@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "inference_engine/tensor.hpp"
+#include "inference_engine/util.hpp"
 
 namespace inference_engine {
 

@@ -4,13 +4,14 @@
  *  @brief Storage for typed inference tensors
  */
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+
+#include "inference_engine/util.hpp"
 
 namespace inference_engine {
 
@@ -54,89 +55,6 @@ template <typename Scalar> bool valid_tensor(const Tensor<Scalar>& tensor) {
  */
 template <typename Scalar> bool valid_matrix(const Tensor<Scalar>& tensor) {
     return tensor.shape.size() == 2 && valid_tensor(tensor);
-}
-
-/** Add two values, throwing instead of overflowing.
- *
- * Integral sums that would wrap throw. Floating-point sums that are not
- * finite throw, whether from overflow to infinity or from a NaN or infinite
- * input. Types outside the built-in arithmetic ones fail to compile until
- * support is added explicitly.
- *
- * @tparam Scalar Arithmetic value type.
- * @param left First addend.
- * @param right Second addend.
- * @return left + right.
- * @throws std::overflow_error If the sum cannot be represented in Scalar.
- */
-template <typename Scalar> Scalar safe_add(Scalar left, Scalar right) {
-    static_assert(std::is_arithmetic_v<Scalar> && !std::is_same_v<Scalar, bool>,
-                  "safe_add supports built-in arithmetic types only");
-    if constexpr (std::is_integral_v<Scalar>) {
-        constexpr auto kMax = std::numeric_limits<Scalar>::max();
-        constexpr auto kMin = std::numeric_limits<Scalar>::min();
-        bool overflow = false;
-        if constexpr (std::is_signed_v<Scalar>) {
-            overflow = right > 0 ? left > kMax - right
-                                 : right < 0 && left < kMin - right;
-        } else {
-            overflow = left > kMax - right;
-        }
-        if (overflow) {
-            throw std::overflow_error("safe_add sum overflow");
-        }
-        return static_cast<Scalar>(left + right);
-    } else {
-        const Scalar sum = left + right;
-        if (!std::isfinite(sum)) {
-            throw std::overflow_error("safe_add sum overflow");
-        }
-        return sum;
-    }
-}
-
-/** Multiply two values, throwing instead of overflowing.
- *
- * Integral products that would wrap throw. Floating-point products that are
- * not finite throw, whether from overflow to infinity or from a NaN or
- * infinite input. Types outside the built-in arithmetic ones fail to compile
- * until support is added explicitly.
- *
- * @tparam Scalar Arithmetic value type.
- * @param left Left factor.
- * @param right Right factor.
- * @return left * right.
- * @throws std::overflow_error If the product cannot be represented in Scalar.
- */
-template <typename Scalar> Scalar safe_multiply(Scalar left, Scalar right) {
-    static_assert(std::is_arithmetic_v<Scalar> && !std::is_same_v<Scalar, bool>,
-                  "safe_multiply supports built-in arithmetic types only");
-    if constexpr (std::is_integral_v<Scalar>) {
-        constexpr auto kMax = std::numeric_limits<Scalar>::max();
-        constexpr auto kMin = std::numeric_limits<Scalar>::min();
-        bool overflow = false;
-        if constexpr (std::is_signed_v<Scalar>) {
-            if (left > 0) {
-                overflow =
-                    right > 0 ? left > kMax / right : right < kMin / left;
-            } else if (left < 0) {
-                overflow = right > 0 ? left < kMin / right
-                                     : right < 0 && right < kMax / left;
-            }
-        } else {
-            overflow = left != 0 && right > kMax / left;
-        }
-        if (overflow) {
-            throw std::overflow_error("safe_multiply product overflow");
-        }
-        return static_cast<Scalar>(left * right);
-    } else {
-        const Scalar product = left * right;
-        if (!std::isfinite(product)) {
-            throw std::overflow_error("safe_multiply product overflow");
-        }
-        return product;
-    }
 }
 
 /** Compute one matrix output value with checked accumulation.
