@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
-#include <type_traits>
 #include <vector>
 
 #include "inference_engine/tensor.hpp"
@@ -67,14 +66,15 @@ Tensor<Scalar> lookup_token_embeddings(const TokenIds& ids,
 
 /** Add learned position vectors to token embeddings.
  *
- * @tparam Scalar Arithmetic value type. Integer sums must fit in Scalar.
+ * @tparam Scalar Arithmetic value type. Sums must fit in Scalar.
  * @param token_embeddings Sequence-by-width token values.
  * @param position_table Position-by-width embedding table.
  * @param position_offset Position of the first input token.
  * @return Sequence-by-width tensor with position values added.
  * @throws std::invalid_argument If shapes are incompatible or positions run
  * past the end of the table.
- * @throws std::overflow_error If an integer sum cannot be represented.
+ * @throws std::overflow_error If an integer sum would wrap or a
+ * floating-point sum is not finite.
  */
 template <typename Scalar>
 Tensor<Scalar> add_position_embeddings(const Tensor<Scalar>& token_embeddings,
@@ -103,21 +103,7 @@ Tensor<Scalar> add_position_embeddings(const Tensor<Scalar>& token_embeddings,
         const std::size_t result_row = position * width;
         for (std::size_t column = 0; column < width; ++column) {
             Scalar& value = result.values[result_row + column];
-            const Scalar position_value =
-                position_table.values[table_row + column];
-            if constexpr (std::is_integral_v<Scalar>) {
-                // Integer sums can wrap silently, so fail loudly instead.
-                if ((position_value > 0 &&
-                     value >
-                         std::numeric_limits<Scalar>::max() - position_value) ||
-                    (position_value < 0 &&
-                     value <
-                         std::numeric_limits<Scalar>::min() - position_value)) {
-                    throw std::overflow_error(
-                        "add_position_embeddings sum overflow!");
-                }
-            }
-            value += position_value;
+            value = safe_add(value, position_table.values[table_row + column]);
         }
     }
     return result;

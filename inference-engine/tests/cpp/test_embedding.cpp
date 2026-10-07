@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -120,6 +121,20 @@ TEST(EmbeddingTest, RejectsIntegerPositionOverflow) {
                  std::overflow_error);
     EXPECT_THROW(add_position_embeddings(Tensor<std::int8_t>{{1, 1}, {-128}},
                                          Tensor<std::int8_t>{{1, 1}, {-1}}, 0),
+                 std::overflow_error);
+}
+
+// Floating-point sums that leave the finite range throw too, instead of
+// silently producing infinity or propagating NaN.
+TEST(EmbeddingTest, RejectsFloatPositionOverflow) {
+    const auto max = std::numeric_limits<float>::max();
+    const auto nan = std::numeric_limits<float>::quiet_NaN();
+
+    EXPECT_THROW(add_position_embeddings(Tensor<float>{{1, 1}, {max}},
+                                         Tensor<float>{{1, 1}, {max}}, 0),
+                 std::overflow_error);
+    EXPECT_THROW(add_position_embeddings(Tensor<float>{{1, 1}, {nan}},
+                                         Tensor<float>{{1, 1}, {1.0F}}, 0),
                  std::overflow_error);
 }
 

@@ -56,21 +56,66 @@ template <typename Scalar> bool valid_matrix(const Tensor<Scalar>& tensor) {
     return tensor.shape.size() == 2 && valid_tensor(tensor);
 }
 
-/** Multiply two accumulator values, rejecting integer overflow.
+/** Add two values, throwing instead of overflowing.
  *
- * @tparam Accumulator Arithmetic type the product is computed in.
+ * Integral sums that would wrap throw. Floating-point sums that are not
+ * finite throw, whether from overflow to infinity or from a NaN or infinite
+ * input. Types outside the built-in arithmetic ones fail to compile until
+ * support is added explicitly.
+ *
+ * @tparam Scalar Arithmetic value type.
+ * @param left First addend.
+ * @param right Second addend.
+ * @return left + right.
+ * @throws std::overflow_error If the sum cannot be represented in Scalar.
+ */
+template <typename Scalar> Scalar safe_add(Scalar left, Scalar right) {
+    static_assert(std::is_arithmetic_v<Scalar> && !std::is_same_v<Scalar, bool>,
+                  "safe_add supports built-in arithmetic types only");
+    if constexpr (std::is_integral_v<Scalar>) {
+        constexpr auto kMax = std::numeric_limits<Scalar>::max();
+        constexpr auto kMin = std::numeric_limits<Scalar>::min();
+        bool overflow = false;
+        if constexpr (std::is_signed_v<Scalar>) {
+            overflow = right > 0 ? left > kMax - right
+                                 : right < 0 && left < kMin - right;
+        } else {
+            overflow = left > kMax - right;
+        }
+        if (overflow) {
+            throw std::overflow_error("safe_add sum overflow");
+        }
+        return static_cast<Scalar>(left + right);
+    } else {
+        const Scalar sum = left + right;
+        if (!std::isfinite(sum)) {
+            throw std::overflow_error("safe_add sum overflow");
+        }
+        return sum;
+    }
+}
+
+/** Multiply two values, throwing instead of overflowing.
+ *
+ * Integral products that would wrap throw. Floating-point products that are
+ * not finite throw, whether from overflow to infinity or from a NaN or
+ * infinite input. Types outside the built-in arithmetic ones fail to compile
+ * until support is added explicitly.
+ *
+ * @tparam Scalar Arithmetic value type.
  * @param left Left factor.
  * @param right Right factor.
  * @return left * right.
- * @throws std::overflow_error If an integer product cannot be represented.
+ * @throws std::overflow_error If the product cannot be represented in Scalar.
  */
-template <typename Accumulator>
-Accumulator checked_multiply(Accumulator left, Accumulator right) {
-    if constexpr (std::is_integral_v<Accumulator>) {
-        constexpr auto kMax = std::numeric_limits<Accumulator>::max();
-        constexpr auto kMin = std::numeric_limits<Accumulator>::min();
+template <typename Scalar> Scalar safe_multiply(Scalar left, Scalar right) {
+    static_assert(std::is_arithmetic_v<Scalar> && !std::is_same_v<Scalar, bool>,
+                  "safe_multiply supports built-in arithmetic types only");
+    if constexpr (std::is_integral_v<Scalar>) {
+        constexpr auto kMax = std::numeric_limits<Scalar>::max();
+        constexpr auto kMin = std::numeric_limits<Scalar>::min();
         bool overflow = false;
-        if constexpr (std::is_signed_v<Accumulator>) {
+        if constexpr (std::is_signed_v<Scalar>) {
             if (left > 0) {
                 overflow =
                     right > 0 ? left > kMax / right : right < kMin / left;
@@ -82,10 +127,16 @@ Accumulator checked_multiply(Accumulator left, Accumulator right) {
             overflow = left != 0 && right > kMax / left;
         }
         if (overflow) {
-            throw std::overflow_error("matmul product overflow");
+            throw std::overflow_error("safe_multiply product overflow");
         }
+        return static_cast<Scalar>(left * right);
+    } else {
+        const Scalar product = left * right;
+        if (!std::isfinite(product)) {
+            throw std::overflow_error("safe_multiply product overflow");
+        }
+        return product;
     }
-    return static_cast<Accumulator>(left * right);
 }
 
 /** Compute one matrix output value with checked accumulation.
@@ -100,7 +151,7 @@ Accumulator checked_multiply(Accumulator left, Accumulator right) {
  * @param column Output column.
  * @return One output value.
  * @throws std::overflow_error If an integer product or sum cannot be
- * represented or a floating-point result is infinite.
+ * represented or a floating-point step is not finite.
  */
 template <typename Scalar, typename Accumulator = Scalar>
 Accumulator matrix_dot_product(const Tensor<Scalar>& left,
@@ -110,27 +161,10 @@ Accumulator matrix_dot_product(const Tensor<Scalar>& left,
     const auto columns = right.shape[1];
     Accumulator sum{};
     for (std::size_t index = 0; index < inner; ++index) {
-        const auto product = checked_multiply(
+        const auto product = safe_multiply(
             static_cast<Accumulator>(left.values[(row * inner) + index]),
             static_cast<Accumulator>(right.values[(index * columns) + column]));
-        if constexpr (std::is_integral_v<Accumulator>) {
-            if (product > 0 &&
-                sum > std::numeric_limits<Accumulator>::max() - product) {
-                throw std::overflow_error("matmul sum overflow");
-            }
-            if constexpr (std::is_signed_v<Accumulator>) {
-                if (product < 0 &&
-                    sum < std::numeric_limits<Accumulator>::min() - product) {
-                    throw std::overflow_error("matmul sum overflow");
-                }
-            }
-        }
-        sum += product;
-    }
-    if constexpr (std::is_floating_point_v<Accumulator>) {
-        if (std::isinf(sum)) {
-            throw std::overflow_error("matmul result overflow");
-        }
+        sum = safe_add(sum, product);
     }
     return sum;
 }
@@ -148,7 +182,7 @@ Accumulator matrix_dot_product(const Tensor<Scalar>& left,
  * @return Product with shape left.rows by right.columns.
  * @throws std::invalid_argument If shapes or value counts are incompatible.
  * @throws std::overflow_error If an integer product or sum cannot be
- * represented or a floating-point result is infinite.
+ * represented or a floating-point step is not finite.
  */
 template <typename Scalar, typename Accumulator = Scalar>
 Tensor<Accumulator> matmul(const Tensor<Scalar>& left,

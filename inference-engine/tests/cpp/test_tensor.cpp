@@ -22,6 +22,47 @@ static_assert(
                                     std::size_t{})),
                    Tensor<std::int8_t>>);
 
+// In-range sums and products come back exact, including on the int8 limits.
+TEST(SafeArithmeticTest, ComputesInRangeResults) {
+    EXPECT_EQ(safe_add<std::int8_t>(100, 27), 127);
+    EXPECT_EQ(safe_add<std::int8_t>(-100, -28), -128);
+    EXPECT_EQ(safe_add(1.5F, 2.25F), 3.75F);
+    EXPECT_EQ(safe_multiply<std::int8_t>(-32, 4), -128);
+    EXPECT_EQ(safe_multiply<std::uint8_t>(17, 15), 255);
+    EXPECT_EQ(safe_multiply(1.5F, -2.0F), -3.0F);
+}
+
+// Integer sums past either limit throw instead of wrapping.
+TEST(SafeArithmeticTest, RejectsIntegerAddOverflow) {
+    EXPECT_THROW(safe_add<std::int8_t>(127, 1), std::overflow_error);
+    EXPECT_THROW(safe_add<std::int8_t>(-128, -1), std::overflow_error);
+    EXPECT_THROW(safe_add<std::uint8_t>(255, 1), std::overflow_error);
+}
+
+// Integer products past either limit throw, including the min * -1 corner.
+TEST(SafeArithmeticTest, RejectsIntegerMultiplyOverflow) {
+    EXPECT_THROW(safe_multiply<std::int8_t>(64, 2), std::overflow_error);
+    EXPECT_THROW(safe_multiply<std::int8_t>(-65, 2), std::overflow_error);
+    EXPECT_THROW(safe_multiply<std::int8_t>(-128, -1), std::overflow_error);
+    EXPECT_THROW(safe_multiply<std::uint8_t>(16, 16), std::overflow_error);
+}
+
+// Any non-finite floating-point result throws: overflow to infinity, and
+// NaN or infinite inputs, which would otherwise propagate silently.
+TEST(SafeArithmeticTest, RejectsNonFiniteFloatResults) {
+    const auto max = std::numeric_limits<float>::max();
+    const auto infinity = std::numeric_limits<float>::infinity();
+    const auto nan = std::numeric_limits<float>::quiet_NaN();
+
+    EXPECT_THROW(safe_add(max, max), std::overflow_error);
+    EXPECT_THROW(safe_add(-max, -max), std::overflow_error);
+    EXPECT_THROW(safe_add(nan, 1.0F), std::overflow_error);
+    EXPECT_THROW(safe_add(infinity, 0.0F), std::overflow_error);
+    EXPECT_THROW(safe_multiply(max, 2.0F), std::overflow_error);
+    EXPECT_THROW(safe_multiply(max, -2.0F), std::overflow_error);
+    EXPECT_THROW(safe_multiply(nan, 1.0F), std::overflow_error);
+}
+
 TEST(MatmulTest, MultipliesCompatibleMatrices) {
     const Tensor<float> left{{2, 3}, {1, 2, 3, 4, 5, 6}};
     const Tensor<float> right{{3, 2}, {7, 8, 9, 10, 11, 12}};
