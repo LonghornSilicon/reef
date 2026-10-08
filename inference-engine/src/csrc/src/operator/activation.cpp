@@ -1,8 +1,6 @@
 #include "inference_engine/operator/activation.hpp"
 
-// @ MLP team
-// TODO: Implement gelu declared in activation.hpp.
-
-// @ Attention team
-// TODO: Implement the softmax template in a header (or explicitly instantiate
-// supported scalar types) after defining integer output scaling.
+// masked_score and the dimension-aware softmax are implemented as templates in
+// activation.hpp so any scalar type can instantiate them; gelu is declared
+// there and still needs an implementation. This translation unit only checks
+// that the header compiles on its own.

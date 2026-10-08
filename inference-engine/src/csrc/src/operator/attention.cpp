@@ -1,15 +1,7 @@
 #include "inference_engine/operator/attention.hpp"
 
-// @ Attention team
-// TODO: Implement Attention's constructor, forward, project_qkv, and
-// append_kv_cache. Keep template definitions header-visible or explicitly
-// instantiate supported types. Match head counts and weight layout in
-// workloads.
-
-// @ Attention team
-// TODO: Implement Attention::context and concrete masking policies, checking
-// prefill/decode outputs and cached-token offsets against workloads.
-
-// @ Attention team
-// TODO: Implement GlobalAttention and LocalAttention constructors and masks,
-// including sliding-window boundaries.
+// The attention pipeline, the weight and cache structs, and both mask policies
+// are implemented as templates in attention.hpp so any scalar type can
+// instantiate them. This translation unit only checks that the header compiles
+// on its own; explicit instantiations belong here once linear() lands and the
+// first model pins its scalar types.
