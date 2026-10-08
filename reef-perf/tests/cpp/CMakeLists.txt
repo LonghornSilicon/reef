@@ -19,6 +19,7 @@ set(REEF_PERF_TESTS
     common/test_resource_pool
     frontend/test_inst_decode
     mem/test_mem_timing
+    vector/test_vxu
 )
 foreach(path ${REEF_PERF_TESTS})
     get_filename_component(test ${path} NAME)
