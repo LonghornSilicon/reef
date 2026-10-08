@@ -22,8 +22,8 @@
  *  instruction can dispatch in the cycle the producer starts (back-to-back).
  */
 
-#include "reef_perf/inst.hpp"
-#include "reef_perf/resource_pool.hpp"
+#include "reef_perf/common/inst.hpp"
+#include "reef_perf/common/resource_pool.hpp"
 
 #include "sparta/ports/DataPort.hpp"
 #include "sparta/simulation/ParameterSet.hpp"
@@ -67,10 +67,10 @@ struct ExecuteConfig {
     std::uint32_t vec_to_scalar_latency = 0;  ///< See ExecuteParameterSet.
 };
 
-/// Execute unit. Tree location: top.core.execute.
+/// Execute unit. Tree location: top.backend.execute.
 class Execute : public sparta::Unit {
   public:
-    /// Parameters of the execute unit (top.core.execute.params).
+    /// Parameters of the execute unit (top.backend.execute.params).
     class ExecuteParameterSet : public sparta::ParameterSet {
       public:
         /** Registers the parameters with the tree node.

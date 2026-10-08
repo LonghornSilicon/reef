@@ -1,4 +1,4 @@
-#include "reef_perf/dispatch.hpp"
+#include "reef_perf/backend/dispatch.hpp"
 
 #include "sparta/events/StartupEvent.hpp"
 #include "sparta/utils/SpartaAssert.hpp"

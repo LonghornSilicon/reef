@@ -1,6 +1,6 @@
-#include "reef_perf/func_sim.hpp"
+#include "reef_perf/frontend/func_sim.hpp"
 
-#include "reef_perf/inst_decode.hpp"
+#include "reef_perf/frontend/inst_decode.hpp"
 
 #include <memory>
 #include <optional>

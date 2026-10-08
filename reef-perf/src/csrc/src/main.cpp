@@ -1,13 +1,13 @@
 // reef_perf: coarse performance model of the Reef NPU.
 //
 //   reef_perf --elf program.elf [-c configs/m3.yaml]
-//             [-p top.core.fetch.params.fetch_width 2] [--json out.json]
+//             [-p top.frontend.fetch.params.fetch_width 2] [--json out.json]
 //
 // All standard Sparta options also work (run with --help), for example
 // --show-parameters, --write-final-config and --auto-summary on.
 
 #include "reef_perf/reef_sim.hpp"
-#include "reef_perf/spike_driver.hpp"
+#include "reef_perf/frontend/spike_driver.hpp"
 
 #include "sparta/app/CommandLineSimulator.hpp"
 #include "sparta/sparta.hpp"

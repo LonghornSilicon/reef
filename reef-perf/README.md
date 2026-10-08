@@ -102,7 +102,7 @@ Notes:
 
 ```sh
 build/bin/reef_perf --elf build/workloads/gemv_int8.elf -c configs/m3.yaml
-build/bin/reef_perf --elf x.elf -p top.core.fetch.params.fetch_interval 2
+build/bin/reef_perf --elf x.elf -p top.frontend.fetch.params.fetch_interval 2
 build/bin/reef_perf --elf x.elf --show-parameters --no-run   # every parameter
 build/bin/reef_trace build/workloads/gemv_int8.elf 40        # Spike's instruction stream
 ```

@@ -12,7 +12,7 @@
  *  has to be rolled back.
  */
 
-#include "reef_perf/inst.hpp"
+#include "reef_perf/common/inst.hpp"
 
 #include <cstdint>
 #include <memory>

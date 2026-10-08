@@ -10,8 +10,8 @@
  *  happens, never *whether* it happens.
  */
 
-#include "reef_perf/inst.hpp"
-#include "reef_perf/spike_driver.hpp"
+#include "reef_perf/common/inst.hpp"
+#include "reef_perf/frontend/spike_driver.hpp"
 
 #include <cstdint>
 #include <string>

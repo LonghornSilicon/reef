@@ -1,4 +1,4 @@
-#include "reef_perf/inst_decode.hpp"
+#include "reef_perf/frontend/inst_decode.hpp"
 
 #include <algorithm>
 #include <cstdint>

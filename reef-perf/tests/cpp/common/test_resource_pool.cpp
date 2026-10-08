@@ -1,4 +1,4 @@
-#include "reef_perf/resource_pool.hpp"
+#include "reef_perf/common/resource_pool.hpp"
 
 #include <gtest/gtest.h>
 

@@ -1,4 +1,4 @@
-#include "reef_perf/inst.hpp"
+#include "reef_perf/common/inst.hpp"
 
 #include <ios>
 #include <ostream>

@@ -1,5 +1,5 @@
-#include "reef_perf/inst.hpp"
-#include "reef_perf/inst_decode.hpp"
+#include "reef_perf/common/inst.hpp"
+#include "reef_perf/frontend/inst_decode.hpp"
 
 #include <gtest/gtest.h>
 
