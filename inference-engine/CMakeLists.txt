@@ -6,17 +6,15 @@ project(inference_engine LANGUAGES CXX)
 add_library(inference_engine STATIC
     src/csrc/src/operator/activation.cpp
     src/csrc/src/operator/attention.cpp
-    src/csrc/src/operator/embedding.cpp
-    src/csrc/src/operator/tensor.cpp
     src/csrc/src/operator/mlp.cpp
     src/csrc/src/model.cpp
 )
 target_compile_features(inference_engine PUBLIC cxx_std_17)
 target_include_directories(inference_engine PUBLIC src/csrc/include)
 
-add_executable(matrix_cli tools/matrix_cli.cpp)
-target_link_libraries(matrix_cli PRIVATE inference_engine)
-set_target_properties(matrix_cli PROPERTIES
+add_executable(tensor_cli tools/tensor_cli.cpp)
+target_link_libraries(tensor_cli PRIVATE inference_engine)
+set_target_properties(tensor_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 

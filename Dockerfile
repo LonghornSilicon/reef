@@ -32,6 +32,16 @@ RUN apt-get update && \
         curl \
         wget \
         build-essential \
+        ninja-build \
+        pkg-config \
+        device-tree-compiler \
+        libboost-all-dev \
+        rapidjson-dev \
+        libsqlite3-dev \
+        libhdf5-dev \
+        zlib1g-dev \
+        liblzma-dev \
+        binutils-riscv64-linux-gnu \
         cmake \
         doxygen \
         graphviz \
@@ -39,7 +49,20 @@ RUN apt-get update && \
         vim \
         libglib2.0-dev \
         tzdata \
+        docker.io \
+        docker-buildx \
     && rm -rf /var/lib/apt/lists/*
+
+# Optional extra root certificate, for networks that intercept TLS
+# (corporate proxies, antivirus "HTTPS scanning"). Provide it with
+# `REEF_PERF_EXTRA_CA=/path/to/root.pem tools/docker.sh build`; without it
+# this step does nothing. uv is told to use the system certificate store.
+RUN --mount=type=secret,id=extra_ca \
+    if [ -s /run/secrets/extra_ca ]; then \
+        cp /run/secrets/extra_ca /usr/local/share/ca-certificates/extra_ca.crt && \
+        update-ca-certificates; \
+    fi
+ENV UV_SYSTEM_CERTS=1
 
 # Install uv.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -49,9 +72,22 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app/reef 
 COPY . .
 
-# Install inference-engine.
+### Install inference-engine. ###
 WORKDIR /app/reef/inference-engine
 RUN uv sync --frozen
+
+### Install reef-perf. ### 
+# Parallel compile jobs. Sparta needs ~1 GB of RAM per job.
+WORKDIR /app/reef/reef-perf
+ARG JOBS=4
+RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" yaml-cpp
+RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" sparta
+RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" spike
+ENV REEF_PERF_DEPS=/opt/reef-perf
+RUN uv sync --frozen
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build -j "${JOBS}"
+ENV PATH="/app/reef/reef-perf/build/bin:/app/reef/reef-perf/tools:$PATH"
 
 # Set starting directory. 
 WORKDIR /app/reef

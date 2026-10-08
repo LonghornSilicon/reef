@@ -1,0 +1,9 @@
+[submodule "reef-perf/ext/spike"]
+	path = reef-perf/ext/spike
+	url = https://github.com/riscv-software-src/riscv-isa-sim.git
+[submodule "reef-perf/ext/map"]
+	path = reef-perf/ext/map
+	url = https://github.com/sparcians/map.git
+[submodule "reef-perf/ext/yaml-cpp"]
+	path = reef-perf/ext/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
