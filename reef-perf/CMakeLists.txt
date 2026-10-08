@@ -51,8 +51,12 @@ add_library(reef_perf_core STATIC
 
     src/csrc/src/backend/backend.cpp
     src/csrc/src/backend/dispatch.cpp
-    src/csrc/src/backend/execute.cpp
+    src/csrc/src/backend/lsu.cpp
     src/csrc/src/backend/rob.cpp
+    src/csrc/src/backend/scalar_exec.cpp
+
+    src/csrc/src/vector/vector.cpp
+    src/csrc/src/vector/vxu.cpp
 
     src/csrc/src/reef_sim.cpp
 )

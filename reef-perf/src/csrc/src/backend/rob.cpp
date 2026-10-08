@@ -46,7 +46,7 @@ void Rob::retire_insts() {
     // Sleep until the oldest instruction can complete.
     const std::uint64_t head_done = rob_.front()->complete_cycle;
     if (head_done == Inst::kNever || head_done <= now) {
-        ev_retire_.schedule(1); // not timed by Execute yet, or retire width
+        ev_retire_.schedule(1); // not timed by its unit yet, or retire width
     } else {
         ev_retire_.schedule(head_done - now);
     }
