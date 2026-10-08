@@ -60,6 +60,13 @@ top:
         vec_div_cycles_per_uop: 8   # B15
         vec_to_scalar_latency: 2    # B17: measure
         vset_latency: 1         # U4: measure (was timed as an ALU op)
+  matrix:
+    mxu:
+      params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
+        mtx_queue_entries: 4
+        mtx_units: 1
+        mtx_latency: 8
+        mtx_occupancy: 4
   mem:
     tcm:
       params:

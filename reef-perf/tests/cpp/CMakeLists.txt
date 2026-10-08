@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 # One directory per module, matching src/csrc/src/<module>/.
 set(REEF_PERF_TESTS
+    common/test_interfaces
     common/test_resource_pool
     frontend/test_inst_decode
     mem/test_mem_timing

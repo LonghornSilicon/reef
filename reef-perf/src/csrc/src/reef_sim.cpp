@@ -56,11 +56,11 @@ ReefSim::ReefSim(sparta::Scheduler& scheduler, const std::string& elf_path,
 ReefSim::~ReefSim() { getRoot()->enterTeardown(); }
 
 std::vector<Module*> ReefSim::modules() {
-    return {&frontend_, &backend_, &vector_, &mem_};
+    return {&frontend_, &backend_, &vector_, &matrix_, &mem_};
 }
 
 std::vector<const Module*> ReefSim::modules() const {
-    return {&frontend_, &backend_, &vector_, &mem_};
+    return {&frontend_, &backend_, &vector_, &matrix_, &mem_};
 }
 
 void ReefSim::buildTree_() {
@@ -90,6 +90,9 @@ void ReefSim::bindTree_() {
     bind_ports(backend_, Backend::kOutVector, vector_, Vector::kInInsts);
     bind_ports(vector_, Vector::kOutCredits, backend_,
                Backend::kInVectorCredits);
+    bind_ports(backend_, Backend::kOutMatrix, matrix_, Matrix::kInInsts);
+    bind_ports(matrix_, Matrix::kOutCredits, backend_,
+               Backend::kInMatrixCredits);
 
     frontend_.set_func_sim(funcsim_.get());
     backend_.set_memory(&mem_);

@@ -45,6 +45,7 @@ enum class StallReason : std::uint8_t {
     ROB_FULL,   ///< No free Rob entry.
     LSU_FULL,   ///< LSU queue full.
     VEC_FULL,   ///< Vector command queue full.
+    MTX_FULL,   ///< Matrix command queue full.
     NUM_REASONS ///< Number of reasons (not a reason).
 };
 
@@ -141,6 +142,12 @@ class Dispatch : public sparta::Unit {
      */
     void receive_vec_credits(const std::uint32_t& credits);
 
+    /** Port handler: the matrix queue freed entries.
+     *
+     *  @param credits Number of entries freed.
+     */
+    void receive_mtx_credits(const std::uint32_t& credits);
+
     /// Startup handler: tells Fetch how big the instruction buffer is.
     void send_initial_credits();
 
@@ -186,6 +193,8 @@ class Dispatch : public sparta::Unit {
     std::uint32_t lsu_credits_ = 0;
     /// Free vector queue entries.
     std::uint32_t vec_credits_ = 0;
+    /// Free matrix queue entries.
+    std::uint32_t mtx_credits_ = 0;
 
     /// Fetch groups in from Fetch.
     sparta::DataInPort<FetchPacket> in_insts_{&unit_port_set_, "in_insts", 1};
@@ -199,6 +208,9 @@ class Dispatch : public sparta::Unit {
     /// Dispatched instructions out to the vector module
     /// (ExecTarget::VECTOR).
     sparta::DataOutPort<InstPtr> out_vector_{&unit_port_set_, "out_vector"};
+    /// Dispatched instructions out to the matrix module
+    /// (ExecTarget::MATRIX).
+    sparta::DataOutPort<InstPtr> out_matrix_{&unit_port_set_, "out_matrix"};
     /// Dispatched instructions out to the Rob.
     sparta::DataOutPort<InstPtr> out_rob_{&unit_port_set_, "out_rob"};
     /// Rob credits in.
@@ -210,6 +222,9 @@ class Dispatch : public sparta::Unit {
     /// Vector command-queue credits in from the vector module.
     sparta::DataInPort<std::uint32_t> in_vec_credits_{&unit_port_set_,
                                                       "in_vec_credits", 1};
+    /// Matrix command-queue credits in from the matrix module.
+    sparta::DataInPort<std::uint32_t> in_mtx_credits_{&unit_port_set_,
+                                                      "in_mtx_credits", 1};
 
     /// Event that runs dispatch_group().
     sparta::UniqueEvent<> ev_dispatch_{

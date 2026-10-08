@@ -11,8 +11,8 @@
  *  - top.backend.lsu          Lsu (scalar and vector loads and stores)
  *  - top.backend.rob          Rob
  *
- *  Vector instructions leave the backend through kOutVector; the vector
- *  module owns their timing.
+ *  Vector and matrix instructions leave the backend through kOutVector and
+ *  kOutMatrix; those modules own their timing.
  */
 
 #include "reef_perf/backend/dispatch.hpp"
@@ -43,6 +43,11 @@ class Backend : public Module {
     /// Public port: vector command-queue credits in from the vector module.
     static constexpr const char* kInVectorCredits =
         "dispatch.ports.in_vec_credits";
+    /// Public port: matrix instructions out to the matrix module (InstPtr).
+    static constexpr const char* kOutMatrix = "dispatch.ports.out_matrix";
+    /// Public port: matrix command-queue credits in from the matrix module.
+    static constexpr const char* kInMatrixCredits =
+        "dispatch.ports.in_mtx_credits";
 
     /// Creates the module; its tree node is top.backend.
     Backend();

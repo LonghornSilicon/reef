@@ -24,6 +24,8 @@ const char* stall_reason_name(StallReason reason) {
         return "lsu_queue_full";
     case StallReason::VEC_FULL:
         return "vector_queue_full";
+    case StallReason::MTX_FULL:
+        return "matrix_queue_full";
     case StallReason::NUM_REASONS:
         break;
     }
@@ -54,6 +56,8 @@ Dispatch::Dispatch(sparta::TreeNode* node, const DispatchParameterSet* params)
         Dispatch, receive_lsu_credits, std::uint32_t));
     in_vec_credits_.registerConsumerHandler(CREATE_SPARTA_HANDLER_WITH_DATA(
         Dispatch, receive_vec_credits, std::uint32_t));
+    in_mtx_credits_.registerConsumerHandler(CREATE_SPARTA_HANDLER_WITH_DATA(
+        Dispatch, receive_mtx_credits, std::uint32_t));
     sparta::StartupEvent(node,
                          CREATE_SPARTA_HANDLER(Dispatch, send_initial_credits));
 }
@@ -85,6 +89,11 @@ void Dispatch::receive_lsu_credits(const std::uint32_t& credits) {
 
 void Dispatch::receive_vec_credits(const std::uint32_t& credits) {
     vec_credits_ += credits;
+    schedule_dispatch();
+}
+
+void Dispatch::receive_mtx_credits(const std::uint32_t& credits) {
+    mtx_credits_ += credits;
     schedule_dispatch();
 }
 
@@ -131,6 +140,12 @@ bool Dispatch::can_dispatch(const InstPtr& inst, std::uint64_t now,
             return false;
         }
         break;
+    case ExecTarget::MATRIX:
+        if (mtx_credits_ == 0) {
+            why = StallReason::MTX_FULL;
+            return false;
+        }
+        break;
     }
     return true;
 }
@@ -147,6 +162,10 @@ void Dispatch::send_to_target(const InstPtr& inst) {
     case ExecTarget::VECTOR:
         --vec_credits_;
         out_vector_.send(inst);
+        break;
+    case ExecTarget::MATRIX:
+        --mtx_credits_;
+        out_matrix_.send(inst);
         break;
     }
 }

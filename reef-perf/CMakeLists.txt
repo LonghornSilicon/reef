@@ -58,6 +58,9 @@ add_library(reef_perf_core STATIC
     src/csrc/src/vector/vector.cpp
     src/csrc/src/vector/vxu.cpp
 
+    src/csrc/src/matrix/matrix.cpp
+    src/csrc/src/matrix/mxu.cpp
+
     src/csrc/src/mem/mem_timing.cpp
     src/csrc/src/mem/memory.cpp
     src/csrc/src/mem/units.cpp

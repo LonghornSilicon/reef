@@ -48,6 +48,7 @@ enum class InstClass : std::uint8_t {
     V_LOAD,      ///< Vector loads.
     V_STORE,     ///< Vector stores.
     V_TO_SCALAR, ///< Vector ops that write a scalar or FP register.
+    MATRIX,      ///< Matrix-engine ops (opaque; nothing decodes to it yet).
     UNKNOWN,     ///< Not recognised; timed as an ALU op.
     NUM_CLASSES  ///< Number of classes (not a class).
 };
@@ -139,6 +140,12 @@ struct Inst {
     [[nodiscard]] bool is_vector() const {
         return cls >= InstClass::VSET && cls <= InstClass::V_TO_SCALAR;
     }
+
+    /** Whether the instruction is handled by the matrix engine.
+     *
+     *  @return True for MATRIX.
+     */
+    [[nodiscard]] bool is_matrix() const { return cls == InstClass::MATRIX; }
 
     /** Whether the instruction accesses memory through the LSU.
      *
