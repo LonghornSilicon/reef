@@ -141,7 +141,7 @@ def run_sim(
         elf: RISC-V ELF to run.
         sim_config: Sparta configuration file, or None for built-in defaults.
         params: Parameter overrides, e.g.
-            {"top.core.fetch.params.fetch_interval": 2}.
+            {"top.frontend.fetch.params.fetch_interval": 2}.
         binary: Simulator executable; found with find_binary() by default.
         timeout: Seconds before the run is abandoned.
 

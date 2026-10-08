@@ -7,7 +7,7 @@ import pytest
 
 from reef_perf.sim import SimulationError, run_sim
 
-FETCH_INTERVAL = "top.core.fetch.params.fetch_interval"
+FETCH_INTERVAL = "top.frontend.fetch.params.fetch_interval"
 
 
 @pytest.mark.integration

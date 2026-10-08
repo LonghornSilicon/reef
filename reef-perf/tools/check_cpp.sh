@@ -5,8 +5,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-sources=(src/csrc/src/*.cpp tools/*.cpp tests/cpp/*.cpp)
-headers=(src/csrc/include/reef_perf/*.hpp)
+shopt -s globstar  # module subdirectories
+sources=(src/csrc/src/**/*.cpp tools/*.cpp tests/cpp/**/*.cpp)
+headers=(src/csrc/include/reef_perf/**/*.hpp)
 
 uv run clang-format --dry-run --Werror "${sources[@]}" "${headers[@]}"
 

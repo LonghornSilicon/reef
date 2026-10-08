@@ -61,7 +61,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 | 0. Measure | B00 run the model · B01 RTL cycle counts · B02 region of interest · B03 `correlate` experiment |
 | 1. Fetch | B04 fetch every other cycle · B05 static branch prediction · B06 aligned fetch blocks |
 | 2. Dispatch | B07 branch ends the group · B08 dispatch-alone instructions · B09 no address forwarding · B10 CSRs drain the Rob |
-| 3. Execute | B11 multiplier and FPU latency · B12 data-dependent divider · B13 LSU timing · B14 vector memory through the LSU |
+| 3. Execute (backend, mem) | B11 multiplier and FPU latency · B12 data-dependent divider · B13 LSU timing · B14 vector memory through the LSU |
 | 4. Vector | B15 real vector functional units · B16 vector decode/dispatch widths · B17 scalar↔vector crossing · B18 vector ROB |
 | 5. Tooling | B19 per-instruction timing trace · B20 complete the decoder tests |
 
@@ -84,7 +84,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 4. Run `build/bin/reef_trace build/workloads/gemv_int8.elf 60` and match the
    printed instructions to
    `src/reef_perf/experiments/run/workloads/gemv_int8.S`.
-5. Change one parameter with `-p` (e.g. `top.core.execute.params.vec_units 1`)
+5. Change one parameter with `-p` (e.g. `top.vector.vxu.params.vec_units 1`)
    and explain the change in cycles to a teammate.
 6. Run `uv run pytest` and make sure it passes.
 
@@ -408,7 +408,7 @@ drain happens at the ROI edges, not inside the loop.
 
 ---
 
-## Group 3: Execute
+## Group 3: Execute (backend and memory modules)
 
 ### B11: Multiplier and FPU latencies (~1–2 days)
 
@@ -445,7 +445,7 @@ dividing a large one.
      Spike's register file: `state->XPR[n]` for the encoding's rs1/rs2 fields.
 2. **Model:**
    - copy the values into `Inst` (`src/csrc/src/func_sim.cpp`);
-   - in `Execute::receive_inst()` for `DIV`, compute latency and occupancy as
+   - in `ScalarExec::receive_inst()` (`backend/scalar_exec.cpp`) for `DIV`, compute latency and occupancy as
      `div_base + (32 − clz(dividend))`. Use the unsigned or absolute value as the
      RTL does.
    - Keep the flat latency when a parameter `div_data_dependent` is `false`.
@@ -476,10 +476,11 @@ dividing a large one.
    - `load_chain` gives load-to-use latency (cycles per step, minus the loop
      overhead);
    - `load_stream` gives the throughput of back-to-back independent loads.
-2. Set `lsu_latency` and `lsu_cycles_per_line`. If the independent-load
-   throughput doesn't fit "one line per cycle", add a parameter
-   `lsu_min_cycles_per_inst` (time the slot is busy per instruction, even for a
-   1-line access) and use it in `Execute` (`src/csrc/src/execute.cpp`).
+2. Set `top.mem.tcm.params.dtcm_latency` and `dtcm_cycles_per_line`. If the
+   independent-load throughput doesn't fit "one line per cycle", add a
+   parameter `dtcm_min_cycles_per_access` (time the port is busy per access,
+   even for a 1-line access) and use it in `TcmModel`
+   (`src/csrc/src/mem/mem_timing.cpp`).
 3. Check that stores behave the same way. Add a `store_stream` workload.
 
 **Done when** `load_chain`, `load_stream` and `store_stream` are within 10% of
@@ -504,8 +505,9 @@ the RTL.
 - Deviations U6 and U7.
 
 **Steps**
-1. Add a parameter `lsu_vector_reg_overhead` (cycles per register, default `0`).
-2. In `Execute`, for `V_LOAD`/`V_STORE`, compute occupancy per register: group
+1. Add a parameter `lsu_vector_reg_overhead` (cycles per register, default `0`)
+   to the LSU (`backend/lsu.hpp`).
+2. In `Lsu::receive_inst()`, for `V_LOAD`/`V_STORE`, compute occupancy per register: group
    the element accesses by register (16 bytes of `vl × SEW` each), then add the
    overhead to each register's line count.
 3. Fit it with `vec_memcpy` (LMUL=8, 8 registers per op) and `vec_add_m1`
@@ -538,7 +540,7 @@ own reservation station:
 `NUM_MUL`, `NUM_DIV`, `NUM_PMTRDT`, `NUM_FMA`, the RS depths under `DISPATCH3`).
 
 **Steps**
-1. In `Execute`, replace the single `vec_` `ResourcePool` with one pool per unit type,
+1. In `Vxu` (`vector/vxu.cpp`), replace the single `lanes_` `ResourcePool` with one pool per unit type,
    each with its own `count`, `latency` and `cycles_per_uop` parameters. Keep a
    parameter `vec_unified` (default `true`) that restores today's single pool.
 2. Map the vector classes to pools: `V_ALU` → ALU, `V_MUL` → MUL, `V_DIV` → DIV,
@@ -568,12 +570,13 @@ A long LMUL=8 instruction can therefore hold up the ones behind it.
 `NUM_DE_UOP`, `NUM_DP_UOP`, `UQ_DEPTH`) and `rvv_backend_config.svh:5`.
 
 **Steps**
-1. Create a new Sparta unit for these stages, between Dispatch and the vector
-   pools: `src/csrc/include/reef_perf/vector.hpp` and `src/csrc/src/vector.cpp`
-   (add it to `CMakeLists.txt` and bind its ports in `reef_sim.cpp`). Copy the
-   structure of `Rob` (queue + tick event).
-2. Move vector instructions to it: Dispatch sends vector ops to `Vector`
-   instead of `Execute`. `Vector` issues uops into the B15 pools.
+1. Add a Sparta unit for these stages to the vector module, in front of
+   `vxu`: `vector/vdecode.hpp` and `.cpp`. Register it in
+   `Vector::add_factories()`, bind it in `Vector::bind()` and point
+   `Vector::kInInsts` at its input port (see docs/interfaces.md, "Adding a
+   unit to a module"). Copy the structure of `Rob` (queue + tick event).
+2. It issues uops into the B15 pools in `vxu`. Nothing outside the vector
+   module changes.
 3. Parameters: `decode_width`, `max_uops_per_decode_cycle`,
    `uop_queue_entries`, `uop_dispatch_width`.
 

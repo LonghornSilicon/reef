@@ -9,25 +9,27 @@
 # measurement).
 #
 # Use it:              reef_perf --elf x.elf -c configs/m3.yaml
-# Override one value:  -p top.core.fetch.params.fetch_interval 2
+# Override one value:  -p top.frontend.fetch.params.fetch_interval 2
 # List all parameters: reef_perf --elf x.elf --show-parameters --no-run
 #
 # This is the *simulation* config (what machine to simulate). Experiment
 # configs, which describe sweeps of runs, live under
 # src/reef_perf/experiments/<experiment>/configs/.
-
+#
+# One section per module; each module's owner maintains its section.
 top:
-  core:
+  frontend:
     fetch:
       params:
         fetch_width: 4          # 128-bit fetch = 4 instructions
         fetch_interval: 1       # B04: M3 starts a fetch only every other cycle
         redirect_penalty: 1     # B05: replace with static prediction + penalties
+  backend:
     dispatch:
       params:
         dispatch_width: 4
         ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
-    execute:
+    scalar_exec:
       params:
         alu_count: 4
         alu_latency: 1
@@ -40,10 +42,16 @@ top:
         fpu_occupancy: 1
         fdiv_latency: 12        # B11: measure
         fdiv_occupancy: 12
+    lsu:
+      params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
-        lsu_latency: 2          # B13: measure load-to-use
-        lsu_line_bytes: 16      # 128-bit data bus
-        lsu_cycles_per_line: 1  # B13: measure
+    rob:
+      params:
+        rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
+        retire_width: 4         # B10: confirm from RetirementBuffer.scala
+  vector:
+    vxu:
+      params:
         vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
         vec_units: 2            # B15: replace with per-type functional units
         vlen_bits: 128
@@ -51,7 +59,25 @@ top:
         vec_cycles_per_uop: 1   # B15
         vec_div_cycles_per_uop: 8   # B15
         vec_to_scalar_latency: 2    # B17: measure
-    rob:
+        vset_latency: 1         # U4: measure (was timed as an ALU op)
+  matrix:
+    mxu:
+      params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
+        mtx_queue_entries: 4
+        mtx_units: 1
+        mtx_latency: 8
+        mtx_occupancy: 4
+  mem:
+    tcm:
       params:
-        rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
-        retire_width: 4         # B10: confirm from RetirementBuffer.scala
+        itcm_latency: 2
+        itcm_line_bytes: 16
+        itcm_cycles_per_line: 1
+        dtcm_latency: 2         # B13: measure load-to-use
+        dtcm_line_bytes: 16     # 128-bit data bus
+        dtcm_cycles_per_line: 1 # B13: measure
+    axi:
+      params:
+        axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
+        axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
+        axi_max_outstanding: 4  # ASSUMPTION; no M3 source

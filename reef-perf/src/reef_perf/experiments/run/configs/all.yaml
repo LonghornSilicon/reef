@@ -15,6 +15,6 @@ workloads: all
 
 # Variant name -> Sparta parameter overrides applied to every workload.
 # Add entries to sweep a parameter, e.g.
-#   fetch2: {top.core.fetch.params.fetch_interval: 2}
+#   fetch2: {top.frontend.fetch.params.fetch_interval: 2}
 variants:
   m3: {}
