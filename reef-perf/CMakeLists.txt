@@ -58,6 +58,10 @@ add_library(reef_perf_core STATIC
     src/csrc/src/vector/vector.cpp
     src/csrc/src/vector/vxu.cpp
 
+    src/csrc/src/mem/mem_timing.cpp
+    src/csrc/src/mem/memory.cpp
+    src/csrc/src/mem/units.cpp
+
     src/csrc/src/reef_sim.cpp
 )
 target_include_directories(reef_perf_core PUBLIC src/csrc/include)

@@ -16,6 +16,10 @@ ResourcePool::ResourcePool(std::string name, std::uint32_t count)
     }
 }
 
+std::uint64_t ResourcePool::next_free(std::uint64_t earliest) const {
+    return std::max(earliest, *std::ranges::min_element(free_at_));
+}
+
 std::uint64_t ResourcePool::reserve(std::uint64_t earliest,
                                     std::uint64_t occupancy) {
     auto unit = std::ranges::min_element(free_at_);

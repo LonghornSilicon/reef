@@ -47,6 +47,7 @@ ReefSim::ReefSim(sparta::Scheduler& scheduler, const std::string& elf_path,
     : sparta::app::Simulation("reef_perf", &scheduler),
       funcsim_(std::make_unique<FuncSim>(elf_path, options)),
       elf_path_(elf_path) {
+    mem_.set_memory_map(options.regions);
     for (Module* module : modules()) {
         module->add_factories(*getResourceSet());
     }
@@ -55,11 +56,11 @@ ReefSim::ReefSim(sparta::Scheduler& scheduler, const std::string& elf_path,
 ReefSim::~ReefSim() { getRoot()->enterTeardown(); }
 
 std::vector<Module*> ReefSim::modules() {
-    return {&frontend_, &backend_, &vector_};
+    return {&frontend_, &backend_, &vector_, &mem_};
 }
 
 std::vector<const Module*> ReefSim::modules() const {
-    return {&frontend_, &backend_, &vector_};
+    return {&frontend_, &backend_, &vector_, &mem_};
 }
 
 void ReefSim::buildTree_() {
@@ -91,6 +92,7 @@ void ReefSim::bindTree_() {
                Backend::kInVectorCredits);
 
     frontend_.set_func_sim(funcsim_.get());
+    backend_.set_memory(&mem_);
 }
 
 void ReefSim::print_summary(std::ostream& os) const {

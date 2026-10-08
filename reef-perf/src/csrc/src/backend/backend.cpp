@@ -47,6 +47,8 @@ void Backend::bind() {
     rob_ = unit<Rob>(Rob::name);
 }
 
+void Backend::set_memory(MemoryInterface* memory) { lsu_->set_memory(memory); }
+
 std::vector<const ResourcePool*> Backend::pools() const {
     std::vector<const ResourcePool*> all = scalar_exec_->pools();
     for (const ResourcePool* pool : lsu_->pools()) {

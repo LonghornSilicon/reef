@@ -74,8 +74,7 @@ int run(int argc, char** argv) {
     reef_perf::SpikeOptions spike;
     spike.isa = opts.isa;
     if (cls.getVariablesMap().contains("highmem")) {
-        constexpr std::uint32_t kOneMiB = 1024 * 1024;
-        spike.regions = {{0x00000000, kOneMiB}, {0x00100000, kOneMiB}};
+        spike.regions = reef_perf::highmem_memory_map();
     }
 
     sparta::Scheduler scheduler;

@@ -476,10 +476,11 @@ dividing a large one.
    - `load_chain` gives load-to-use latency (cycles per step, minus the loop
      overhead);
    - `load_stream` gives the throughput of back-to-back independent loads.
-2. Set `lsu_latency` and `lsu_cycles_per_line`. If the independent-load
-   throughput doesn't fit "one line per cycle", add a parameter
-   `lsu_min_cycles_per_inst` (time the slot is busy per instruction, even for a
-   1-line access) and use it in `Execute` (`src/csrc/src/execute.cpp`).
+2. Set `top.mem.tcm.params.dtcm_latency` and `dtcm_cycles_per_line`. If the
+   independent-load throughput doesn't fit "one line per cycle", add a
+   parameter `dtcm_min_cycles_per_access` (time the port is busy per access,
+   even for a 1-line access) and use it in `TcmModel`
+   (`src/csrc/src/mem/mem_timing.cpp`).
 3. Check that stores behave the same way. Add a `store_stream` workload.
 
 **Done when** `load_chain`, `load_stream` and `store_stream` are within 10% of

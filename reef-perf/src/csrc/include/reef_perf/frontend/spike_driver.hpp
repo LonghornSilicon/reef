@@ -13,6 +13,7 @@
  */
 
 #include "reef_perf/common/inst.hpp"
+#include "reef_perf/common/memory_map.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -28,22 +29,13 @@ constexpr std::uint32_t kMpauseEncoding = 0x08000073;
 /// ISA string for Reef's M3 baseline: RV32IMF + Zbb + Zve32f, VLEN = 128.
 constexpr const char* kDefaultIsa = "rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b";
 
-/// A contiguous range of physical memory backed by host RAM.
-struct MemoryRegion {
-    /// First byte address of the region.
-    std::uint32_t start = 0;
-    /// Size of the region in bytes.
-    std::uint32_t length = 0;
-};
-
 /// Configuration of the simulated machine.
 struct SpikeOptions {
     /// ISA string passed to Spike.
     std::string isa = kDefaultIsa;
-    /// Memory regions. Accesses outside them raise access faults.
-    /// The default is Reef's M3 default map: 8 KB ITCM, 32 KB DTCM.
-    std::vector<MemoryRegion> regions = {{0x00000000, 0x2000},
-                                         {0x00010000, 0x8000}};
+    /// Memory regions, backed by host RAM. Accesses outside them raise
+    /// access faults. The default is Reef's M3 default map.
+    std::vector<MemoryRegion> regions = default_memory_map();
 };
 
 /// Everything the timing model needs to know about one executed instruction.

@@ -44,6 +44,15 @@ TEST(ResourcePoolTest, CountsOperationsAndBusyCycles) {
     EXPECT_EQ(pool.busy_cycles(), 7U);
 }
 
+TEST(ResourcePoolTest, NextFreeMatchesReserveWithoutBooking) {
+    ResourcePool pool("lsu", 1);
+    pool.reserve(0, 4);
+    EXPECT_EQ(pool.next_free(1), 4U);
+    EXPECT_EQ(pool.next_free(9), 9U);
+    EXPECT_EQ(pool.ops(), 1U);
+    EXPECT_EQ(pool.reserve(1, 1), 4U);
+}
+
 TEST(ResourcePoolTest, RejectsEmptyPool) {
     EXPECT_THROW(ResourcePool("none", 0), std::invalid_argument);
 }
