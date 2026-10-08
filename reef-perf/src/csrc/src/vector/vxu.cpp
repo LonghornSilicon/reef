@@ -33,7 +33,8 @@ Vxu::Vxu(sparta::TreeNode* node, const VxuParameterSet* params)
     sparta_assert(cfg_.vlen_bits >= 8);
     in_insts_.registerConsumerHandler(
         CREATE_SPARTA_HANDLER_WITH_DATA(Vxu, receive_inst, InstPtr));
-    sparta::StartupEvent(node, CREATE_SPARTA_HANDLER(Vxu, send_initial_credits));
+    sparta::StartupEvent(node,
+                         CREATE_SPARTA_HANDLER(Vxu, send_initial_credits));
 }
 
 void Vxu::send_initial_credits() { out_credits_.send(cfg_.vec_queue_entries); }

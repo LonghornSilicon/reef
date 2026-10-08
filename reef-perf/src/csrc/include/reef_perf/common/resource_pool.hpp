@@ -34,6 +34,13 @@ class ResourcePool {
      */
     std::uint64_t reserve(std::uint64_t earliest, std::uint64_t occupancy);
 
+    /** The cycle reserve() would start an operation, without booking it.
+     *
+     *  @param earliest First cycle the operation may start.
+     *  @return max(earliest, the cycle the earliest-free unit frees up).
+     */
+    [[nodiscard]] std::uint64_t next_free(std::uint64_t earliest) const;
+
     /** Name of the pool.
      *
      *  @return The name given to the constructor.

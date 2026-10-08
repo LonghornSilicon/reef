@@ -45,9 +45,6 @@ top:
     lsu:
       params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
-        lsu_latency: 2          # B13: measure load-to-use
-        lsu_line_bytes: 16      # 128-bit data bus
-        lsu_cycles_per_line: 1  # B13: measure
     rob:
       params:
         rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
@@ -63,3 +60,17 @@ top:
         vec_div_cycles_per_uop: 8   # B15
         vec_to_scalar_latency: 2    # B17: measure
         vset_latency: 1         # U4: measure (was timed as an ALU op)
+  mem:
+    tcm:
+      params:
+        itcm_latency: 2
+        itcm_line_bytes: 16
+        itcm_cycles_per_line: 1
+        dtcm_latency: 2         # B13: measure load-to-use
+        dtcm_line_bytes: 16     # 128-bit data bus
+        dtcm_cycles_per_line: 1 # B13: measure
+    axi:
+      params:
+        axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
+        axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
+        axi_max_outstanding: 4  # ASSUMPTION; no M3 source

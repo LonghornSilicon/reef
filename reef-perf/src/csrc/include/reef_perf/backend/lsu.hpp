@@ -5,14 +5,15 @@
  *         and vector memory instruction goes through.
  *
  *  Super-coarse behaviour, deliberately simpler than the M3 RTL:
- *  - one slot: an instruction holds it for (distinct lines touched x
- *    lsu_cycles_per_line) cycles, using the addresses Spike recorded;
- *  - load-to-use latency is lsu_latency + occupancy - 1;
+ *  - one slot. When it is free, the LSU hands the instruction's accesses
+ *    (the addresses Spike recorded) to the memory module, which says when the
+ *    transfer starts, how long it holds the slot and its latency;
  *  - Dispatch sees the queue through credits; an entry frees when its
  *    instruction starts.
  */
 
 #include "reef_perf/common/inst.hpp"
+#include "reef_perf/common/interfaces.hpp"
 #include "reef_perf/common/resource_pool.hpp"
 
 #include "sparta/ports/DataPort.hpp"
@@ -40,14 +41,6 @@ class Lsu : public sparta::Unit {
 
         /// LSU queue entries, as seen by Dispatch.
         PARAMETER(std::uint32_t, lsu_queue_entries, 4, "LSU queue entries")
-        /// Load-to-use latency of a single-line access.
-        PARAMETER(std::uint32_t, lsu_latency, 2, "Load-to-use latency")
-        /// Bytes per memory transaction.
-        PARAMETER(std::uint32_t, lsu_line_bytes, 16,
-                  "Bytes per memory transaction")
-        /// Cycles the LSU is busy per line transaction.
-        PARAMETER(std::uint32_t, lsu_cycles_per_line, 1,
-                  "Cycles the LSU is busy per line transaction")
     };
 
     /// Name of this unit in the Sparta tree. Sparta's ResourceFactory
@@ -61,6 +54,13 @@ class Lsu : public sparta::Unit {
      *  @param params The unit's parameters.
      */
     Lsu(sparta::TreeNode* node, const LsuParameterSet* params);
+
+    /** Connects the memory module. Called once, before the simulation
+     *  runs.
+     *
+     *  @param memory The memory module; must outlive this unit.
+     */
+    void set_memory(MemoryInterface* memory) { memory_ = memory; }
 
     /** All pools, for the end-of-run summary.
      *
@@ -80,21 +80,10 @@ class Lsu : public sparta::Unit {
     /// Startup handler: tells Dispatch how big the queue is.
     void send_initial_credits();
 
-    /** Distinct memory lines an instruction touches.
-     *
-     *  @param inst A memory instruction.
-     *  @return Number of lsu_line_bytes-sized lines (at least 1).
-     */
-    [[nodiscard]] std::uint32_t distinct_lines(const Inst& inst) const;
-
     /// Value of the lsu_queue_entries parameter.
     const std::uint32_t queue_entries_;
-    /// Value of the lsu_latency parameter.
-    const std::uint32_t latency_;
-    /// Value of the lsu_line_bytes parameter.
-    const std::uint32_t line_bytes_;
-    /// Value of the lsu_cycles_per_line parameter.
-    const std::uint32_t cycles_per_line_;
+    /// The memory module; set by set_memory().
+    MemoryInterface* memory_ = nullptr;
     /// The LSU slot.
     ResourcePool slot_;
 

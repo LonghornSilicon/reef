@@ -16,6 +16,7 @@
  */
 
 #include "reef_perf/backend/dispatch.hpp"
+#include "reef_perf/common/interfaces.hpp"
 #include "reef_perf/common/module.hpp"
 #include "reef_perf/common/resource_pool.hpp"
 
@@ -54,6 +55,12 @@ class Backend : public Module {
 
     /// Binds Dispatch, the scalar units, the LSU and the Rob together.
     void bind() override;
+
+    /** Connects the memory module to the LSU. Call after bind().
+     *
+     *  @param memory The memory module; must outlive the simulation.
+     */
+    void set_memory(MemoryInterface* memory);
 
     /** The backend's pools.
      *
