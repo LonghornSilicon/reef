@@ -55,6 +55,8 @@ const char* class_name(InstClass cls) {
         return "v_store";
     case InstClass::V_TO_SCALAR:
         return "v_to_scalar";
+    case InstClass::MATRIX:
+        return "matrix";
     case InstClass::UNKNOWN:
     case InstClass::NUM_CLASSES:
         break;

@@ -73,6 +73,7 @@ enum class ExecTarget : std::uint8_t {
     SCALAR, ///< backend.scalar_exec: integer, FP, branch, CSR, system.
     LSU,    ///< backend.lsu: scalar, FP and vector loads and stores.
     VECTOR, ///< vector.vxu: vector arithmetic and vset*.
+    MATRIX, ///< matrix.mxu: matrix-engine ops.
 };
 
 /** Where Dispatch sends an instruction.
@@ -86,6 +87,9 @@ enum class ExecTarget : std::uint8_t {
 inline ExecTarget exec_target(const Inst& inst) {
     if (inst.is_memory()) {
         return ExecTarget::LSU;
+    }
+    if (inst.is_matrix()) {
+        return ExecTarget::MATRIX;
     }
     if (inst.is_vector()) {
         return ExecTarget::VECTOR;
