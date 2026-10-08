@@ -136,8 +136,7 @@ void ReefSim::print_summary(std::ostream& os) const {
                << (module->name() + "." + pool->name()) << std::right << " x"
                << pool->count() << "  ops " << std::setw(10) << pool->ops()
                << "  util " << std::setw(5)
-               << percent(pool->busy_cycles(), pool->count() * cycles)
-               << "%\n";
+               << percent(pool->busy_cycles(), pool->count() * cycles) << "%\n";
         }
     }
     os << "============================================================\n";

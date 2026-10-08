@@ -14,8 +14,8 @@
  *  See docs/tickets-beginner.md for how M3 actually behaves.
  */
 
-#include "reef_perf/frontend/func_sim.hpp"
 #include "reef_perf/common/inst.hpp"
+#include "reef_perf/frontend/func_sim.hpp"
 
 #include "sparta/events/UniqueEvent.hpp"
 #include "sparta/ports/DataPort.hpp"

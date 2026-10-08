@@ -102,8 +102,8 @@ class ReefSim : public sparta::app::Simulation {
      *  @param to Module that owns the second port.
      *  @param to_port The second port, relative to its module.
      */
-    void bind_ports(const Module& from, const char* from_port,
-                    const Module& to, const char* to_port);
+    void bind_ports(const Module& from, const char* from_port, const Module& to,
+                    const char* to_port);
 
     /// Functional simulator feeding the frontend.
     std::unique_ptr<FuncSim> funcsim_;

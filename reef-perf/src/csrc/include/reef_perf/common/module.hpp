@@ -4,8 +4,8 @@
  *  @brief Base class of the model's top-level modules (frontend, backend,
  *         vector, matrix, memory).
  *
- *  A module owns a subtree of the Sparta tree, top.<module>, and the units
- *  under it, top.<module>.<unit>. It wires its own units together; the
+ *  A module owns a subtree of the Sparta tree, top.MODULE, and the units
+ *  under it, top.MODULE.UNIT. It wires its own units together; the
  *  simulation only binds the *public* ports each module lists in its header,
  *  so a module can add, remove or rename internal units without touching any
  *  other module. See docs/interfaces.md.
@@ -31,7 +31,7 @@ using NodeList = std::vector<std::unique_ptr<sparta::TreeNode>>;
  *
  *  Life cycle, driven by ReefSim:
  *  1. add_factories(): register a Sparta ResourceFactory per unit.
- *  2. build(): create top.<module> and one tree node per unit.
+ *  2. build(): create top.MODULE and one tree node per unit.
  *  3. (Sparta creates the units and applies the configuration.)
  *  4. bind(): bind the ports between this module's own units and look up
  *     the unit objects.
@@ -77,7 +77,7 @@ class Module {
      */
     virtual void add_factories(sparta::ResourceSet& resources) = 0;
 
-    /** Creates top.<module> and a tree node for every unit.
+    /** Creates top.MODULE and a tree node for every unit.
      *
      *  @param parent The tree root ("top").
      *  @param resources The resource set the factories were added to.
@@ -143,7 +143,7 @@ class Module {
     std::string name_;
     /// Tree node description.
     std::string description_;
-    /// top.<module>, set by build().
+    /// top.MODULE, set by build().
     sparta::TreeNode* node_ = nullptr;
 };
 

@@ -54,8 +54,8 @@ MemResponse AxiModel::access(std::span<const MemAccess> accesses,
     resp.occupancy = distinct_blocks(accesses, bytes_per_beat_);
     resp.latency = latency_ + resp.occupancy - 1;
     // Start when both the data channel and an outstanding slot are free.
-    resp.start = std::max(data_.next_free(earliest),
-                          outstanding_.next_free(earliest));
+    resp.start =
+        std::max(data_.next_free(earliest), outstanding_.next_free(earliest));
     data_.reserve(resp.start, resp.occupancy);
     outstanding_.reserve(resp.start, resp.latency);
     return resp;

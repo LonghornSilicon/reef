@@ -20,8 +20,6 @@ std::vector<std::string> Vector::unit_names() const { return {Vxu::name}; }
 
 void Vector::bind() { vxu_ = unit<Vxu>(Vxu::name); }
 
-std::vector<const ResourcePool*> Vector::pools() const {
-    return vxu_->pools();
-}
+std::vector<const ResourcePool*> Vector::pools() const { return vxu_->pools(); }
 
 } // namespace reef_perf

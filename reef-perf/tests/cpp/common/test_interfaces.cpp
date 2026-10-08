@@ -41,9 +41,9 @@ TEST(ExecTargetTest, EveryMemoryClassGoesToTheLsu) {
 
 TEST(ExecTargetTest, VectorArithmeticGoesToTheVectorModule) {
     for (const InstClass cls :
-         {InstClass::VSET, InstClass::V_ALU, InstClass::V_MUL,
-          InstClass::V_DIV, InstClass::V_FP, InstClass::V_FDIV,
-          InstClass::V_PERM, InstClass::V_TO_SCALAR}) {
+         {InstClass::VSET, InstClass::V_ALU, InstClass::V_MUL, InstClass::V_DIV,
+          InstClass::V_FP, InstClass::V_FDIV, InstClass::V_PERM,
+          InstClass::V_TO_SCALAR}) {
         EXPECT_EQ(target_of(cls), ExecTarget::VECTOR) << class_name(cls);
     }
 }

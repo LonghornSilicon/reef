@@ -19,6 +19,7 @@ namespace {
 std::vector<MemAccess> accesses(const std::vector<std::uint32_t>& addrs,
                                 std::uint8_t size) {
     std::vector<MemAccess> out;
+    out.reserve(addrs.size());
     for (const std::uint32_t addr : addrs) {
         out.push_back({addr, size, false});
     }
@@ -83,7 +84,8 @@ TEST(AxiModelTest, OutstandingLimitHoldsBackTheNextOperation) {
 }
 
 TEST(MemoryRegionTest, ContainsIsHalfOpen) {
-    const MemoryRegion dtcm{0x10000, 0x8000, RegionKind::DTCM};
+    const MemoryRegion dtcm{
+        .start = 0x10000, .length = 0x8000, .kind = RegionKind::DTCM};
     EXPECT_FALSE(dtcm.contains(0xffff));
     EXPECT_TRUE(dtcm.contains(0x10000));
     EXPECT_TRUE(dtcm.contains(0x17fff));
