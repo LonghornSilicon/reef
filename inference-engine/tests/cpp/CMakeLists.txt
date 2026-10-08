@@ -19,12 +19,14 @@ target_link_libraries(test_embedding_cpp PRIVATE inference_engine GTest::gtest_m
 gtest_discover_tests(test_embedding_cpp)
 
 # Attention
-# test_attention.cpp cannot link into a runnable test until the MLP team's
-# linear() lands (the last undefined symbol in the attention pipeline). The
-# object target keeps it compiling in the meantime and gives clang-tidy a
-# compile command; swap it for the executable target when linear() lands.
-add_library(test_attention_lint OBJECT test_attention.cpp)
-target_link_libraries(test_attention_lint PRIVATE inference_engine GTest::gtest_main)
+add_executable(test_attention_cpp test_attention.cpp)
+target_link_libraries(test_attention_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_attention_cpp)
+
+# Linear
+add_executable(test_linear_cpp test_linear.cpp)
+target_link_libraries(test_linear_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_linear_cpp)
 
 # MLP
 add_executable(test_mlp_cpp test_mlp.cpp)

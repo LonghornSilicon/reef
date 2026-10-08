@@ -6,9 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <limits>
-#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -17,14 +15,18 @@
 
 namespace inference_engine {
 
-/**
+/** Host-side tensor holding values of any rank in row-major order.
+ *
+ * An empty shape describes a scalar holding one value. transpose() and
+ * reshape() operate at any rank; matmul() and valid_matrix() are the
+ * two-dimensional operations.
  *
  * @tparam Scalar Type of each stored value.
  */
 template <typename Scalar> struct Tensor {
     /// Tensor dimensions in axis order.
     std::vector<std::size_t> shape;
-    /// Values in row-major order for two-dimensional tensors.
+    /// Values in row-major order, with the innermost axis contiguous.
     std::vector<Scalar> values;
 };
 
@@ -242,22 +244,5 @@ Tensor<Accumulator> matmul(const Tensor<Scalar>& left,
     }
     return result;
 }
-
-/** Apply a weight matrix and an optional bias to input rows.
- *
- * @tparam Scalar Tensor value type.
- * @param input Input rows.
- * @param weight Matrix of output weights.
- * @param bias Optional reference to a bias tensor; no copy is made.
- * @return Transformed rows.
- */
-// @ MLP team
-// TODO: Apply x @ weight.T + optional bias with the same weight layout as the
-// workloads reference.
-template <typename Scalar>
-Tensor<Scalar>
-linear(const Tensor<Scalar>& input, const Tensor<Scalar>& weight,
-       std::optional<std::reference_wrapper<const Tensor<Scalar>>> bias =
-           std::nullopt);
 
 } // namespace inference_engine

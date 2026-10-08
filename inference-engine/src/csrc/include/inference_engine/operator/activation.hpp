@@ -12,18 +12,49 @@
 #include <functional>
 #include <limits>
 #include <numeric>
+#include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace inference_engine {
 
 /** Apply the tanh-approximation GELU elementwise.
  *
+ * Uses the gelu_pytorch_tanh form the workloads reference pins (see
+ * workloads/operators/activation.py), not the erf form:
+ *   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))
+ *
+ * @tparam Scalar Floating-point tensor value type. Integer tensors need an
+ * agreed output scale first, so they fail to compile here rather than
+ * silently truncating.
  * @param input Input values.
  * @return Tensor with the same shape after activation.
+ * @throws std::invalid_argument If the shape does not match the value count.
  */
-// @ MLP team
-// TODO: Implement and set a numeric tolerance for host and Coral comparisons.
-template <typename Scalar> Tensor<Scalar> gelu(const Tensor<Scalar>& input);
+template <typename Scalar> Tensor<Scalar> gelu(const Tensor<Scalar>& input) {
+    static_assert(std::is_floating_point_v<Scalar>,
+                  "gelu requires a floating-point scalar; integer tensors "
+                  "need an agreed output scale first");
+    if (detail::element_count(input.shape) != input.values.size()) {
+        throw std::invalid_argument("gelu shape does not match values");
+    }
+
+    /// sqrt(2 / pi).
+    constexpr auto kCoefficient = static_cast<Scalar>(0.7978845608028654);
+    constexpr auto kCubic = static_cast<Scalar>(0.044715);
+    constexpr auto kHalf = static_cast<Scalar>(0.5);
+    constexpr auto kOne = static_cast<Scalar>(1);
+
+    Tensor<Scalar> output{input.shape,
+                          std::vector<Scalar>(input.values.size())};
+    for (std::size_t index = 0; index < input.values.size(); ++index) {
+        const Scalar value = input.values[index];
+        const Scalar inner =
+            kCoefficient * (value + (kCubic * value * value * value));
+        output.values[index] = kHalf * value * (kOne + std::tanh(inner));
+    }
+    return output;
+}
 
 /** Score written to disallowed attention positions and treated by softmax as
  * fully masked: negative infinity when the scalar type has one, otherwise the

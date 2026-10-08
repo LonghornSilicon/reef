@@ -5,6 +5,7 @@
  */
 
 #include "inference_engine/operator/activation.hpp"
+#include "inference_engine/operator/linear.hpp"
 #include "inference_engine/tensor.hpp"
 
 #include <algorithm>
