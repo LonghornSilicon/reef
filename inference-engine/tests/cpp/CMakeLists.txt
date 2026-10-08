@@ -25,8 +25,8 @@ gtest_discover_tests(test_embedding_cpp)
 # compile command; swap it for the executable target when linear() lands.
 add_library(test_attention_lint OBJECT test_attention.cpp)
 target_link_libraries(test_attention_lint PRIVATE inference_engine GTest::gtest_main)
-# add_executable(test_attention_cpp test_attention.cpp)
-# target_link_libraries(test_attention_cpp PRIVATE inference_engine GTest::gtest_main)
-# gtest_discover_tests(test_attention_cpp)
 
-# TODO: Add focused tests for MLP as implemented.
+# MLP
+add_executable(test_mlp_cpp test_mlp.cpp)
+target_link_libraries(test_mlp_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_mlp_cpp)
