@@ -29,7 +29,7 @@ top:
       params:
         dispatch_width: 4
         ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
-    execute:
+    scalar_exec:
       params:
         alu_count: 4
         alu_latency: 1
@@ -42,10 +42,19 @@ top:
         fpu_occupancy: 1
         fdiv_latency: 12        # B11: measure
         fdiv_occupancy: 12
+    lsu:
+      params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
         lsu_latency: 2          # B13: measure load-to-use
         lsu_line_bytes: 16      # 128-bit data bus
         lsu_cycles_per_line: 1  # B13: measure
+    rob:
+      params:
+        rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
+        retire_width: 4         # B10: confirm from RetirementBuffer.scala
+  vector:
+    vxu:
+      params:
         vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
         vec_units: 2            # B15: replace with per-type functional units
         vlen_bits: 128
@@ -53,7 +62,4 @@ top:
         vec_cycles_per_uop: 1   # B15
         vec_div_cycles_per_uop: 8   # B15
         vec_to_scalar_latency: 2    # B17: measure
-    rob:
-      params:
-        rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
-        retire_width: 4         # B10: confirm from RetirementBuffer.scala
+        vset_latency: 1         # U4: measure (was timed as an ALU op)

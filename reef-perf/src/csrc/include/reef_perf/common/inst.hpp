@@ -20,8 +20,8 @@ namespace reef_perf {
 
 /** Coarse instruction classes.
  *
- *  Each class maps to one execution resource in Execute and to a latency and
- *  occupancy parameter.
+ *  Each class maps to one execution resource (see exec_target()) and to a
+ *  latency and occupancy parameter.
  */
 enum class InstClass : std::uint8_t {
     ALU,         ///< Integer ALU, Zbb, lui/auipc.

@@ -5,9 +5,14 @@
  *         Tree location: top.backend.
  *
  *  Units:
- *  - top.backend.dispatch  Dispatch (instruction buffer, scoreboard, credits)
- *  - top.backend.execute   Execute
- *  - top.backend.rob       Rob
+ *  - top.backend.dispatch     Dispatch (instruction buffer, scoreboard,
+ *                             credits, routing)
+ *  - top.backend.scalar_exec  ScalarExec (integer and FP units)
+ *  - top.backend.lsu          Lsu (scalar and vector loads and stores)
+ *  - top.backend.rob          Rob
+ *
+ *  Vector instructions leave the backend through kOutVector; the vector
+ *  module owns their timing.
  */
 
 #include "reef_perf/backend/dispatch.hpp"
@@ -20,8 +25,9 @@
 
 namespace reef_perf {
 
-class Execute;
+class Lsu;
 class Rob;
+class ScalarExec;
 
 /// The backend module.
 class Backend : public Module {
@@ -31,6 +37,11 @@ class Backend : public Module {
     /// Public port: instruction-buffer credits out to the frontend.
     static constexpr const char* kOutFetchCredits =
         "dispatch.ports.out_fetch_credits";
+    /// Public port: vector instructions out to the vector module (InstPtr).
+    static constexpr const char* kOutVector = "dispatch.ports.out_vector";
+    /// Public port: vector command-queue credits in from the vector module.
+    static constexpr const char* kInVectorCredits =
+        "dispatch.ports.in_vec_credits";
 
     /// Creates the module; its tree node is top.backend.
     Backend();
@@ -41,12 +52,12 @@ class Backend : public Module {
      */
     void add_factories(sparta::ResourceSet& resources) override;
 
-    /// Binds Dispatch, Execute and the Rob together.
+    /// Binds Dispatch, the scalar units, the LSU and the Rob together.
     void bind() override;
 
     /** The backend's pools.
      *
-     *  @return Execute's pools.
+     *  @return alu, mul, div, fpu, fdiv, lsu.
      */
     [[nodiscard]] std::vector<const ResourcePool*> pools() const override;
 
@@ -78,15 +89,17 @@ class Backend : public Module {
   protected:
     /** The module's units.
      *
-     *  @return {"dispatch", "execute", "rob"}.
+     *  @return {"dispatch", "scalar_exec", "lsu", "rob"}.
      */
     [[nodiscard]] std::vector<std::string> unit_names() const override;
 
   private:
     /// Dispatch unit, valid after bind().
     Dispatch* dispatch_ = nullptr;
-    /// Execute unit, valid after bind().
-    Execute* execute_ = nullptr;
+    /// Scalar units, valid after bind().
+    ScalarExec* scalar_exec_ = nullptr;
+    /// Load/store unit, valid after bind().
+    Lsu* lsu_ = nullptr;
     /// Retirement buffer, valid after bind().
     Rob* rob_ = nullptr;
 };

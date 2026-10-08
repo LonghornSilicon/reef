@@ -116,15 +116,39 @@ bool Dispatch::can_dispatch(const InstPtr& inst, std::uint64_t now,
         why = StallReason::ROB_FULL;
         return false;
     }
-    if (inst->is_memory() && lsu_credits_ == 0) {
-        why = StallReason::LSU_FULL;
-        return false;
-    }
-    if (inst->is_vector() && !inst->is_memory() && vec_credits_ == 0) {
-        why = StallReason::VEC_FULL;
-        return false;
+    switch (exec_target(*inst)) {
+    case ExecTarget::SCALAR:
+        break;
+    case ExecTarget::LSU:
+        if (lsu_credits_ == 0) {
+            why = StallReason::LSU_FULL;
+            return false;
+        }
+        break;
+    case ExecTarget::VECTOR:
+        if (vec_credits_ == 0) {
+            why = StallReason::VEC_FULL;
+            return false;
+        }
+        break;
     }
     return true;
+}
+
+void Dispatch::send_to_target(const InstPtr& inst) {
+    switch (exec_target(*inst)) {
+    case ExecTarget::SCALAR:
+        out_scalar_.send(inst);
+        break;
+    case ExecTarget::LSU:
+        --lsu_credits_;
+        out_lsu_.send(inst);
+        break;
+    case ExecTarget::VECTOR:
+        --vec_credits_;
+        out_vector_.send(inst);
+        break;
+    }
 }
 
 void Dispatch::dispatch_group() {
@@ -142,12 +166,7 @@ void Dispatch::dispatch_group() {
             last_writer_.at(reg) = inst;
         }
         --rob_credits_;
-        if (inst->is_memory()) {
-            --lsu_credits_;
-        } else if (inst->is_vector()) {
-            --vec_credits_;
-        }
-        out_execute_.send(inst);
+        send_to_target(inst);
         out_rob_.send(inst);
         ibuf_.pop_front();
         ++count;

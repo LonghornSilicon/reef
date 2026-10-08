@@ -1,7 +1,8 @@
 #include "reef_perf/backend/backend.hpp"
 
-#include "reef_perf/backend/execute.hpp"
+#include "reef_perf/backend/lsu.hpp"
 #include "reef_perf/backend/rob.hpp"
+#include "reef_perf/backend/scalar_exec.hpp"
 
 #include "sparta/ports/Port.hpp"
 #include "sparta/simulation/ResourceFactory.hpp"
@@ -18,34 +19,40 @@ Backend::Backend()
 void Backend::add_factories(sparta::ResourceSet& resources) {
     resources.addResourceFactory<
         sparta::ResourceFactory<Dispatch, Dispatch::DispatchParameterSet>>();
+    resources.addResourceFactory<sparta::ResourceFactory<
+        ScalarExec, ScalarExec::ScalarExecParameterSet>>();
     resources.addResourceFactory<
-        sparta::ResourceFactory<Execute, Execute::ExecuteParameterSet>>();
+        sparta::ResourceFactory<Lsu, Lsu::LsuParameterSet>>();
     resources.addResourceFactory<
         sparta::ResourceFactory<Rob, Rob::RobParameterSet>>();
 }
 
 std::vector<std::string> Backend::unit_names() const {
-    return {Dispatch::name, Execute::name, Rob::name};
+    return {Dispatch::name, ScalarExec::name, Lsu::name, Rob::name};
 }
 
 void Backend::bind() {
-    sparta::bind(port("dispatch.ports.out_execute"),
-                 port("execute.ports.in_insts"));
+    sparta::bind(port("dispatch.ports.out_scalar"),
+                 port("scalar_exec.ports.in_insts"));
+    sparta::bind(port("dispatch.ports.out_lsu"), port("lsu.ports.in_insts"));
+    sparta::bind(port("lsu.ports.out_credits"),
+                 port("dispatch.ports.in_lsu_credits"));
     sparta::bind(port("dispatch.ports.out_rob"), port("rob.ports.in_insts"));
     sparta::bind(port("rob.ports.out_credits"),
                  port("dispatch.ports.in_rob_credits"));
-    sparta::bind(port("execute.ports.out_lsu_credits"),
-                 port("dispatch.ports.in_lsu_credits"));
-    sparta::bind(port("execute.ports.out_vec_credits"),
-                 port("dispatch.ports.in_vec_credits"));
 
     dispatch_ = unit<Dispatch>(Dispatch::name);
-    execute_ = unit<Execute>(Execute::name);
+    scalar_exec_ = unit<ScalarExec>(ScalarExec::name);
+    lsu_ = unit<Lsu>(Lsu::name);
     rob_ = unit<Rob>(Rob::name);
 }
 
 std::vector<const ResourcePool*> Backend::pools() const {
-    return execute_->pools();
+    std::vector<const ResourcePool*> all = scalar_exec_->pools();
+    for (const ResourcePool* pool : lsu_->pools()) {
+        all.push_back(pool);
+    }
+    return all;
 }
 
 std::uint64_t Backend::num_retired() const { return rob_->num_retired(); }

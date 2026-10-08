@@ -6,7 +6,8 @@
  *
  *  Tree (parameter paths are top.MODULE.UNIT.params.NAME):
  *  - top.frontend  Frontend (fetch, Spike, decode)
- *  - top.backend   Backend (dispatch, execute, rob)
+ *  - top.backend   Backend (dispatch, scalar_exec, lsu, rob)
+ *  - top.vector    Vector (vxu)
  *
  *  This file only knows each module's *public* ports and summary
  *  accessors; everything inside a module belongs to that module. See
@@ -18,6 +19,7 @@
 #include "reef_perf/frontend/frontend.hpp"
 #include "reef_perf/frontend/func_sim.hpp"
 #include "reef_perf/frontend/spike_driver.hpp"
+#include "reef_perf/vector/vector.hpp"
 
 #include "sparta/app/Simulation.hpp"
 
@@ -107,6 +109,8 @@ class ReefSim : public sparta::app::Simulation {
     Frontend frontend_;
     /// Backend module.
     Backend backend_;
+    /// Vector module.
+    Vector vector_;
 };
 
 } // namespace reef_perf

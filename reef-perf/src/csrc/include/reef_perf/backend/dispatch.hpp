@@ -2,7 +2,8 @@
 
 /** @file
  *  @brief Dispatch unit: holds the instruction buffer and sends instructions,
- *         in program order, to Execute and the Rob.
+ *         in program order, to the unit that executes them (see
+ *         exec_target()) and to the Rob.
  *
  *  Super-coarse behaviour, deliberately simpler than the M3 RTL:
  *  - up to `dispatch_width` instructions per cycle, strictly in order: the
@@ -20,6 +21,7 @@
  */
 
 #include "reef_perf/common/inst.hpp"
+#include "reef_perf/common/interfaces.hpp"
 
 #include "sparta/events/UniqueEvent.hpp"
 #include "sparta/ports/DataPort.hpp"
@@ -158,6 +160,13 @@ class Dispatch : public sparta::Unit {
     bool can_dispatch(const InstPtr& inst, std::uint64_t now,
                       StallReason& why) const;
 
+    /** Sends an instruction to the unit that executes it and spends that
+     *  unit's queue credit, if it has a queue.
+     *
+     *  @param inst Instruction being dispatched.
+     */
+    void send_to_target(const InstPtr& inst);
+
     /// Value of the dispatch_width parameter.
     const std::uint32_t dispatch_width_;
     /// Value of the ibuf_entries parameter.
@@ -183,17 +192,22 @@ class Dispatch : public sparta::Unit {
     /// Instruction-buffer credits out to Fetch.
     sparta::DataOutPort<std::uint32_t> out_fetch_credits_{&unit_port_set_,
                                                           "out_fetch_credits"};
-    /// Dispatched instructions out to Execute.
-    sparta::DataOutPort<InstPtr> out_execute_{&unit_port_set_, "out_execute"};
+    /// Dispatched instructions out to the scalar units (ExecTarget::SCALAR).
+    sparta::DataOutPort<InstPtr> out_scalar_{&unit_port_set_, "out_scalar"};
+    /// Dispatched instructions out to the LSU (ExecTarget::LSU).
+    sparta::DataOutPort<InstPtr> out_lsu_{&unit_port_set_, "out_lsu"};
+    /// Dispatched instructions out to the vector module
+    /// (ExecTarget::VECTOR).
+    sparta::DataOutPort<InstPtr> out_vector_{&unit_port_set_, "out_vector"};
     /// Dispatched instructions out to the Rob.
     sparta::DataOutPort<InstPtr> out_rob_{&unit_port_set_, "out_rob"};
     /// Rob credits in.
     sparta::DataInPort<std::uint32_t> in_rob_credits_{&unit_port_set_,
                                                       "in_rob_credits", 1};
-    /// LSU queue credits in from Execute.
+    /// LSU queue credits in from the LSU.
     sparta::DataInPort<std::uint32_t> in_lsu_credits_{&unit_port_set_,
                                                       "in_lsu_credits", 1};
-    /// Vector queue credits in from Execute.
+    /// Vector command-queue credits in from the vector module.
     sparta::DataInPort<std::uint32_t> in_vec_credits_{&unit_port_set_,
                                                       "in_vec_credits", 1};
 
