@@ -14,8 +14,8 @@
  *  See docs/tickets-beginner.md for how M3 actually behaves.
  */
 
-#include "reef_perf/func_sim.hpp"
-#include "reef_perf/inst.hpp"
+#include "reef_perf/frontend/func_sim.hpp"
+#include "reef_perf/common/inst.hpp"
 
 #include "sparta/events/UniqueEvent.hpp"
 #include "sparta/ports/DataPort.hpp"
@@ -27,10 +27,10 @@
 
 namespace reef_perf {
 
-/// Fetch unit. Tree location: top.core.fetch.
+/// Fetch unit. Tree location: top.frontend.fetch.
 class Fetch : public sparta::Unit {
   public:
-    /// Parameters of the fetch unit (top.core.fetch.params).
+    /// Parameters of the fetch unit (top.frontend.fetch.params).
     class FetchParameterSet : public sparta::ParameterSet {
       public:
         /** Registers the parameters with the tree node.

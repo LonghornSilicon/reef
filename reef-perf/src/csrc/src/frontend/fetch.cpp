@@ -1,4 +1,4 @@
-#include "reef_perf/fetch.hpp"
+#include "reef_perf/frontend/fetch.hpp"
 
 #include "sparta/utils/SpartaAssert.hpp"
 

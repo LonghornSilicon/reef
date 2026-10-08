@@ -37,17 +37,24 @@ endforeach()
 target_link_libraries(spike INTERFACE ${CMAKE_DL_LIBS} pthread)
 
 # The model as a library, so the simulator, tools and tests share it.
+# One block per module; see docs/interfaces.md.
 add_library(reef_perf_core STATIC
-    src/csrc/src/dispatch.cpp
-    src/csrc/src/execute.cpp
-    src/csrc/src/fetch.cpp
-    src/csrc/src/func_sim.cpp
-    src/csrc/src/inst.cpp
-    src/csrc/src/inst_decode.cpp
+    src/csrc/src/common/inst.cpp
+    src/csrc/src/common/module.cpp
+    src/csrc/src/common/resource_pool.cpp
+
+    src/csrc/src/frontend/fetch.cpp
+    src/csrc/src/frontend/frontend.cpp
+    src/csrc/src/frontend/func_sim.cpp
+    src/csrc/src/frontend/inst_decode.cpp
+    src/csrc/src/frontend/spike_driver.cpp
+
+    src/csrc/src/backend/backend.cpp
+    src/csrc/src/backend/dispatch.cpp
+    src/csrc/src/backend/execute.cpp
+    src/csrc/src/backend/rob.cpp
+
     src/csrc/src/reef_sim.cpp
-    src/csrc/src/resource_pool.cpp
-    src/csrc/src/rob.cpp
-    src/csrc/src/spike_driver.cpp
 )
 target_include_directories(reef_perf_core PUBLIC src/csrc/include)
 target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta PRIVATE spike)

@@ -19,7 +19,7 @@
  *  reason, so the stall counters add up to (cycles - cycles_with_dispatch).
  */
 
-#include "reef_perf/inst.hpp"
+#include "reef_perf/common/inst.hpp"
 
 #include "sparta/events/UniqueEvent.hpp"
 #include "sparta/ports/DataPort.hpp"
@@ -53,10 +53,10 @@ enum class StallReason : std::uint8_t {
  */
 const char* stall_reason_name(StallReason reason);
 
-/// Dispatch unit. Tree location: top.core.dispatch.
+/// Dispatch unit. Tree location: top.backend.dispatch.
 class Dispatch : public sparta::Unit {
   public:
-    /// Parameters of the dispatch unit (top.core.dispatch.params).
+    /// Parameters of the dispatch unit (top.backend.dispatch.params).
     class DispatchParameterSet : public sparta::ParameterSet {
       public:
         /** Registers the parameters with the tree node.

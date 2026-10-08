@@ -9,20 +9,22 @@
 # measurement).
 #
 # Use it:              reef_perf --elf x.elf -c configs/m3.yaml
-# Override one value:  -p top.core.fetch.params.fetch_interval 2
+# Override one value:  -p top.frontend.fetch.params.fetch_interval 2
 # List all parameters: reef_perf --elf x.elf --show-parameters --no-run
 #
 # This is the *simulation* config (what machine to simulate). Experiment
 # configs, which describe sweeps of runs, live under
 # src/reef_perf/experiments/<experiment>/configs/.
-
+#
+# One section per module; each module's owner maintains its section.
 top:
-  core:
+  frontend:
     fetch:
       params:
         fetch_width: 4          # 128-bit fetch = 4 instructions
         fetch_interval: 1       # B04: M3 starts a fetch only every other cycle
         redirect_penalty: 1     # B05: replace with static prediction + penalties
+  backend:
     dispatch:
       params:
         dispatch_width: 4

@@ -38,7 +38,7 @@ One JSON file per run:
 {
   "workload": "gemv_int8",
   "sim_config": ".../configs/m3.yaml",
-  "params": {"top.core.fetch.params.fetch_interval": "2"},
+  "params": {"top.frontend.fetch.params.fetch_interval": "2"},
   "result": {"instructions": ..., "cycles": ..., "ipc": ..., "dispatch": {...}, "pools": {...}}
 }
 ```
@@ -53,7 +53,7 @@ From `reef-perf/`, inside the Docker image (`tools/docker.sh shell`):
 # One artifact
 uv run python -m reef_perf.experiments.run.main --workload gemv_int8
 uv run python -m reef_perf.experiments.run.main --workload alu_indep \
-    --param top.core.fetch.params.fetch_interval=2
+    --param top.frontend.fetch.params.fetch_interval=2
 
 # A sweep (runs in parallel), then its plots
 uv run python -m reef_perf.experiments.run.run \
@@ -79,7 +79,7 @@ sim_config: configs/m3.yaml
 workloads: [alu_indep, branch_tight, gemv_int8]
 variants:
   baseline: {}
-  fetch_every_2: {top.core.fetch.params.fetch_interval: 2}
+  fetch_every_2: {top.frontend.fetch.params.fetch_interval: 2}
 ```
 
 Every (variant, workload) pair is a separate simulator process. `run.py` runs

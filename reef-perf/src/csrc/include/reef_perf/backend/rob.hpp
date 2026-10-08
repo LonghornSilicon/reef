@@ -10,7 +10,7 @@
  *  no separate vector ROB, and CSRs do not wait for an empty Rob.
  */
 
-#include "reef_perf/inst.hpp"
+#include "reef_perf/common/inst.hpp"
 
 #include "sparta/events/UniqueEvent.hpp"
 #include "sparta/ports/DataPort.hpp"
@@ -23,10 +23,10 @@
 
 namespace reef_perf {
 
-/// Retirement buffer. Tree location: top.core.rob.
+/// Retirement buffer. Tree location: top.backend.rob.
 class Rob : public sparta::Unit {
   public:
-    /// Parameters of the retirement buffer (top.core.rob.params).
+    /// Parameters of the retirement buffer (top.backend.rob.params).
     class RobParameterSet : public sparta::ParameterSet {
       public:
         /** Registers the parameters with the tree node.

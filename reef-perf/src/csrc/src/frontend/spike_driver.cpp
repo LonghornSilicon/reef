@@ -1,4 +1,4 @@
-#include "reef_perf/spike_driver.hpp"
+#include "reef_perf/frontend/spike_driver.hpp"
 
 #include <riscv/cfg.h>
 #include <riscv/decode.h>
