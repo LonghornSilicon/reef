@@ -4,8 +4,8 @@
  *  @brief Attention interface and position-mask variants.
  */
 
-#include "activation.hpp"
-#include "tensor.hpp"
+#include "inference_engine/operator/activation.hpp"
+#include "inference_engine/tensor.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -67,9 +67,6 @@ template <typename Scalar> struct KvCache {
  *
  * @tparam Scalar Tensor value type.
  */
-// @ Attention team
-// TODO: Keep weights and decode cache as shared state. Tests can call forward
-// repeatedly for prefill and decode instead of passing that state each time.
 template <typename Scalar> class Attention {
   public:
     /** Bind externally owned parameters and decode cache.
@@ -124,10 +121,8 @@ template <typename Scalar> class Attention {
     KvCache<Scalar>& cache_;
 
   private:
-    // TODO: Compute and reshape separate query, key, and value projections.
     [[nodiscard]] Qkv<Scalar> project_qkv(const Tensor<Scalar>& input) const;
 
-    // TODO: Append new keys and values; define cache capacity and overflow.
     void append_kv_cache(const Tensor<Scalar>& key,
                          const Tensor<Scalar>& value);
 
@@ -138,7 +133,6 @@ template <typename Scalar> class Attention {
  *
  * @tparam Scalar Tensor value type.
  */
-// @ Attention team
 template <typename Scalar> class GlobalAttention : public Attention<Scalar> {
   public:
     /** Bind parameters and cache for unrestricted causal attention.
@@ -155,8 +149,6 @@ template <typename Scalar> class GlobalAttention : public Attention<Scalar> {
  *
  * @tparam Scalar Tensor value type.
  */
-// @ Attention team
-// TODO: Specialize only the attention mask for local GPT-Neo layers.
 template <typename Scalar> class LocalAttention : public Attention<Scalar> {
   public:
     /** Bind parameters, cache, and context-window length.

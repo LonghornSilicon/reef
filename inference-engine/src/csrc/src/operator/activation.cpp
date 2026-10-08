@@ -1,9 +1,6 @@
 #include "inference_engine/operator/activation.hpp"
 
-namespace inference_engine {
-// @ MLP team
-// TODO: Implement gelu declared in activation.hpp.
-
-// @ Attention team
-// dimension-aware softmax declared and defined in activation.hpp
-} // namespace inference_engine
+// masked_score and the dimension-aware softmax are implemented as templates in
+// activation.hpp so any scalar type can instantiate them; gelu is declared
+// there and still needs an implementation. This translation unit only checks
+// that the header compiles on its own.

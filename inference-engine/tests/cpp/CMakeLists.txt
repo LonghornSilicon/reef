@@ -8,11 +8,17 @@ set(BUILD_GMOCK OFF CACHE BOOL "Build Google Mock" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "Install Google Test" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(test_matrix_cpp test_matrix.cpp)
-target_link_libraries(test_matrix_cpp PRIVATE inference_engine GTest::gtest_main)
+add_executable(test_tensor_cpp test_tensor.cpp)
+target_link_libraries(test_tensor_cpp PRIVATE inference_engine GTest::gtest_main)
 include(GoogleTest)
-gtest_discover_tests(test_matrix_cpp)
+gtest_discover_tests(test_tensor_cpp)
 
+# Embeddings
+add_executable(test_embedding_cpp test_embedding.cpp)
+target_link_libraries(test_embedding_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_embedding_cpp)
+
+# Attention
 # test_attention.cpp cannot link into a runnable test until the MLP team's
 # linear() lands (the last undefined symbol in the attention pipeline). The
 # object target keeps it compiling in the meantime and gives clang-tidy a
@@ -23,4 +29,4 @@ target_link_libraries(test_attention_lint PRIVATE inference_engine GTest::gtest_
 # target_link_libraries(test_attention_cpp PRIVATE inference_engine GTest::gtest_main)
 # gtest_discover_tests(test_attention_cpp)
 
-# TODO: Add focused tests for embeddings and MLP as implemented.
+# TODO: Add focused tests for MLP as implemented.

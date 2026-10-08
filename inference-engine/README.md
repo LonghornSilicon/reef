@@ -35,7 +35,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The build produces the C++ library and `matrix_cli` executable. Google Test is fetched during the first CMake configuration.
+The build produces the C++ library and `tensor_cli` executable. Google Test is fetched during the first CMake configuration.
 
 ## Contributing
 

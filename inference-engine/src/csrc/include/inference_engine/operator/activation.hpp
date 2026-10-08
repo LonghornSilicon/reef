@@ -4,7 +4,7 @@
  *  @brief Elementwise activations and dimension-aware softmax.
  */
 
-#include "tensor.hpp"
+#include "inference_engine/tensor.hpp"
 
 #include <algorithm>
 #include <cmath>
