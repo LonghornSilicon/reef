@@ -8,6 +8,7 @@
 
 #include <elf.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -280,7 +281,38 @@ class SpikeDriver::Impl {
         for (const auto& [addr, value, size] : state->log_mem_write) {
             rec.mem.push_back({static_cast<std::uint32_t>(addr), size, true});
         }
+        rec.reg_writes = written_regs(state->log_reg_write);
         return rec;
+    }
+
+    /** Converts Spike's register-write log to scoreboard ids.
+     *
+     *  Spike keys each entry as (register << 4) | type, where type 0 is an
+     *  integer register, 1 an FP register, 2 a vector register, 3 a vector
+     *  hint and 4 a CSR (riscv/decode_macros.h).
+     *
+     *  @param log The log of the instruction just executed.
+     *  @return Scoreboard ids, ascending; x0, hints and CSRs are dropped.
+     */
+    static std::vector<std::uint16_t>
+    written_regs(const commit_log_reg_t& log) {
+        constexpr reg_t kTypeX = 0;
+        constexpr reg_t kTypeF = 1;
+        constexpr reg_t kTypeV = 2;
+        std::vector<std::uint16_t> ids;
+        for (const auto& entry : log) {
+            const reg_t type = entry.first & 0xf;
+            const reg_t reg = entry.first >> 4;
+            if (type == kTypeX && reg != 0) {
+                ids.push_back(static_cast<std::uint16_t>(kXBase + reg));
+            } else if (type == kTypeF) {
+                ids.push_back(static_cast<std::uint16_t>(kFBase + reg));
+            } else if (type == kTypeV) {
+                ids.push_back(static_cast<std::uint16_t>(kVBase + reg));
+            }
+        }
+        std::ranges::sort(ids); // the log is ordered by Spike's key, not id
+        return ids;
     }
 
     /** Whether mpause has been reached.

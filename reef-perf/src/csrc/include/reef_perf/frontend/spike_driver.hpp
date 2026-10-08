@@ -56,6 +56,11 @@ struct InstRecord {
     std::uint8_t lmul8 = 8;
     /// Memory accesses in the order Spike performed them.
     std::vector<MemAccess> mem;
+    /// Registers the instruction wrote, as scoreboard ids in ascending
+    /// order, from Spike's commit log. x0 and CSRs are left out. A vector
+    /// instruction lists only the registers it actually wrote, which can be
+    /// fewer than its register group (short vl, masking, reductions).
+    std::vector<std::uint16_t> reg_writes;
 };
 
 /// Runs a RISC-V ELF in Spike one instruction at a time.

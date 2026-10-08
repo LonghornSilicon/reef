@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -37,6 +38,21 @@ constexpr std::uint32_t kFunct6Unary = 0x10;
 // vsetvl encodes 1000000 in bits 31:25.
 constexpr std::uint32_t kVsetvlTop7 = 0x40;
 
+/// Which register file an rs1/rs2/rs3 field reads.
+enum class File : std::uint8_t {
+    NONE, ///< The field is not a register source.
+    X,    ///< Integer register.
+    F,    ///< FP register.
+};
+
+/// Class and source register files of a scalar or FP instruction.
+struct ScalarForm {
+    InstClass cls = InstClass::UNKNOWN; ///< Instruction class.
+    File rs1 = File::NONE;              ///< What bits 19:15 read.
+    File rs2 = File::NONE;              ///< What bits 24:20 read.
+    File rs3 = File::NONE;              ///< What bits 31:27 read.
+};
+
 /** Extracts bits hi..lo (inclusive) of a word.
  *
  *  @param word Source word.
@@ -48,34 +64,18 @@ std::uint32_t bits(std::uint32_t word, int hi, int lo) {
     return (word >> lo) & ((1U << (hi - lo + 1)) - 1U);
 }
 
-/** Whether a string starts with a prefix.
- *
- *  @param text String to test.
- *  @param prefix Expected prefix.
- *  @return True if text begins with prefix.
- */
-bool starts_with(std::string_view text, std::string_view prefix) {
-    return text.starts_with(prefix);
-}
-
-/** Adds an integer register, skipping x0.
+/** Adds a scalar register source, skipping x0.
  *
  *  @param regs List to append to.
+ *  @param file Register file; File::NONE adds nothing.
  *  @param reg Register number 0..31.
  */
-void add_x(std::vector<std::uint16_t>& regs, std::uint32_t reg) {
-    if (reg != 0) {
+void add(std::vector<std::uint16_t>& regs, File file, std::uint32_t reg) {
+    if (file == File::X && reg != 0) {
         regs.push_back(static_cast<std::uint16_t>(kXBase + reg));
+    } else if (file == File::F) {
+        regs.push_back(static_cast<std::uint16_t>(kFBase + reg));
     }
-}
-
-/** Adds an FP register.
- *
- *  @param regs List to append to.
- *  @param reg Register number 0..31.
- */
-void add_f(std::vector<std::uint16_t>& regs, std::uint32_t reg) {
-    regs.push_back(static_cast<std::uint16_t>(kFBase + reg));
 }
 
 /** Adds a group of consecutive vector registers.
@@ -91,6 +91,101 @@ void add_v(std::vector<std::uint16_t>& regs, std::uint32_t base,
     }
 }
 
+/** Class and sources of an OP-FP instruction (major opcode 0x53).
+ *
+ *  @param funct5 Instruction bits 31:27.
+ *  @return The form.
+ */
+ScalarForm op_fp_form(std::uint32_t funct5) {
+    switch (funct5) {
+    case 0x03: // fdiv.s
+        return {.cls = InstClass::FP_DIV, .rs1 = File::F, .rs2 = File::F};
+    case 0x0b: // fsqrt.s
+        return {.cls = InstClass::FP_DIV, .rs1 = File::F};
+    case 0x1a: // fcvt.s.w[u]
+    case 0x1e: // fmv.w.x
+        return {.cls = InstClass::FP, .rs1 = File::X};
+    case 0x08: // conversions between FP formats
+    case 0x18: // fcvt.w[u].s
+    case 0x1c: // fmv.x.w, fclass.s
+        return {.cls = InstClass::FP, .rs1 = File::F};
+    default: // fadd, fsub, fmul, fsgnj*, fmin/fmax, feq/flt/fle
+        return {.cls = InstClass::FP, .rs1 = File::F, .rs2 = File::F};
+    }
+}
+
+/** Class and sources of every non-vector instruction.
+ *
+ *  @param word Raw encoding.
+ *  @return The form, or std::nullopt for vector instructions and unknown
+ *          opcodes.
+ */
+std::optional<ScalarForm> scalar_form(std::uint32_t word) {
+    const std::uint32_t funct3 = bits(word, 14, 12);
+    // LOAD-FP and STORE-FP widths 1-4 are scalar FP; the rest are vector.
+    const bool scalar_fp_width = funct3 >= 1 && funct3 <= 4;
+    switch (bits(word, 6, 0)) {
+    case kOpLui:
+    case kOpAuipc:
+        return ScalarForm{.cls = InstClass::ALU};
+    case kOpJal:
+        return ScalarForm{.cls = InstClass::JUMP};
+    case kOpJalr:
+        return ScalarForm{.cls = InstClass::JUMP, .rs1 = File::X};
+    case kOpBranch:
+        return ScalarForm{
+            .cls = InstClass::BRANCH, .rs1 = File::X, .rs2 = File::X};
+    case kOpLoad:
+        return ScalarForm{.cls = InstClass::LOAD, .rs1 = File::X};
+    case kOpStore:
+        return ScalarForm{
+            .cls = InstClass::STORE, .rs1 = File::X, .rs2 = File::X};
+    case kOpImm:
+        return ScalarForm{.cls = InstClass::ALU, .rs1 = File::X};
+    case kOpReg:
+        if (bits(word, 31, 25) == kFunct7MulDiv) {
+            return ScalarForm{.cls =
+                                  funct3 < 4 ? InstClass::MUL : InstClass::DIV,
+                              .rs1 = File::X,
+                              .rs2 = File::X};
+        }
+        return ScalarForm{
+            .cls = InstClass::ALU, .rs1 = File::X, .rs2 = File::X};
+    case kOpMiscMem:
+        return ScalarForm{.cls = InstClass::FENCE};
+    case kOpSystem: // funct3 0: ecall, ebreak, mret, wfi, mpause
+        if (funct3 == 0) {
+            return ScalarForm{.cls = InstClass::SYSTEM};
+        }
+        // csrrw/s/c read rs1; the immediate forms (funct3 5-7) do not.
+        return ScalarForm{.cls = InstClass::CSR,
+                          .rs1 = funct3 <= 3 ? File::X : File::NONE};
+    case kOpLoadFp:
+        if (!scalar_fp_width) {
+            return std::nullopt;
+        }
+        return ScalarForm{.cls = InstClass::FP_LOAD, .rs1 = File::X};
+    case kOpStoreFp:
+        if (!scalar_fp_width) {
+            return std::nullopt;
+        }
+        return ScalarForm{
+            .cls = InstClass::FP_STORE, .rs1 = File::X, .rs2 = File::F};
+    case kOpFmadd:
+    case kOpFmsub:
+    case kOpFnmsub:
+    case kOpFnmadd:
+        return ScalarForm{.cls = InstClass::FP,
+                          .rs1 = File::F,
+                          .rs2 = File::F,
+                          .rs3 = File::F};
+    case kOpFp:
+        return op_fp_form(bits(word, 31, 27));
+    default:
+        return std::nullopt;
+    }
+}
+
 /** Class of an OP-V arithmetic instruction, from its mnemonic.
  *
  *  @param mnemonic Instruction mnemonic.
@@ -99,7 +194,7 @@ void add_v(std::vector<std::uint16_t>& regs, std::uint32_t base,
 InstClass vector_arith_class(std::string_view mnemonic) {
     const auto any_of = [mnemonic](std::initializer_list<std::string_view> ps) {
         return std::ranges::any_of(ps, [mnemonic](auto prefix) {
-            return starts_with(mnemonic, prefix);
+            return mnemonic.starts_with(prefix);
         });
     };
     if (any_of({"vmv.x.s", "vcpop", "vfirst", "vfmv.f.s"})) {
@@ -119,60 +214,33 @@ InstClass vector_arith_class(std::string_view mnemonic) {
                 "vsmul"})) {
         return InstClass::V_MUL;
     }
-    if (starts_with(mnemonic, "vf")) {
+    if (mnemonic.starts_with("vf")) {
         return InstClass::V_FP;
     }
     return InstClass::V_ALU;
 }
 
-/** Decodes the sources of an OP-V arithmetic instruction.
+/** Whether an OP-V instruction is a multiply-accumulate, which also reads
+ *  its destination.
  *
- *  @param inst Instruction being decoded.
- *  @param word Raw encoding.
- *  @param emul Registers per operand group.
- *  @param vs2_regs Registers in the vs2 group (doubled when narrowing).
+ *  @param funct3 Instruction bits 14:12.
+ *  @param funct6 Instruction bits 31:26.
+ *  @return True for vmacc, vnmsac, vmadd, vnmsub, the widening integer
+ *          forms and the FP fused multiply-adds.
  */
-void decode_vector_sources(Inst& inst, std::uint32_t word, std::uint32_t emul,
-                           std::uint32_t vs2_regs) {
-    const std::uint32_t funct3 = bits(word, 14, 12);
-    const std::uint32_t funct6 = bits(word, 31, 26);
-    const std::uint32_t vs2 = bits(word, 24, 20);
-    const std::uint32_t rs1 = bits(word, 19, 15);
-    const bool unary_wx = funct3 == 2 && funct6 == kFunct6Unary;
-    const bool unary_wf = funct3 == 1 && funct6 == kFunct6Unary;
-    const bool scalar_to_vec = (funct3 == 6 || funct3 == 5) &&
-                               funct6 == kFunct6Unary; // vmv.s.x, vfmv.s.f
-    switch (funct3) {
-    case 0: // OPIVV
-    case 1: // OPFVV
-    case 2: // OPMVV
-        if (!unary_wx && !unary_wf) {
-            add_v(inst.srcs, rs1, emul);
-        }
-        add_v(inst.srcs, vs2, vs2_regs);
-        break;
-    case 3: // OPIVI
-        add_v(inst.srcs, vs2, vs2_regs);
-        break;
-    case 4: // OPIVX
-    case 6: // OPMVX
-        add_x(inst.srcs, rs1);
-        if (!scalar_to_vec) {
-            add_v(inst.srcs, vs2, vs2_regs);
-        }
-        break;
-    case 5: // OPFVF
-        add_f(inst.srcs, rs1);
-        if (!scalar_to_vec) {
-            add_v(inst.srcs, vs2, vs2_regs);
-        }
-        break;
-    default:
-        break;
-    }
+bool reads_destination(std::uint32_t funct3, std::uint32_t funct6) {
+    const bool int_mac = (funct3 == 2 || funct3 == 6) &&
+                         (funct6 == 0x29 || funct6 == 0x2b || funct6 == 0x2d ||
+                          funct6 == 0x2f || funct6 >= 0x3c);
+    const bool fp_mac = (funct3 == 1 || funct3 == 5) &&
+                        ((funct6 >= 0x28 && funct6 <= 0x2f) || funct6 >= 0x3c);
+    return int_mac || fp_mac;
 }
 
-/** Decodes an OP-V instruction (major opcode 0x57).
+/** Decodes an OP-V instruction (major opcode 0x57): class and sources.
+ *
+ *  Coarse: every operand spans LMUL registers, narrowing sources and
+ *  widening accumulators span 2*LMUL.
  *
  *  @param inst Instruction being decoded.
  *  @param word Raw encoding.
@@ -180,7 +248,6 @@ void decode_vector_sources(Inst& inst, std::uint32_t word, std::uint32_t emul,
 void decode_op_v(Inst& inst, std::uint32_t word) {
     const std::uint32_t funct3 = bits(word, 14, 12);
     const std::uint32_t funct6 = bits(word, 31, 26);
-    const std::uint32_t vm = bits(word, 25, 25);
     const std::uint32_t vs2 = bits(word, 24, 20);
     const std::uint32_t rs1 = bits(word, 19, 15);
     const std::uint32_t rd = bits(word, 11, 7);
@@ -188,217 +255,77 @@ void decode_op_v(Inst& inst, std::uint32_t word) {
 
     if (funct3 == 7) { // vsetvli / vsetivli / vsetvl
         inst.cls = InstClass::VSET;
-        if (bits(word, 31, 30) != 3) { // not vsetivli
-            add_x(inst.srcs, rs1);
-        }
-        if (bits(word, 31, 25) == kVsetvlTop7) {
-            add_x(inst.srcs, vs2);
-        }
-        add_x(inst.dsts, rd);
+        add(inst.srcs, bits(word, 31, 30) == 3 ? File::NONE : File::X, rs1);
+        add(inst.srcs, bits(word, 31, 25) == kVsetvlTop7 ? File::X : File::NONE,
+            vs2);
         return;
     }
-
     inst.cls = vector_arith_class(mnemonic);
 
-    // Coarse: every operand spans LMUL registers; widening results span
-    // 2*LMUL. Mask-producing ops are not special-cased.
     const std::uint32_t emul = std::max<std::uint32_t>(1, inst.lmul8 / 8);
     const bool widening =
-        starts_with(mnemonic, "vw") || starts_with(mnemonic, "vfw");
+        mnemonic.starts_with("vw") || mnemonic.starts_with("vfw");
     const bool narrowing =
-        starts_with(mnemonic, "vn") || starts_with(mnemonic, "vfn");
-    const std::uint32_t dst_regs = widening ? 2 * emul : emul;
+        mnemonic.starts_with("vn") || mnemonic.starts_with("vfn");
     const std::uint32_t vs2_regs = narrowing ? 2 * emul : emul;
+    const bool unary = funct6 == kFunct6Unary;
 
-    decode_vector_sources(inst, word, emul, vs2_regs);
-    if (vm == 0) {
-        add_v(inst.srcs, 0, 1); // masked: reads v0
+    // The first operand: vs1, or the scalar rs1, depending on funct3.
+    switch (funct3) {
+    case 0: // OPIVV
+    case 1: // OPFVV
+    case 2: // OPMVV
+        // vmv.x.s, vfmv.f.s and the other unary ops have no vs1.
+        if (!unary || funct3 == 0) {
+            add_v(inst.srcs, rs1, emul);
+        }
+        break;
+    case 4: // OPIVX
+    case 6: // OPMVX
+        add(inst.srcs, File::X, rs1);
+        break;
+    case 5: // OPFVF
+        add(inst.srcs, File::F, rs1);
+        break;
+    default: // OPIVI: rs1 is an immediate
+        break;
     }
-
-    // Multiply-accumulate forms also read the destination.
-    const bool int_mac = (funct3 == 2 || funct3 == 6) &&
-                         (funct6 == 0x29 || funct6 == 0x2b || funct6 == 0x2d ||
-                          funct6 == 0x2f || funct6 >= 0x3c);
-    const bool fp_mac = (funct3 == 1 || funct3 == 5) &&
-                        ((funct6 >= 0x28 && funct6 <= 0x2f) || funct6 >= 0x3c);
-    if (int_mac || fp_mac) {
-        add_v(inst.srcs, rd, dst_regs);
+    // vs2, except for scalar-to-vector moves (vmv.s.x, vfmv.s.f).
+    if (!unary || (funct3 != 5 && funct3 != 6)) {
+        add_v(inst.srcs, vs2, vs2_regs);
     }
-
-    if (funct3 == 2 && funct6 == kFunct6Unary) { // vmv.x.s, vcpop, vfirst
-        add_x(inst.dsts, rd);
-    } else if (funct3 == 1 && funct6 == kFunct6Unary) { // vfmv.f.s
-        add_f(inst.dsts, rd);
-    } else {
-        add_v(inst.dsts, rd, dst_regs);
+    if (bits(word, 25, 25) == 0) { // masked: reads v0
+        add_v(inst.srcs, 0, 1);
+    }
+    if (reads_destination(funct3, funct6)) {
+        add_v(inst.srcs, rd, widening ? 2 * emul : emul);
     }
 }
 
-/** Decodes LOAD-FP / STORE-FP: scalar FP or vector memory ops.
+/** Decodes a vector load or store (LOAD-FP / STORE-FP with a vector
+ *  width): class and sources.
  *
  *  @param inst Instruction being decoded.
  *  @param word Raw encoding.
- *  @param is_store True for STORE-FP.
+ *  @param is_store True for a store.
  */
-void decode_fp_or_vector_mem(Inst& inst, std::uint32_t word, bool is_store) {
-    const std::uint32_t width = bits(word, 14, 12);
-    const std::uint32_t rs1 = bits(word, 19, 15);
-    const std::uint32_t rs2 = bits(word, 24, 20);
-    const std::uint32_t rd = bits(word, 11, 7);
-    if (width >= 1 && width <= 4) { // flh/flw/fld/flq (Reef has flw/fsw)
-        inst.cls = is_store ? InstClass::FP_STORE : InstClass::FP_LOAD;
-        add_x(inst.srcs, rs1);
-        if (is_store) {
-            add_f(inst.srcs, rs2);
-        } else {
-            add_f(inst.dsts, rd);
-        }
-        return;
-    }
+void decode_vector_mem(Inst& inst, std::uint32_t word, bool is_store) {
     inst.cls = is_store ? InstClass::V_STORE : InstClass::V_LOAD;
     const std::uint32_t mop = bits(word, 27, 26);
-    const std::uint32_t nf = bits(word, 31, 29) + 1;
-    const std::uint32_t emul = std::max<std::uint32_t>(1, inst.lmul8 / 8) * nf;
-    add_x(inst.srcs, rs1);
+    add(inst.srcs, File::X, bits(word, 19, 15));
     if (mop == 2) { // strided
-        add_x(inst.srcs, rs2);
+        add(inst.srcs, File::X, bits(word, 24, 20));
     }
     if (mop == 1 || mop == 3) { // indexed (coarse: one index register)
-        add_v(inst.srcs, rs2, 1);
+        add_v(inst.srcs, bits(word, 24, 20), 1);
     }
     if (bits(word, 25, 25) == 0) { // masked
         add_v(inst.srcs, 0, 1);
     }
-    if (is_store) {
-        add_v(inst.srcs, rd, emul);
-    } else {
-        add_v(inst.dsts, rd, emul);
-    }
-}
-
-/** Decodes an OP-FP instruction (major opcode 0x53).
- *
- *  @param inst Instruction being decoded.
- *  @param word Raw encoding.
- */
-void decode_op_fp(Inst& inst, std::uint32_t word) {
-    const std::uint32_t funct5 = bits(word, 31, 27);
-    const std::uint32_t rs1 = bits(word, 19, 15);
-    const std::uint32_t rs2 = bits(word, 24, 20);
-    const std::uint32_t rd = bits(word, 11, 7);
-    inst.cls = InstClass::FP;
-    switch (funct5) {
-    case 0x03: // fdiv.s
-        inst.cls = InstClass::FP_DIV;
-        add_f(inst.srcs, rs1);
-        add_f(inst.srcs, rs2);
-        add_f(inst.dsts, rd);
-        break;
-    case 0x0b: // fsqrt.s
-        inst.cls = InstClass::FP_DIV;
-        add_f(inst.srcs, rs1);
-        add_f(inst.dsts, rd);
-        break;
-    case 0x14: // feq/flt/fle -> x
-        add_f(inst.srcs, rs1);
-        add_f(inst.srcs, rs2);
-        add_x(inst.dsts, rd);
-        break;
-    case 0x18: // fcvt.w[u].s -> x
-    case 0x1c: // fmv.x.w, fclass.s -> x
-        add_f(inst.srcs, rs1);
-        add_x(inst.dsts, rd);
-        break;
-    case 0x1a: // fcvt.s.w[u] <- x
-    case 0x1e: // fmv.w.x <- x
-        add_x(inst.srcs, rs1);
-        add_f(inst.dsts, rd);
-        break;
-    case 0x08: // unary conversions between FP formats
-        add_f(inst.srcs, rs1);
-        add_f(inst.dsts, rd);
-        break;
-    default: // fadd, fsub, fmul, fsgnj*, fmin/fmax
-        add_f(inst.srcs, rs1);
-        add_f(inst.srcs, rs2);
-        add_f(inst.dsts, rd);
-        break;
-    }
-}
-
-/** Decodes the scalar integer, control-flow and system opcodes.
- *
- *  @param inst Instruction being decoded.
- *  @param word Raw encoding.
- *  @return False if the opcode is not one of these.
- */
-bool decode_scalar(Inst& inst, std::uint32_t word) {
-    const std::uint32_t opcode = bits(word, 6, 0);
-    const std::uint32_t rd = bits(word, 11, 7);
-    const std::uint32_t funct3 = bits(word, 14, 12);
-    const std::uint32_t rs1 = bits(word, 19, 15);
-    const std::uint32_t rs2 = bits(word, 24, 20);
-    switch (opcode) {
-    case kOpLui:
-    case kOpAuipc:
-        inst.cls = InstClass::ALU;
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpJal:
-        inst.cls = InstClass::JUMP;
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpJalr:
-        inst.cls = InstClass::JUMP;
-        add_x(inst.srcs, rs1);
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpBranch:
-        inst.cls = InstClass::BRANCH;
-        add_x(inst.srcs, rs1);
-        add_x(inst.srcs, rs2);
-        return true;
-    case kOpLoad:
-        inst.cls = InstClass::LOAD;
-        add_x(inst.srcs, rs1);
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpStore:
-        inst.cls = InstClass::STORE;
-        add_x(inst.srcs, rs1);
-        add_x(inst.srcs, rs2);
-        return true;
-    case kOpImm:
-        inst.cls = InstClass::ALU;
-        add_x(inst.srcs, rs1);
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpReg:
-        if (bits(word, 31, 25) == kFunct7MulDiv) {
-            inst.cls = funct3 < 4 ? InstClass::MUL : InstClass::DIV;
-        } else {
-            inst.cls = InstClass::ALU;
-        }
-        add_x(inst.srcs, rs1);
-        add_x(inst.srcs, rs2);
-        add_x(inst.dsts, rd);
-        return true;
-    case kOpMiscMem:
-        inst.cls = InstClass::FENCE;
-        return true;
-    case kOpSystem:
-        if (funct3 == 0) {
-            inst.cls = InstClass::SYSTEM; // ecall, ebreak, mret, wfi, mpause
-        } else {
-            inst.cls = InstClass::CSR;
-            if (funct3 <= 3) { // register (not immediate) forms
-                add_x(inst.srcs, rs1);
-            }
-            add_x(inst.dsts, rd);
-        }
-        return true;
-    default:
-        return false;
+    if (is_store) { // the data: nf segments of LMUL registers
+        const std::uint32_t nf = bits(word, 31, 29) + 1;
+        add_v(inst.srcs, bits(word, 11, 7),
+              std::max<std::uint32_t>(1, inst.lmul8 / 8) * nf);
     }
 }
 
@@ -411,31 +338,21 @@ void decode_inst(Inst& inst) {
 
     const std::uint32_t word = inst.encoding;
     inst.srcs.clear();
-    inst.dsts.clear();
     inst.cls = InstClass::UNKNOWN;
 
-    if (decode_scalar(inst, word)) {
+    if (const std::optional<ScalarForm> form = scalar_form(word)) {
+        inst.cls = form->cls;
+        add(inst.srcs, form->rs1, bits(word, 19, 15));
+        add(inst.srcs, form->rs2, bits(word, 24, 20));
+        add(inst.srcs, form->rs3, bits(word, 31, 27));
         return;
     }
     switch (bits(word, 6, 0)) {
     case kOpLoadFp:
-        decode_fp_or_vector_mem(inst, word, /*is_store=*/false);
+        decode_vector_mem(inst, word, /*is_store=*/false);
         break;
     case kOpStoreFp:
-        decode_fp_or_vector_mem(inst, word, /*is_store=*/true);
-        break;
-    case kOpFmadd:
-    case kOpFmsub:
-    case kOpFnmsub:
-    case kOpFnmadd:
-        inst.cls = InstClass::FP;
-        add_f(inst.srcs, bits(word, 19, 15));
-        add_f(inst.srcs, bits(word, 24, 20));
-        add_f(inst.srcs, bits(word, 31, 27));
-        add_f(inst.dsts, bits(word, 11, 7));
-        break;
-    case kOpFp:
-        decode_op_fp(inst, word);
+        decode_vector_mem(inst, word, /*is_store=*/true);
         break;
     case kOpVector:
         decode_op_v(inst, word);

@@ -53,6 +53,10 @@ one **writer**:
 | `dispatch_cycle`, `retire_cycle` | backend |
 | `issue_cycle`, `result_ready_cycle`, `complete_cycle` | the unit that executes the instruction (below) |
 
+Within the frontend, `mem` and `dsts` come straight from Spike's commit log
+(exact); `cls` and `srcs` are decoded from the encoding, because Spike does
+not log register reads.
+
 `result_ready_cycle` and `complete_cycle` are `Inst::kNever` until their
 writer sets them. Readers must treat `kNever` as "not yet": Dispatch stalls a
 dependent instruction, and the Rob keeps waiting.

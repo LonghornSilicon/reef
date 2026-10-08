@@ -32,6 +32,7 @@ InstPtr FuncSim::next() {
     inst->sew_bytes = rec->sew_bytes;
     inst->lmul8 = rec->lmul8;
     inst->mem = std::move(rec->mem);
+    inst->dsts = std::move(rec->reg_writes);
     decode_inst(*inst);
     ++executed_;
     return inst;
