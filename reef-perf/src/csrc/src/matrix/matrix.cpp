@@ -20,8 +20,6 @@ std::vector<std::string> Matrix::unit_names() const { return {Mxu::name}; }
 
 void Matrix::bind() { mxu_ = unit<Mxu>(Mxu::name); }
 
-std::vector<const ResourcePool*> Matrix::pools() const {
-    return mxu_->pools();
-}
+std::vector<const ResourcePool*> Matrix::pools() const { return mxu_->pools(); }
 
 } // namespace reef_perf

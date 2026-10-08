@@ -6,8 +6,8 @@
 // All standard Sparta options also work (run with --help), for example
 // --show-parameters, --write-final-config and --auto-summary on.
 
-#include "reef_perf/reef_sim.hpp"
 #include "reef_perf/frontend/spike_driver.hpp"
+#include "reef_perf/reef_sim.hpp"
 
 #include "sparta/app/CommandLineSimulator.hpp"
 #include "sparta/sparta.hpp"

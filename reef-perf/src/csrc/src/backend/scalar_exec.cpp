@@ -5,8 +5,7 @@
 
 namespace reef_perf {
 
-ScalarExecConfig
-ScalarExec::read_config(const ScalarExecParameterSet* params) {
+ScalarExecConfig ScalarExec::read_config(const ScalarExecParameterSet* params) {
     ScalarExecConfig cfg;
     cfg.alu_count = params->alu_count;
     cfg.alu_latency = params->alu_latency;

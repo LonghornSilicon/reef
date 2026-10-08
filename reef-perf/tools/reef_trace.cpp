@@ -6,8 +6,8 @@
 // vl/SEW/LMUL, decoded class, number of memory accesses and disassembly.
 // Useful for checking a workload before running the timing model.
 
-#include "reef_perf/frontend/func_sim.hpp"
 #include "reef_perf/common/inst.hpp"
+#include "reef_perf/frontend/func_sim.hpp"
 #include "reef_perf/frontend/spike_driver.hpp"
 
 #include <cstdint>

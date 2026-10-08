@@ -43,8 +43,8 @@ class TcmModel {
      *  @param line_bytes Bytes per transfer; at least 1.
      *  @param cycles_per_line Cycles the port is busy per line.
      */
-    TcmModel(std::string name, std::uint32_t latency,
-             std::uint32_t line_bytes, std::uint32_t cycles_per_line);
+    TcmModel(std::string name, std::uint32_t latency, std::uint32_t line_bytes,
+             std::uint32_t cycles_per_line);
 
     /** Times an access and books the port.
      *
