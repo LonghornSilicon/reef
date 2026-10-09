@@ -263,5 +263,84 @@ TEST(AttentionTest, PrefillMatchesDecodeLocal) {
         });
 }
 
+/// Exposes the protected visibility policies for direct inspection.
+struct VisibilityProbe {
+    struct Global : GlobalAttention<float> {
+        using GlobalAttention<float>::GlobalAttention;
+        using Attention<float>::visibility;
+    };
+    struct Local : LocalAttention<float> {
+        using LocalAttention<float>::LocalAttention;
+        using LocalAttention<float>::visibility;
+    };
+};
+
+// Causal visibility: each query sees keys up to and including its own
+// position, with decode offsets applied through query_start.
+TEST(AttentionTest, CausalVisibilityPattern) {
+    const AttentionWeights<float> weights = identity_weights(2, 1);
+    KvCache<float> cache;
+    const VisibilityProbe::Global attention(weights, cache);
+
+    // Decode step: 1 query at position 2 over 3 cached keys.
+    const Tensor<bool> decode = attention.visibility(1, 3, 2);
+    EXPECT_EQ(decode.values, (std::vector<bool>{true, true, true}));
+
+    // Prefill: 2 queries over 2 keys, lower-triangular.
+    const Tensor<bool> prefill = attention.visibility(2, 2, 0);
+    EXPECT_EQ(prefill.shape, (std::vector<std::size_t>{2, 2}));
+    EXPECT_EQ(prefill.values, (std::vector<bool>{true, false, true, true}));
+}
+
+// Local visibility: the window includes the query's own position, so a
+// window of 2 at position 3 sees exactly positions 2 and 3.
+TEST(AttentionTest, LocalVisibilityPattern) {
+    const AttentionWeights<float> weights = identity_weights(2, 1);
+    KvCache<float> cache;
+    const VisibilityProbe::Local attention(weights, cache, 2);
+
+    const Tensor<bool> mask = attention.visibility(1, 4, 3);
+    EXPECT_EQ(mask.values, (std::vector<bool>{false, false, true, true}));
+}
+
+// A window of zero would leave every query with no visible position.
+TEST(AttentionTest, RejectsZeroWindow) {
+    const AttentionWeights<float> weights = identity_weights(2, 1);
+    KvCache<float> cache;
+
+    EXPECT_THROW(LocalAttention<float>(weights, cache, 0),
+                 std::invalid_argument);
+}
+
+// Masked positions weigh exactly zero and the visible positions normalize
+// among themselves, matching softmax over just the visible scores.
+TEST(MaskedSoftmaxTest, ZeroesMaskedAndRenormalizes) {
+    const Tensor<float> scores = make_tensor({1, 3}, {5.0F, 0.0F, 1.0F});
+    const Tensor<bool> visible{{1, 3}, {false, true, true}};
+
+    const Tensor<float> probs = masked_softmax(scores, visible);
+    const Tensor<float> expected = softmax(make_tensor({2}, {0.0F, 1.0F}), 0);
+
+    EXPECT_EQ(probs.values[0], 0.0F);
+    EXPECT_NEAR(probs.values[1], expected.values[0], kTight);
+    EXPECT_NEAR(probs.values[2], expected.values[1], kTight);
+}
+
+// A row with no visible position has no defined distribution.
+TEST(MaskedSoftmaxTest, RejectsFullyMaskedRow) {
+    const Tensor<float> scores = make_tensor({2, 2}, {1.0F, 2.0F, 3.0F, 4.0F});
+    const Tensor<bool> visible{{2, 2}, {true, true, false, false}};
+
+    EXPECT_THROW(masked_softmax(scores, visible), std::invalid_argument);
+}
+
+// The mask must match the trailing score dimensions.
+TEST(MaskedSoftmaxTest, RejectsMismatchedMask) {
+    const Tensor<float> scores = make_tensor({2, 3}, {1, 2, 3, 4, 5, 6});
+    const Tensor<bool> visible{{2, 2}, {true, true, true, true}};
+
+    EXPECT_THROW(masked_softmax(scores, visible), std::invalid_argument);
+}
+
 } // namespace
 } // namespace inference_engine

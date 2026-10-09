@@ -63,7 +63,7 @@ template <typename Scalar> struct KvCache {
 /** Shared attention pipeline with an overridable position-mask policy.
  *
  * The base mask is the unrestricted causal policy; variants override
- * mask_scores to restrict it further. Weights and decode state remain
+ * visibility to restrict it further. Weights and decode state remain
  * externally owned.
  *
  * @tparam Scalar Tensor value type.
@@ -88,32 +88,29 @@ template <typename Scalar> class Attention {
     Tensor<Scalar> forward(const Tensor<Scalar>& input);
 
   protected:
-    /** Mask scores according to the concrete attention policy.
+    /** Choose the visible key positions for one forward call.
      *
-     * @param scores Query-by-key attention scores.
+     * The default policy is unrestricted causal attention: each query sees
+     * every key up to and including its own position.
+     *
+     * @param num_queries Query rows in this call.
+     * @param num_keys Cached key positions, including this call's.
      * @param query_start Position of the first query in the decode stream.
-     * @return Scores with disallowed positions masked.
+     * @return [num_queries, num_keys] mask, true where the key is visible.
      */
-    [[nodiscard]] virtual Tensor<Scalar>
-    mask_scores(const Tensor<Scalar>& scores, std::size_t query_start) const {
-        Tensor<Scalar> out = scores;
-
-        // Scores are [..., queries, keys]; mask every leading (batch, head)
-        // block the same way.
-        const std::size_t rank = scores.shape.size();
-        const std::size_t num_queries = scores.shape[rank - 2];
-        const std::size_t num_keys = scores.shape[rank - 1];
-        const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr auto kMasked = masked_score<Scalar>();
-
-        for (std::size_t r = 0; r < num_rows; ++r) {
-            const std::size_t i = r % num_queries;
+    [[nodiscard]] virtual Tensor<bool>
+    visibility(std::size_t num_queries, std::size_t num_keys,
+               std::size_t query_start) const {
+        Tensor<bool> visible{{num_queries, num_keys},
+                             std::vector<bool>(num_queries * num_keys, false)};
+        for (std::size_t row = 0; row < num_queries; ++row) {
             const std::size_t visible_end =
-                std::min(query_start + i + 1, num_keys);
-            Scalar* row = out.values.data() + (r * num_keys);
-            std::fill(row + visible_end, row + num_keys, kMasked);
+                std::min(query_start + row + 1, num_keys);
+            for (std::size_t key = 0; key < visible_end; ++key) {
+                visible.values[(row * num_keys) + key] = true;
+            }
         }
-        return out;
+        return visible;
     }
 
     /// Externally owned projection parameters.
@@ -130,7 +127,7 @@ template <typename Scalar> class Attention {
     [[nodiscard]] Tensor<Scalar> context(const Qkv<Scalar>& qkv) const;
 };
 
-/** Apply a causal mask that permits every earlier key position.
+/** Attend causally with the base policy: every earlier key is visible.
  *
  * @tparam Scalar Tensor value type.
  */
@@ -157,40 +154,43 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
      * @param weights Immutable projection parameters.
      * @param cache Mutable key and value cache.
      * @param window_size Maximum number of visible key positions.
+     * @throws std::invalid_argument If @p window_size is zero, which would
+     * leave queries with no visible position.
      */
     LocalAttention(const AttentionWeights<Scalar>& weights,
                    KvCache<Scalar>& cache, std::size_t window_size)
-        : Attention<Scalar>(weights, cache), window_size_(window_size) {}
+        : Attention<Scalar>(weights, cache), window_size_(window_size) {
+        if (window_size == 0) {
+            throw std::invalid_argument(
+                "LocalAttention window must hold at least one position");
+        }
+    }
 
   protected:
-    /** Mask future keys and keys outside the context window.
+    /** Restrict causal visibility to the sliding context window.
      *
-     * @param scores Query-by-key attention scores.
+     * The window includes the query's own position.
+     *
+     * @param num_queries Query rows in this call.
+     * @param num_keys Cached key positions, including this call's.
      * @param query_start Position of the first query in the decode stream.
-     * @return Causally and locally masked scores.
+     * @return [num_queries, num_keys] mask, true where the key is visible.
      */
-    [[nodiscard]] Tensor<Scalar>
-    mask_scores(const Tensor<Scalar>& scores,
-                std::size_t query_start) const override {
-        // causal part
-        Tensor<Scalar> out =
-            Attention<Scalar>::mask_scores(scores, query_start);
-
-        const std::size_t rank = scores.shape.size();
-        const std::size_t num_queries = scores.shape[rank - 2];
-        const std::size_t num_keys = scores.shape[rank - 1];
-        const std::size_t num_rows = scores.values.size() / num_keys;
-        constexpr auto kMasked = masked_score<Scalar>();
-
-        // context window trim
-        for (std::size_t r = 0; r < num_rows; ++r) {
-            const std::size_t pos = query_start + (r % num_queries);
-            const std::size_t lo =
+    [[nodiscard]] Tensor<bool>
+    visibility(std::size_t num_queries, std::size_t num_keys,
+               std::size_t query_start) const override {
+        Tensor<bool> visible =
+            Attention<Scalar>::visibility(num_queries, num_keys, query_start);
+        for (std::size_t row = 0; row < num_queries; ++row) {
+            const std::size_t pos = query_start + row;
+            const std::size_t window_start =
                 (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
-            Scalar* row = out.values.data() + (r * num_keys);
-            std::fill(row, row + std::min(lo, num_keys), kMasked);
+            for (std::size_t key = 0; key < std::min(window_start, num_keys);
+                 ++key) {
+                visible.values[(row * num_keys) + key] = false;
+            }
         }
-        return out;
+        return visible;
     }
 
   private:
@@ -344,8 +344,8 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
 
     // Mask and softmax
     const std::size_t query_start = key_len - query_len;
-    const Tensor<Scalar> masked = mask_scores(scores, query_start);
-    const Tensor<Scalar> probs = softmax(masked, 3);
+    const Tensor<Scalar> probs =
+        masked_softmax(scores, visibility(query_len, key_len, query_start));
 
     // Probabilities weighted sum matmul
     Tensor<Scalar> mixed{
