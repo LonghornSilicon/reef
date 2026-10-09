@@ -1,0 +1,8 @@
+CompileFlags:
+  Add: [--target=riscv32-unknown-elf, -march=rv32imf_zve32x, -mabi=ilp32f, -ffreestanding]
+  Remove: [-arch]
+Diagnostics:
+  ClangTidy:
+    # The RVV intrinsics (__riscv_*) are declared implicitly by clang, so these
+    # checks report them as if this file declared them.
+    Remove: [modernize-deprecated-headers, bugprone-reserved-identifier, readability-identifier-naming]
