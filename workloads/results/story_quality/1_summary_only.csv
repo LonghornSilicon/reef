@@ -177,15 +177,17 @@ Lily was so happy to help the kitten. She asked her mom, ""Can I help the kitten
 Lily and her mom searched the garden and soon found the kitten's mom. The kitten was so happy to see its mom and Lily was so proud that she helped the kitten.
 
 The kitten's mom said, ""Thank you for helping my kitten. You are so kind."" Lily smiled and said, ""You're welcome!"""
-TinyStories-Instruct-28M,int8,187,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her. One day, she was playing in the garden when she saw something strange. It was a small, furry creature with big eyes.
+TinyStories-Instruct-28M,int8,185,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
 
-Lily was curious and wanted to know what it was. She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That is a kitten, Lily. It's lost and needs help.""
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
 
-Lily was so excited. She wanted to help the kitten find its mom. She asked her mom, ""Can I help the kitten find its mom?"" Her mom smiled and said, ""Yes, you can help the kitten. Let's go look for its mom.""
+Lily asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help.""
 
-Lily and her mom searched the garden and eventually found the kitten's mom. The kitten was so happy to see its mom and Lily was so proud that she helped the kitten find its mom.
+Lily was so happy to hear this. She wanted to help the kitten find its mom. She asked her mom, ""Can I help the kitten find its mom?"" Her mom said, ""Yes, you can help. Let's go look for her.""
 
-The moral of the story is that it is important to help others when they need it. Even if it seems like a small act of kindness, it can make a big difference."
+Lily and her mom searched the garden and soon found the kitten's mom. The kitten was so happy to see her mom and ran to her. Lily was so proud that she helped the kitten find its mom.
+
+The moral of the story is that it's important to help others when they need it. Even if it's something small like a kitten, it can make a big difference."
 TinyStories-Instruct-28M,int4,215,"Once upon a time, there was a little girl named Lily. She was very happy and loved to play in the garden. One day, she was playing in the garden when she saw something strange. It was a big, round thing with a lot of buttons. She was very curious and wanted to know what it was.
 
 Lily asked her mom, ""What is that?"" Her mom said, ""That is a telephone. It is a telephone."" Lily was very excited and asked her mom to tell her more. Her mom said, ""Let's go and see if it is available.""
@@ -245,3 +247,66 @@ She saw the kitten under a bush. It was very small and scared. It was trembling 
 The kitten looked at Lily with big, green eyes. It did not run away. It was trembling and shaking. Lily smiled and said, ""Don't be afraid, little one. I will help you. Where is your mommy?""
 
 She looked around and saw a big, black cat with yellow eyes and a black spot on its nose. It was the kitten's mommy. She was looking for it. She saw Lily and the kitten and ran to them. She said, ""There you are, little one. You are safe now."
+TinyStories-Instruct-28M,w8a8,185,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+Lily asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help.""
+
+Lily was so happy to hear this. She wanted to help the kitten find its mom. She asked her mom, ""Can I help the kitten find its mom?"" Her mom said, ""Yes, you can help. Let's go look for her.""
+
+Lily and her mom searched the garden and soon found the kitten's mom. The kitten was so happy to see her mom and ran to her. Lily was so proud that she helped the kitten find its mom.
+
+The moral of the story is that it's important to help others when they need it. Even if it's something small like a kitten, it can make a big difference."
+TinyStories-Instruct-28M,w8a16,171,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help finding its mother.""
+
+Lily was so happy to hear this. She wanted to help the kitten find its mother. She asked her mom, ""Can I help the kitten find its mother?"" Her mom smiled and said, ""Yes, you can help the kitten. Let's go look for her.""
+
+So, Lily and her mom went on a search. They looked everywhere, but they couldn't find the kitten's mother. Finally, they found the kitten's mother. The kitten was so happy to see her mother and Lily was so proud that she helped the kitten find her mother."
+TinyStories-Instruct-28M,w8a32,171,"Once upon a time, there was a little girl named Lily. She was three years old and loved to explore the world around her.
+
+One day, Lily was playing in the garden when she saw something strange. It was a small, furry creature with big eyes. Lily was so excited and wanted to know what it was.
+
+She asked her mom, ""Mommy, what is that?"" Her mom replied, ""That's a kitten, Lily. It's lost and needs help finding its mother.""
+
+Lily was so happy to hear this. She wanted to help the kitten find its mother. She asked her mom, ""Can I help the kitten find its mother?"" Her mom smiled and said, ""Yes, you can help the kitten. Let's go look for her.""
+
+So, Lily and her mom went on a search. They looked everywhere, but they couldn't find the kitten's mother. Finally, they found the kitten's mother. The kitten was so happy to see her mother and Lily was so proud that she helped the kitten find her mother."
+TinyStories-Instruct-28M,w4a8,239,"Once upon a time, there was a little girl named Lily. She was very happy and loved to play in the garden. One day, she was playing in the garden when she saw something strange. It was a big, round thing with a lot of buttons. She was very curious and wanted to know what it was.
+
+Lily asked her mom, ""What is that?"" Her mom said, ""That is a telephone. It is a telephone."" Lily was very excited and asked if she could try it. Her mom said yes and Lily started to press the buttons.
+
+Suddenly, the telephone started to make a loud noise. Lily was scared and ran away. She was so scared that she didn't know what to do. Then, she heard a voice coming from the telephone. It said, ""Hello, Lily. I am a little kitten. I am lost and I need help finding my mommy.""
+
+Lily was so happy to hear the kitten's voice. She said, ""I will help you find your mommy."" She took the telephone and went to look for the kitten's mommy. After a while, she found the mommy and the kitten was so happy to see her.
+
+Lily was so happy that she helped the little kitten. She said goodbye to the kitten and went back home. She told her mom all about her adventure and how she helped the little kitten. Her mom was so proud of her."
+TinyStories-Instruct-28M,w4a16,215,"Once upon a time, there was a little girl named Lily. She was very happy and loved to play in the garden. One day, she was playing in the garden when she saw something strange. It was a big, round thing with a lot of buttons. She was very curious and wanted to know what it was.
+
+Lily asked her mom, ""What is that?"" Her mom said, ""That is a telephone. It is a telephone."" Lily was very excited and asked her mom to tell her more. Her mom said, ""Let's go and see if it is available.""
+
+So, they went to the telephone and Lily was so happy. She picked it up and said, ""Hello?"" But no one answered. She was confused and asked her mom, ""Where is the telephone?"" Her mom said, ""I don't know, but let's keep looking.""
+
+So, Lily and her mom kept looking for the telephone. Finally, they found it! It was a little kitten who was lost. Lily was so happy to have found the telephone. She said, ""I found it! I'm so glad it's available!""
+
+Lily and her mom took the telephone home and the kitten was so happy to have a new home. From that day on, Lily and her new kitten were the best of friends."
+TinyStories-Instruct-28M,w8a4,263,"""
+
+ again, a little kitten, a little girl, and soon, the little girl, a big, girl, was her pet kitten, and she was, with the kitten, little one for her and and the kitten. She was so happy in the little girl were, even to a new, happy life.
+
+ to the girl, and the one that was a special thing in the same way she had a happy and big, yet to play with the very, and she was very happy.
+ was a little,, and the kitten a little and the little girl was so happy, but she was a little, too, she was the little one to a very big, the little kitten and the kitten it was all one to one more- her to go away.
+
+ and the little kitten, the kitten to a special and so the little kitten and the kitten from the little kitten and kitten were the all she was to the kitten and the kitten's mommy and the kitten was coming to the little kitten.
+ the end of the kitten to the way to the garden. The kitten, and the two little kitten's sound.
+ the owner of the little kitten and the kitten was a little brother, and it a very happy to have a new family. The kitty was the kitten was the little and to meow the little girl and her little dog and the kitten was so the little kitten and the little girl who was the.
+
+ was the little puppy, the little, furry
+ she was so happy that he was a big,"
+TinyStories-Instruct-28M,w4a4,254,", and the kitten me- to a kitten, with a kind she had inside a, not to make her, and the mouse can be all of's special and all a little to the outside.
+'s all the day.
+, and then they both the little mouse and all the, the kitten was very, and the kitten was now a little kitten and a little mouse, as a baby, and they were the little mouse and the of the right to play, and they all had the kitten and the little kitten and the kitten was all the way, the little kitten's heart, and the little kitten me for the mom and the kitten's love of the big, to the very, it was a big, dark, and the big, and a way to, a little way, and all, and a very little, just like little, very, very big, and the little mouse was the cat, and the other kitten was so big that it had so many, and they all the, it was a big, black, happy to it, and it was a home- the cat, in the forest, and the a big, black and white cat and a little mouse and a friendly,, and a little "", and a little, little,, all the little, and a little, and one, a little, and a little, and, a little,, and one, one, a little, and a little, like the little boy, a very, and a little cat, a little three-year-old and a big, black cat and"

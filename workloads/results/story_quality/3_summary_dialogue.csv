@@ -195,17 +195,19 @@ Grandma smiled and said, ""That's a good idea. Now, let's go home and have some 
 Ben smiled and said, ""Yes, let's go!""
 
 And so, Ben and his grandma went home, and Ben was very careful to not forget the moon."
-TinyStories-Instruct-28M,int8,128,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+TinyStories-Instruct-28M,int8,139,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
 
-He asked his grandma, ""Grandma, why is the moon following us?""
+He asked his grandma, ""Can I go to the moon?""
 
-Grandma smiled and said, ""The moon is very far away, Ben. It's very distant, so it's hard to see it.""
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
 
-Ben was amazed and asked, ""Can I touch it?""
+Ben nodded and said, ""I will be careful. I will be careful.""
 
-Grandma laughed and said, ""No, Ben. The moon is too far away. But it will always be here, and it will always be here to follow us.""
+Grandma smiled and said, ""That's a good idea. Now, let's go home and have some dinner.""
 
-Ben smiled and said, ""I love the moon!"""
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not get too close to the moon."
 TinyStories-Instruct-28M,int4,158,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world. One day, he was playing in his backyard when he noticed something strange. He saw the moon in the sky. He was so excited and wanted to know why the moon was there.
 
 He asked his mom, ""Mommy, why is the moon here?"" His mom smiled and said, ""That's a good question, Ben. The moon is here to stay and shine at night.""
@@ -285,3 +287,75 @@ They ran to the tree and waved at the moon. The moon seemed to wave back and smi
 ""Hello, moon! We are Ben and Lily. We are playing with you. Do you want to play with us?"" Ben asked.
 
 The moon nodded. It seemed to like them"
+TinyStories-Instruct-28M,w8a8,139,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's a good idea. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not get too close to the moon."
+TinyStories-Instruct-28M,w8a16,136,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's my good boy. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not forget the moon."
+TinyStories-Instruct-28M,w8a32,136,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world around him. One day, he was walking in the park when he saw a big, round moon in the sky. He was so excited and wanted to get closer to it.
+
+He asked his grandma, ""Can I go to the moon?""
+
+Grandma smiled and said, ""Yes, but you must be careful. The moon is very far away and it's very distant.""
+
+Ben nodded and said, ""I will be careful. I will be careful.""
+
+Grandma smiled and said, ""That's my good boy. Now, let's go home and have some dinner.""
+
+Ben smiled and said, ""Yes, let's go!""
+
+And so, Ben and his grandma went home, and Ben was very careful to not forget the moon."
+TinyStories-Instruct-28M,w4a8,167,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world. One day, he was walking in the park and he saw a big, round moon in the sky. He was so excited and wanted to know why the moon was there.
+
+He asked his grandma, ""Why is the moon here?""
+
+Grandma smiled and said, ""The moon is here to follow us home. It's very far away.""
+
+Ben was so happy to hear this. He asked, ""Can I go with you?""
+
+Grandma laughed and said, ""No, you can't go with us. But you can look at the moon and think about it.""
+
+Ben looked up at the moon and said, ""It's so big and bright. I'm so glad I got to see it.""
+
+Grandma smiled and said, ""Yes, it is. Now let's go home and have some dinner.""
+
+Ben was so happy to have seen the moon. He waved goodbye and ran home with his grandma."
+TinyStories-Instruct-28M,w4a16,161,"Once upon a time, there was a little boy named Ben. He was three years old and loved to explore the world. One day, he was playing in his backyard when he noticed something strange. He saw the moon in the sky. He was so excited and wanted to know why the moon was there.
+
+He asked his mom, ""Mommy, why is the moon here?"" His mom smiled and said, ""That's a good question, Ben. The moon is here to stay and shine at night.""
+
+Ben was so happy to know why the moon was there. He asked his mom, ""Can I go and see the moon?"" His mom said, ""No, Ben. The moon is too far away. But you can look at it and enjoy its beauty.""
+
+Ben was so excited to see the moon. He looked up at the moon and said, ""Good night, moon!"" He waved goodbye and ran inside to tell his mom all about his adventure."
+TinyStories-Instruct-28M,w8a4,259,"to this they the the boy and his name is the mommy, and to their big, the big, little and a family was the two small, with, even, with their big, in the little boy's big, big, and, the mommy, and the little boy, and the, the mommy and the dad and the big, the mom, and the dad, and the little girl, and the family of friends and the mommy, and the boy, a dad, and the little boy, even a big, nice to have the boy, and the mom, have the big, to have a little boy and a, and dad the dad, and all the, and the mommy, and the one with the two children, and the mom and the little family, and the little boy and big, and the mom and the little, and the family of dad and dad were in a big,, and they all lived in a nice and, the little boy and his mommy and the family love their mommy and the big, happy they all in the time, and they all lived, and the world and the family of the big, happy, with many other things, and the big, the little boy and the a place with the same, and the big, the family and the little boy, and the one thing they had a very, very, and they both had a very, very big and a little family.
+ that and that was the two many special things to do, and the family of the very small, and one of"
+TinyStories-Instruct-28M,w4a4,256,"and a little boy and find the boy and his friends at the beach.
+
+
+
+
+,, the two children, they had a big, fun that the little boy and the boy who was very close, all was so close to the park and the the boy and the she was very very big.
+
+, and the girl's mom and dad had a big truck and a dog, and the boy was a very small, the boy's dad and all the kids in the sand was so the big, and the big, a huge, and the a little boy in the life- a little, very mommy and the little boy was the little girl had so big, all- at a very, big, open and all the and, all the was so they had and the big, happy, big and all in the girl and the little boy and it was.
+, and the small, the boy, the little one and the very, so big and the boy, and the little all he can in the little boy, to be a very, and the big, in the sky, and the little one even the big, of all the one, no, was very, and the little boy in the very three, to the big, and a big, big, one, and the a big, little boy and the big, and so, to be had a big, big and, the boy, and the big, and in the very small, little boy and the's big, happy, big, in the park and it's, what"

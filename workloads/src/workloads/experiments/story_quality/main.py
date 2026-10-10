@@ -18,6 +18,16 @@ from workloads.experiments.quantization import (
 from workloads.models.gpt_neo import gpt_neo
 
 RESULTS = Path(__file__).resolve().parents[4] / "results" / "story_quality"
+STORY_PRECISIONS = (
+    *PRECISIONS,
+    "w8a8",
+    "w8a16",
+    "w8a32",
+    "w4a8",
+    "w4a16",
+    "w8a4",
+    "w4a4",
+)
 MAX_NEW_TOKENS = 320
 END = "<|endoftext|>"
 # int8 and int4 are simulated: values are rounded to the integer grid and
@@ -95,8 +105,21 @@ def quantize_input(module: nn.Module, args: tuple) -> tuple:
     return (quantize(args[0], 8, dim=-1), *args[1:])
 
 
+def int4_input(module: nn.Module, args: tuple) -> tuple:
+    """Round Linear inputs to INT4 with one symmetric scale per token."""
+    return (quantize(args[0], 4, dim=-1), *args[1:])
+
+
+def bf16_input(module: nn.Module, args: tuple) -> tuple:
+    """Round Linear inputs to BF16, returning FP32 for simulated arithmetic."""
+    x = args[0]
+    return (x.to(torch.bfloat16).to(x.dtype), *args[1:])
+
+
 def convert(model: nn.Module, precision: str) -> nn.Module:
     """A copy of the fp32 ``model`` running at ``precision``."""
+    if precision not in STORY_PRECISIONS:
+        raise ValueError(f"Unknown precision: {precision}")
     model = copy.deepcopy(model)
     if precision == "bf16":
         return model.to(torch.bfloat16)
@@ -106,17 +129,22 @@ def convert(model: nn.Module, precision: str) -> nn.Module:
         if not is_quantized(name, type(module).__name__):
             continue
         weight = module.weight.data
-        if precision == "int8":
+        if precision in ("int8", "w8a8", "w8a16", "w8a32", "w8a4"):
             # One scale per output channel for the weight, and one per token
             # for the input, as dynamic int8 kernels do.
             weight.copy_(quantize(weight, 8, dim=1))
-            module.register_forward_pre_hook(quantize_input)
         else:
-            # Weight-only, one scale per 32 inputs of each output channel.
+            # One scale per 32 inputs of each output channel.
             out_features, in_features = weight.shape
             assert in_features % INT4_GROUP == 0, name
             groups = weight.reshape(out_features, -1, INT4_GROUP)
             weight.copy_(quantize(groups, 4, dim=2).reshape(weight.shape))
+        if precision in ("int8", "w8a8", "w4a8"):
+            module.register_forward_pre_hook(quantize_input)
+        elif precision in ("w8a16", "w4a16"):
+            module.register_forward_pre_hook(bf16_input)
+        elif precision in ("w8a4", "w4a4"):
+            module.register_forward_pre_hook(int4_input)
     return model
 
 
@@ -148,7 +176,7 @@ def main() -> None:
     parser.add_argument(
         "--precision",
         action="append",
-        choices=PRECISIONS,
+        choices=STORY_PRECISIONS,
         help="repeatable (default: all of " + ", ".join(PRECISIONS) + ")",
     )
     args = parser.parse_args()
@@ -173,10 +201,23 @@ def main() -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
     for index, (name, _) in enumerate(PROMPTS, start=1):
         output = csv_path(index, name)
+        # Replace selected model/precision pairs, retaining all other rows.
+        rows = {}
+        if output.exists():
+            with open(output, newline="") as file:
+                for row in csv.DictReader(file):
+                    rows[row["model"], row["precision"]] = [
+                        row["model"],
+                        row["precision"],
+                        row["words"],
+                        row["story"],
+                    ]
+        for row in stories[name]:
+            rows[row[0], row[1]] = row
         with open(output, "w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow(["model", "precision", "words", "story"])
-            writer.writerows(stories[name])
+            writer.writerows(rows.values())
         print(f"wrote {output}")
 
 
