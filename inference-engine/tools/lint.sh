@@ -7,7 +7,7 @@ uv run ruff check --fix .
 uv run ruff format .
 uv run ruff check .
 
-# The engine is header-only, so these globs may match nothing.
+# The engine may be header-only, so these globs may match nothing.
 shopt -s nullglob
 sources=(src/csrc/src/*.cpp src/csrc/src/operator/*.cpp tools/*.cpp tests/cpp/*.cpp)
 headers=(src/csrc/include/inference_engine/*.hpp src/csrc/include/inference_engine/operator/*.hpp)

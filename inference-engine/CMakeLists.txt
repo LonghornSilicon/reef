@@ -3,7 +3,7 @@ project(inference_engine LANGUAGES CXX)
 
 # C++17 is a conservative host baseline while the Coral target toolchain is
 # unconfirmed. Revisit the standard when that toolchain is pinned.
-# Every operator is a template, so the engine is header-only: consumers get
+# Every operator is a template, so the engine may be header-only: consumers get
 # the includes and the standard, and nothing is compiled into a library.
 add_library(inference_engine INTERFACE)
 target_compile_features(inference_engine INTERFACE cxx_std_17)
