@@ -1,0 +1,12 @@
+# Kernels build freestanding for RISC-V with no C++ standard library, so only
+# the C headers (<stddef.h>, <stdint.h>) exist. Everything else follows the
+# inference-engine rules.
+InheritParentConfig: true
+Checks: >
+  -modernize-deprecated-headers
+HeaderFilterRegex: '.*/simulations/.*'
+CheckOptions:
+  # Clang declares the RVV intrinsics (__riscv_*) implicitly at their first
+  # use, so these checks blame the calling file for their names.
+  bugprone-reserved-identifier.AllowedIdentifiers: '^__riscv_.*'
+  readability-identifier-naming.FunctionIgnoredRegexp: '^__riscv_.*'
