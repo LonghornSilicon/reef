@@ -115,3 +115,36 @@ def test_greedy_stories_match_the_committed_results(
 
         story = story_quality.tell(model, tokenizer, prompt)
         assert story == stories[key, precision], name
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "precision",
+    ["w8a8", "w8a16", "w8a32", "w4a8", "w4a16", "w8a4", "w4a4"],
+)
+def test_variants_share_weights_and_round_inputs(precision: str) -> None:
+    """Same weights isolate activation rounding at each Linear boundary."""
+    model = GPTNeoForCausalLM(TINY)
+    original = {name: t.clone() for name, t in model.state_dict().items()}
+    converted = story_quality.convert(model, precision)
+    reference = story_quality.convert(
+        model, "int4" if precision.startswith("w4") else "int8"
+    )
+    for module, expected in zip(
+        quantized_linears(converted), quantized_linears(reference), strict=True
+    ):
+        assert torch.equal(module.weight, expected.weight)
+        x = torch.linspace(-1.123, 2.345, module.in_features).reshape(1, 1, -1)
+        if precision.endswith("a8"):
+            rounded = story_quality.quantize(x, 8, dim=-1)
+        elif precision.endswith("a16"):
+            rounded = x.to(torch.bfloat16).float()
+        elif precision.endswith("a4"):
+            rounded = story_quality.quantize(x, 4, dim=-1)
+        else:
+            rounded = x
+        expected_output = torch.nn.functional.linear(
+            rounded, module.weight, module.bias
+        )
+        torch.testing.assert_close(module(x), expected_output)
+    assert_head_and_source_untouched(model, converted, original)
