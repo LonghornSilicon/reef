@@ -1,0 +1,11 @@
+# Stage this directory under examples/reef_mlp in a Coral NPU checkout.
+load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
+
+coralnpu_v2_binary(
+    name = "mlp_w8a8_test",
+    srcs = ["kernels/mlp_w8a8.cc", "integration_tests/mlp_main.cc"],
+    hdrs = ["kernels/mlp_w8a8.h", "fixtures/mlp_fixture.h"],
+    copts = ["-std=c++17", "-O2", "-ffp-contract=off"],
+    linkopts = ["-lm"],
+    stack_size_bytes = 2048,
+)
