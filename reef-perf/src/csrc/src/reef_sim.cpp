@@ -110,6 +110,10 @@ void ReefSim::bindTree_() {
 void ReefSim::print_summary(std::ostream& os) const {
     const std::uint64_t cycles = rob_->last_retire_cycle();
     const std::uint64_t insts = rob_->num_retired();
+    //ADDED FOR ROI tracking
+    const bool roi_complete = rob_->roi_complete();
+    const std::uint64_t roi_cycles = rob_->roi_cycles();
+    const std::uint64_t roi_insts = rob_->roi_instructions();
 
     os << "\n==================== reef_perf summary ====================\n"
        << "  workload            : " << elf_path_ << "\n"
@@ -117,6 +121,11 @@ void ReefSim::print_summary(std::ostream& os) const {
        << "  cycles              : " << cycles << "\n"
        << "  IPC                 : " << std::fixed << std::setprecision(3)
        << ipc(insts, cycles) << "\n"
+        //ADDED
+       << "  ROI complete        : " << (roi_complete ? "yes" : "no") << "\n"
+       << "  ROI instructions    : " << roi_insts << "\n"
+       << "  ROI cycles          : " << (roi_complete ? roi_cycles : 0) << "\n"
+
        << "  taken branches/jumps: " << fetch_->num_redirects() << "\n";
     if (insts != funcsim_->executed()) {
         os << "  WARNING: retired " << insts << " but Spike executed "
@@ -152,12 +161,21 @@ void ReefSim::print_summary(std::ostream& os) const {
 void ReefSim::write_json(std::ostream& os) const {
     const std::uint64_t cycles = rob_->last_retire_cycle();
     const std::uint64_t insts = rob_->num_retired();
+    //MODIFIED FOR ROI tracking
+    const bool roi_complete = rob_->roi_complete();
+    const std::uint64_t roi_cycles = rob_->roi_cycles();
+    const std::uint64_t roi_insts = rob_->roi_instructions();
     os << "{\n"
        << R"(  "workload": ")" << elf_path_ << "\",\n"
        << "  \"instructions\": " << insts << ",\n"
        << "  \"functional_instructions\": " << funcsim_->executed() << ",\n"
        << "  \"cycles\": " << cycles << ",\n"
        << "  \"ipc\": " << ipc(insts, cycles) << ",\n"
+    //ADDED FOR ROI tracking
+       << "  \"roi_complete\": " << (roi_complete ? "true" : "false") << ",\n"
+       << "  \"roi_instructions\": " << roi_insts << ",\n"
+       << "  \"roi_cycles\": " << (roi_complete ? roi_cycles : 0) << ",\n"
+
        << "  \"taken_redirects\": " << fetch_->num_redirects() << ",\n"
        << "  \"dispatch\": {\n"
        << "    \"cycles_with_dispatch\": " << dispatch_->cycles_with_dispatch();

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from reef_perf.sim import SimulationError, run_sim
+from reef_perf.sim import SimResult, SimulationError, run_sim
 
 FETCH_INTERVAL = "top.core.fetch.params.fetch_interval"
 
@@ -24,7 +24,10 @@ def test_runs_workload_to_completion(
     assert 0.0 < result.ipc <= 4.0
     busy = result.dispatch["cycles_with_dispatch"]
     assert busy + sum(result.stall_cycles.values()) <= result.cycles
-
+    #ADDED FOR ROI
+    assert result.roi_complete is True
+    assert result.roi_instructions == 18000
+    assert result.roi_cycles > 0
 
 @pytest.mark.integration
 @pytest.mark.slow
@@ -67,3 +70,44 @@ def test_missing_elf_raises(cpp_build_dir: Path, tmp_path: Path) -> None:
     del cpp_build_dir
     with pytest.raises(SimulationError):
         run_sim(tmp_path / "missing.elf")
+
+#Added for ROI tracking json files
+@pytest.mark.unit # Testing python json parsing without running the actual C++ simulator
+def test_sim_result_roi_json() -> None:
+    """ROI measurements are correctly parsed and preserved."""
+
+    data = {
+        "workload": "alu_chain.elf",
+        "instructions": 18009,
+        "functional_instructions": 18009,
+        "cycles": 16007,
+        "ipc": 1.125,
+        "taken_redirects": 999,
+        "dispatch": {},
+        "pools": {},
+        "roi_complete": True,
+        "roi_instructions": 18000,
+        "roi_cycles": 16000,
+    }
+
+    result = SimResult.from_json(data)
+
+    assert result.roi_complete is True
+    assert result.roi_instructions == 18000
+    assert result.roi_cycles == 16000
+
+    # Verify serialization preserves the measurements.
+    assert result.to_json() == data
+
+    # Older JSON files without ROI fields should still work.
+    old_data = {
+        key: value
+        for key, value in data.items()
+        if not key.startswith("roi_")
+    }
+
+    old_result = SimResult.from_json(old_data)
+
+    assert old_result.roi_complete is False
+    assert old_result.roi_instructions == 0
+    assert old_result.roi_cycles == 0

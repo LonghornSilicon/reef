@@ -72,6 +72,22 @@ class Rob : public sparta::Unit {
         return last_retire_cycle_;
     }
 
+    //Added MYSELF for Counting the retired instructions
+    /// Whether both ROI markers have retired.
+    [[nodiscard]] bool roi_complete() const {
+        return roi_complete_;
+    }
+
+    /// Simulated cycles between the ROI markers.
+    [[nodiscard]] std::uint64_t roi_cycles() const {
+        return roi_end_cycle_ - roi_start_cycle_;
+    }
+
+    /// Instructions retired strictly between the ROI markers.
+    [[nodiscard]] std::uint64_t roi_instructions() const {
+        return roi_retired_insts_;
+    }
+
   private:
     /** Port handler: an instruction was dispatched and enters the buffer.
      *
@@ -93,6 +109,14 @@ class Rob : public sparta::Unit {
     std::deque<InstPtr> rob_;
     /// Cycle of the most recent retirement.
     std::uint64_t last_retire_cycle_ = 0;
+
+    //Added MYSELF for Counting the retired instructions
+    /// ROI measurement state.
+    bool roi_active_ = false;
+    bool roi_complete_ = false;
+    std::uint64_t roi_start_cycle_ = 0;
+    std::uint64_t roi_end_cycle_ = 0;
+    std::uint64_t roi_retired_insts_ = 0;
 
     /// Dispatched instructions in from Dispatch.
     sparta::DataInPort<InstPtr> in_insts_{&unit_port_set_, "in_insts", 1};

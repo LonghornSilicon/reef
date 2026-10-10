@@ -74,6 +74,9 @@ class SimResult:
         dispatch: Dispatch counters: cycles_with_dispatch and one
             stall_<reason> entry per stall reason.
         pools: Per execution resource: units, ops and busy_cycles.
+        roi_complete: Whether both ROI markers were detected or not --> True or False
+        roi_instructions: Number of instructions retired within the ROI --> int
+        roi_cycles: Number of simulated cycles between ROI markers --> int
     """
 
     workload: str
@@ -84,6 +87,11 @@ class SimResult:
     taken_redirects: int
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
+
+    #Added
+    roi_complete: bool = False
+    roi_instructions: int = 0
+    roi_cycles: int = 0
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -107,6 +115,9 @@ class SimResult:
                 name: {k: int(v) for k, v in counters.items()}
                 for name, counters in data["pools"].items()
             },
+            roi_complete=bool(data.get("roi_complete", False)),
+            roi_instructions=int(data.get("roi_instructions", 0)),
+            roi_cycles=int(data.get("roi_cycles", 0)),
         )
 
     def to_json(self) -> dict[str, Any]:
