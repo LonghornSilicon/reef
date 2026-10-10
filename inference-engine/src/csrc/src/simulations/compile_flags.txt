@@ -1,0 +1,9 @@
+-xc++
+-std=c++17
+--target=riscv32-unknown-elf
+-march=rv32imf_zve32x
+-mabi=ilp32f
+-ffreestanding
+-nostdinc++
+-Ikernels
+-Iincludes
