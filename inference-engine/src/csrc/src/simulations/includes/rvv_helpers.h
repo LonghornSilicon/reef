@@ -1,4 +1,4 @@
-// rvv_helpers.h — readable wrappers for the RVV intrinsics the kernels use.
+// rvv_helpers.h — readable wrappers for the RVV intrinsics the kernels use
 #pragma once
 #include <riscv_vector.h>
 #include <stddef.h>
@@ -23,6 +23,19 @@ RVV_INLINE vu32 mac(vu32 acc, uint16_t a, vu16 row, size_t vl) {
 }
 RVV_INLINE void store(uint32_t* p, vu32 v, size_t vl) {
     __riscv_vse32_v_u32m4(p, v, vl);
+}
+
+// Signed 8-bit row operations used by the embedding kernels
+using vs8 = vint8m1_t;
+
+RVV_INLINE vs8 load_s8(const int8_t* p, size_t vl) {
+    return __riscv_vle8_v_i8m1(p, vl);
+}
+RVV_INLINE vs8 add_s8(vs8 a, vs8 b, size_t vl) {
+    return __riscv_vadd_vv_i8m1(a, b, vl);
+}
+RVV_INLINE void store_s8(int8_t* p, vs8 v, size_t vl) {
+    __riscv_vse8_v_i8m1(p, v, vl);
 }
 
 } // namespace rvv

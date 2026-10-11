@@ -126,6 +126,36 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 
   `tools/lint.sh` and `tools/check_cpp.sh` do not cover this folder yet.
 
+## Running on the Coral simulator (temporary, until Reef has a cross-build)
+
+The folder builds through the `coralnpu` repo's Bazel toolchain. From a
+`google-coral/coralnpu` checkout:
+
+1. `mkdir -p examples/reef_sim && cp -r <reef>/inference-engine/src/csrc/src/simulations/{kernels,includes,unit_tests} examples/reef_sim/`
+2. Add to `examples/BUILD.bazel`, above `collect_coralnpu_elfs()`:
+```python
+   coralnpu_v2_binary(
+       name = "coralnpu_v2_test_embedding",
+       srcs = [
+           "reef_sim/unit_tests/test_embedding.cc",
+           "reef_sim/kernels/embedding_rvv.cc",
+           "reef_sim/kernels/embedding_rvv.h",
+           "reef_sim/includes/rvv_helpers.h",
+       ],
+       copts = ["-Iexamples/reef_sim/kernels", "-Iexamples/reef_sim/includes"],
+   )
+```
+3. `bazel build //examples:coralnpu_v2_test_embedding`; the ELF lands in
+   `bazel-out/k8-fastbuild-ST-*/bin/examples/`.
+4. In a `google-coral/coralnpu-mpact` checkout:
+   `bazel-bin/sim/coralnpu_v2_sim --i <elf>`, then `break` on the
+   `extern "C"` symbols, `run`, `reg minstret` at each stop, and finally
+   `mem get status x32` (expect 1) and `mem get checksum d32` (expect 8960).
+
+Measured on `coralnpu_v2_sim`, 4 rows × 64 int8: `embedding_lookup_rvv`
+202 instructions (scalar 1,332), `embedding_add_position_rvv` 223
+(scalar 1,832).
+
 ## Verification status
 
 | What | Status |
@@ -134,6 +164,7 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 | RISC-V compile (`-O2 -Wall -Wextra -Wpedantic`) | Both kernels build with no warnings; the VME asm assembles |
 | VME tiling logic | Matches a scalar reference under `-DVME_EMULATE` for 16×4×16, 32×8×48 and 64×768×32, signed and unsigned |
 | `matmul_rvv` results | **Not run yet.** No RISC-V emulator was available, so the first real run will be on the Coral sim |
+| `embedding_rvv` results | Verified on `coralnpu_v2_sim`: `status=1`, checksum matches the scalar reference; lookup 202 instr (scalar 1,332), position-add 223 (scalar 1,832), 4×64 int8 |
 | VME encodings on hardware | **Not checked.** Only Coral's RTL model can run them |
 
 ## Known issues and open questions
