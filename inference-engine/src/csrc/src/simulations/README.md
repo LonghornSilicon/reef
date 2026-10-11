@@ -15,9 +15,12 @@ simulations/
 ├── .clang-tidy          # repo lint rules, plus the exceptions below
 ├── compile_flags.txt    # target flags and include paths for clangd/clang-tidy
 ├── includes/
+│   ├── quant_helpers.h  # namespace quant: scalar requantization + expf
 │   ├── rvv_helpers.h    # namespace rvv: wrappers over RVV intrinsics
 │   └── vme_helpers.h    # namespace vme: wrappers over VME (Zvt) instructions
 ├── kernels/
+│   ├── attention_flash.h/.cc  # fused attention head (online softmax)
+│   ├── attention_serial.h/.cc # unfused attention head, flash's reference
 │   ├── matmul_rvv.h/.cc # matmul on the vector unit
 │   └── matmul_vme.h/.cc # matmul on the matrix engine
 ├── unit_tests/          # one test per kernel (stubs for now)
@@ -66,7 +69,53 @@ because VME has no int8 × int8 matmul.
   `k`. Each step consumes 4 slices of k (16 × 16 × 4 = 1,024 multiply-adds),
   then the finished block is copied to C one row at a time.
 
+### `attention_serial` and `attention_flash` (scalar)
+
+```c
+void attention_serial(size_t nq, size_t nk, size_t d, size_t query_start,
+                      size_t window, const int8_t* q, const uint8_t* kt,
+                      int32_t k_zero, const uint8_t* v, int32_t v_zero,
+                      float score_scale, float v_scale, float out_scale,
+                      int8_t* out);
+void attention_flash(...);  // identical signature
+```
+
+One attention head: `out[nq x d] (int8) = softmax(q . kt) * v`, row-major.
+K arrives transposed (`kt[d x nk]`) so it matches the uint8 B operand the
+VME matmul wants; `k_zero`/`v_zero` are the uint8 zero points and the three
+scales carry the quantization (GPT-Neo applies no 1/sqrt(d)). Causal and
+sliding-window masking happen through loop bounds — query row `i` sees keys
+`[max(0, query_start + i + 1 - window), query_start + i]` — so there are no
+mask buffers or sentinel scores. `window >= nk` disables the local limit;
+`window` must be at least 1.
+
+- `attention_serial` materializes one score row at a time and normalizes it
+  with a private float softmax. That softmax is a stand-in: once the
+  standalone softmax kernel exists it should be called here instead.
+- `attention_flash` fuses everything into one pass per query row with the
+  online-softmax recurrence (running max, denominator and weighted sum), so
+  it never materializes a score row and its per-row state is O(d).
+- Shape limits (documented, not checked, like the matmuls): `d <= 128`,
+  `nk <= 1024`, `query_start + nq <= nk`.
+- Internals use scalar float registers (`rv32imf`); only int8/uint8 data
+  touches memory. `expf` comes from newlib and is declared directly in
+  `quant_helpers.h`, since the freestanding build has no `<math.h>`.
+- TODO: the matmul kernels get ported in **after the standalone softmax
+  kernel lands**, as sibling VME kernels (the scalar ones stay as the
+  reference). Gated on three things: the value stage needs the softmax
+  kernel's uint8 probabilities to feed `matmul_vme_u8` (the score stage
+  already maps to `matmul_vme_s8u8` plus a per-row `k_zero * sum(q)`
+  fixup); VME can only be verified on Coral's RTL model, which nothing
+  builds for yet; and VME's 16×16 tile shape needs padding/masking work
+  (decode is `nq = 1`) and turns flash into a per-block online update
+  (block flash).
+
 ## Helpers
+
+### `quant_helpers.h`
+
+The `expf` declaration and `quant::to_int8` (round to nearest, ties away
+from zero, clamped), shared by the two attention kernels.
 
 ### `rvv_helpers.h`
 
@@ -133,6 +182,7 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 | Lint (clang-tidy, clang-format, clangd) | Clean, in real and emulation modes |
 | RISC-V compile (`-O2 -Wall -Wextra -Wpedantic`) | Both kernels build with no warnings; the VME asm assembles |
 | VME tiling logic | Matches a scalar reference under `-DVME_EMULATE` for 16×4×16, 32×8×48 and 64×768×32, signed and unsigned |
+| Attention kernels | `test_flash` passes on the host: serial and flash match a double-precision reference exactly (0 int8 steps) on global/local × prefill/decode cases. Cross-compiles clean for riscv32 with the Kelvin toolchain (`coralnpu_v2_binary`) |
 | `matmul_rvv` results | **Not run yet.** No RISC-V emulator was available, so the first real run will be on the Coral sim |
 | VME encodings on hardware | **Not checked.** Only Coral's RTL model can run them |
 
@@ -161,13 +211,15 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 6. **Unverified VME details.** The instruction encodings and the
    `mstatus.MS` bit (bit 29 in `enable_matrix_state`) have only been checked to
    assemble. Emulation mode can't test them.
-7. **The tests are stubs.** `unit_tests/` and `integration_tests/` hold only
-   comments. Planned coverage:
+7. **Most tests are stubs.** `unit_tests/test_matmul.cc`,
+   `unit_tests/test_softmax.cc` and `integration_tests/` hold only comments.
+   Planned coverage:
    - `test_matmul`: RVV and VME against a scalar reference, plus cycle counts.
      Include an `m > 16` case for `matmul_rvv`, since that's where its
      column-strip loop matters.
    - `test_softmax`: online softmax accuracy and cycles.
-   - `test_flash`: flash attention against serial attention.
+   - `test_flash` is implemented for correctness (host build command in the
+     file header); cycle measurement still waits on the simulator build.
 8. **`test_main.cc` is a test runner rather than an integration test.** Each
    ELF usually runs as its own program on the simulator. Either build one
    binary per test, or turn this file into a real integration test, such as an
