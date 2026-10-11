@@ -4,7 +4,7 @@
 
 This experiment evaluates how different weight and activation precisions affect the text generation quality of **TinyStories-Instruct-28M**.
 
-We compare 10 precision configurations across 5 story-generation prompts to identify promising quantization formats for efficient LLM inference on custom hardware.
+We compare nine distinct precision configurations across five story-generation prompts to identify promising quantization formats for efficient LLM inference on custom hardware. The outputs use ten labels because `int8` and `w8a8` name the same configuration.
 
 ## Precision Configurations
 
