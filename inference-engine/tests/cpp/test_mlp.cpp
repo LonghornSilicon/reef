@@ -89,7 +89,7 @@ TEST(MlpTest, AppliesBothBiasesAcrossMultipleRows) {
     ASSERT_EQ(output.values.size(), 6U);
     for (std::size_t row = 0; row < 3; ++row) {
         EXPECT_NEAR(output.values[row * 2], 2.182383981F, 1e-5F);
-        EXPECT_NEAR(output.values[row * 2 + 1], -1.091191991F, 1e-5F);
+        EXPECT_NEAR(output.values[(row * 2) + 1], -1.091191991F, 1e-5F);
     }
 }
 
@@ -133,6 +133,27 @@ MlpWeights make_test_weights() {
 
 constexpr Tensor<float> MlpWeights::* kParameters[] = {
     &MlpWeights::W_1, &MlpWeights::b_1, &MlpWeights::W_2, &MlpWeights::b_2};
+
+void expect_forward_rejected(const MlpWeights& weights) {
+    const MLP mlp(weights);
+    const Tensor<float> input{{1, 2}, {1, -2}};
+    EXPECT_THROW(static_cast<void>(mlp.forward(input)), std::invalid_argument);
+}
+
+void expect_tensor_equal(const Tensor<float>& left,
+                         const Tensor<float>& right) {
+    EXPECT_EQ(left.shape, right.shape);
+    EXPECT_EQ(left.values, right.values);
+}
+
+void expect_weights_equal(const MlpWeights& actual,
+                          const MlpWeights& expected) {
+    EXPECT_EQ(actual.input_size, expected.input_size);
+    EXPECT_EQ(actual.hidden_size, expected.hidden_size);
+    for (const auto parameter : kParameters) {
+        expect_tensor_equal(actual.*parameter, expected.*parameter);
+    }
+}
 } // namespace
 
 TEST(MlpTest, RejectsWrongInputRank) {
@@ -168,10 +189,7 @@ TEST(MlpTest, RejectsMalformedParameterShapes) {
         MlpWeights weights = make_test_weights();
         // Preserve the values so rejection must come from the shape.
         (weights.*parameter).shape = {1, 1, 1};
-        const MLP mlp(weights);
-        EXPECT_THROW(
-            static_cast<void>(mlp.forward(Tensor<float>{{1, 2}, {1, -2}})),
-            std::invalid_argument);
+        expect_forward_rejected(weights);
     }
 }
 
@@ -181,20 +199,21 @@ TEST(MlpTest, RejectsShortParameterStorage) {
         // Every fixture parameter has at least two values, so the bias
         // remains present after removing one value.
         (weights.*parameter).values.pop_back();
-        const MLP mlp(weights);
-        EXPECT_THROW(
-            static_cast<void>(mlp.forward(Tensor<float>{{1, 2}, {1, -2}})),
-            std::invalid_argument);
+        expect_forward_rejected(weights);
     }
 }
 
 TEST(MlpTest, RepeatedCallsPreserveInputsAndWeights) {
     const MlpWeights weights = make_test_weights();
+    // Independent snapshots must retain pre-call state if forward mutates it.
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const MlpWeights original_weights = weights;
     const MLP mlp(weights);
     const Tensor<float> input{{1, 2}, {1, -2}};
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const Tensor<float> original_input = input;
     const Tensor<float> other_input{{2, 2}, {3, 4, -1, 2}};
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const Tensor<float> original_other_input = other_input;
 
     const auto first = mlp.forward(input);
@@ -203,20 +222,10 @@ TEST(MlpTest, RepeatedCallsPreserveInputsAndWeights) {
 
     ASSERT_EQ(other_output.shape, (std::vector<std::size_t>{2, 2}));
     ASSERT_EQ(other_output.values.size(), 4U);
-    EXPECT_EQ(repeated.shape, first.shape);
-    EXPECT_EQ(repeated.values, first.values);
-    EXPECT_EQ(input.shape, original_input.shape);
-    EXPECT_EQ(input.values, original_input.values);
-    EXPECT_EQ(other_input.shape, original_other_input.shape);
-    EXPECT_EQ(other_input.values, original_other_input.values);
-    EXPECT_EQ(weights.input_size, original_weights.input_size);
-    EXPECT_EQ(weights.hidden_size, original_weights.hidden_size);
-    for (const auto parameter : kParameters) {
-        EXPECT_EQ((weights.*parameter).shape,
-                  (original_weights.*parameter).shape);
-        EXPECT_EQ((weights.*parameter).values,
-                  (original_weights.*parameter).values);
-    }
+    expect_tensor_equal(repeated, first);
+    expect_tensor_equal(input, original_input);
+    expect_tensor_equal(other_input, original_other_input);
+    expect_weights_equal(weights, original_weights);
 }
 
 } // namespace inference_engine
