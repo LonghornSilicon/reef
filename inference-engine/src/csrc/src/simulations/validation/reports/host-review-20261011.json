@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "date": "2026-10-11",
+  "reef_base_revision": "c8997ddbc054ef719d6b80db30949e9b822fb3cb",
+  "scope": "successful pinned real-model host validation and static memory review; no full-size Coral execution",
+  "checks": {
+    "ruff_format": "PASS: 19 Python files",
+    "ruff_lint": "PASS",
+    "bridge_clang_format": "PASS: 21.1.6",
+    "bridge_clang_tidy": "PASS: 21.1.6, explicit host GCC 11 system headers",
+    "focused_pytest": "PASS: 13 cases, Python 3.10.12 / torch 2.13.0+cu130 preliminary environment",
+    "existing_cpp_ctest": "PASS: 17 tests in existing /tmp/reef-lint-host-full build; not a fresh locked container run",
+    "original_synthetic_harness": "PASS: host status=0 failures=0",
+    "synthetic_export_comparison": "PASS: exact integer stages; atol=2e-6 rtol=2e-5",
+    "proposed_memory_layout": "PASS: static size/alignment/bounds/overlap checks",
+    "kernel_fixture_target_harness_changes": "NONE",
+    "locked_container_ci": "PASS: Ruff, C++ formatting/build/clang-tidy, Doxygen, all 12 inference-engine pytest cases",
+    "locked_numerical_tests": "PASS: 6 cases",
+    "locked_synthetic_export_comparison": "PASS",
+    "real_checkpoint_capture": "PASS: prompt has 22 tokens, selected positions 0,11,21",
+    "real_stage_comparison": "PASS: all 15360 checked integer values exact; max FP32 oracle difference 1.1920928955078125e-7",
+    "checkpoint_inventory": "PASS: 108 independent learned tensors; only 16 obsolete mask buffers unexpected; tied lm_head alias is not an independently missing parameter",
+    "artifact_source_integrity": "PASS: archive/manifest/array hashes and executed source/quantizer/prompt/lock/map hashes verified against current checkout"
+  },
+  "pending": [],
+  "blockers": [],
+  "normal_ssh_command": "cd ~/coralnpu-dissection/reef-mlp-simulator && bash inference-engine/src/csrc/src/simulations/validation/run_real_host_container.sh",
+  "commit_push": "not performed; report results/blockers before either action",
+  "evidence_directory": "/tmp/reef-real-host.Ey53TI",
+  "container_exit_status": 0,
+  "future_guest_requirements": [
+    "Final ELF section placement and loader mapping",
+    "ITCM code fit",
+    "Globals within runtime reserve and stack sufficiency",
+    "Explicit .extbss initialization"
+  ],
+  "container_environment": {
+    "python": "3.12.15",
+    "torch": "2.14.0+cu126",
+    "transformers": "5.17.0",
+    "numpy": "2.5.3",
+    "compiler": "GCC 12.2.0",
+    "device": "cpu"
+  },
+  "saved_evidence_sha256": {
+    "logs/checkpoint-audit-script-20261011.txt": "1ac14dcff710f66cf99648353f6866996e899a87c58bf6d172f5263481e40bb4",
+    "logs/real-host-container-20261011.log": "33dfa5e4447e4afcff4413c2cec58a3ade1ac2e279ce290089f6c8b5b95027e9",
+    "reports/checkpoint-audit-20261011.json": "6fe5a9eb27cc9c9d2b34f9d232918adb4f319485465f2c101d737fb8b0afcf9a",
+    "reports/real-host-20261011.json": "4525992518e5f9e5eab7e4d58935c769f7992ca2ecb62db3dd80c0e98c9b1c15",
+    "reports/real-provenance-20261011.json": "4d666a62a7e21276112586bef5f4ac4fed2c330f21a06102b2b45e72208ea788",
+    "reports/synthetic-container-20261011.json": "4dda9d79fde498f40e48c5306696f965b6c05dbf88f5c4300590c953a2f538ee"
+  }
+}

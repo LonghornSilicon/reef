@@ -1,0 +1,272 @@
++ export UV_PROJECT_ENVIRONMENT=/work/inference-venv
++ UV_PROJECT_ENVIRONMENT=/work/inference-venv
++ uv sync --locked
+Using CPython 3.12.15 interpreter at: /usr/local/bin/python3
+Creating virtual environment at: /work/inference-venv
+Resolved 11 packages in 0.72ms
+   Building inference-engine @ file:///repo/inference-engine
+Downloading pygments (1.2MiB)
+Downloading clang-format (1.7MiB)
+Downloading clang-tidy (38.6MiB)
+Downloading ruff (9.8MiB)
+ Downloaded clang-format
+ Downloaded ruff
+ Downloaded pygments
+ Downloaded clang-tidy
+      Built inference-engine @ file:///repo/inference-engine
+Prepared 10 packages in 871ms
+Installed 10 packages in 16ms
+ + clang-format==21.1.6
+ + clang-tidy==21.1.6
+ + inference-engine==0.1.0 (from file:///repo/inference-engine)
+ + iniconfig==2.3.0
+ + packaging==26.3
+ + pluggy==1.6.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + pytest-timeout==2.4.0
+ + ruff==0.16.5
++ uv run --locked ruff format --check .
+19 files already formatted
++ uv run --locked ruff check .
+All checks passed!
++ bash tools/check_cpp.sh
+-- The CXX compiler identification is GNU 12.2.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- The C compiler identification is GNU 12.2.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /repo/inference-engine/build/lint
+[  5%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/operator/activation.cpp.o
+[ 11%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/operator/attention.cpp.o
+[ 17%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/operator/embedding.cpp.o
+[ 23%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/operator/matrix.cpp.o
+[ 29%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/operator/mlp.cpp.o
+[ 35%] Building CXX object CMakeFiles/inference_engine.dir/src/csrc/src/model.cpp.o
+[ 41%] Linking CXX static library libinference_engine.a
+[ 41%] Built target inference_engine
+[ 47%] Building CXX object CMakeFiles/matrix_cli.dir/tools/matrix_cli.cpp.o
+[ 52%] Linking CXX executable bin/matrix_cli
+[ 52%] Built target matrix_cli
+[ 58%] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o
+[ 64%] Linking CXX static library ../../../lib/libgtest.a
+[ 64%] Built target gtest
+[ 70%] Building CXX object _deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o
+[ 76%] Linking CXX static library ../../../lib/libgtest_main.a
+[ 76%] Built target gtest_main
+[ 82%] Building CXX object tests/cpp/CMakeFiles/test_matrix_cpp.dir/test_matrix.cpp.o
+[ 88%] Linking CXX executable test_matrix_cpp
+[ 88%] Built target test_matrix_cpp
+[ 94%] Building CXX object tests/cpp/CMakeFiles/test_mlp_cpp.dir/test_mlp.cpp.o
+[100%] Linking CXX executable test_mlp_cpp
+[100%] Built target test_mlp_cpp
+[1/9] Processing file /repo/inference-engine/src/csrc/src/model.cpp.
+7920 warnings generated.
+[2/9] Processing file /repo/inference-engine/src/csrc/src/operator/activation.cpp.
+15493 warnings generated.
+[3/9] Processing file /repo/inference-engine/src/csrc/src/operator/attention.cpp.
+23066 warnings generated.
+[4/9] Processing file /repo/inference-engine/src/csrc/src/operator/embedding.cpp.
+30986 warnings generated.
+[5/9] Processing file /repo/inference-engine/src/csrc/src/operator/matrix.cpp.
+51611 warnings generated.
+[6/9] Processing file /repo/inference-engine/src/csrc/src/operator/mlp.cpp.
+71023 warnings generated.
+[7/9] Processing file /repo/inference-engine/tools/matrix_cli.cpp.
+97901 warnings generated.
+[8/9] Processing file /repo/inference-engine/tests/cpp/test_matrix.cpp.
+136882 warnings generated.
+[9/9] Processing file /repo/inference-engine/tests/cpp/test_mlp.cpp.
+182169 warnings generated.
++ uv run --locked pytest
+============================= test session starts ==============================
+platform linux -- Python 3.12.15, pytest-9.1.1, pluggy-1.6.0
+cachedir: /work/pytest-cache
+rootdir: /repo/inference-engine
+configfile: pyproject.toml
+testpaths: tests
+plugins: timeout-2.4.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+collected 12 items
+
+tests/python/test_matrix.py ..                                           [ 16%]
+tests/python/test_package.py .                                           [ 25%]
+tests/python/test_quality.py ..                                          [ 41%]
+tests/python/test_real_mlp_support.py ......                             [ 91%]
+tests/python/test_w8a8_simulation.py .                                   [100%]
+
+======================== 12 passed in 62.78s (0:01:02) =========================
++ uv run --locked clang-format --dry-run --Werror src/csrc/src/simulations/validation/host_bridge.cc
++ uv run --locked clang-tidy --quiet src/csrc/src/simulations/validation/host_bridge.cc -- -std=c++17
+1406 warnings generated.
++ cd /repo/workloads
++ export UV_PROJECT_ENVIRONMENT=/work/workloads-venv
++ UV_PROJECT_ENVIRONMENT=/work/workloads-venv
++ uv sync --locked --no-default-groups --group dev
+Using CPython 3.12.15 interpreter at: /usr/local/bin/python3
+Creating virtual environment at: /work/workloads-venv
+Resolved 70 packages in 0.81ms
+   Building reef @ file:///repo/workloads
+Downloading numpy (15.9MiB)
+Downloading nvidia-cudnn-cu12 (674.0MiB)
+Downloading nvidia-cuda-cupti-cu12 (8.5MiB)
+Downloading nvidia-curand-cu12 (53.7MiB)
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading cuda-bindings (7.2MiB)
+Downloading networkx (2.0MiB)
+Downloading hf-xet (4.3MiB)
+Downloading triton (236.5MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (22.6MiB)
+Downloading nvidia-cublas-cu12 (374.9MiB)
+Downloading nvidia-cufft-cu12 (190.9MiB)
+Downloading nvidia-cusolver-cu12 (150.9MiB)
+Downloading nvidia-nvjitlink-cu12 (37.9MiB)
+Downloading nvidia-nvshmem-cu12 (132.7MiB)
+Downloading sympy (6.0MiB)
+Downloading transformers (11.7MiB)
+Downloading nvidia-cusparse-cu12 (206.5MiB)
+Downloading tokenizers (3.2MiB)
+Downloading nvidia-nccl-cu12 (276.3MiB)
+Downloading nvidia-cusparselt-cu12 (273.9MiB)
+Downloading torch (828.9MiB)
+      Built reef @ file:///repo/workloads
+ Downloaded nvidia-cufile-cu12
+ Downloaded networkx
+ Downloaded tokenizers
+ Downloaded hf-xet
+ Downloaded sympy
+ Downloaded cuda-bindings
+ Downloaded torch
+ Downloaded nvidia-cuda-cupti-cu12
+ Downloaded transformers
+ Downloaded numpy
+ Downloaded nvidia-cuda-nvrtc-cu12
+ Downloaded nvidia-nvjitlink-cu12
+ Downloaded nvidia-curand-cu12
+ Downloaded nvidia-nvshmem-cu12
+ Downloaded nvidia-cusolver-cu12
+ Downloaded nvidia-cufft-cu12
+ Downloaded nvidia-cusparse-cu12
+ Downloaded triton
+ Downloaded nvidia-nccl-cu12
+ Downloaded nvidia-cusparselt-cu12
+ Downloaded nvidia-cublas-cu12
+ Downloaded nvidia-cudnn-cu12
+Prepared 52 packages in 47.13s
+Installed 59 packages in 268ms
+ + annotated-doc==0.0.5
+ + anyio==4.15.1
+ + certifi==2026.7.22
+ + click==8.5.0
+ + cuda-bindings==12.9.8
+ + cuda-pathfinder==1.8.1
+ + cuda-toolkit==12.6.3
+ + filelock==3.32.7
+ + fsspec==2026.6.0
+ + h11==0.16.0
+ + hf-xet==1.6.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + huggingface-hub==1.31.0
+ + idna==3.19
+ + iniconfig==2.3.0
+ + jinja2==3.1.6
+ + markdown-it-py==4.2.0
+ + markupsafe==3.0.3
+ + mdurl==0.1.2
+ + mpmath==1.3.0
+ + networkx==3.6.1
+ + numpy==2.5.3
+ + nvidia-cublas-cu12==12.6.4.1
+ + nvidia-cuda-cupti-cu12==12.6.80
+ + nvidia-cuda-nvrtc-cu12==12.6.85
+ + nvidia-cuda-runtime-cu12==12.6.77
+ + nvidia-cudnn-cu12==9.10.2.21
+ + nvidia-cufft-cu12==11.3.0.4
+ + nvidia-cufile-cu12==1.11.1.6
+ + nvidia-curand-cu12==10.3.7.77
+ + nvidia-cusolver-cu12==11.7.1.2
+ + nvidia-cusparse-cu12==12.5.4.2
+ + nvidia-cusparselt-cu12==0.7.1
+ + nvidia-nccl-cu12==2.29.3
+ + nvidia-nvjitlink-cu12==12.9.86
+ + nvidia-nvshmem-cu12==3.4.5
+ + nvidia-nvtx-cu12==12.6.77
+ + packaging==26.3
+ + pluggy==1.6.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + pytest-timeout==2.4.0
+ + pyyaml==6.0.3
+ + reef==0.1.0 (from file:///repo/workloads)
+ + regex==2026.9.10
+ + rich==15.0.0
+ + ruff==0.16.5
+ + safetensors==0.8.0
+ + setuptools==84.0.0
+ + shellingham==1.5.4
+ + sympy==1.14.0
+ + tokenizers==0.23.2
+ + torch==2.14.0+cu126
+ + tqdm==4.70.1
+ + transformers==5.17.0
+ + triton==3.8.0
+ + typer==0.27.2
+ + typing-extensions==4.16.0
++ uv run --locked --no-default-groups --group dev pytest /repo/inference-engine/src/csrc/src/simulations/validation/test_real_numerics.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.15, pytest-9.1.1, pluggy-1.6.0
+cachedir: /work/pytest-cache
+rootdir: /repo/inference-engine
+configfile: pyproject.toml
+plugins: timeout-2.4.0, anyio-4.15.1
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+collected 6 items
+
+../inference-engine/src/csrc/src/simulations/validation/test_real_numerics.py . [ 16%]
+.....                                                                    [100%]
+
+============================== 6 passed in 3.63s ===============================
++ uv run --locked --no-default-groups --group dev python -m inference_engine.experiments.w8a8_mlp.export_real --synthetic-check --output /work/synthetic
+Exported synthetic-unit fixture to /work/synthetic
++ uv run --locked --no-default-groups --group dev python /repo/inference-engine/src/csrc/src/simulations/validation/compare_real_host.py --fixture /work/synthetic --allow-synthetic --report /work/synthetic-report.json
+PASS: /work/synthetic-report.json
++ uv run --locked --no-default-groups --group dev python -m inference_engine.experiments.w8a8_mlp.export_real --cache /work/hf-cache --output /work/real
+
+Fetching 7 files:   0%|          | 0/7 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Fetching 7 files:  14%|█▍        | 1/7 [00:00<00:00,  6.44it/s]
+Fetching 7 files: 100%|██████████| 7/7 [00:03<00:00,  1.93it/s]
+Fetching 7 files: 100%|██████████| 7/7 [00:03<00:00,  1.98it/s]
+
+Loading weights:   0%|          | 0/108 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 108/108 [00:00<00:00, 31743.86it/s]
+[transformers] GPTNeoForCausalLM LOAD REPORT from: /work/hf-cache/models--roneneldan--TinyStories-Instruct-28M/snapshots/96c7ddf6012aaec1b227a1a663f09de016de0621
+Key                                                               | Status     |  |
+------------------------------------------------------------------+------------+--+-
+transformer.h.{0, 1, 2, 3, 4, 5, 6, 7}.attn.attention.masked_bias | UNEXPECTED |  |
+transformer.h.{0, 1, 2, 3, 4, 5, 6, 7}.attn.attention.bias        | UNEXPECTED |  |
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+Exported real fixture to /work/real
++ uv run --locked --no-default-groups --group dev python /repo/inference-engine/src/csrc/src/simulations/validation/compare_real_host.py --fixture /work/real --report /work/real-report.json
+PASS: /work/real-report.json
+PASS: real-model host validation; no Coral execution
++ printf 'PASS: real-model host validation; no Coral execution\n'

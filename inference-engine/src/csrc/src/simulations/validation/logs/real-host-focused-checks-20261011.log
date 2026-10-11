@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.1.1, pluggy-1.6.0
+cachedir: /tmp/reef-real-pytest-cache
+rootdir: /home/samlin/coralnpu-dissection/reef-mlp-simulator/inference-engine
+configfile: pyproject.toml
+plugins: timeout-2.4.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+collected 13 items
+
+tests/python/test_real_mlp_support.py ......                             [ 46%]
+tests/python/test_w8a8_simulation.py .                                   [ 53%]
+src/csrc/src/simulations/validation/test_real_numerics.py ......         [100%]
+
+=============================== warnings summary ===============================
+../../../orion-venv/lib/python3.10/site-packages/torch/cuda/__init__.py:64
+  /home/samlin/orion-venv/lib/python3.10/site-packages/torch/cuda/__init__.py:64: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+    import pynvml  # type: ignore[import]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 13 passed, 1 warning in 2.01s =========================

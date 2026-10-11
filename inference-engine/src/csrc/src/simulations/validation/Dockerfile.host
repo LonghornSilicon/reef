@@ -1,0 +1,6 @@
+FROM python:3.12-bookworm@sha256:5560e9ab8709f459489e5b8aa696eda8a07ef821e14bb122be62d91234bfa98b
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake doxygen graphviz git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN python -m pip install --no-cache-dir uv==0.10.10
+WORKDIR /repo/inference-engine

@@ -1,0 +1,320 @@
+{
+  "kind": "real",
+  "model": "roneneldan/TinyStories-Instruct-28M",
+  "revision": "96c7ddf6012aaec1b227a1a663f09de016de0621",
+  "tokenizer_revision": "96c7ddf6012aaec1b227a1a663f09de016de0621",
+  "layer": 3,
+  "module": "transformer.h.3.mlp",
+  "input_boundary": "post-ln_2",
+  "prompt_key": "summary_only",
+  "prompt": "Summary: Lily finds a lost kitten in the garden and helps it find its mother.\nStory: \n\n",
+  "prompt_sha256": "40c40a9b76237d13e8fb9977a311c4746271d0b2c5577cfef98c7df015923304",
+  "input_ids": [
+    22093,
+    25,
+    20037,
+    7228,
+    257,
+    2626,
+    42143,
+    287,
+    262,
+    11376,
+    290,
+    5419,
+    340,
+    1064,
+    663,
+    2802,
+    13,
+    198,
+    11605,
+    25,
+    220,
+    628
+  ],
+  "attention_mask": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "positions": [
+    0,
+    11,
+    21
+  ],
+  "selected_tokens": [
+    "Summary",
+    " helps",
+    "\n\n"
+  ],
+  "tokenizer_class": "GPT2Tokenizer",
+  "checkpoint_files": {
+    "special_tokens_map.json": "98412137ae43c77f8af52eb51b19c3536d3242cb55339167d841005fa94a23b7",
+    "config.json": "ca5f53130eca37e77102ecd8875b15f5d8f33d7b0e15bc1e593d743214857628",
+    "merges.txt": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+    "pytorch_model.bin": "6a08f03c0a16cd2719bcc6dbcdf07c5a03c69e878c3e9005e633a3281c22ecf8",
+    "tokenizer_config.json": "3d76da0fd37493fbfcd3f0fa9757753d31f92e1779ebd9130809b45546a60261",
+    "tokenizer.json": "f6ed3d307010c244c22aeffbde05f419cf277c23e64cf98b673cac5449cfeff5",
+    "vocab.json": "3ba3c3109ff33976c4bd966589c11ee14fcaa1f4c9e5e154c2ed7f99d80709e7"
+  },
+  "transformers": "5.17.0",
+  "prompt_source_sha256": "f163b1bbc2ff0f87c48b830e0bee71d7d86c73155e6e782c6200cebe892ef64e",
+  "schema": 1,
+  "torch": "2.14.0+cu126",
+  "numpy": "2.5.3",
+  "python": "3.12.15",
+  "device": "cpu",
+  "threads": 1,
+  "deterministic_algorithms": true,
+  "dimensions": {
+    "tokens": 3,
+    "width": 512,
+    "hidden": 2048
+  },
+  "quantization": "symmetric [-127,127], ties-even, zero-scale=1; weights per output row, activations per token",
+  "archive_sha256": "9bbaaf443f8d9553a73df4bb1805f87f12cce4d3450bc082242835ca2bf94ebf",
+  "arrays": {
+    "input_fp32": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 6144,
+      "value_sha256": "cfcd158aaf5ed6f579f34f9c61c204f36a708612402c5f7a021833de80290a46"
+    },
+    "w1_fp32": {
+      "shape": [
+        2048,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 4194304,
+      "value_sha256": "4ccedf2c411482c8a525d2ba5e3a31fa5a2de5cfb3ec9dece9d8be7460b3c13e"
+    },
+    "w2_fp32": {
+      "shape": [
+        512,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 4194304,
+      "value_sha256": "6f59d9b3d8b5abd11eb5655f9bbf119f70a1ba0b4537c723fc5c99bb47da0792"
+    },
+    "w1": {
+      "shape": [
+        2048,
+        512
+      ],
+      "dtype": "|i1",
+      "bytes": 1048576,
+      "value_sha256": "70eaad3e0620aafd5c4ed1d62c95012858a203c67bbe71c7ef596c64b315515c"
+    },
+    "s1": {
+      "shape": [
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 8192,
+      "value_sha256": "099f9c8878340a0ada0fd39c2b55e76576084aed6c7898dfbad0ab67ad37f23b"
+    },
+    "b1": {
+      "shape": [
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 8192,
+      "value_sha256": "877cb8e67a0223b2dc08542dd6233babd90721fadf8d94ae7bad6de7ab5ca80b"
+    },
+    "w2": {
+      "shape": [
+        512,
+        2048
+      ],
+      "dtype": "|i1",
+      "bytes": 1048576,
+      "value_sha256": "6f4c9fe8bce882aa5ba81f2aa4dc88934b638329cbbc38c7ee07cb86fed5db2f"
+    },
+    "s2": {
+      "shape": [
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 2048,
+      "value_sha256": "3508657af804625d7e6f49d28cc85f0d41004385d7353fe1d2c8db25afd62886"
+    },
+    "b2": {
+      "shape": [
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 2048,
+      "value_sha256": "b02d1db5a033db7ef17f108dcfe008afc19e61113ea8da148c6d58635dff5806"
+    },
+    "expected_input_q": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "|i1",
+      "bytes": 1536,
+      "value_sha256": "fad08d8e49114dee481e073e77d0dfa196e8fdf3343bd15f9ddca5b478368b7f"
+    },
+    "expected_input_scale": {
+      "shape": [
+        3
+      ],
+      "dtype": "<f4",
+      "bytes": 12,
+      "value_sha256": "34f94a08572df6564f21e438a44ad622d7a3c4737793b73d9fe1461ddc4a8355"
+    },
+    "expected_a1": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<i4",
+      "bytes": 24576,
+      "value_sha256": "9e57fde218b03a599106b9229dd79cbfe4562a91ceff2acc0e1fe4110174e919"
+    },
+    "expected_pre": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 24576,
+      "value_sha256": "deca7231f7208d44d84a1c23eb8378956666d73c653f6e286962191768c1bade"
+    },
+    "expected_hidden": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 24576,
+      "value_sha256": "90c7c05182e229a46232f70c3002af58c60f12a5a1068401ad249fb18421b887"
+    },
+    "expected_hidden_q": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "|i1",
+      "bytes": 6144,
+      "value_sha256": "266faa2fb19f1df4e994e8a9880d64fc2b91b1c6878a15cfdbf6025c50f85443"
+    },
+    "expected_hidden_scale": {
+      "shape": [
+        3
+      ],
+      "dtype": "<f4",
+      "bytes": 12,
+      "value_sha256": "40d644fe0d2ac19f047d47283de93a2fcb3939391d16a75089f978bc312d4659"
+    },
+    "expected_a2": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<i4",
+      "bytes": 6144,
+      "value_sha256": "5131ffb8ae8174e1817f12904d509dcbec86e006b3c75142a7bc2f8f7038a86a"
+    },
+    "expected_output": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 6144,
+      "value_sha256": "2294d60bb8526b85081c06d68145d185d9bb916ec5adefd98d5f04edea62fffa"
+    },
+    "fp32_pre": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 24576,
+      "value_sha256": "564367d7c023f78670284676d55982b6e6d842ae1d3f57c0da03d99f4569fa99"
+    },
+    "fp32_hidden": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 24576,
+      "value_sha256": "90640698001afc77d5317864be41ac42fa281dcc0e1097b0818c6186a5eca682"
+    },
+    "fp32_output": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 6144,
+      "value_sha256": "829f30090e5b3c985add9719ceea3354ea46db2110c3e32b8216b0b500879b79"
+    },
+    "fake_pre": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "<f4",
+      "bytes": 24576,
+      "value_sha256": "fa2e618e78cb5db694886f94252993796c71805149946d61b5dcd40ea3e954ae"
+    },
+    "fake_hidden_q": {
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "|i1",
+      "bytes": 6144,
+      "value_sha256": "266faa2fb19f1df4e994e8a9880d64fc2b91b1c6878a15cfdbf6025c50f85443"
+    },
+    "fake_output": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 6144,
+      "value_sha256": "150a47f7f9df4dd1d1f05adff49d39d9d654b2038eea235b52ecb6a898b26f1d"
+    },
+    "fp32_block_output": {
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "<f4",
+      "bytes": 6144,
+      "value_sha256": "829f30090e5b3c985add9719ceea3354ea46db2110c3e32b8216b0b500879b79"
+    }
+  },
+  "exporter_sha256": "2595f6ae3389cd454c85e7061b8d9ddb3e256bf92b347d756889f7021e43524c",
+  "quantizer_source_sha256": "6f4fc11f534838ee7f5a936c53cee8a67df88e437f57d1544457b01455eeab4b",
+  "workloads_lock_sha256": "e2822765a0718904d0d70c4757a8fd3e6bca2080c79a78d456bb9e09a06fd01c"
+}

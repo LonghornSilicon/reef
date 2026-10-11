@@ -1,0 +1,59 @@
+"""Read-only checkpoint inventory/mask audit; no model forward execution."""
+import hashlib
+import json
+from pathlib import Path
+import torch
+from workloads.models.gpt_neo import gpt_neo
+
+work = Path('/tmp/reef-real-host.Ey53TI')
+repo = Path('/home/samlin/coralnpu-dissection/reef-mlp-simulator')
+revision = '96c7ddf6012aaec1b227a1a663f09de016de0621'
+snapshot = work / 'hf-cache/models--roneneldan--TinyStories-Instruct-28M/snapshots' / revision
+manifest = json.loads((work / 'real/manifest.json').read_text())
+config = json.loads((snapshot / 'config.json').read_text())
+transformers_source = work / 'workloads-venv/lib/python3.12/site-packages/transformers/models/gpt_neo/modeling_gpt_neo.py'
+torch.set_num_threads(1)
+state = torch.load(snapshot / 'pytorch_model.bin', map_location='cpu', weights_only=True, mmap=True)
+with torch.device('meta'):
+    model = gpt_neo('TinyStories-Instruct-28M')
+parameters = dict(model.named_parameters())
+expected = model.state_dict()
+missing = sorted(set(parameters) - set(state))
+shape_mismatches = [k for k, value in parameters.items() if k in state and value.shape != state[k].shape]
+dtype_mismatches = [k for k, value in parameters.items() if k in state and value.dtype != state[k].dtype]
+nonfinite = [k for k in parameters if k in state and not torch.isfinite(state[k]).all()]
+assert not missing and not shape_mismatches and not dtype_mismatches and not nonfinite
+assert model.lm_head.weight is model.transformer.wte.weight
+assert set(expected) - set(state) == {'lm_head.weight'}
+extras = sorted(set(state) - set(expected))
+allowed = {f'transformer.h.{i}.attn.attention.{name}' for i in range(config['num_layers']) for name in ('bias','masked_bias')}
+assert set(extras) == allowed
+max_positions = config['max_position_embeddings']
+causal = torch.tril(torch.ones(max_positions, max_positions, dtype=torch.bool)).view(1, 1, max_positions, max_positions)
+buffers = {}
+for i, attention_type in enumerate(config['attention_layers']):
+    prefix = f'transformer.h.{i}.attn.attention.'
+    mask = causal if attention_type == 'global' else torch.bitwise_xor(causal, torch.tril(causal, -config['window_size']))
+    assert state[prefix + 'bias'].dtype == torch.bool
+    assert torch.equal(state[prefix + 'bias'], mask)
+    assert state[prefix + 'masked_bias'].shape == torch.Size([])
+    assert state[prefix + 'masked_bias'].dtype == torch.float32
+    assert state[prefix + 'masked_bias'].item() == -1e9
+    for name in ('bias','masked_bias'):
+        value = state[prefix + name]
+        buffers[prefix + name] = {'shape': list(value.shape), 'dtype': str(value.dtype), 'verified': 'causal/local boolean mask' if name == 'bias' else 'obsolete scalar masking sentinel -1e9'}
+# Check exported original weights and biases against checkpoint values too.
+import numpy as np
+with np.load(work / 'real/arrays.npz', allow_pickle=False) as arrays:
+    for exported, checkpoint in [('w1_fp32','c_fc.weight'),('b1','c_fc.bias'),('w2_fp32','c_proj.weight'),('b2','c_proj.bias')]:
+        assert np.array_equal(arrays[exported], state['transformer.h.3.mlp.' + checkpoint].numpy())
+def digest(path):
+    h = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            h.update(chunk)
+    return h.hexdigest()
+assert digest(snapshot / 'pytorch_model.bin') == manifest['checkpoint_files']['pytorch_model.bin']
+report = {'status':'PASS','scope':'read-only inventory, shapes, finite learned tensors, buffer contents; no forward pass','checkpoint_revision':revision,'checkpoint_sha256':manifest['checkpoint_files']['pytorch_model.bin'],'checkpoint_tensor_keys':len(state),'independent_learned_parameter_tensors':len(parameters),'missing_learned_parameters':missing,'shape_mismatches':shape_mismatches,'dtype_mismatches':dtype_mismatches,'nonfinite_learned_parameters':nonfinite,'unexpected_keys':extras,'obsolete_buffers':buffers,'omitted_tied_alias':{'key':'lm_head.weight','source':'transformer.wte.weight','independent_parameter_missing':False},'exported_original_mlp_weights_and_biases_match_checkpoint':True,'audit_torch':torch.__version__,'audit_script_sha256':digest(Path(__file__)),'architecture_source_sha256':digest(repo / 'workloads/src/workloads/models/gpt_neo.py'),'locked_transformers_source_sha256':digest(transformers_source),'transformers_source_evidence':{'causal_bias':'nn.Buffer(bias, persistent=False), lines 57-68','learned_attention_projections':'k/v/q_proj bias=False; out_proj bias=True, lines 84-87','tied_alias':'_tied_weights_keys maps lm_head.weight to transformer.wte.weight, line 519','masked_bias':'absent in current GPTNeoSelfAttention'},'container_loader_report':'Only two UNEXPECTED groups covering layers 0-7; no MISSING or MISMATCH groups'}
+(work / 'checkpoint-audit.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps({k:v for k,v in report.items() if k != 'obsolete_buffers'},indent=2))

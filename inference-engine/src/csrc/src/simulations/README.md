@@ -314,27 +314,241 @@ and hardware performance remain future work. The package includes only harness
 source, documentation, machine-specific setup evidence and useful text logs;
 caches, binaries and temporary files are excluded.
 
-## Next milestone after the small harness passes
+## Real-model host milestone — 2026-10-11
 
-1. Proposed next milestone (not implemented): validate one real
-   TinyStories-Instruct-28M MLP block using trained weights and representative
-   pre-MLP activations captured from real token sequences. Record checkpoint,
-   layer, tokenizer/input, quantization scales, reference version and artifact
-   hashes. Check both INT32 accumulations, requantized codes, and FP32 stages
-   against the same W8A8 reference contract before making model-quality claims.
-2. Plan placement for 512→2048→512 before compiling a full-size fixture. The two
-   signed INT8 matrices total `512*2048 + 2048*512 = 2,097,152` bytes (2 MiB),
-   excluding scales, biases, reference data and scratch. Keep weights in
-   EXTMEM/DDR using explicit linker sections, matching simulator memory regions,
-   and a loader whose address/permissions are verified. Budget stack and runtime
-   scratch separately; 3-token hidden FP32 and INT32 buffers are each 24 KiB,
-   hidden INT8 is 6 KiB, and the other buffers add further pressure. Consider
-   token/channel tiling, buffer reuse, and keeping reference data on the host.
-   A high-memory TCM configuration alone does not establish default-device fit.
-3. After real-weight scalar correctness and memory-placement checks pass,
-   implement RVV kernels and compare every stage to the scalar baseline. Then
-   measure performance on an appropriate RTL simulator or hardware, including
-   external-memory traffic and stalls, with dimensions, tool settings and timing
-   methodology recorded. Functional simulator counts are not cycle-accurate
-   performance measurements. Do not run a simulator precision sweep (Richard's
-   requested constraint).
+Implementation is confined to Reef. The scalar kernel, synthetic fixture,
+reference generator and target harness are unchanged. Coral was inspected only;
+its existing modifications and simulator setup were left untouched. This stage
+runs on the host, with no full-size Coral execution, optimization or precision
+sweep. The existing small functional result above remains the target baseline.
+
+### Pinned capture and export
+
+The model and tokenizer are `roneneldan/TinyStories-Instruct-28M`, both pinned to
+revision `96c7ddf6012aaec1b227a1a663f09de016de0621`. Capture the fourth block,
+`transformer.h.3.mlp`, in CPU FP32 eval/inference mode, eager attention, one
+thread, deterministic algorithms. Use the existing `summary_only` prompt from
+`workloads.experiments.story_quality.main.PROMPTS`, without added special tokens.
+A forward pre-hook captures actual post-`ln_2` inputs from a single prompt
+prefill. Select positions `0`, `N//2`, and `N-1`; record the complete input IDs,
+attention mask, selected positions/tokens and prompt hash. These are three
+representative samples from one prompt, not a calibration corpus or a model
+quality benchmark.
+
+Checkpoint tensors are row-major `[output,input]`: `c_fc.weight` is
+`[2048,512]`, `c_proj.weight` is `[512,2048]`; both FP32 biases are retained.
+`export_real.py` reuses the existing per-row quantizer: signed symmetric
+`[-127,127]`, ties-to-even, weight scales per output row, activation scales per
+token, all-zero scale 1. Original FP32 operands, INT8 weights, scales, biases,
+three activation inputs and all expected stages are saved in an external NPZ.
+An immutable manifest records each array's shape/type/byte count/value hash,
+archive hash, checkpoint file hashes, tokenizer identity, software versions,
+source hashes and workloads lock hash. Generated arrays, libraries, caches,
+environments and build files must stay outside Git.
+
+### Comparison and validation criteria
+
+`validation/host_bridge.cc` calls the unchanged kernel entry points; a separate
+first-Linear call preserves the pre-GELU diagnostic buffer. Build with C++17,
+`-O2 -ffp-contract=off`, warnings as errors, and the host math library. The
+comparison first checks artifact integrity and recomputes the PyTorch oracle
+from original operands, validating shapes before entering C++. Operand hashes
+must remain unchanged after execution.
+
+Require exact INT8 input/hidden codes and exact INT32 first/second accumulators.
+The oracle computes integer products in INT64 and checks the INT32 range.
+Require finite input/hidden scales, pre-GELU, GELU and final FP32 values within
+`abs(actual-reference) <= 2e-6 + 2e-5*abs(reference)`. The dequantization order
+remains `(float(accumulator)*input_scale)*weight_scale+bias`; GELU retains the
+existing PyTorch expression. Differences from host `tanhf` or power-expression
+rounding are investigated, especially near activation half-code boundaries;
+integer checks and tolerances are never relaxed automatically. FAIL reports
+preserve the first mismatch and requantization diagnostics.
+
+Independently check the exported unquantized reference against the actual
+checkpoint MLP output using the same tolerances. Report W8A8 versus original
+FP32 errors separately (max absolute, mean absolute, RMSE, relative L2) for
+pre-GELU, hidden and output. These errors describe quantization, not kernel
+correctness. Fake-quantized FP32 matmul uses a different reduction order and is
+reported separately with activation-code differences; it is not the exact
+integer oracle. The original synthetic generator's checks remain intact.
+
+### Files and reproducible commands
+
+- `inference-engine/experiments/w8a8_mlp/export_real.py`: pinned capture/export.
+- `inference-engine/experiments/w8a8_mlp/real_support.py`: artifact isolation,
+  native build provenance and static placement checks (both under `src/`).
+- `validation/compare_real_host.py`, `host_bridge.cc`: stage comparisons and ABI.
+- `validation/test_real_numerics.py`: Torch-dependent comparison/integrity tests.
+- `tests/python/test_real_mlp_support.py`: dependency-light placement tests.
+- `validation/real_block_memory.json`: checked proposed buffer map.
+- `validation/Dockerfile.host`, `run_real_host_container.sh`: isolated locked run.
+
+From the Reef root in a normal SSH terminal:
+
+```bash
+bash inference-engine/src/csrc/src/simulations/validation/run_real_host_container.sh
+```
+
+The runner prints `/tmp/reef-real-host.XXXXXX`, runs as the caller's UID/GID,
+mounts Reef read-only, mounts CMake build output separately and uses external
+Python environments. It installs Python 3.12, Doxygen, GoogleTest through the
+existing CMake pin, uv 0.10.10 and locked lint/workloads dependencies. It runs
+all inference-engine CI checks, the new numerical tests, synthetic export/host
+comparison, then real capture/host comparison. Coral is not mounted. Logs,
+exit status, fixtures and reports remain in the printed directory, writable
+by the caller. Keep NPZ/checkpoint files there; retain only manifests and
+concise reports in this checkout after review.
+
+Equivalent host commands with the locked workloads environment already set up:
+
+```bash
+export PYTHONPATH="$PWD/inference-engine/src:$PWD/workloads/src"
+uv run --project workloads --locked --no-default-groups --group dev python -m \
+  inference_engine.experiments.w8a8_mlp.export_real \
+  --cache /tmp/reef-real-cache --output /tmp/reef-real-fixture
+uv run --project workloads --locked --no-default-groups --group dev python \
+  inference-engine/src/csrc/src/simulations/validation/compare_real_host.py \
+  --fixture /tmp/reef-real-fixture --report /tmp/reef-real-results/report.json
+```
+
+Use a new fixture directory for each export. Add `--synthetic-check` to export
+and `--allow-synthetic` to comparison only for the separate small smoke path.
+The committed fixture is checked by the original host harness test, not replaced
+by this newly exported smoke fixture.
+
+### External-memory review
+
+The inspected Coral revision is
+`dab25ad632e35d6399b6d1aa1f05c30e700f06eb`. Definitions are
+`rules/linker.bzl`, `toolchain/coralnpu_tcm.ld.tpl` and
+`toolchain/crt/coralnpu_start.S`. The default map is 8 KiB ITCM at 0, 32 KiB
+DTCM at `0x10000`, and 4 MiB EXTMEM at `0x20000000`. A nondefault TCM size
+changes the DTCM origin; use explicit default regions for a future guest run.
+The two INT8 matrices alone consume **2,097,152 bytes (2 MiB)**.
+
+| Proposed placement | Bytes | Address span |
+| --- | ---: | --- |
+| Two INT8 matrices in EXTMEM | 2,097,152 | `0x20000000`–`0x20200000` |
+| FP32 weight scales and biases | 20,480 | `0x20200000`–`0x20205000` |
+| First INT32 accumulators | 24,576 | `0x20205000`–`0x2020b000` |
+| FP32 hidden scratch | 24,576 | `0x2020b000`–`0x20211000` |
+| INT8 hidden scratch | 6,144 | `0x20211000`–`0x20212800` |
+| Preserved FP32 pre-GELU diagnostics | 24,576 | `0x20212800`–`0x20218800` |
+| DTCM inputs, scales, second accumulators, output | 19,992 + 8 padding | `0x10000`–`0x14e20` |
+| DTCM runtime/global reserve | 10,720 | `0x14e20`–`0x17800` |
+| DTCM stack proposal | 2,048 | `0x17800`–`0x18000` |
+
+Spans are end-exclusive. EXTMEM usage is **2,197,504 bytes**, leaving
+1,996,800 bytes. DTCM reserves the entire 32 KiB including alignment gaps.
+The JSON checks every shape, byte count, alignment, overlap and region bound.
+Keep reference tensors on the host. Put constant weights/scales/biases in
+`.extdata` and scratch in `.extbss`; the CRT clears normal BSS only, so explicitly
+initialize external scratch. These are proposed offsets, not a verified linker
+allocation. A future guest ELF must verify section placement, loader mappings,
+ITCM code fit, globals fitting the runtime reserve and stack sufficiency.
+No DDR allocation is needed for this proposal, and no timing/utilization claim
+follows from these sizes or from functional instruction counts.
+
+### Verified host results — 2026-10-11
+
+**PASS** in `/tmp/reef-real-host.Ey53TI`, container exit status 0. The locked
+run uses Python 3.12.15, PyTorch 2.14.0+cu126, Transformers 5.17.0, NumPy 2.5.3
+and GCC 12.2.0, CPU only. All 12 inference-engine pytest cases (including
+Doxygen and the original synthetic harness), all 6 numerical validation tests,
+Ruff, C++ formatting/build/clang-tidy and bridge lint passed. The synthetic
+export/host comparison also passed. The 17 existing C++ tests previously passed
+in the native build; the container runner builds these targets but does not
+separately invoke CTest.
+
+The fixed prompt has 22 tokens. Captured positions `0,11,21` decode to
+`"Summary"`, `" helps"`, and `"\n\n"`, respectively. All **15,360 integer
+values** match exactly: 1,536 input codes, 6,144 first accumulators, 6,144 hidden
+codes, and 1,536 second accumulators. All operands remain unchanged.
+
+| Stage against the PyTorch W8A8 oracle | Maximum absolute FP32 difference |
+| --- | ---: |
+| Input scales | 0 |
+| First Linear / pre-GELU | 0 |
+| Tanh-GELU hidden | 1.1920928955078125e-7 |
+| Hidden scales | 0 |
+| Final output | 0 |
+
+Every value passes the unchanged `atol=2e-6, rtol=2e-5` checks. The independent
+original-FP32 expression equals the actual checkpoint MLP output exactly.
+The fake-quantized FP32 diagnostic has maximum differences of
+`4.76837158203125e-7` before GELU and `1.430511474609375e-6` at output, with
+zero hidden-code differences; its reduction order remains distinct from the
+integer oracle.
+
+Quantization error against the original unquantized FP32 block is separate:
+
+| Stage | Max absolute | RMSE | Relative L2 |
+| --- | ---: | ---: | ---: |
+| Pre-GELU | 0.0886997581 | 0.0234239040 | 2.47218695% |
+| Hidden | 0.0727348924 | 0.00853564112 | 4.38648210% |
+| Output | 0.0391699374 | 0.0109413178 | 3.75246786% |
+
+These describe this block on three captured inputs; they are not story-quality
+or full-model accuracy claims.
+
+### Checkpoint loading audit
+
+The container loader reports only `UNEXPECTED` groups for
+`transformer.h.{0..7}.attn.attention.bias` and `.masked_bias`. A separate
+read-only checkpoint audit verified **108 independent learned parameter
+tensors**, with no missing keys, shape/type mismatches or nonfinite values.
+The only 16 extra keys are eight boolean causal/local masks of shape
+`[1,1,2048,2048]`, and eight obsolete scalar FP32 masking sentinels equal to
+`-1e9`. Every mask exactly matches the configured global/local attention rule.
+In the installed Transformers source, the mask is now an `nn.Buffer` with
+`persistent=False`; the old `masked_bias` buffer is absent.
+
+The checkpoint omits the separate `lm_head.weight` state-dict alias. It is tied
+to `transformer.wte.weight`, which is present: this is not an independently
+missing learned parameter. The installed Transformers class explicitly records
+that tie. The audit used Reef's GPT-Neo architecture on the meta device to check
+all independent names/shapes, without executing a model. All four exported
+original layer-3 MLP weights/biases equal checkpoint tensors exactly. The audit
+used local PyTorch 2.13.0+cu130 for tensor inspection; numerical validation used
+the locked container versions above.
+
+### Saved evidence and review
+
+Concise JSON reports and manifests are under `validation/reports/`:
+
+- `real-host-20261011.json`: all stage checks, quantization errors, native build
+  command/source hashes and static memory check.
+- `real-provenance-20261011.json`: pinned model/tokenizer, complete token IDs,
+  checkpoint/source/lock hashes and every array's shape/type/value hash.
+- `checkpoint-audit-20261011.json`: complete unexpected-key inventory, mask
+  checks, learned-parameter coverage and tied-alias explanation.
+- `synthetic-container-20261011.json`: synthetic path on locked dependencies.
+- `host-review-20261011.json`: reviewed results and evidence hashes.
+
+The useful container log is `validation/logs/real-host-container-20261011.log`;
+ANSI styling, progress-line separators and trailing whitespace are normalized.
+The read-only audit recipe is retained verbatim as
+`validation/logs/checkpoint-audit-script-20261011.txt` (its hash is in the audit
+report). Earlier preliminary synthetic reports and focused-check logs remain
+clearly labeled with their Python/PyTorch versions. All generated arrays,
+checkpoint files, native libraries, environments and caches remain outside Git
+in the printed evidence directory. Their hashes and the executed source/lock/map
+hashes were independently checked against current Reef files.
+
+The memory-plan checker passes every buffer size/type/alignment, region bound
+and overlap check: EXTMEM uses **2,197,504 bytes** and leaves **1,996,800 bytes**.
+DTCM uses 32,760 buffer/reserve bytes plus **8 bytes of alignment gaps**, spanning
+the full 32 KiB; those gaps are not extra contiguous runtime space. ITCM remains
+unallocated by this static data plan. Guest ELF code fit, loader mappings,
+global/runtime usage, explicit external scratch initialization and stack
+sufficiency are future guest checks.
+
+The reviewed change adds only the real-host exporter/comparison/bridge, tests,
+container runner, static placement proposal, documentation and text/JSON
+evidence. The scalar kernel, original fixture, synthetic generator, target
+harness and numerical checks are unchanged. Coral remains untouched. No host
+correctness blocker remains for this pinned block and these three inputs.
+Nothing has been committed or pushed. Stop here: full-size Coral execution,
+optimization, precision sweeps and hardware timing/utilization claims remain
+outside this milestone.

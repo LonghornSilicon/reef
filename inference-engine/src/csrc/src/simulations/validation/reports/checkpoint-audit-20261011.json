@@ -1,0 +1,169 @@
+{
+  "status": "PASS",
+  "scope": "read-only inventory, shapes, finite learned tensors, buffer contents; no forward pass",
+  "checkpoint_revision": "96c7ddf6012aaec1b227a1a663f09de016de0621",
+  "checkpoint_sha256": "6a08f03c0a16cd2719bcc6dbcdf07c5a03c69e878c3e9005e633a3281c22ecf8",
+  "checkpoint_tensor_keys": 124,
+  "independent_learned_parameter_tensors": 108,
+  "missing_learned_parameters": [],
+  "shape_mismatches": [],
+  "dtype_mismatches": [],
+  "nonfinite_learned_parameters": [],
+  "unexpected_keys": [
+    "transformer.h.0.attn.attention.bias",
+    "transformer.h.0.attn.attention.masked_bias",
+    "transformer.h.1.attn.attention.bias",
+    "transformer.h.1.attn.attention.masked_bias",
+    "transformer.h.2.attn.attention.bias",
+    "transformer.h.2.attn.attention.masked_bias",
+    "transformer.h.3.attn.attention.bias",
+    "transformer.h.3.attn.attention.masked_bias",
+    "transformer.h.4.attn.attention.bias",
+    "transformer.h.4.attn.attention.masked_bias",
+    "transformer.h.5.attn.attention.bias",
+    "transformer.h.5.attn.attention.masked_bias",
+    "transformer.h.6.attn.attention.bias",
+    "transformer.h.6.attn.attention.masked_bias",
+    "transformer.h.7.attn.attention.bias",
+    "transformer.h.7.attn.attention.masked_bias"
+  ],
+  "obsolete_buffers": {
+    "transformer.h.0.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.0.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.1.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.1.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.2.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.2.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.3.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.3.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.4.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.4.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.5.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.5.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.6.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.6.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    },
+    "transformer.h.7.attn.attention.bias": {
+      "shape": [
+        1,
+        1,
+        2048,
+        2048
+      ],
+      "dtype": "torch.bool",
+      "verified": "causal/local boolean mask"
+    },
+    "transformer.h.7.attn.attention.masked_bias": {
+      "shape": [],
+      "dtype": "torch.float32",
+      "verified": "obsolete scalar masking sentinel -1e9"
+    }
+  },
+  "omitted_tied_alias": {
+    "key": "lm_head.weight",
+    "source": "transformer.wte.weight",
+    "independent_parameter_missing": false
+  },
+  "exported_original_mlp_weights_and_biases_match_checkpoint": true,
+  "audit_torch": "2.13.0+cu130",
+  "audit_script_sha256": "1ac14dcff710f66cf99648353f6866996e899a87c58bf6d172f5263481e40bb4",
+  "architecture_source_sha256": "7e6c348ad40cb86349e3c5bcdedad6212377b203c149836a455a80b126a13d0f",
+  "locked_transformers_source_sha256": "b5fc1b353ad4e39aeed7710e42f47bcb17f8a2d110428d8d32845a6c82ff37c2",
+  "transformers_source_evidence": {
+    "causal_bias": "nn.Buffer(bias, persistent=False), lines 57-68",
+    "learned_attention_projections": "k/v/q_proj bias=False; out_proj bias=True, lines 84-87",
+    "tied_alias": "_tied_weights_keys maps lm_head.weight to transformer.wte.weight, line 519",
+    "masked_bias": "absent in current GPTNeoSelfAttention"
+  },
+  "container_loader_report": "Only two UNEXPECTED groups covering layers 0-7; no MISSING or MISMATCH groups"
+}

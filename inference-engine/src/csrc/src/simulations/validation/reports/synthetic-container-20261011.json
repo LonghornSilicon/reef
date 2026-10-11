@@ -1,0 +1,184 @@
+{
+  "status": "PASS",
+  "scope": "host scalar correctness only",
+  "software": {
+    "torch": "2.14.0+cu126",
+    "numpy": "2.5.3"
+  },
+  "tolerances": {
+    "atol": 2e-06,
+    "rtol": 2e-05
+  },
+  "checks": {
+    "input_q": {
+      "status": "PASS",
+      "exact_integer": true,
+      "mismatches": 0
+    },
+    "input_scale": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "a1": {
+      "status": "PASS",
+      "exact_integer": true,
+      "mismatches": 0
+    },
+    "pre": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "hidden": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 7.450580596923828e-09,
+        "mean_abs": 4.850638409455618e-10,
+        "rmse": 1.8674894880993856e-09,
+        "relative_l2": 2.1636347167307166e-08
+      }
+    },
+    "hidden_q": {
+      "status": "PASS",
+      "exact_integer": true,
+      "mismatches": 0
+    },
+    "hidden_scale": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "a2": {
+      "status": "PASS",
+      "exact_integer": true,
+      "mismatches": 0
+    },
+    "output": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0
+      }
+    },
+    "original_fp32_block": {
+      "status": "PASS",
+      "exact_integer": false,
+      "mismatches": 0,
+      "error": {
+        "max_abs": 0.0,
+        "mean_abs": 0.0,
+        "rmse": 0.0,
+        "relative_l2": 0.0
+      }
+    }
+  },
+  "quantization_error_vs_original_fp32": {
+    "pre": {
+      "max_abs": 0.0032187700271606445,
+      "mean_abs": 0.000660829401264588,
+      "rmse": 0.001052962686040017,
+      "relative_l2": 0.0054188490048269105
+    },
+    "hidden": {
+      "max_abs": 0.0015372484922409058,
+      "mean_abs": 0.00029464602266671136,
+      "rmse": 0.00047758105353361475,
+      "relative_l2": 0.005538517699380626
+    },
+    "output": {
+      "max_abs": 0.0007250532507896423,
+      "mean_abs": 0.00016955433723827204,
+      "rmse": 0.0002660684732393586,
+      "relative_l2": 0.00486750864798587
+    }
+  },
+  "fake_quantized_fp32_diagnostic": {
+    "pre": {
+      "max_abs": 5.960464477539063e-08,
+      "mean_abs": 7.916241884231567e-09,
+      "rmse": 1.4886602166244556e-08,
+      "relative_l2": 7.655995947266783e-08
+    },
+    "output": {
+      "max_abs": 1.4901161193847656e-08,
+      "mean_abs": 2.2506962219874063e-09,
+      "rmse": 4.182319338528899e-09,
+      "relative_l2": 7.655493845813798e-08
+    },
+    "hidden_code_differences": 0,
+    "scope": "different FP32 reduction order; diagnostic, not the integer oracle"
+  },
+  "fixture_kind": "synthetic-unit",
+  "fixture_manifest_sha256": "12bb621f5a7950d3013524c00a88747c86e2e70c53d08ed1ce3c96bc0a6e600b",
+  "archive_sha256": "400b858895af9f17cc01788288baec36ebe851d5dc87791645e6b220eb5981e2",
+  "build": {
+    "command": [
+      "/usr/bin/c++",
+      "-std=c++17",
+      "-O2",
+      "-ffp-contract=off",
+      "-fPIC",
+      "-shared",
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+      "-Werror",
+      "/repo/inference-engine/src/csrc/src/simulations/kernels/mlp_w8a8.cc",
+      "/repo/inference-engine/src/csrc/src/simulations/validation/host_bridge.cc",
+      "-lm",
+      "-o",
+      "/work/libw8a8_host.so"
+    ],
+    "compiler": "c++ (Debian 12.2.0-14+deb12u1) 12.2.0",
+    "library_sha256": "750aad2c41a0b074afd13f5201449b2affd9565345fadf566484723a157149dc",
+    "source_sha256": {
+      "inference-engine/src/csrc/src/simulations/kernels/mlp_w8a8.cc": "e7ff2bcf403cea428052b823da827ae21d08123ec6b35531e335527569d2f1db",
+      "inference-engine/src/csrc/src/simulations/validation/host_bridge.cc": "784064f4a4d55be4ba46450ba36324ed03457b311ab4fd883485ff22be3b4df5"
+    }
+  },
+  "comparison_sha256": "0e0909adb53a99743a13b69f3102f3d1d8a4bfbf02436ae69cf4f27393d84620",
+  "memory_plan": {
+    "status": "PASS",
+    "plan_sha256": "983741158a2b6ecec11a8b5d6e10bb960391465e9fa769fdca86bc41e4b2cf24",
+    "regions": {
+      "ITCM": {
+        "reserved_bytes": 0,
+        "remaining_bytes": 8192
+      },
+      "DTCM": {
+        "reserved_bytes": 32760,
+        "remaining_bytes": 8
+      },
+      "EXTMEM": {
+        "reserved_bytes": 2197504,
+        "remaining_bytes": 1996800
+      }
+    },
+    "scope": "static placement only; no guest ELF or simulator run"
+  }
+}

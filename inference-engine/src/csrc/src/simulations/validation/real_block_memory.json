@@ -1,0 +1,250 @@
+{
+  "schema": 1,
+  "status": "proposed_not_executed",
+  "coral_revision": "dab25ad632e35d6399b6d1aa1f05c30e700f06eb",
+  "dimensions": {
+    "tokens": 3,
+    "width": 512,
+    "hidden": 2048
+  },
+  "regions": [
+    {
+      "name": "ITCM",
+      "address": "0x0",
+      "bytes": 8192
+    },
+    {
+      "name": "DTCM",
+      "address": "0x10000",
+      "bytes": 32768
+    },
+    {
+      "name": "EXTMEM",
+      "address": "0x20000000",
+      "bytes": 4194304
+    }
+  ],
+  "buffers": [
+    {
+      "name": "w1",
+      "region": "EXTMEM",
+      "address": "0x20000000",
+      "shape": [
+        2048,
+        512
+      ],
+      "dtype": "int8",
+      "alignment": 32,
+      "bytes": 1048576
+    },
+    {
+      "name": "w2",
+      "region": "EXTMEM",
+      "address": "0x20100000",
+      "shape": [
+        512,
+        2048
+      ],
+      "dtype": "int8",
+      "alignment": 32,
+      "bytes": 1048576
+    },
+    {
+      "name": "s1",
+      "region": "EXTMEM",
+      "address": "0x20200000",
+      "shape": [
+        2048
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 8192
+    },
+    {
+      "name": "b1",
+      "region": "EXTMEM",
+      "address": "0x20202000",
+      "shape": [
+        2048
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 8192
+    },
+    {
+      "name": "s2",
+      "region": "EXTMEM",
+      "address": "0x20204000",
+      "shape": [
+        512
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 2048
+    },
+    {
+      "name": "b2",
+      "region": "EXTMEM",
+      "address": "0x20204800",
+      "shape": [
+        512
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 2048
+    },
+    {
+      "name": "a1",
+      "region": "EXTMEM",
+      "address": "0x20205000",
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "int32",
+      "alignment": 32,
+      "bytes": 24576
+    },
+    {
+      "name": "hidden",
+      "region": "EXTMEM",
+      "address": "0x2020b000",
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 24576
+    },
+    {
+      "name": "hidden_q",
+      "region": "EXTMEM",
+      "address": "0x20211000",
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "int8",
+      "alignment": 32,
+      "bytes": 6144
+    },
+    {
+      "name": "pre",
+      "region": "EXTMEM",
+      "address": "0x20212800",
+      "shape": [
+        3,
+        2048
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 24576
+    },
+    {
+      "name": "input_fp32",
+      "region": "DTCM",
+      "address": "0x10000",
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 6144
+    },
+    {
+      "name": "input_q",
+      "region": "DTCM",
+      "address": "0x11800",
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "int8",
+      "alignment": 32,
+      "bytes": 1536
+    },
+    {
+      "name": "input_scale",
+      "region": "DTCM",
+      "address": "0x11e00",
+      "shape": [
+        3
+      ],
+      "dtype": "fp32",
+      "alignment": 16,
+      "bytes": 12
+    },
+    {
+      "name": "hidden_scale",
+      "region": "DTCM",
+      "address": "0x11e10",
+      "shape": [
+        3
+      ],
+      "dtype": "fp32",
+      "alignment": 16,
+      "bytes": 12
+    },
+    {
+      "name": "a2",
+      "region": "DTCM",
+      "address": "0x11e20",
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "int32",
+      "alignment": 32,
+      "bytes": 6144
+    },
+    {
+      "name": "output",
+      "region": "DTCM",
+      "address": "0x13620",
+      "shape": [
+        3,
+        512
+      ],
+      "dtype": "fp32",
+      "alignment": 32,
+      "bytes": 6144
+    },
+    {
+      "name": "runtime_reserve",
+      "region": "DTCM",
+      "address": "0x14e20",
+      "shape": [
+        10720
+      ],
+      "dtype": "bytes",
+      "alignment": 32,
+      "bytes": 10720
+    },
+    {
+      "name": "stack",
+      "region": "DTCM",
+      "address": "0x17800",
+      "shape": [
+        2048
+      ],
+      "dtype": "bytes",
+      "alignment": 32,
+      "bytes": 2048
+    }
+  ],
+  "notes": [
+    "Static proposal only: no full-size guest ELF or simulator execution.",
+    "Weights/scales/biases use .extdata; scratch uses .extbss, explicitly initialized by harness/loader. Do not assume CRT clears .extbss.",
+    "Reference arrays remain on host. pre is an optional preserved diagnostic buffer.",
+    "ITCM code fit and 2 KiB stack remain to be verified against a future ELF/map.",
+    "Use explicit default ITCM/DTCM/EXTMEM mapping, not Python helper high-memory defaults.",
+    "No hardware timing or utilization claim."
+  ],
+  "inspected_definitions": {
+    "rules/linker.bzl": "7900fb8209c11888879ff7e4369928ab78f774c1d0521e49d63631893ec82025",
+    "toolchain/coralnpu_tcm.ld.tpl": "0d5746999063e7d26a7eb796e1b9a37a4aaa54318cdfb16a3d5afc31e8f529b6",
+    "toolchain/crt/coralnpu_start.S": "a40507d856afc9ee18b0da9baca6cbe2e7383fcb371db8499a098c7d13f2743a"
+  }
+}
