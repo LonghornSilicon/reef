@@ -51,9 +51,10 @@ uv run python src/workloads/experiments/story_quality/main.py        # all sizes
 uv run python src/workloads/experiments/story_quality/main.py TinyStories-Instruct-8M --precision int8 --precision int4
 ```
 
-The first run downloads the checkpoints, which take about 1.5 GB in the Hugging Face cache for all five sizes. After that, a full run takes about 100 s on an Apple-silicon laptop CPU.
+The first run downloads the checkpoints, which take about 1.5 GB in the Hugging Face cache for all five sizes. After that, a full run takes about 100 s on a laptop CPU.
 
-A run rewrites every CSV with only the models and precisions it was given, so commit results from a full run.
+A run replaces rows for the selected model/precision pairs and preserves other
+rows already in each CSV. Rows removed by earlier runs are not restored.
 
 ## Output
 
@@ -62,7 +63,7 @@ A run rewrites every CSV with only the models and precisions it was given, so co
 | column | meaning |
 |---|---|
 | `model` | the size, e.g. `TinyStories-Instruct-8M` |
-| `precision` | `fp32`, `bf16`, `int8` or `int4` |
+| `precision` | `fp32`, `bf16`, `int8` or `int4`; 28M also has the `w8a*` and `w4a*` variants below |
 | `words` | the story's word count, split on whitespace |
 | `story` | the generated text |
 
@@ -94,7 +95,7 @@ These files are committed, and the regression test uses them as its expected out
 
 - **`test_runs_standalone_with_help`:** runs `main.py --help` as a script.
 - **`test_int8_rounds_each_linear_row_and_leaves_the_tied_head`** and **`test_int4_rounds_each_group_of_32_and_leaves_the_tied_head`:** on a tiny random model, check that every Linear weight lands on its integer grid, that `lm_head` and the embedding stay untouched and tied, and that the fp32 model being copied isn't modified.
-- **`test_greedy_stories_match_the_committed_results`** (marked `slow`): regenerates every model × precision × prompt and requires the text to match the committed CSV exactly. Greedy decoding is deterministic, so a change to the operators, models, weight loading, tokenizer, or PyTorch/`transformers` versions fails this test if it changes even one token. pytest then prints both texts so you can see where they diverge. It runs only on Apple-silicon Macs and is skipped everywhere else.
+- **`test_greedy_stories_match_the_committed_results`** (marked `slow`): regenerates every model × precision × prompt and requires the text to match the committed CSV exactly. Greedy decoding is deterministic, so a change to the operators, models, weight loading, tokenizer, or PyTorch/`transformers` versions fails this test if it changes even one token. pytest then prints both texts so you can see where they diverge. It runs on Apple Silicon Macs and skips other platforms. It does not verify library versions or an exact match to the reference machine, so numerical differences may still change generated text.
 
 ```sh
 uv run pytest tests/experiments/test_story_quality.py
@@ -105,6 +106,51 @@ When a change is meant to alter the output (a new prompt, a different `MAX_NEW_T
 ## Limitations and future work
 
 - **Greedy decoding only.** `generate()` has no temperature or sampling, so sampled decoding is neither implemented nor tested.
-- **Exact match depends on the platform.** The committed stories came from an Apple-silicon CPU with torch 2.14.0 and transformers 5.17.0. A different BLAS or torch version can round differently, flip a near-tied argmax, and fail the test with no real regression. On a Linux run with the same torch version, 8 of the 10 bf16 and int8 cases diverged partway through a story while fp32 and int4 matched; bf16 logits often tie outright, and int8's per-token input rounding turns last-bit differences into whole steps. So the test skips on anything but an Apple-silicon Mac, fp32 and int4 included. If it fails on a Mac, look at where the stories first diverge before assuming a bug.
+- **Exact match depends on the platform.** The committed fp32, bf16, int8 and int4 stories came from one reference machine with torch 2.14.0 and transformers 5.17.0. A different BLAS or torch version can round differently, flip a near-tied argmax, and fail the test with no real regression. On a Linux run with the same torch version, 8 of the 10 bf16 and int8 cases diverged partway through a story while fp32 and int4 matched; bf16 logits often tie outright, and int8's per-token input rounding turns last-bit differences into whole steps. The test skips on platforms other than Apple Silicon Macs, fp32 and int4 included. It does not check library versions or identify the exact reference machine. If it fails on an Apple Silicon Mac, look at where the stories first diverge before assuming a bug.
 - **Simulated int8 and int4 cover only the Linears.** Attention, softmax, LayerNorm, the KV cache, the embeddings and `lm_head` stay fp32. A chip that also runs those in integers would need them added here.
 - **Checking quality instead of exact tokens.** A larger judge model (around 30B parameters) could decide whether new stories look like they come from the same distribution as the committed ones. That would still pass after harmless numerical changes and would also cover sampled decoding. The judge would need tests of its own: for example, it must tell 1M/3M output or hard-coded sentences apart from 8M+ output. It would also need an opt-in pytest marker, since not every tester can download and run a 30B model.
+
+## W8 activation sweep (28M)
+
+The explicit `w8a8`, `w8a16`, and `w8a32` options use identical INT8-rounded
+Linear weights with one scale per output channel, excluding the tied `lm_head`.
+`w8a8` is an alias for the existing `int8` behavior: inputs are dynamically
+rounded to INT8 with one scale per token. `w8a16` rounds Linear inputs to **BF16**
+and converts them back to FP32; `w8a32` leaves inputs in FP32. A16 is defined as
+BF16 for this experiment, not FP16 or INT16. All three use FP32 arithmetic and
+leave other operations in FP32. These are quality simulations, not native
+integer or BF16 performance tests.
+The existing whole-model `bf16` mode is different from `w8a16`.
+
+From `workloads/`, run the same five prompts for the 28M model:
+
+```sh
+uv run python src/workloads/experiments/story_quality/main.py \
+  TinyStories-Instruct-28M \
+  --precision fp32 --precision w8a8 --precision w8a16 --precision w8a32
+```
+
+The default precision list remains `fp32`, `bf16`, `int8`, and `int4`.
+
+## Lower precision activation experiments
+
+Additional explicit options are `w4a8`, `w4a16`, `w8a4`, and `w4a4`.
+W4 uses the existing symmetric INT4 weight grid (±7), one scale per group of
+32 inputs per output channel. W8 uses the existing per-output-channel INT8
+weight grid (±127). A4 and A8 dynamically round each Linear input token using
+one scale over its entire input vector, to ±7 and ±127 respectively. A16 means
+BF16 rounding, as above. Layer exclusions and FP32 arithmetic remain the same.
+The legacy `int4` option is weight-only (W4A32 for the selected Linears).
+
+```sh
+uv run python src/workloads/experiments/story_quality/main.py \
+  TinyStories-Instruct-28M \
+  --precision w4a8 --precision w4a16 --precision w8a4 --precision w4a4
+```
+
+These options are exploratory and do not change the default precision list.
+
+The committed `w8a*` and `w4a*` rows did not come from the reference setup
+above, and the exact-match test does not cover them. Regenerating them on
+another machine can change the text with no real regression. This is also why
+the `w8a8` rows differ from the `int8` rows even though both run the same code.
