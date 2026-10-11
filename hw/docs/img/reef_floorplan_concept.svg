@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#f1f0ec"/><line x1="0" y1="0" x2="0" y2="8" stroke="#d9d8d2" stroke-width="2"/></pattern></defs>
+<rect width="1180" height="760" fill="#fcfcfb"/>
+<text x="40.0" y="38.0" font-size="22" fill="#1f1f1e" font-weight="700" text-anchor="start">Reef v1 — concept floorplan (area to scale, not a layout)</text>
+<text x="40.0" y="62.0" font-size="13" fill="#55544f" font-weight="400" text-anchor="start">CoralNPU M3 RvvCoreMiniAxi + Reef shell · sky130hd · 32 mm² die · logic from Design Compiler @ 10 ns (tt corner only), drawn at 70% utilization</text>
+<rect x="40.0" y="90.0" width="565.7" height="565.7" rx="3" fill="#3b3a36" stroke="#3b3a36" stroke-width="1" ><title>IO ring ~2 mm² (drawn to scale: 90 µm wide)</title></rect>
+<rect x="49.0" y="99.0" width="547.7" height="547.7" rx="3" fill="url(#hatch)" stroke="#3b3a36" stroke-width="0" ><title>Spare core area, halo and routing</title></rect>
+<rect x="54.0" y="505.6" width="428.2" height="136.1" rx="3" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2" ><title>DTCM 32 KB SRAM macro: ~6.4 mm² (PD estimate, node/macro TBD)</title></rect>
+<text x="62.0" y="525.6" font-size="14" fill="#1f1f1e" font-weight="700" text-anchor="start">DTCM 32 KB</text>
+<text x="62.0" y="542.6" font-size="12" fill="#1f1f1e" font-weight="400" text-anchor="start">SRAM macro</text>
+<text x="62.0" y="558.6" font-size="12" fill="#1f1f1e" font-weight="400" text-anchor="start">~6.4 mm² (est.)</text>
+<rect x="492.2" y="505.6" width="99.5" height="136.1" rx="3" fill="#1baf7a" stroke="#fcfcfb" stroke-width="2" ><title>ITCM 8 KB SRAM macro: ~1.6 mm² (PD estimate, node/macro TBD)</title></rect>
+<text x="500.2" y="525.6" font-size="14" fill="#1f1f1e" font-weight="700" text-anchor="start">ITCM 8 KB</text>
+<text x="500.2" y="542.6" font-size="12" fill="#1f1f1e" font-weight="400" text-anchor="start">SRAM macro</text>
+<text x="500.2" y="558.6" font-size="12" fill="#1f1f1e" font-weight="400" text-anchor="start">~1.6 mm² (est.)</text>
+<rect x="64.0" y="114.0" width="109.4" height="116.3" rx="3" fill="#1c5cab" stroke="#fcfcfb" stroke-width="2" ><title>Vector FMA (FP32): 0.891 mm² cells (1.27 mm² at 70% util.)</title></rect>
+<text x="70.0" y="130.0" font-size="11.5" fill="#ffffff" font-weight="600" text-anchor="start">Vector FMA</text>
+<text x="70.0" y="144.0" font-size="11.5" fill="#ffffff" font-weight="600" text-anchor="start">(FP32)</text>
+<text x="70.0" y="158.0" font-size="11" fill="#ffffff" font-weight="400" text-anchor="start">0.89 mm²</text>
+<rect x="173.4" y="114.0" width="103.5" height="116.3" rx="3" fill="#256abf" stroke="#fcfcfb" stroke-width="2" ><title>Vector control: uop queue, ROB, dispatch, LSU: 0.843 mm² cells (1.20 mm² at 70% util.)</title></rect>
+<text x="179.4" y="130.0" font-size="11.5" fill="#ffffff" font-weight="600" text-anchor="start">Vector control</text>
+<text x="179.4" y="144.0" font-size="11" fill="#ffffff" font-weight="400" text-anchor="start">0.84 mm²</text>
+<rect x="64.0" y="230.3" width="114.1" height="84.3" rx="3" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2" ><title>Vector MUL / MAC: 0.673 mm² cells (0.96 mm² at 70% util.)</title></rect>
+<text x="70.0" y="246.3" font-size="11.5" fill="#ffffff" font-weight="600" text-anchor="start">Vector MUL / MAC</text>
+<text x="70.0" y="260.3" font-size="11" fill="#ffffff" font-weight="400" text-anchor="start">0.67 mm²</text>
+<rect x="64.0" y="314.6" width="114.1" height="67.6" rx="3" fill="#3987e5" stroke="#fcfcfb" stroke-width="2" ><title>Vector ALU: 0.540 mm² cells (0.77 mm² at 70% util.)</title></rect>
+<text x="70.0" y="330.6" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">Vector ALU</text>
+<text x="70.0" y="344.6" font-size="11" fill="#1f1f1e" font-weight="400" text-anchor="start">0.54 mm²</text>
+<rect x="178.0" y="230.3" width="98.9" height="57.0" rx="3" fill="#5598e7" stroke="#fcfcfb" stroke-width="2" ><title>Vector divider: 0.395 mm² cells (0.56 mm² at 70% util.)</title></rect>
+<text x="184.0" y="246.3" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">Vector divider</text>
+<text x="184.0" y="260.3" font-size="11" fill="#1f1f1e" font-weight="400" text-anchor="start">0.40 mm²</text>
+<rect x="178.0" y="287.3" width="54.7" height="94.9" rx="3" fill="#6da7ec" stroke="#fcfcfb" stroke-width="2" ><title>Vector register file: 0.363 mm² cells (0.52 mm² at 70% util.)</title></rect>
+<text x="184.0" y="303.3" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">VRF</text>
+<text x="184.0" y="317.3" font-size="11" fill="#1f1f1e" font-weight="400" text-anchor="start">0.36 mm²</text>
+<rect x="232.7" y="287.3" width="44.3" height="94.9" rx="3" fill="#86b6ef" stroke="#fcfcfb" stroke-width="2" ><title>Permute / reduce: 0.294 mm² cells (0.42 mm² at 70% util.)</title></rect>
+<rect x="277.0" y="114.0" width="55.2" height="64.1" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Scalar other: CSR, dispatch, MUL, DIV: 0.248 mm² cells (0.35 mm² at 70% util.)</title></rect>
+<text x="283.0" y="130.0" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">Scalar</text>
+<text x="283.0" y="144.0" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">other</text>
+<text x="283.0" y="158.0" font-size="11" fill="#1f1f1e" font-weight="400" text-anchor="start">0.25 mm²</text>
+<rect x="277.0" y="178.1" width="55.2" height="63.9" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Scalar LSU: 0.247 mm² cells (0.35 mm² at 70% util.)</title></rect>
+<text x="283.0" y="194.1" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">Scalar</text>
+<text x="283.0" y="208.1" font-size="11.5" fill="#1f1f1e" font-weight="600" text-anchor="start">LSU</text>
+<text x="283.0" y="222.1" font-size="11" fill="#1f1f1e" font-weight="400" text-anchor="start">0.25 mm²</text>
+<rect x="277.0" y="242.0" width="55.2" height="43.5" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Scalar regfile: 0.168 mm² cells (0.24 mm² at 70% util.)</title></rect>
+<rect x="277.0" y="285.5" width="55.2" height="28.7" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Retirement buffer: 0.111 mm² cells (0.16 mm² at 70% util.)</title></rect>
+<rect x="277.0" y="314.2" width="31.9" height="44.7" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Scalar FPU: 0.100 mm² cells (0.14 mm² at 70% util.)</title></rect>
+<rect x="308.9" y="314.2" width="23.3" height="44.7" rx="3" fill="#eb6834" stroke="#fcfcfb" stroke-width="2" ><title>Fetch: 0.073 mm² cells (0.10 mm² at 70% util.)</title></rect>
+<rect x="277.0" y="358.9" width="25.8" height="23.3" rx="3" fill="#4a3aa7" stroke="#fcfcfb" stroke-width="2" ><title>AXI slave: 0.042 mm² cells (0.06 mm² at 70% util.)</title></rect>
+<rect x="302.7" y="358.9" width="22.1" height="23.3" rx="3" fill="#4a3aa7" stroke="#fcfcfb" stroke-width="2" ><title>Reef shell (SPI bridge): 0.036 mm² cells (0.05 mm² at 70% util.)</title></rect>
+<rect x="324.8" y="358.9" width="7.4" height="23.3" rx="3" fill="#4a3aa7" stroke="#fcfcfb" stroke-width="2" ><title>Debug module: 0.012 mm² cells (0.02 mm² at 70% util.)</title></rect>
+<rect x="64.0" y="114.0" width="213.0" height="268.2" rx="4" fill="none" stroke="#1f1f1e" stroke-width="1.5"/>
+<rect x="277.0" y="114.0" width="55.2" height="244.9" rx="4" fill="none" stroke="#1f1f1e" stroke-width="1.5"/>
+<polyline points="304.6,263.7 340.2,263.7 361.2,263.7" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="304.6" cy="263.7" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="267.7" font-size="11.5" fill="#1f1f1e" font-weight="600">Scalar regfile<tspan fill="#55544f" font-weight="400">  0.168 mm²</tspan></text>
+<polyline points="304.6,299.8 340.2,299.8 361.2,299.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="304.6" cy="299.8" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="303.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Retirement buffer<tspan fill="#55544f" font-weight="400">  0.111 mm²</tspan></text>
+<polyline points="254.8,334.8 340.2,334.8 361.2,334.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="254.8" cy="334.8" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="338.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Permute / reduce<tspan fill="#55544f" font-weight="400">  0.294 mm²</tspan></text>
+<polyline points="292.9,336.6 340.2,336.6 361.2,356.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="292.9" cy="336.6" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="360.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Scalar FPU<tspan fill="#55544f" font-weight="400">  0.100 mm²</tspan></text>
+<polyline points="320.6,336.6 340.2,336.6 361.2,378.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="320.6" cy="336.6" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="382.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Fetch<tspan fill="#55544f" font-weight="400">  0.073 mm²</tspan></text>
+<polyline points="289.9,370.6 340.2,370.6 361.2,400.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="289.9" cy="370.6" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="404.8" font-size="11.5" fill="#1f1f1e" font-weight="600">AXI slave<tspan fill="#55544f" font-weight="400">  0.042 mm²</tspan></text>
+<polyline points="313.8,370.6 340.2,370.6 361.2,422.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="313.8" cy="370.6" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="426.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Reef shell (SPI bridge)<tspan fill="#55544f" font-weight="400">  0.036 mm²</tspan></text>
+<polyline points="328.5,370.6 340.2,370.6 361.2,444.8" fill="none" stroke="#55544f" stroke-width="1"/>
+<circle cx="328.5" cy="370.6" r="2.5" fill="#1f1f1e"/>
+<text x="367.2" y="448.8" font-size="11.5" fill="#1f1f1e" font-weight="600">Debug module<tspan fill="#55544f" font-weight="400">  0.012 mm²</tspan></text>
+<text x="69.0" y="445.6" font-size="15" fill="#55544f" font-weight="700" text-anchor="start">Spare / halo / routing ≈ 14.8 mm²</text>
+<text x="69.0" y="463.6" font-size="12" fill="#8a8984" font-weight="400" text-anchor="start">(would not exist if PD's ~21 mm² logic estimate is right)</text>
+<rect x="160.0" y="84.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad clk_i</title></rect>
+<text x="169.0" y="78.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">clk_i</text>
+<rect x="300.0" y="84.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad rst_ni</title></rect>
+<text x="309.0" y="78.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">rst_ni</text>
+<rect x="440.0" y="84.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad test_en_i</title></rect>
+<text x="449.0" y="78.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">test_en_i</text>
+<rect x="160.0" y="643.7" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad halted_o</title></rect>
+<text x="169.0" y="677.7" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">halted_o</text>
+<rect x="300.0" y="643.7" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad fault_o</title></rect>
+<text x="309.0" y="677.7" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">fault_o</text>
+<rect x="440.0" y="643.7" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad wfi_o</title></rect>
+<text x="449.0" y="677.7" font-size="11" fill="#55544f" font-weight="400" text-anchor="middle">wfi_o</text>
+<rect x="593.7" y="190.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad spi_sck_i</title></rect>
+<text x="617.7" y="203.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="start">spi_sck_i</text>
+<rect x="593.7" y="300.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad spi_csn_i</title></rect>
+<text x="617.7" y="313.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="start">spi_csn_i</text>
+<rect x="593.7" y="410.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad spi_mosi_i</title></rect>
+<text x="617.7" y="423.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="start">spi_mosi_i</text>
+<rect x="593.7" y="520.0" width="18.0" height="18.0" fill="#c9a227" stroke="#3b3a36" stroke-width="1"><title>pad spi_miso_o</title></rect>
+<text x="617.7" y="533.0" font-size="11" fill="#55544f" font-weight="400" text-anchor="start">spi_miso_o</text>
+<text x="725.7" y="110.0" font-size="16" fill="#1f1f1e" font-weight="700" text-anchor="start">What is on the chip</text>
+<rect x="725.685424949238" y="125" width="14" height="14" rx="3" fill="#2a78d6"/>
+<text x="747.7" y="136.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">RVV vector unit (RVV 1.0, VLEN 128, FP32)</text>
+<text x="747.7" y="152.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">4.00 mm² cells</text>
+<rect x="725.685424949238" y="165" width="14" height="14" rx="3" fill="#eb6834"/>
+<text x="747.7" y="176.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">Scalar RISC-V core + scalar FPU</text>
+<text x="747.7" y="192.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">0.95 mm² cells</text>
+<rect x="725.685424949238" y="205" width="14" height="14" rx="3" fill="#4a3aa7"/>
+<text x="747.7" y="216.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">AXI slave, debug, Reef shell</text>
+<text x="747.7" y="232.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">0.09 mm² cells</text>
+<rect x="725.685424949238" y="245" width="14" height="14" rx="3" fill="#1baf7a"/>
+<text x="747.7" y="256.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">TCM SRAM macros (ITCM 8 KB + DTCM 32 KB)</text>
+<text x="747.7" y="272.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">~8 mm² (estimate)</text>
+<rect x="725.685424949238" y="285" width="14" height="14" rx="3" fill="#3b3a36"/>
+<text x="747.7" y="296.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">IO ring (10 signal pads, gold)</text>
+<text x="747.7" y="312.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">~2 mm²</text>
+<rect x="725.685424949238" y="325" width="14" height="14" rx="3" fill="url(#hatch)" stroke="#bdbcb6"/>
+<text x="747.7" y="336.0" font-size="13" fill="#1f1f1e" font-weight="600" text-anchor="start">Spare core area / halo / routing</text>
+<text x="747.7" y="352.0" font-size="12" fill="#55544f" font-weight="400" text-anchor="start">≈ 14.8 mm²</text>
+<text x="725.7" y="388.0" font-size="16" fill="#1f1f1e" font-weight="700" text-anchor="start">Numbers</text>
+<text x="725.7" y="412.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">Logic cells: ≈5.0 mm² (DC, 10 ns, met at tt only)</text>
+<text x="725.7" y="432.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">Logic footprint at 70% util.: 7.2 mm²</text>
+<text x="725.7" y="452.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">Die: 32 mm² (drawn square; the real frame may not be)</text>
+<text x="725.7" y="472.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">Host access: SPI -&gt; AXI (ITCM, DTCM, CSR)</text>
+<text x="725.7" y="506.0" font-size="16" fill="#1f1f1e" font-weight="700" text-anchor="start">Read this as a sketch</text>
+<text x="725.7" y="530.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">• No placement or routing has been done yet;</text>
+<text x="725.7" y="549.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">  block positions are arbitrary, sizes are to scale.</text>
+<text x="725.7" y="568.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">• Timing: 10 ns holds only at tt. At the ss corner</text>
+<text x="725.7" y="587.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">  ~20 ns (50 MHz) closes, before P&amp;R.</text>
+<text x="725.7" y="606.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">• SRAM: ~8 mm² is PD's estimate; sky130 OpenRAM</text>
+<text x="725.7" y="625.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">  macros would be 20 x 0.285 = 5.7 mm² + halo.</text>
+<text x="725.7" y="644.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">• PD's own estimate of the logic is ~21 mm²;</text>
+<text x="725.7" y="663.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">  until that is reconciled, the spare area may not exist.</text>
+<text x="725.7" y="682.0" font-size="12.5" fill="#55544f" font-weight="400" text-anchor="start">• Hover a block for its exact area.</text>
+</svg>
