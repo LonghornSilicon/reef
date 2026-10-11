@@ -1,0 +1,182 @@
+$ bazel --output_user_root=/tmp/reef-w8a8-bazel --batch build //examples/reef_mlp:validate_functional --experimental_collect_system_network_usage=false --repository_cache=/nfs/samlin/coral-build/repository-cache --repo_contents_cache=/tmp/reef-w8a8-repo-contents --disk_cache=/tmp/reef-w8a8-disk-cache --verbose_failures --sandbox_debug --repository_disable_download
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: 5a57797f-5178-4dc0-8f8d-db5ffed64eaf
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (233 packages loaded, 21267 targets configured)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+DEBUG: Sandbox debug output for PyWriteBuildData //examples/reef_mlp:validate_functional:
+1791690770.799050472: src/main/tools/linux-sandbox.cc:165: calling pipe(2)...
+1791690770.799077366: src/main/tools/linux-sandbox.cc:177: Netns is 0
+1791690770.799079374: src/main/tools/linux-sandbox.cc:188: calling clone(2)...
+1791690770.799530335: src/main/tools/linux-sandbox.cc:204: linux-sandbox-pid1 has PID 1090
+1791690770.799549658: src/main/tools/linux-sandbox-pid1.cc:705: Pid1Main started
+1791690770.799627126: src/main/tools/linux-sandbox.cc:212: done manipulating pipes
+1791690770.799752844: src/main/tools/linux-sandbox-pid1.cc:290: bind mount: /tmp/reef-w8a8-bazel -> /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel
+1791690770.799768341: src/main/tools/linux-sandbox-pid1.cc:290: bind mount: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp -> /tmp
+1791690770.799858977: src/main/tools/linux-sandbox-pid1.cc:308: writable: /dev/shm
+1791690770.799891436: src/main/tools/linux-sandbox-pid1.cc:308: writable: /tmp
+1791690770.799986716: src/main/tools/linux-sandbox-pid1.cc:308: writable: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main
+1791690770.800016927: src/main/tools/linux-sandbox-pid1.cc:325: working dir: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main
+1791690770.800090143: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /
+1791690770.800094842: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev
+1791690770.800100347: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/pts
+1791690770.800105736: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /dev/shm
+1791690770.800109551: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/hugepages
+1791690770.800114509: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /dev/hugepages, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800120037: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/mqueue
+1791690770.800124213: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /dev/mqueue, nullptr, 2101295, nullptr) failure (No such file or directory) ignored
+1791690770.800126697: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev
+1791690770.800129865: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/null
+1791690770.800134244: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/zero
+1791690770.800138590: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/full
+1791690770.800142325: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/random
+1791690770.800164468: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/urandom
+1791690770.800168501: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/tty
+1791690770.800172254: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /dev/pts
+1791690770.800175182: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run
+1791690770.800179525: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/lock
+1791690770.800183257: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/credentials/systemd-sysusers.service
+1791690770.800188453: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/rpc_pipefs
+1791690770.800192567: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/snapd/ns
+1791690770.800198577: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/default
+1791690770.800202361: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/default, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800204887: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1003
+1791690770.800208555: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1014
+1791690770.800212054: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/4298be01ba63
+1791690770.800214162: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/4298be01ba63, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800215928: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/8b619faae9de
+1791690770.800224104: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/8b619faae9de, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800244793: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/5e30d360c980
+1791690770.800247204: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/5e30d360c980, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800249095: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/2c550078e5f9
+1791690770.800251324: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/2c550078e5f9, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800252826: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/80d21c916142
+1791690770.800254808: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/80d21c916142, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800256554: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/7ed301ea40e4
+1791690770.800258452: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/7ed301ea40e4, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800260049: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/docker/netns/35bf98e4c8cc
+1791690770.800262410: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /run/docker/netns/35bf98e4c8cc, nullptr, 4129, nullptr) failure (Permission denied) ignored
+1791690770.800264268: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1030
+1791690770.800267562: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1059
+1791690770.800270537: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1065
+1791690770.800273856: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /run/user/1048
+1791690770.800277081: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys
+1791690770.800280822: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/firmware/efi/efivars
+1791690770.800287701: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/kernel/security
+1791690770.800293118: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/fs/cgroup
+1791690770.800321878: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/fs/pstore
+1791690770.800326181: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/fs/bpf
+1791690770.800329589: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/kernel/debug
+1791690770.800334136: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/kernel/debug/tracing
+1791690770.800337115: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /sys/kernel/debug/tracing, nullptr, 2101295, nullptr) failure (Permission denied) ignored
+1791690770.800338986: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/kernel/tracing
+1791690770.800343794: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/fs/fuse/connections
+1791690770.800349323: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /sys/kernel/config
+1791690770.800355004: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /proc
+1791690770.800360392: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /proc/sys/fs/binfmt_misc
+1791690770.800367796: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /proc/sys/fs/binfmt_misc, nullptr, 2101281, nullptr) failure (Invalid argument) ignored
+1791690770.800370063: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /proc/sys/fs/binfmt_misc
+1791690770.800372416: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /proc/sys/fs/binfmt_misc, nullptr, 2101295, nullptr) failure (Invalid argument) ignored
+1791690770.800374311: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /proc
+1791690770.800377477: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core/17284
+1791690770.800381514: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core/17292
+1791690770.800438034: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core20/2866
+1791690770.800445128: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core22/2437
+1791690770.800449541: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/imgcat/68
+1791690770.800453011: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/lxd/40575
+1791690770.800457021: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /boot/efi
+1791690770.800461585: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /mnt/nfs
+1791690770.800465718: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/snapd/27738
+1791690770.800524371: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/b8845f5fc92c6ddd95a6da44eb2dd0e6686d0b682e6072f34fcb17259ea24451/merged
+1791690770.800528824: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/b8845f5fc92c6ddd95a6da44eb2dd0e6686d0b682e6072f34fcb17259ea24451/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800546280: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/f2c42ff0f20899d99297a75cf24094d619402cc3a91f6cd46ae3c91ed024a416/merged
+1791690770.800548574: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/f2c42ff0f20899d99297a75cf24094d619402cc3a91f6cd46ae3c91ed024a416/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800550532: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core22/2955
+1791690770.800553796: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/core20/2922
+1791690770.800574235: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/d32ea8e6100f1cd812eba0ec0831ffcca7f86ad5416496fbbee0612fcc06d9ad/merged
+1791690770.800576708: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/d32ea8e6100f1cd812eba0ec0831ffcca7f86ad5416496fbbee0612fcc06d9ad/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800579519: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/b57b9f182581df7f3e203d02f500f7fc258be0202ba81d9f3582751ad62329a3/merged
+1791690770.800581591: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/b57b9f182581df7f3e203d02f500f7fc258be0202ba81d9f3582751ad62329a3/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800592299: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/b420ea5ae46cd90e09f9c11fda1039fa4bccb2d1e6f8687a6005f4ea99914ecb/merged
+1791690770.800594365: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/b420ea5ae46cd90e09f9c11fda1039fa4bccb2d1e6f8687a6005f4ea99914ecb/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800605344: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/ff20e01e58d0114528b2cfd12cbc25dbaa85ab8b66aa52efcda64f1ef4a08acd/merged
+1791690770.800607485: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/ff20e01e58d0114528b2cfd12cbc25dbaa85ab8b66aa52efcda64f1ef4a08acd/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800625637: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/841ace59d677177ed466e3b521e988708fa675bd162e128803ee9b3007f226d3/merged
+1791690770.800627786: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/841ace59d677177ed466e3b521e988708fa675bd162e128803ee9b3007f226d3/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800630308: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/cfedddb2e16acb86d44a318344c2a645bb50670ba90368ed4cbcf28bb3a31e61/merged
+1791690770.800632362: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/cfedddb2e16acb86d44a318344c2a645bb50670ba90368ed4cbcf28bb3a31e61/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800648695: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /var/lib/docker/overlay2/7fb5c1c14e86e60f25f74cdb8c8e541cf4bfa07e195d836ffa3138223a203b33/merged
+1791690770.800650890: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /var/lib/docker/overlay2/7fb5c1c14e86e60f25f74cdb8c8e541cf4bfa07e195d836ffa3138223a203b33/merged, nullptr, 2101281, nullptr) failure (Permission denied) ignored
+1791690770.800653327: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /nfs
+1791690770.800657801: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/lxd/40911
+1791690770.800661490: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /snap/snapd/28254
+1791690770.800889299: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/codex-daemon-1059
+1791690770.800897641: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/codex-daemon-1059, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800899963: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /tmp
+1791690770.800903007: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/codex-daemon-1059
+1791690770.800904802: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/codex-daemon-1059, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800906871: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/.git
+1791690770.800910237: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/.git, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800912227: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/.agents
+1791690770.800915624: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/.agents, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800917610: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/.codex
+1791690770.800920370: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/.codex, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800922388: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/.aws
+1791690770.800925460: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/.aws, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800927671: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/codex-bwrap-synthetic-mount-targets-1059
+1791690770.800931428: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/codex-bwrap-synthetic-mount-targets-1059, nullptr, 2101287, nullptr) failure (No such file or directory) ignored
+1791690770.800933454: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /home/samlin/coralnpu-dissection
+1791690770.800939501: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /home/samlin/coralnpu-dissection/.git
+1791690770.800942886: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /home/samlin/coralnpu-dissection/.agents
+1791690770.800956313: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /home/samlin/coralnpu-dissection/.codex
+1791690770.800959623: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /home/samlin/coralnpu-dissection/.aws
+1791690770.800963696: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel
+1791690770.800966534: src/main/tools/linux-sandbox-pid1.cc:423: remount(nullptr, /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel, nullptr, 2101287, nullptr) failure (Invalid argument) ignored
+1791690770.800968405: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /tmp
+1791690770.800971147: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/reef-w8a8-bazel
+1791690770.800975101: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /dev/shm
+1791690770.800978662: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /tmp
+1791690770.800981289: src/main/tools/linux-sandbox-pid1.cc:400: remount ro: /tmp/reef-w8a8-bazel
+1791690770.800987184: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main
+1791690770.800990727: src/main/tools/linux-sandbox-pid1.cc:400: remount rw: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main
+1791690770.801026889: src/main/tools/linux-sandbox-pid1.cc:508: calling fork...
+1791690770.801170058: src/main/tools/linux-sandbox-pid1.cc:545: child started with PID 2
+1791690770.801660349: src/main/tools/linux-sandbox-pid1.cc:562: wait returned pid=2, status=0x100
+1791690770.801664582: src/main/tools/linux-sandbox-pid1.cc:580: child exited normally with code 1
+1791690770.802393175: src/main/tools/linux-sandbox.cc:253: child exited normally with code 1
+
+Run this command to start an interactive shell in an identical sandboxed environment:
+(cd /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main && \
+  exec env - \
+    CONFIG_MODE=TARGET \
+    INFO_FILE='' \
+    OUTPUT=bazel-out/k8-fastbuild/bin/examples/reef_mlp/validate_functional.build_data.txt \
+    STAMPED=FALSE \
+    TARGET=@@//examples/reef_mlp:validate_functional \
+    TMPDIR=/tmp \
+    VERSION_FILE='' \
+  /tmp/reef-w8a8-bazel/install/5229af5fe4e43869fa475e361effe116/linux-sandbox -t 15 -w /dev/shm -w /tmp -w /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main -M /tmp/reef-w8a8-bazel -m /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel -M /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp -m /tmp -S /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/stats.out -D /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/debug.out -- /bin/sh -i)
+ERROR: /home/samlin/coralnpu-dissection/coralnpu/examples/reef_mlp/BUILD.bazel:17:10: Reticulating //examples/reef_mlp:validate_functional build data failed: (Exit 1): linux-sandbox failed: error executing PyWriteBuildData command
+  (cd /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main && \
+  exec env - \
+    CONFIG_MODE=TARGET \
+    INFO_FILE='' \
+    OUTPUT=bazel-out/k8-fastbuild/bin/examples/reef_mlp/validate_functional.build_data.txt \
+    STAMPED=FALSE \
+    TARGET=@@//examples/reef_mlp:validate_functional \
+    TMPDIR=/tmp \
+    VERSION_FILE='' \
+  /tmp/reef-w8a8-bazel/install/5229af5fe4e43869fa475e361effe116/linux-sandbox -t 15 -w /dev/shm -w /tmp -w /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main -M /tmp/reef-w8a8-bazel -m /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel -M /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp -m /tmp -S /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/stats.out -D /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/debug.out -- external/rules_python+/python/private/build_data_writer.sh)
+src/main/tools/linux-sandbox-pid1.cc:542: "execvp(external/rules_python+/python/private/build_data_writer.sh, 0xfe123e0)": No such file or directory
+Target //examples/reef_mlp:validate_functional failed to build
+INFO: Elapsed time: 4.292s, Critical Path: 0.10s
+INFO: 355 processes: 158 action cache hit, 355 internal.
+ERROR: Build did NOT complete successfully
+
+command_exit=1

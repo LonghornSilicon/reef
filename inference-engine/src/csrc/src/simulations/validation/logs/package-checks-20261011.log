@@ -1,0 +1,100 @@
+Runner Python syntax: PASS
+README shell command syntax: PASS
+README required claims and proposed milestone: PASS
+Original numerical kernel/fixture/harness preserved: PASS
+Reef/Coral harness files identical: PASS
+Committed trace counts, halt and six test-copy vector instructions: PASS
+Machine-specific patch matches local Coral host-toolchain diff: PASS
+Unrelated Coral interface file unchanged: PASS
+Validation package contains text evidence/setup only; no binaries/caches/temp files: PASS
+Reef/Coral git diff --check: PASS
+
+$ timeout 120 bazel --output_user_root=/tmp/reef-w8a8-bazel --batch run //examples/reef_mlp:validate_functional --experimental_collect_system_network_usage=false --repository_cache=/nfs/samlin/coral-build/repository-cache --repo_contents_cache=/tmp/reef-w8a8-repo-contents --disk_cache=/tmp/reef-w8a8-disk-cache --sandbox_add_mount_pair=/tmp/reef-w8a8-repo-contents --repository_disable_download -- --trace-prefix /tmp/reef-w8a8-package-trace
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: 3dfafe2e-4257-46a3-a7ab-aa9193d667ed
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (233 packages loaded, 21297 targets configured, 1 aspect application)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+[1,926 / 2,384] checking cached actions
+INFO: Found 1 target...
+Target //examples/reef_mlp:validate_functional up-to-date:
+  bazel-bin/examples/reef_mlp/validate_functional
+INFO: Elapsed time: 5.304s, Critical Path: 0.08s
+INFO: 1 process: 2383 action cache hit, 1 internal.
+INFO: Build completed successfully, 1 total action
+INFO: Running command line: bazel-bin/examples/reef_mlp/validate_functional <args omitted>
+ELF=/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/coralnpu_v2_hello_world_add_floats.elf entry=0x0
+symbol input1 address=0x10000 size=32
+symbol input2 address=0x10020 size=32
+symbol output address=0x10040 size=32
+symbol _ret address=0x10060 size=0
+halted=True steps=208 pc=0x140 sp=0x18000 _ret=0x0
+float_add_output=[1.2130000591278076, 2.2130000591278076, 3.2130000591278076, 4.2129998207092285, 5.2129998207092285, 6.2129998207092285, 7.2129998207092285, 8.213000297546387]
+PASS: existing Coral float-add example, 8 exact FP32 comparisons
+ELF=/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf entry=0x0
+symbol mlp_status address=0x10000 size=4
+symbol mlp_failures address=0x10060 size=4
+symbol mlp_output address=0x1008c size=96
+symbol _ret address=0x10054 size=0
+loaded mlp_status=-1
+instruction_mix={"classes": {"branch": 2552, "jump": 400, "scalar_address_arithmetic": 1151, "scalar_fp_arithmetic": 3956, "scalar_fp_load": 1668, "scalar_fp_store": 331, "scalar_integer_arithmetic": 7030, "scalar_integer_load": 2216, "scalar_integer_store": 750, "system": 9, "vector_arithmetic_or_config": 2, "vector_load": 2, "vector_store": 2}, "executed_instructions": 20069, "halt_instruction_executed": true, "includes": "CRT/startup, input quantization, MLP, library calls, reference checks, finalization", "loads": 3886, "method": "PC + instruction word before each successful simulator Step(1)", "scalar_arithmetic": 12137, "scope": "whole MLP ELF, entry through terminal mpause/ebreak inclusive", "stores": 1083, "timing": "No hardware cycle or utilization inference", "vector_instructions": 6}
+halted=True steps=20069 pc=0x150 sp=0x18000 _ret=0x0
+mlp_status=0 mlp_failures=0
+mlp_output=[-0.06203804165124893, 0.03205976262688637, -0.056492894887924194, 0.003830641508102417, -0.013669824227690697, 0.07665133476257324, 0.018184375017881393, 0.007657751441001892, -0.12755262851715088, 0.00115179643034935, -0.010516799986362457, 0.03619706258177757, 0.013530533760786057, 0.09989123791456223, -0.047117993235588074, 0.007657751441001892, -0.09450298547744751, -0.0029097776859998703, -0.028271708637475967, -0.042841408401727676, 0.021184276789426804, 0.11909206956624985, -0.02646179124712944, 0.007657751441001892]
+PASS: MLP exact integer checks and existing FP32 tolerances
+mpause instruction received.
+mpause instruction received.
+
+command_exit=0
+Fresh small-fixture trace exactly matches committed CSV/JSON: PASS
+
+Packaging normalization: log trailing whitespace removed; trace CSV uses LF; raw originals archived in /tmp, excluded from commit.
+$ timeout 120 bazel --output_user_root=/tmp/reef-w8a8-bazel --batch run //examples/reef_mlp:validate_functional --experimental_collect_system_network_usage=false --repository_cache=/nfs/samlin/coral-build/repository-cache --repo_contents_cache=/tmp/reef-w8a8-repo-contents --disk_cache=/tmp/reef-w8a8-disk-cache --sandbox_add_mount_pair=/tmp/reef-w8a8-repo-contents --repository_disable_download -- --trace-prefix /tmp/reef-w8a8-package-trace-lf
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: 6d9e94cf-dd00-45ee-b782-f8e9e8bb98e9
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (233 packages loaded, 21294 targets configured, 1 aspect application)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+[2,383 / 2,384] [Prepa] runfiles for //examples/reef_mlp:validate_functional
+INFO: Found 1 target...
+Target //examples/reef_mlp:validate_functional up-to-date:
+  bazel-bin/examples/reef_mlp/validate_functional
+INFO: Elapsed time: 5.329s, Critical Path: 0.12s
+INFO: 2 processes: 2382 action cache hit, 2 internal.
+INFO: Build completed successfully, 2 total actions
+INFO: Running command line: bazel-bin/examples/reef_mlp/validate_functional <args omitted>
+ELF=/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/coralnpu_v2_hello_world_add_floats.elf entry=0x0
+symbol input1 address=0x10000 size=32
+symbol input2 address=0x10020 size=32
+symbol output address=0x10040 size=32
+symbol _ret address=0x10060 size=0
+halted=True steps=208 pc=0x140 sp=0x18000 _ret=0x0
+float_add_output=[1.2130000591278076, 2.2130000591278076, 3.2130000591278076, 4.2129998207092285, 5.2129998207092285, 6.2129998207092285, 7.2129998207092285, 8.213000297546387]
+PASS: existing Coral float-add example, 8 exact FP32 comparisons
+ELF=/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf entry=0x0
+symbol mlp_status address=0x10000 size=4
+symbol mlp_failures address=0x10060 size=4
+symbol mlp_output address=0x1008c size=96
+symbol _ret address=0x10054 size=0
+loaded mlp_status=-1
+instruction_mix={"classes": {"branch": 2552, "jump": 400, "scalar_address_arithmetic": 1151, "scalar_fp_arithmetic": 3956, "scalar_fp_load": 1668, "scalar_fp_store": 331, "scalar_integer_arithmetic": 7030, "scalar_integer_load": 2216, "scalar_integer_store": 750, "system": 9, "vector_arithmetic_or_config": 2, "vector_load": 2, "vector_store": 2}, "executed_instructions": 20069, "halt_instruction_executed": true, "includes": "CRT/startup, input quantization, MLP, library calls, reference checks, finalization", "loads": 3886, "method": "PC + instruction word before each successful simulator Step(1)", "scalar_arithmetic": 12137, "scope": "whole MLP ELF, entry through terminal mpause/ebreak inclusive", "stores": 1083, "timing": "No hardware cycle or utilization inference", "vector_instructions": 6}
+halted=True steps=20069 pc=0x150 sp=0x18000 _ret=0x0
+mlp_status=0 mlp_failures=0
+mlp_output=[-0.06203804165124893, 0.03205976262688637, -0.056492894887924194, 0.003830641508102417, -0.013669824227690697, 0.07665133476257324, 0.018184375017881393, 0.007657751441001892, -0.12755262851715088, 0.00115179643034935, -0.010516799986362457, 0.03619706258177757, 0.013530533760786057, 0.09989123791456223, -0.047117993235588074, 0.007657751441001892, -0.09450298547744751, -0.0029097776859998703, -0.028271708637475967, -0.042841408401727676, 0.021184276789426804, 0.11909206956624985, -0.02646179124712944, 0.007657751441001892]
+PASS: MLP exact integer checks and existing FP32 tolerances
+mpause instruction received.
+mpause instruction received.
+command_exit=0
+LF trace rerun: float-add PASS; MLP status=0 failures=0 _ret=0; trace CSV/JSON exact match: PASS

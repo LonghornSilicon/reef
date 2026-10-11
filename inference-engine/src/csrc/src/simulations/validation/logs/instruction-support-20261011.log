@@ -1,0 +1,151 @@
+/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/+coralnpu_deps_ext+com_google_mpact-riscv/riscv/riscv_top.cc:139
+139:   // Register instruction and cycle counters.
+140:   CHECK_OK(AddCounter(&counter_num_instructions_))
+141:       << "Failed to register instruction counter";
+142:   CHECK_OK(AddCounter(&counter_num_cycles_))
+143:       << "Failed to register cycle counter";
+144:   // Register opcode counters.
+145:   int num_opcodes = rv_decoder_->GetNumOpcodes();
+146:   counter_opcode_.resize(num_opcodes);
+147:   for (int i = 0; i < num_opcodes; i++) {
+148:     counter_opcode_.push_back(generic::SimpleCounter<uint64_t>());
+149:     counter_opcode_[i].Initialize(
+150:         absl::StrCat("num_", rv_decoder_->GetOpcodeName(i)), 0);
+151:     CHECK_OK(AddCounter(&counter_opcode_[i]))
+152:         << "Failed to register opcode counter";
+153:   }
+154:
+155:   // Connect counters to instret(h) and mcycle(h) CSRs.
+156:   CHECK_OK(SetCsrCounter("minstret", counter_num_instructions_));
+157:   CHECK_OK(SetCsrCounter("mcycle", counter_num_cycles_));
+158:
+159:   // Connect Zicntr counters to cycle(h), time(h), and instret(h) CSRs.
+160:   CHECK_OK(SetCsrCounter("instret", counter_num_instructions_));
+161:   CHECK_OK(SetCsrCounter("cycle", counter_num_cycles_));
+162:   CHECK_OK(SetCsrCounter("time", counter_num_cycles_));
+
+/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/+coralnpu_deps_ext+com_google_mpact-riscv/riscv/riscv_top.cc:291
+291:
+292: absl::StatusOr<int> RiscVTop::Step(int num) {
+293:   if (num <= 0) {
+294:     return absl::InvalidArgumentError("Step count must be > 0");
+295:   }
+296:   // If the simulator is running, return with an error.
+297:   if (run_status_ != RunStatus::kHalted) {
+298:     return absl::FailedPreconditionError("RiscVTop::Step: Core must be halted");
+299:   }
+300:   run_status_ = RunStatus::kSingleStep;
+301:   int count = 0;
+302:   halted_ = false;
+303:   paused_ = false;
+304:   halt_reason_ = *HaltReason::kNone;
+305:   // First check to see if the previous halt was due to a breakpoint. If so,
+306:   // need to step over the breakpoint.
+307:   if (need_to_step_over_) {
+308:     need_to_step_over_ = false;
+309:     auto status = StepPastBreakpoint();
+310:     if (!status.ok()) {
+
+/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/+coralnpu_deps_ext+com_google_mpact-riscv/riscv/riscv_top.cc:330
+330:     SetPc(pc);
+331:     auto* inst = rv_decode_cache_->GetDecodedInstruction(pc);
+332:     // Set the next_pc to the next sequential instruction.
+333:     next_pc = pc + inst->size();
+334:     bool executed = false;
+335:     if (icache_) ICacheFetch(pc);
+336:     do {
+337:       executed = ExecuteInstruction(inst);
+338:       counter_num_cycles_.Increment(1);
+339:       state_->AdvanceDelayLines();
+340:       // Check for interrupt.
+341:       if (state_->is_interrupt_available()) {
+342:         uint64_t epc = pc;
+343:         if (executed) {
+344:           epc = state_->branch() ? state_->pc_operand()->AsUint64(0) : next_pc;
+345:         }
+346:         state_->TakeAvailableInterrupt(epc);  // Will set state_->branch().
+347:       }
+348:     } while (!executed);
+349:     paused_ |= halted_;
+350:     count++;
+351:     // Update counters.
+352:     counter_opcode_[inst->opcode()].Increment(1);
+353:     counter_num_instructions_.Increment(1);
+354:     // Get the next pc value.
+355:     auto pc_val = state_->pc_operand()->AsUint64(0);
+356:     if (state_->branch()) {
+357:       state_->set_branch(false);
+358:       AddToBranchTrace(pc, pc_val);
+359:       next_pc = pc_val;
+360:     }
+
+/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/+coralnpu_deps_ext+com_google_mpact-riscv/riscv/riscv_top.cc:536
+536:     auto* csr = *result;
+537:     auto xlen = state_->xlen();
+538:     switch (xlen) {
+539:       case RiscVXlen::RV32:
+540:         return csr->GetUint32();
+541:       case RiscVXlen::RV64:
+542:         return csr->GetUint64();
+543:       default:
+544:         return absl::InternalError("Unknown Xlen value");
+545:     }
+546:   }
+547:
+548:   auto* db = (iter->second)->data_buffer();
+549:   uint64_t value;
+550:   switch (db->size<uint8_t>()) {
+551:     case 1:
+552:       value = static_cast<uint64_t>(db->Get<uint8_t>(0));
+
+/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/+coralnpu_deps_ext+coralnpu_mpact/sim/coralnpu_simulator.cc:175
+175:     // Add a handler to halt the simulation when an mpause instruction is
+176:     // received.
+177:     state_->AddMpauseHandler([this](const Instruction* inst) {
+178:       std::cout << "mpause instruction received.\n";
+179:       top_->RequestHalt(HaltReason::kUserRequest, inst);
+180:       return true;
+181:     });
+182:
+183:     // Add a handler to halt the simulation when an ebreak instruction is
+184:     // received.
+185:     state_->AddEbreakHandler([this](const Instruction* inst) {
+186:       std::cout << "ebreak instruction received. Instruction address: "
+187:                 << absl::StrFormat("0x%08x", inst->address()) << "\n";
+188:       if (options_.exit_on_ebreak) {
+189:         top_->RequestHalt(HaltReason::kUserRequest, inst);
+190:         return true;
+191:       }
+192:       return false;
+193:     });
+194:   }
+195:
+196:   elf_loader_ = std::make_unique<ElfProgramLoader>(memory_.get());
+
+/home/samlin/coralnpu-dissection/coralnpu/sw/coralnpu_sim/coralnpu_v2_sim_pybind.cc:238
+238:   py::class_<CoralNPUV2SimulatorPy>(module, "CoralNPUSimulatorPy")
+239:       .def(py::init<const CoralNPUSimulatorOptions>())
+240:       .def("LoadProgram", &CoralNPUV2SimulatorPy::LoadProgram,
+241:            py::arg("elf_file_path"), py::arg("entry_point"), "loads elf")
+242:       .def("Run", &CoralNPUV2SimulatorPy::Run, "runs the program")
+243:       .def("Wait", &CoralNPUV2SimulatorPy::Wait,
+244:            "waits for the program to finish")
+245:       .def("Halt", &CoralNPUV2SimulatorPy::Halt, "Halt the simulator")
+246:       .def("SetSwBreakpoint", &CoralNPUV2SimulatorPy::SetSwBreakpoint,
+247:            py::arg("address"), "Set a software breakpoint at address")
+248:       .def("ClearSwBreakpoint", &CoralNPUV2SimulatorPy::ClearSwBreakpoint,
+249:            py::arg("address"), "Clear a software breakpoint at address")
+250:       .def("Step", &CoralNPUV2SimulatorPy::Step, py::arg("num_steps"),
+251:            "Runs a simulator to a specifed number of steps")
+252:       .def("GetCycleCount", &CoralNPUV2SimulatorPy::GetCycleCount,
+253:            "Return number of cycles taken by program to run")
+254:       .def("ReadMemory", &CoralNPUV2SimulatorPy::ReadMemory,
+255:            "Reads memory and stores in the given buffer")
+256:       .def("WriteMemory", &CoralNPUV2SimulatorPy::WriteMemory, "Write memory")
+257:       .def("WriteWord", &CoralNPUV2SimulatorPy::WriteWord, "Write word")
+258:       .def("WritePtr", &CoralNPUV2SimulatorPy::WritePtr, "Write ptr")
+259:       .def("ReadRegister", &CoralNPUV2SimulatorPy::ReadRegister,
+260:            "Read Register and returns the value in it")
+261:       .def("WriteRegister", &CoralNPUV2SimulatorPy::WriteRegister,
+262:            "Read Register and returns the value in it");
+263: }

@@ -1,0 +1,14 @@
+diff --git a/toolchain/host_clang/BUILD b/toolchain/host_clang/BUILD
+index 1680716d..a3423aa4 100644
+--- a/toolchain/host_clang/BUILD
++++ b/toolchain/host_clang/BUILD
+@@ -48,6 +48,9 @@ cc_toolchain_config(
+     # The compiler itself finds headers via its own discovery — we just
+     # need to cover the roots that host GCC / Clang actually use.
+     cxx_builtin_include_directories = [
++        # Local mew3 compiler wrappers select GCC 11 through this prefix.
++        "/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include",
++        "/nfs/samlin/coral-build/host-deps/usr/include",
+         "/usr/include",
+         "/usr/local/include",
+         "/usr/lib",

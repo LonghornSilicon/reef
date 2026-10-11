@@ -1,0 +1,31 @@
+$ timeout 120 bazel --output_user_root=/tmp/reef-w8a8-bazel --batch run //examples/reef_mlp:validate_functional --experimental_collect_system_network_usage=false --repository_cache=/nfs/samlin/coral-build/repository-cache --repo_contents_cache=/tmp/reef-w8a8-repo-contents --disk_cache=/tmp/reef-w8a8-disk-cache --sandbox_add_mount_pair=/tmp/reef-w8a8-repo-contents --repository_disable_download -- --smoke-only
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: 83721017-2ad4-4d59-a432-ce57be7b6e7b
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (226 packages loaded, 9985 targets configured)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+[1,736 / 2,384] checking cached actions
+INFO: Found 1 target...
+Target //examples/reef_mlp:validate_functional up-to-date:
+  bazel-bin/examples/reef_mlp/validate_functional
+INFO: Elapsed time: 5.536s, Critical Path: 0.08s
+INFO: 1 process: 2383 action cache hit, 1 internal.
+INFO: Build completed successfully, 1 total action
+INFO: Running command line: bazel-bin/examples/reef_mlp/validate_functional <args omitted>
+ELF=/tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/coralnpu_v2_hello_world_add_floats.elf entry=0x0
+symbol input1 address=0x10000 size=32
+symbol input2 address=0x10020 size=32
+symbol output address=0x10040 size=32
+symbol _ret address=0x10060 size=0
+halted=True steps=208 pc=0x140 sp=0x18000 _ret=0x0
+float_add_output=[1.2130000591278076, 2.2130000591278076, 3.2130000591278076, 4.2129998207092285, 5.2129998207092285, 6.2129998207092285, 7.2129998207092285, 8.213000297546387]
+PASS: existing Coral float-add example, 8 exact FP32 comparisons
+mpause instruction received.
+
+command_exit=0

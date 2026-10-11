@@ -1,0 +1,37 @@
+$ llvm-objdump -d --demangle /home/samlin/coralnpu-dissection/coralnpu/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf
+Executed vector instructions from trace:
+[{'index': '19139', 'pc': '0xa30', 'instruction_word': '0x0c0777d7', 'instruction_class': 'vector_arithmetic_or_config'}, {'index': '19140', 'pc': '0xa34', 'instruction_word': '0x02060087', 'instruction_class': 'vector_load'}, {'index': '19143', 'pc': '0xa40', 'instruction_word': '0x020680a7', 'instruction_class': 'vector_store'}, {'index': '19146', 'pc': '0xa30', 'instruction_word': '0x0c0777d7', 'instruction_class': 'vector_arithmetic_or_config'}, {'index': '19147', 'pc': '0xa34', 'instruction_word': '0x02060087', 'instruction_class': 'vector_load'}, {'index': '19150', 'pc': '0xa40', 'instruction_word': '0x020680a7', 'instruction_class': 'vector_store'}]
+
+000006e0 <main>:
+     a30: d7 77 07 0c  	<unknown>
+000006e0 <main>:
+     a34: 87 00 06 02  	<unknown>
+000006e0 <main>:
+     a40: a7 80 06 02  	<unknown>
+
+Decode with RVV feature explicitly enabled:
+$ /usr/lib/llvm-15/bin/llvm-objdump -d --demangle --mattr=+v,+f --start-address=0xa10 --stop-address=0xa50 /home/samlin/coralnpu-dissection/coralnpu/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf
+
+/home/samlin/coralnpu-dissection/coralnpu/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf:	file format elf32-littleriscv
+
+Disassembly of section .text:
+
+000006e0 <main>:
+     a10: 23 20 e4 00  	sw	a4, 0(s0)
+     a14: 93 85 45 00  	addi	a1, a1, 4
+     a18: e3 9e fb f8  	bne	s7, a5, 0x9b4 <main+0x2d4>
+     a1c: 93 0d 01 05  	addi	s11, sp, 80
+     a20: 93 86 0d 00  	mv	a3, s11
+     a24: 17 16 00 00  	auipc	a2, 1
+     a28: 13 06 86 c7  	addi	a2, a2, -904
+     a2c: 13 07 00 02  	li	a4, 32
+     a30: d7 77 07 0c  	vsetvli	a5, a4, e8, m1, ta, ma
+     a34: 87 00 06 02  	vle8.v	v1, (a2)
+     a38: 33 07 f7 40  	sub	a4, a4, a5
+     a3c: 33 06 f6 00  	add	a2, a2, a5
+     a40: a7 80 06 02  	vse8.v	v1, (a3)
+     a44: b3 86 f6 00  	add	a3, a3, a5
+     a48: e3 14 07 fe  	bnez	a4, 0xa30 <main+0x350>
+     a4c: 37 07 ff 00  	lui	a4, 4080
+32-byte copy source at guest address 0x169c: (-127.0, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 127.0)
+Matches main() ties[] fixture copied onto stack before quantize_tokens; all six traced vector instructions are in this copy loop.

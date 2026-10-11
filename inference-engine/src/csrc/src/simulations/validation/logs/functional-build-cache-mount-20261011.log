@@ -1,0 +1,27 @@
+$ bazel --output_user_root=/tmp/reef-w8a8-bazel --batch build //examples/reef_mlp:validate_functional --experimental_collect_system_network_usage=false --repository_cache=/nfs/samlin/coral-build/repository-cache --repo_contents_cache=/tmp/reef-w8a8-repo-contents --disk_cache=/tmp/reef-w8a8-disk-cache --sandbox_add_mount_pair=/tmp/reef-w8a8-repo-contents --verbose_failures --repository_disable_download
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: f9b4effe-15ae-4f2d-91e8-be1ffdf2c15a
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (231 packages loaded, 9898 targets configured)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+[63 / 808] Reticulating //examples/reef_mlp:validate_functional build data; 0s disk-cache
+ERROR: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/abseil-cpp+/absl/debugging/BUILD.bazel:342:11: Compiling absl/debugging/internal/utf8_for_code_point.cc failed: absolute path inclusion(s) found in rule '@@abseil-cpp+//absl/debugging:utf8_for_code_point':
+the source file 'absl/debugging/internal/utf8_for_code_point.cc' includes the following non-builtin files with absolute paths (if these are builtin files, make sure these paths are in your toolchain):
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/c++/11/cstdint'
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/x86_64-linux-gnu/c++/11/bits/c++config.h'
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/x86_64-linux-gnu/c++/11/bits/os_defines.h'
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/x86_64-linux-gnu/c++/11/bits/cpu_defines.h'
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/c++/11/pstl/pstl_config.h'
+  '/home/samlin/coralnpu-dissection/coralnpu/setup/gcc11/include/c++/11/cstddef'
+Target //examples/reef_mlp:validate_functional failed to build
+INFO: Elapsed time: 4.502s, Critical Path: 0.38s
+INFO: 191 processes: 463 action cache hit, 174 internal, 17 linux-sandbox.
+ERROR: Build did NOT complete successfully
+
+command_exit=1

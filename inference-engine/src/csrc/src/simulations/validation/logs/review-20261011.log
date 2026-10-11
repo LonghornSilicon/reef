@@ -1,0 +1,64 @@
+Repository: /home/samlin/coralnpu-dissection/coralnpu
+$ git rev-parse HEAD
+dab25ad632e35d6399b6d1aa1f05c30e700f06eb
+$ git status --short
+ M coralnpu_test_utils/core_mini_axi_interface.py
+?? examples/reef_mlp/
+?? setup/
+Repository: /home/samlin/coralnpu-dissection/reef-mlp-simulator
+$ git rev-parse HEAD
+a199d14e8406c7bc67db36991173e49d38fae751
+$ git status --short
+ M inference-engine/src/csrc/src/simulations/BUILD.bazel
+ M inference-engine/src/csrc/src/simulations/README.md
+?? inference-engine/src/csrc/src/simulations/validation/
+UNCHANGED from a199d14 and identical staged copy: kernels/mlp_w8a8.cc; sha256=e7ff2bcf403cea428052b823da827ae21d08123ec6b35531e335527569d2f1db
+UNCHANGED from a199d14 and identical staged copy: kernels/mlp_w8a8.h; sha256=e772177b34382a080f830496d1075f1888c663869f94349dea068ece52739eb2
+UNCHANGED from a199d14 and identical staged copy: fixtures/mlp_fixture.h; sha256=a2c94aa55cb6f8f5396785a70faef7b0dd609e1902f88e1d342013a9b70cd506
+UNCHANGED from a199d14 and identical staged copy: integration_tests/mlp_main.cc; sha256=2d07d040f994d3a34a779185756b1858b704e247a013b840072692fd5ff39439
+Runner Python syntax: PASS (ast.parse).
+Review: smoke comparison requires exact 8 FP32 sums and _ret=0; MLP requires loaded sentinel=-1, halt, mlp_status=0, mlp_failures=0, _ret=0.
+Review: invalid ELF format raises ValueError even when Python assertions are disabled.
+Review: removed simulator cycle counter from runner output; steps are an execution budget diagnostic, not a hardware measurement.
+Functional float-add: BLOCKED, not executed.
+Functional W8A8 MLP: BLOCKED, status/failures/_ret not read.
+Instruction mix/tracing: DEFERRED until correctness passes.
+No commit or push performed.
+Final README/BUILD/runner copies identical: PASS
+git diff --check exit=0
+
+Build-environment follow-up:
+PyWriteBuildData root cause: repo cache symlink target hidden by hermetic /tmp; /bin/sh runs inside original sandbox.
+Cache mount correction: --sandbox_add_mount_pair=/tmp/reef-w8a8-repo-contents
+Actual script sandbox probe with mount: command_exit=0 and TARGET/CONFIG_MODE/STAMPED output generated.
+Local host include-root patch: validation/mew3-host-clang-includes.patch
+UNCHANGED original and staged: kernels/mlp_w8a8.cc
+UNCHANGED original and staged: kernels/mlp_w8a8.h
+UNCHANGED original and staged: fixtures/mlp_fixture.h
+UNCHANGED original and staged: integration_tests/mlp_main.cc
+
+FINAL RESULTS supersede prior blocked results:
+Simulator build PASS; Linux sandbox retained with explicit cache mount and local host include-root patch.
+Functional float-add PASS: eight exact FP32 sums, _ret=0.
+Functional MLP PASS: loaded status=-1; completed mlp_status=0 mlp_failures=0 _ret=0.
+Fresh trace run repeated all functional checks: PASS.
+Trace accounting PASS: 20069 trace rows equal sum of classes and untraced Step total; final mpause included.
+Vector attribution PASS: six executed instructions in compiler-emitted ties[] copy in main; no optimized MLP kernel claimed.
+ELF SHA256=5c43b988880f8da1c7e94b40bf3597ef6314c83db9f49ba4b0e35a8e976cfbf5
+Original inspected ELF SHA256 preserved: True
+
+Final review after trace capture:
+Python syntax: PASS
+README bash blocks syntax: PASS
+Updated source/docs/patch staging equality: PASS
+Numerical sources and checks still identical to a199d14: PASS
+reef-mlp-simulator git diff --check exit=0
+ M inference-engine/src/csrc/src/simulations/BUILD.bazel
+ M inference-engine/src/csrc/src/simulations/README.md
+?? inference-engine/src/csrc/src/simulations/validation/
+coralnpu git diff --check exit=0
+ M coralnpu_test_utils/core_mini_axi_interface.py
+ M toolchain/host_clang/BUILD
+?? examples/reef_mlp/
+?? setup/
+No commit or push performed. No full-size runs, precision sweeps, or optimization performed.

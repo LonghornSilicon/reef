@@ -1,5 +1,7 @@
 # Stage this directory under examples/reef_mlp in a Coral NPU checkout.
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
 
 coralnpu_v2_binary(
     name = "mlp_w8a8_test",
@@ -8,4 +10,22 @@ coralnpu_v2_binary(
     copts = ["-std=c++17", "-O2", "-ffp-contract=off"],
     linkopts = ["-lm"],
     stack_size_bytes = 2048,
+)
+
+# Uses this Coral revision's MPACT Python API; the wrapper target is a .so,
+# not an interactive executable that accepts --i.
+py_binary(
+    name = "validate_functional",
+    srcs = ["validation/run_functional.py"],
+    main = "validation/run_functional.py",
+    data = [
+        ":mlp_w8a8_test.elf",
+        "//examples:coralnpu_v2_hello_world_add_floats.elf",
+    ],
+    deps = [
+        "//sw/coralnpu_sim:coralnpu_v2_sim_utils_lib",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("numpy"),
+        requirement("pyelftools"),
+    ],
 )

@@ -1,0 +1,53 @@
+HOST PATH/INTERPRETER
+$ namei -l /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/external/rules_python+/python/private/build_data_writer.sh
+f: /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/external/rules_python+/python/private/build_data_writer.sh
+drwxr-xr-x nobody nogroup /
+drwxrwxrwt nobody nogroup tmp
+drwxr-xr-x samlin samlin  reef-w8a8-bazel
+drwxrwxr-x samlin samlin  aa5275e46e3f636387987bb41bb9d20a
+drwxrwxr-x samlin samlin  execroot
+drwxrwxr-x samlin samlin  _main
+drwxrwxr-x samlin samlin  external
+lrwxrwxrwx samlin samlin  rules_python+ -> /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/external/rules_python+
+drwxr-xr-x nobody nogroup   /
+drwxrwxrwt nobody nogroup   tmp
+drwxr-xr-x samlin samlin    reef-w8a8-bazel
+drwxrwxr-x samlin samlin    aa5275e46e3f636387987bb41bb9d20a
+drwxrwxr-x samlin samlin    external
+lrwxrwxrwx samlin samlin    rules_python+ -> /tmp/reef-w8a8-repo-contents/55e9a1da350c33d1ae717788136eb47b03761f14578692fc4eaf140fbba70bf0/721433a5-87e9-402f-b26c-4d2ad1af3ebc
+drwxr-xr-x nobody nogroup     /
+drwxrwxrwt nobody nogroup     tmp
+drwxrwxr-x samlin samlin      reef-w8a8-repo-contents
+drwxrwxr-x samlin samlin      55e9a1da350c33d1ae717788136eb47b03761f14578692fc4eaf140fbba70bf0
+drwxrwxr-x samlin samlin      721433a5-87e9-402f-b26c-4d2ad1af3ebc
+drwxrwxr-x samlin samlin  python
+drwxrwxr-x samlin samlin  private
+-rwxrwxr-x samlin samlin  build_data_writer.sh
+command_exit=0
+
+HOST SCRIPT SYNTAX
+$ /bin/sh -n /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/external/rules_python+/python/private/build_data_writer.sh
+command_exit=0
+
+ORIGINAL SANDBOX
+$ /tmp/reef-w8a8-bazel/install/5229af5fe4e43869fa475e361effe116/linux-sandbox -t 15 -w /dev/shm -w /tmp -w /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main -M /tmp/reef-w8a8-bazel -m /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel -M /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp -m /tmp -- /bin/sh -c '/bin/ls -l /bin/sh /bin/dash external/rules_python+/python/private/build_data_writer.sh; /bin/ls -ld /tmp/reef-w8a8-repo-contents; /bin/sh -n external/rules_python+/python/private/build_data_writer.sh'
+-rwxr-xr-x 1 nobody nogroup 125688 Mar 23  2022 /bin/dash
+lrwxrwxrwx 1 nobody nogroup      4 Mar 23  2022 /bin/sh -> dash
+lrwxrwxrwx 1 samlin samlin     127 Oct 11 03:52 external/rules_python+/python/private/build_data_writer.sh -> /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/external/rules_python+/python/private/build_data_writer.sh
+/bin/ls: cannot access '/tmp/reef-w8a8-repo-contents': No such file or directory
+/bin/sh: 0: cannot open external/rules_python+/python/private/build_data_writer.sh: No such file
+command_exit=2
+
+SANDBOX WITH CACHE MOUNT
+$ /tmp/reef-w8a8-bazel/install/5229af5fe4e43869fa475e361effe116/linux-sandbox -t 15 -w /dev/shm -w /tmp -w /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/execroot/_main -M /tmp/reef-w8a8-bazel -m /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp/reef-w8a8-bazel -M /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/sandbox/linux-sandbox/1/_hermetic_tmp -m /tmp -M /tmp/reef-w8a8-repo-contents -m /tmp/reef-w8a8-repo-contents -- /bin/sh -c '/bin/ls -l /bin/sh /bin/dash external/rules_python+/python/private/build_data_writer.sh; /bin/ls -ld /tmp/reef-w8a8-repo-contents; /bin/sh -n external/rules_python+/python/private/build_data_writer.sh'
+src/main/tools/linux-sandbox-pid1.cc:294: "mount(/tmp/reef-w8a8-repo-contents, /tmp/reef-w8a8-repo-contents, nullptr, MS_BIND | MS_REC, nullptr)": No such file or directory
+command_exit=1
+
+NOTE: The earlier manual cache-mount probe did not create its mount destination. This probe creates both destinations in hermetic /tmp before mounting.
+Script raw shebang bytes: b'#!/bin/sh\n'
+CACHE MOUNT WITH CREATED DESTINATION: execute real script
+$ /tmp/reef-w8a8-bazel/install/5229af5fe4e43869fa475e361effe116/linux-sandbox -t 15 -w /tmp/reef-w8a8-bazel/script-probe-cazaxrkk -M /tmp/reef-w8a8-bazel -m /tmp/reef-w8a8-bazel/script-probe-cazaxrkk/_hermetic_tmp/reef-w8a8-bazel -M /tmp/reef-w8a8-repo-contents -m /tmp/reef-w8a8-bazel/script-probe-cazaxrkk/_hermetic_tmp/reef-w8a8-repo-contents -M /tmp/reef-w8a8-bazel/script-probe-cazaxrkk/_hermetic_tmp -m /tmp -- /tmp/reef-w8a8-bazel/aa5275e46e3f636387987bb41bb9d20a/execroot/_main/external/rules_python+/python/private/build_data_writer.sh
+command_exit=0
+TARGET sandbox_probe
+CONFIG_MODE TARGET
+STAMPED FALSE

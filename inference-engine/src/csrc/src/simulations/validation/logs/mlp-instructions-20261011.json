@@ -1,0 +1,27 @@
+{
+  "scope": "whole MLP ELF, entry through terminal mpause/ebreak inclusive",
+  "includes": "CRT/startup, input quantization, MLP, library calls, reference checks, finalization",
+  "method": "PC + instruction word before each successful simulator Step(1)",
+  "executed_instructions": 20069,
+  "halt_instruction_executed": true,
+  "classes": {
+    "branch": 2552,
+    "jump": 400,
+    "scalar_address_arithmetic": 1151,
+    "scalar_fp_arithmetic": 3956,
+    "scalar_fp_load": 1668,
+    "scalar_fp_store": 331,
+    "scalar_integer_arithmetic": 7030,
+    "scalar_integer_load": 2216,
+    "scalar_integer_store": 750,
+    "system": 9,
+    "vector_arithmetic_or_config": 2,
+    "vector_load": 2,
+    "vector_store": 2
+  },
+  "loads": 3886,
+  "stores": 1083,
+  "scalar_arithmetic": 12137,
+  "vector_instructions": 6,
+  "timing": "No hardware cycle or utilization inference"
+}

@@ -1,0 +1,295 @@
+$ git rev-parse HEAD
+dab25ad632e35d6399b6d1aa1f05c30e700f06eb
+command_exit=0
+
+[Packaging note: unrelated Coral status/diff output omitted; raw original archived outside the repository.]
+
+$ readelf -h -lW -SW -sW /home/samlin/coralnpu-dissection/coralnpu/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           RISC-V
+  Version:                           0x1
+  Entry point address:               0x0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          145624 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         4
+  Size of section headers:           40 (bytes)
+  Number of section headers:         24
+  Section header string table index: 23
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .text             PROGBITS        00000000 001000 0010f0 00  AX  0   0 16
+  [ 2] .crt              PROGBITS        000010f0 0020f0 000070 00  AX  0   0  4
+  [ 3] .init.array       PROGBITS        00001160 003060 000000 00   W  0   0 16
+  [ 4] .rodata           PROGBITS        00001160 002160 000560 00   A  0   0 16
+  [ 5] .data             PROGBITS        00010000 003000 000060 00  WA  0   0 16
+  [ 6] .bss              NOBITS          00010060 003060 0002e8 00  WA  0   0 16
+  [ 7] .heap             NOBITS          00010350 003060 0074b0 00  WA  0   0 16
+  [ 8] .stack            NOBITS          00017800 003060 000800 00  WA  0   0 16
+  [ 9] .debug_info       PROGBITS        00000000 003060 00436d 00      0   0  1
+  [10] .debug_abbrev     PROGBITS        00000000 0073cd 0008e2 00      0   0  1
+  [11] .debug_loclists   PROGBITS        00000000 007caf 000c0a 00      0   0  1
+  [12] .debug_aranges    PROGBITS        00000000 0088c0 0000a0 00      0   0  8
+  [13] .debug_rnglists   PROGBITS        00000000 008960 00020e 00      0   0  1
+  [14] .debug_macro      PROGBITS        00000000 008b6e 0066c7 00      0   0  1
+  [15] .debug_line       PROGBITS        00000000 00f235 001581 00      0   0  1
+  [16] .debug_str        PROGBITS        00000000 0107b6 0113c4 01  MS  0   0  1
+  [17] .debug_line_str   PROGBITS        00000000 021b7a 000929 01  MS  0   0  1
+  [18] .comment          PROGBITS        00000000 0224a3 000031 01  MS  0   0  1
+  [19] .riscv.attributes RISCV_ATTRIBUTES 00000000 0224d4 00009a 00      0   0  1
+  [20] .debug_frame      PROGBITS        00000000 022570 0001e8 00      0   0  4
+  [21] .symtab           SYMTAB          00000000 022758 000930 10     22  83  4
+  [22] .strtab           STRTAB          00000000 023088 000757 00      0   0  1
+  [23] .shstrtab         STRTAB          00000000 0237df 0000f7 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  D (mbind), p (processor specific)
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  RISCV_ATTRIBUT 0x0224d4 0x00000000 0x00000000 0x0009a 0x00000 R   0x1
+  LOAD           0x001000 0x00000000 0x00000000 0x016c0 0x016c0 R E 0x1000
+  LOAD           0x003000 0x00010000 0x00010000 0x00060 0x08000 RW  0x1000
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .riscv.attributes
+   01     .text .crt .rodata
+   02     .data .bss .heap .stack
+   03
+
+Symbol table '.symtab' contains 147 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 00000000     0 SECTION LOCAL  DEFAULT    1 .text
+     2: 000010f0     0 SECTION LOCAL  DEFAULT    2 .crt
+     3: 00001160     0 SECTION LOCAL  DEFAULT    3 .init.array
+     4: 00001160     0 SECTION LOCAL  DEFAULT    4 .rodata
+     5: 00010000     0 SECTION LOCAL  DEFAULT    5 .data
+     6: 00010060     0 SECTION LOCAL  DEFAULT    6 .bss
+     7: 00010350     0 SECTION LOCAL  DEFAULT    7 .heap
+     8: 00017800     0 SECTION LOCAL  DEFAULT    8 .stack
+     9: 00000000     0 SECTION LOCAL  DEFAULT    9 .debug_info
+    10: 00000000     0 SECTION LOCAL  DEFAULT   10 .debug_abbrev
+    11: 00000000     0 SECTION LOCAL  DEFAULT   11 .debug_loclists
+    12: 00000000     0 SECTION LOCAL  DEFAULT   12 .debug_aranges
+    13: 00000000     0 SECTION LOCAL  DEFAULT   13 .debug_rnglists
+    14: 00000000     0 SECTION LOCAL  DEFAULT   14 .debug_macro
+    15: 00000000     0 SECTION LOCAL  DEFAULT   15 .debug_line
+    16: 00000000     0 SECTION LOCAL  DEFAULT   16 .debug_str
+    17: 00000000     0 SECTION LOCAL  DEFAULT   17 .debug_line_str
+    18: 00000000     0 SECTION LOCAL  DEFAULT   18 .comment
+    19: 00000000     0 SECTION LOCAL  DEFAULT   19 .riscv.attributes
+    20: 00000000     0 SECTION LOCAL  DEFAULT   20 .debug_frame
+    21: 00000000     0 FILE    LOCAL  DEFAULT  ABS coralnpu_start.o
+    22: 000000bc     0 NOTYPE  LOCAL  DEFAULT    1 init_array_loop_end
+    23: 000000ac     0 NOTYPE  LOCAL  DEFAULT    1 init_array_loop
+    24: 00000128     0 NOTYPE  LOCAL  DEFAULT    1 fini_array_loop_end
+    25: 00000118     0 NOTYPE  LOCAL  DEFAULT    1 fini_array_loop
+    26: 00000144     0 NOTYPE  LOCAL  DEFAULT    1 success
+    27: 0000013c     0 NOTYPE  LOCAL  DEFAULT    1 failure
+    28: 00000150     0 NOTYPE  LOCAL  DEFAULT    1 loop
+    29: 00000000     0 FILE    LOCAL  DEFAULT  ABS mlp_w8a8.cc
+    30: 00000154     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zfbfmin1p0_zfhmin1p0_zbb1p0_zve32f1p0_zve32x1p0_zvfbfmin1p0_zvfbfwma1p0_zvl32b1p0
+    31: 00000000     0 FILE    LOCAL  DEFAULT  ABS coralnpu_exceptions.cc
+    32: 000005f0     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zfbfmin1p0_zfhmin1p0_zbb1p0_zve32f1p0_zve32x1p0_zvfbfmin1p0_zvfbfwma1p0_zvl32b1p0
+    33: 00000000     0 FILE    LOCAL  DEFAULT  ABS cxx_guards.cc
+    34: 000005f8     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zfbfmin1p0_zfhmin1p0_zbb1p0_zve32f1p0_zve32x1p0_zvfbfmin1p0_zvfbfwma1p0_zvl32b1p0
+    35: 00010064     4 OBJECT  LOCAL  DEFAULT    6 atexit_count
+    36: 00010308    64 OBJECT  LOCAL  DEFAULT    6 atexit_entries
+    37: 00000000     0 FILE    LOCAL  DEFAULT  ABS libc_a-memset.o
+    38: 000006c4     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    39: 00000000     0 FILE    LOCAL  DEFAULT  ABS mlp_main.cc
+    40: 000006e0     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zfbfmin1p0_zfhmin1p0_zbb1p0_zve32f1p0_zve32x1p0_zvfbfmin1p0_zvfbfwma1p0_zvl32b1p0
+    41: 000011dc    96 OBJECT  LOCAL  DEFAULT    4 _ZL10input_fp32
+    42: 0000123c    24 OBJECT  LOCAL  DEFAULT    4 _ZL7input_q
+    43: 00001254    12 OBJECT  LOCAL  DEFAULT    4 _ZL11input_scale
+    44: 00001260    64 OBJECT  LOCAL  DEFAULT    4 _ZL2b1
+    45: 000012a0    64 OBJECT  LOCAL  DEFAULT    4 _ZL2s1
+    46: 000012e0   128 OBJECT  LOCAL  DEFAULT    4 _ZL2w1
+    47: 00001360    32 OBJECT  LOCAL  DEFAULT    4 _ZL2b2
+    48: 00001380    32 OBJECT  LOCAL  DEFAULT    4 _ZL2s2
+    49: 000013a0   128 OBJECT  LOCAL  DEFAULT    4 _ZL2w2
+    50: 00001420   192 OBJECT  LOCAL  DEFAULT    4 _ZL11expected_a1
+    51: 000014e0    48 OBJECT  LOCAL  DEFAULT    4 _ZL17expected_hidden_q
+    52: 00001510   192 OBJECT  LOCAL  DEFAULT    4 _ZL15expected_hidden
+    53: 000015d0    12 OBJECT  LOCAL  DEFAULT    4 _ZL21expected_hidden_scale
+    54: 000015dc    96 OBJECT  LOCAL  DEFAULT    4 _ZL11expected_a2
+    55: 0000163c    96 OBJECT  LOCAL  DEFAULT    4 _ZL15expected_output
+    56: 00010068    12 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L12input_scalesE
+    57: 00010074    24 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L5inputE
+    58: 000100ec    96 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L2a2E
+    59: 0001014c    12 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L12hidden_scaleE
+    60: 00010158    48 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L8hidden_qE
+    61: 00010188   192 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L6hiddenE
+    62: 00010248   192 OBJECT  LOCAL  DEFAULT    6 _ZN12_GLOBAL__N_1L2a1E
+    63: 00000000     0 FILE    LOCAL  DEFAULT  ABS sf_tanh.c
+    64: 00000bc8     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    65: 000011d8     4 OBJECT  LOCAL  DEFAULT    4 one
+    66: 000011d4     4 OBJECT  LOCAL  DEFAULT    4 two
+    67: 000011d0     4 OBJECT  LOCAL  DEFAULT    4 tiny
+    68: 00000000     0 FILE    LOCAL  DEFAULT  ABS sf_expm1.c
+    69: 00000d18     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    70: 00000000     0 FILE    LOCAL  DEFAULT  ABS math_errf.c
+    71: 00001054     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    72: 00001054    52 FUNC    LOCAL  DEFAULT    1 with_errnof
+    73: 00001088     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    74: 00001088    52 FUNC    LOCAL  DEFAULT    1 xflowf
+    75: 000010bc     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    76: 00000000     0 FILE    LOCAL  DEFAULT  ABS sf_fabs.c
+    77: 000010c8     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    78: 00000000     0 FILE    LOCAL  DEFAULT  ABS errno.c
+    79: 000010e4     0 NOTYPE  LOCAL  DEFAULT    1 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zbb1p0
+    80: 00000000     0 FILE    LOCAL  DEFAULT  ABS crt.o
+    81: 000010f0     0 NOTYPE  LOCAL  DEFAULT    2 $xrv32i2p1_m2p0_f2p2_zicsr2p0_zifencei2p0_zmmul1p0_zfbfmin1p0_zfhmin1p0_zbb1p0_zve32f1p0_zve32x1p0_zvfbfmin1p0_zvfbfwma1p0_zvl32b1p0
+    82: 00000000     0 FILE    LOCAL  DEFAULT  ABS impure.c
+    83: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __init_array_start__
+    84: 00010000     0 NOTYPE  GLOBAL DEFAULT    5 __data_start__
+    85: 00000800     0 NOTYPE  GLOBAL DEFAULT  ABS STACK_SIZE
+    86: 80000000     0 NOTYPE  GLOBAL DEFAULT    7 __ddr_data_end__
+    87: 00010800     0 NOTYPE  GLOBAL DEFAULT    5 __global_pointer$
+    88: 20000000     0 NOTYPE  GLOBAL DEFAULT    7 __extdata_end__
+    89: 0001008c    96 OBJECT  GLOBAL DEFAULT    6 mlp_output
+    90: 80000000     0 NOTYPE  GLOBAL DEFAULT    7 __ddr_data_start__
+    91: 80000000     0 NOTYPE  GLOBAL DEFAULT    7 __ddr_bss_start__
+    92: 000010e4    12 FUNC    GLOBAL DEFAULT    1 __errno
+    93: 00000bc8   336 FUNC    GLOBAL DEFAULT    1 tanhf
+    94: 00000800     0 NOTYPE  GLOBAL DEFAULT  ABS __stack_size
+    95: 80000000     0 NOTYPE  GLOBAL DEFAULT    7 __ddr_bss_end__
+    96: 0000064c   112 FUNC    GLOBAL DEFAULT    1 __cxa_finalize
+    97: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __fini_array_end
+    98: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __fini_array_start__
+    99: 00017800     0 NOTYPE  GLOBAL DEFAULT    7 __heap_end__
+   100: 00010060     0 NOTYPE  GLOBAL DEFAULT    6 __bss_start__
+   101: 000010c8    28 FUNC    GLOBAL DEFAULT    1 fabsf
+   102: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __init_array_end__
+   103: 00000400   496 FUNC    GLOBAL DEFAULT    1 _Z8mlp_w8a8jjjPKaPKfS0_S2_S2_S0_S2_S2_PlPfPaS4_S3_S4_
+   104: 00010348     0 NOTYPE  GLOBAL DEFAULT    6 __bss_end
+   105: 20000000     0 NOTYPE  GLOBAL DEFAULT    7 __extdata_start__
+   106: 00017800     0 NOTYPE  GLOBAL DEFAULT    8 __stack_start
+   107: 00010060     0 NOTYPE  GLOBAL DEFAULT    5 __data_end__
+   108: 0000111c    68 FUNC    GLOBAL DEFAULT    2 crt_section_copy
+   109: 00000000     0 NOTYPE  GLOBAL DEFAULT  ABS __boot_hart
+   110: 00010060     4 OBJECT  GLOBAL DEFAULT    6 mlp_failures
+   111: 00010348     0 NOTYPE  GLOBAL DEFAULT    6 __bss_end__
+   112: 00000000     0 FUNC    WEAK   DEFAULT    1 _start
+   113: 000006bc     8 FUNC    GLOBAL DEFAULT    1 __cxa_pure_virtual
+   114: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __fini_array_end__
+   115: 00010800     0 NOTYPE  GLOBAL DEFAULT    5 _global_pointer
+   116: 00000614    56 FUNC    GLOBAL DEFAULT    1 __cxa_atexit
+   117: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __fini_array_start
+   118: 00000007     0 NOTYPE  GLOBAL DEFAULT  ABS __stack_shift
+   119: 00010060     0 NOTYPE  GLOBAL DEFAULT    6 __bss_start
+   120: 000006c4    28 FUNC    GLOBAL DEFAULT    1 memset
+   121: 000006e0  1256 FUNC    GLOBAL DEFAULT    1 main
+   122: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __init_array_end
+   123: 00010350     0 NOTYPE  GLOBAL DEFAULT    7 __heap_start__
+   124: 20000000     0 NOTYPE  GLOBAL DEFAULT    7 __extbss_start__
+   125: 00010000     4 OBJECT  GLOBAL DEFAULT    5 mlp_status
+   126: 00017800     0 NOTYPE  GLOBAL DEFAULT    7 __heap_end
+   127: 000010f0    44 FUNC    GLOBAL DEFAULT    2 crt_section_clear
+   128: 00000604    12 FUNC    GLOBAL DEFAULT    1 __cxa_guard_release
+   129: 00010004     4 OBJECT  GLOBAL DEFAULT    5 _impure_ptr
+   130: 00010350     0 NOTYPE  GLOBAL DEFAULT    7 __heap_start
+   131: 00000610     4 FUNC    GLOBAL DEFAULT    1 __cxa_guard_abort
+   132: 000005f0     8 FUNC    WEAK   DEFAULT    1 coralnpu_exception_handler
+   133: 00010060     0 NOTYPE  GLOBAL DEFAULT    5 _edata
+   134: 00018000     0 NOTYPE  GLOBAL DEFAULT    8 _end
+   135: 20000000     0 NOTYPE  GLOBAL DEFAULT    7 __extbss_end__
+   136: 00010008    76 OBJECT  GLOBAL DEFAULT    5 _impure_data
+   137: 00010054     0 NOTYPE  GLOBAL DEFAULT    5 _ret
+   138: 00001160     0 NOTYPE  GLOBAL DEFAULT    3 __init_array_start
+   139: 000010bc    12 FUNC    GLOBAL HIDDEN     1 __math_oflowf
+   140: 00018000     0 NOTYPE  GLOBAL DEFAULT    8 __stack_end__
+   141: 00010000     0 NOTYPE  GLOBAL DEFAULT    5 __data_start
+   142: 00017800     0 NOTYPE  GLOBAL DEFAULT    8 __stack_start__
+   143: 00000d18   828 FUNC    GLOBAL DEFAULT    1 expm1f
+   144: 00000154   300 FUNC    GLOBAL DEFAULT    1 _Z11linear_w8a8jjjPKaPKfS0_S2_S2_PlPf
+   145: 000005f8    12 FUNC    GLOBAL DEFAULT    1 __cxa_guard_acquire
+   146: 00000280   384 FUNC    GLOBAL DEFAULT    1 _Z15quantize_tokensjjPKfPaPf
+command_exit=0
+
+$ readelf -x .data /home/samlin/coralnpu-dissection/coralnpu/bazel-out/k8-fastbuild-ST-dd8dc713f32d/bin/examples/reef_mlp/mlp_w8a8_test.elf
+
+Hex dump of section '.data':
+  0x00010000 ffffffff 08000100 00000000 00000000 ................
+  0x00010010 68000000 d0000000 00000000 00000000 h...............
+  0x00010020 00000000 00000000 00000000 00000000 ................
+  0x00010030 00000000 00000000 00000000 00000000 ................
+  0x00010040 00000000 00000000 00000000 00000000 ................
+  0x00010050 00000000 00000000 00000000 00000000 ................
+
+command_exit=0
+
+ELF SHA256=5c43b988880f8da1c7e94b40bf3597ef6314c83db9f49ba4b0e35a8e976cfbf5
+Reef HEAD=a199d14e8406c7bc67db36991173e49d38fae751
+Reef branch=sam/w8a8-mlp-simulator
+
+.bazelrc.user (existing build configuration):
+common --repository_cache=/nfs/samlin/coral-build/repository-cache
+common --repo_contents_cache=/dev/shm/coralnpu-samlin/repo-contents
+common --repo_env=CORALNPU_MAKE_JOBS=8
+build --repo_env=CC=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin/clang
+build --repo_env=CXX=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin/clang++
+build --repo_env=BAZEL_COMPILER=clang
+build --action_env=CC=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin/clang
+build --action_env=CXX=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin/clang++
+build --disk_cache=/nfs/samlin/coral-build/disk-cache
+build --jobs=8
+build --local_resources=cpu=8
+build --local_resources=memory=32768
+build --action_env=PATH=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin:/home/samlin/.local/bin:/usr/lib/llvm-15/bin:/usr/local/bin:/usr/bin:/bin
+build --host_action_env=PATH=/home/samlin/coralnpu-dissection/coralnpu/setup/host-bin:/home/samlin/.local/bin:/usr/lib/llvm-15/bin:/usr/local/bin:/usr/bin:/bin
+
+MLP BUILD.bazel:
+# Stage this directory under examples/reef_mlp in a Coral NPU checkout.
+load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")
+load("@rules_python//python:defs.bzl", "py_binary")
+load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
+
+coralnpu_v2_binary(
+    name = "mlp_w8a8_test",
+    srcs = ["kernels/mlp_w8a8.cc", "integration_tests/mlp_main.cc"],
+    hdrs = ["kernels/mlp_w8a8.h", "fixtures/mlp_fixture.h"],
+    copts = ["-std=c++17", "-O2", "-ffp-contract=off"],
+    linkopts = ["-lm"],
+    stack_size_bytes = 2048,
+)
+
+# Uses this Coral revision's MPACT Python API; the wrapper target is a .so,
+# not an interactive executable that accepts --i.
+py_binary(
+    name = "validate_functional",
+    srcs = ["validation/run_functional.py"],
+    main = "validation/run_functional.py",
+    data = [
+        ":mlp_w8a8_test.elf",
+        "//examples:coralnpu_v2_hello_world_add_floats.elf",
+    ],
+    deps = [
+        "//sw/coralnpu_sim:coralnpu_v2_sim_utils_lib",
+        "@bazel_tools//tools/python/runfiles",
+        requirement("numpy"),
+        requirement("pyelftools"),
+    ],
+)
+
+Runner Python syntax: PASS (ast.parse); execution NOT VERIFIED
+Original Reef/Coral identical: kernels/mlp_w8a8.cc: True
+Original Reef/Coral identical: kernels/mlp_w8a8.h: True
+Original Reef/Coral identical: fixtures/mlp_fixture.h: True
+Original Reef/Coral identical: integration_tests/mlp_main.cc: True

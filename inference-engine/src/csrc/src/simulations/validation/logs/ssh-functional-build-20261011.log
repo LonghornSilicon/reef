@@ -1,0 +1,29 @@
+OpenJDK 64-Bit Server VM warning: Options -Xverify:none and -noverify were deprecated in JDK 13 and will likely be removed in a future release.
+INFO: Invocation ID: 7c8d1e8d-31bc-4b33-a75d-7cb8b953e5ae
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 6 targets configured)
+Analyzing: target //examples/reef_mlp:validate_functional (5 packages loaded, 7 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (125 packages loaded, 4780 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (131 packages loaded, 7863 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (180 packages loaded, 16705 targets configured)
+
+Analyzing: target //examples/reef_mlp:validate_functional (232 packages loaded, 18850 targets configured, 1 aspect application)
+
+Analyzing: target //examples/reef_mlp:validate_functional (232 packages loaded, 18850 targets configured, 1 aspect application)
+
+INFO: Analyzed target //examples/reef_mlp:validate_functional (234 packages loaded, 21341 targets configured, 1 aspect application).
+ERROR: /home/samlin/coralnpu-dissection/coralnpu/examples/reef_mlp/BUILD.bazel:17:10: Reticulating //examples/reef_mlp:validate_functional build data failed: (Exit 1): build_data_writer.sh failed: error executing PyWriteBuildData command (from py_binary rule target //examples/reef_mlp:validate_functional) external/rules_python+/python/private/build_data_writer.sh
+
+Use --sandbox_debug to see verbose messages from the sandbox and retain the sandbox build root for debugging
+src/main/tools/linux-sandbox-pid1.cc:542: "execvp(external/rules_python+/python/private/build_data_writer.sh, 0x2c3df3d0)": No such file or directory
+[166 / 1,393] checking cached actions
+Target //examples/reef_mlp:validate_functional failed to build
+Use --verbose_failures to see the command lines of failed build steps.
+INFO: Elapsed time: 96.624s, Critical Path: 0.22s
+INFO: 166 processes: 166 internal.
+ERROR: Build did NOT complete successfully
