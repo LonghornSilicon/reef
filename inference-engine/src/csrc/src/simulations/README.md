@@ -182,7 +182,7 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 | Lint (clang-tidy, clang-format, clangd) | Clean, in real and emulation modes |
 | RISC-V compile (`-O2 -Wall -Wextra -Wpedantic`) | Both kernels build with no warnings; the VME asm assembles |
 | VME tiling logic | Matches a scalar reference under `-DVME_EMULATE` for 16×4×16, 32×8×48 and 64×768×32, signed and unsigned |
-| Attention kernels | `test_flash` passes on the host: serial and flash match a double-precision reference exactly (0 int8 steps) on global/local × prefill/decode cases. Cross-compiles clean for riscv32 with the Kelvin toolchain (`coralnpu_v2_binary`) |
+| Attention kernels | `test_flash` passes on the host: serial and flash match a double-precision reference exactly (0 int8 steps) on global/local × prefill/decode cases. Cross-compiled with the Kelvin toolchain and **run on the MPACT functional simulator**: all six cases pass on-core and the serial output bytes match the host run exactly |
 | `matmul_rvv` results | **Not run yet.** No RISC-V emulator was available, so the first real run will be on the Coral sim |
 | VME encodings on hardware | **Not checked.** Only Coral's RTL model can run them |
 
