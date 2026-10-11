@@ -14,13 +14,13 @@ We compare 10 precision configurations across 5 story-generation prompts to iden
 | INT8 / W8A8 | 8-bit | 8-bit |
 | W8A16 | 8-bit | 16-bit |
 | W8A32 | 8-bit | 32-bit |
-| INT4 | 4-bit | Implementation-dependent |
+| INT4 | 4-bit | 32-bit (weight-only) |
 | W4A8 | 4-bit | 8-bit |
 | W4A16 | 4-bit | 16-bit |
 | W8A4 | 8-bit | 4-bit |
 | W4A4 | 4-bit | 4-bit |
 
-**Note:** INT8 and W8A8 are listed separately in the experiment outputs but produce identical stories across all five prompts. The same is true for INT4 and W4A16 in four of five prompts. Exact implementation details should be verified before assuming equivalent arithmetic.
+**Note:** INT8 and W8A8 run the same code. Their committed stories differ only because the INT8 rows come from the reference platform and the W8A8 rows were generated on a different machine; on the same machine they are identical. INT4 is W4A32, and it matches W4A16 word for word on three of five prompts because BF16 input rounding rarely changes a greedy pick.
 
 ## Results
 
