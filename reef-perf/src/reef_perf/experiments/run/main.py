@@ -2,7 +2,7 @@
 
 Example:
     uv run python -m reef_perf.experiments.run.main --workload gemv_int8 \
-        --param top.core.fetch.params.fetch_interval=2
+        --param top.frontend.fetch.params.fetch_interval=2
 
 The artifact is a JSON file holding the simulator's summary plus the
 workload, simulation config and parameter overrides that produced it.
@@ -28,7 +28,7 @@ def parse_params(items: list[str]) -> dict[str, str]:
     """Parse KEY=VALUE parameter overrides.
 
     Args:
-        items: Strings such as "top.core.fetch.params.fetch_width=2".
+        items: Strings such as "top.frontend.fetch.params.fetch_width=2".
 
     Returns:
         Mapping from parameter path to value.

@@ -29,29 +29,38 @@ asks Spike to execute it right away, so the timing model always knows what the
 instruction does. Reef is in-order and never executes wrong-path
 instructions, so nothing ever has to be undone.
 
+The model is split into **five modules**, each with its own directory, Sparta
+subtree (`top.<module>`), config section and owner. Modules talk only through
+the interfaces in [docs/interfaces.md](docs/interfaces.md).
+
 ```
- ELF --> Spike (SpikeDriver)                 execute-at-fetch
-           |  one InstRecord per step
-           v
- +-------+     +----------+     +---------+     +-----+
- | Fetch | --> | Dispatch | --> | Execute | --> | Rob | --> retired
- +-------+     +----------+     +---------+     +-----+
-     ^  credits    |  ^  credits (LSU, vector queues)  |
-     +-------------+  +---------- credits -------------+
+ ELF --> Spike                                   execute-at-fetch
+           |
+ +---------v--------+  FetchPacket   +----------------------------------+
+ | frontend         | -------------> | backend                          |
+ |  fetch, Spike,   | <------------- |  dispatch --> scalar_exec        |
+ |  decode          |    credits     |     |    \--> lsu --------------+--> MemoryInterface
+ +------------------+                |     |    \--> rob --> retired  |        |
+                                     +-----|--------|------------------+        v
+                          InstPtr, credits |        | InstPtr, credits  +---------------+
+                                    +------v--+  +--v------+            | mem           |
+                                    | vector  |  | matrix  |            |  tcm (I/DTCM) |
+                                    |  vxu    |  |  mxu    |            |  axi          |
+                                    +---------+  +---------+            +---------------+
 ```
 
-| Component | Header | What it does now |
+| Module | Units (`top.<module>.<unit>`) | What it does now |
 | --- | --- | --- |
-| SpikeDriver | `spike_driver.hpp` | Runs the ELF in Spike one instruction at a time; reports memory accesses and vector config; stops at `mpause` |
-| FuncSim | `func_sim.hpp` | Turns Spike's records into decoded `Inst` objects |
-| Fetch | `fetch.hpp` | Up to 4 instructions per cycle; a fixed penalty on every taken branch or jump |
-| Dispatch | `dispatch.hpp` | In order, up to 4 per cycle; scoreboard for register hazards; records why it stalled |
-| Execute | `execute.hpp` | Resource pools: ALU×4, MUL, DIV, FPU, FDIV, LSU, vector×2, with a latency and occupancy per class |
-| Rob | `rob.hpp` | 8-entry retirement buffer, 4 retires per cycle |
-| Decoder | `inst_decode.hpp` | Instruction class plus the registers it reads and writes, from the RISC-V encoding |
+| `frontend` | `fetch` | Runs each instruction in Spike as it is fetched (execute-at-fetch) and decodes it; up to 4 per cycle; a fixed penalty on every taken branch or jump |
+| `backend` | `dispatch`, `scalar_exec`, `lsu`, `rob` | In-order dispatch with a register scoreboard and stall accounting; integer/FP pools; the LSU for scalar *and* vector memory ops; 8-entry retirement buffer |
+| `vector` | `vxu` | RVV command queue and 2 lanes; time per instruction from vl × SEW / VLEN |
+| `matrix` | `mxu` | Stub with the vector module's interface; no matrix ISA yet, so it sees no traffic |
+| `mem` | `tcm`, `axi` | ITCM and DTCM ports; an AXI port to off-core memory (black box) |
 
-Headers are in `src/csrc/include/reef_perf/` and implementations in
-`src/csrc/src/`.
+Code is laid out the same way: `src/csrc/include/reef_perf/<module>/`,
+`src/csrc/src/<module>/` and `tests/cpp/<module>/`, plus `common/` for the
+shared types (`Inst`, `ResourcePool`, the `Module` base class and the
+interface types).
 
 ## Requirements
 
@@ -102,7 +111,7 @@ Notes:
 
 ```sh
 build/bin/reef_perf --elf build/workloads/gemv_int8.elf -c configs/m3.yaml
-build/bin/reef_perf --elf x.elf -p top.core.fetch.params.fetch_interval 2
+build/bin/reef_perf --elf x.elf -p top.frontend.fetch.params.fetch_interval 2
 build/bin/reef_perf --elf x.elf --show-parameters --no-run   # every parameter
 build/bin/reef_trace build/workloads/gemv_int8.elf 40        # Spike's instruction stream
 ```
@@ -122,14 +131,14 @@ Every parameter is listed there, with the ticket that will correct it.
     ibuf_empty                 1003   14.3%
     raw_hazard                    0    0.0%
     ...
-  Execute: utilisation (busy cycles / (units * cycles))
-    alu      x4  ops      22009  util  78.5%
+  Pools: utilisation (busy cycles / (units * cycles))
+    backend.alu      x4  ops      22009  util  78.5%
 ```
 
 - **Dispatch table.** Every cycle is either a cycle where something dispatched,
   or a cycle blamed on exactly one reason. When the model disagrees with the
   RTL, this table tells you which part of the model to look at.
-- **Execute table.** How busy each resource was.
+- **Pools table.** How busy each resource was, by module.
 
 `--json out.json` writes the same numbers for scripts.
 
@@ -176,12 +185,22 @@ ctest --test-dir build --output-on-failure
 
 | Location | What it covers |
 | --- | --- |
-| `tests/cpp/` | Google Test: instruction decoding, resource pools |
-| `tests/python/` | Packaging, workloads, simulator end to end (incl. parallel runs), CTest, lint, Doxygen |
+| `tests/cpp/<module>/` | Google Test: instruction decoding, routing, resource pools, memory and vector timing |
+| `tests/python/` | Packaging, workloads, simulator end to end (incl. parallel runs), golden cycle counts, CTest, lint, Doxygen |
 | `tests/python/experiments/` | The `run` experiment's full sweep |
 
 Every pytest test must be marked `unit`, `integration` or `experiment`, and
 long-running ones also `slow`. `tests/conftest.py` rejects unmarked tests.
+
+**Golden timing.** `tests/python/test_golden.py` checks every workload's
+instructions, cycles, redirects and stall counters against
+`tests/python/golden/m3.json`, exactly. A change that only moves code must
+pass it unchanged. A change meant to alter timing regenerates the file in the
+same commit and says why in the commit message:
+
+```sh
+REEF_PERF_UPDATE_GOLDEN=1 uv run pytest tests/python/test_golden.py
+```
 
 ## Lint and documentation
 

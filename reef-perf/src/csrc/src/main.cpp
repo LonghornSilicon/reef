@@ -1,13 +1,13 @@
 // reef_perf: coarse performance model of the Reef NPU.
 //
 //   reef_perf --elf program.elf [-c configs/m3.yaml]
-//             [-p top.core.fetch.params.fetch_width 2] [--json out.json]
+//             [-p top.frontend.fetch.params.fetch_width 2] [--json out.json]
 //
 // All standard Sparta options also work (run with --help), for example
 // --show-parameters, --write-final-config and --auto-summary on.
 
+#include "reef_perf/frontend/spike_driver.hpp"
 #include "reef_perf/reef_sim.hpp"
-#include "reef_perf/spike_driver.hpp"
 
 #include "sparta/app/CommandLineSimulator.hpp"
 #include "sparta/sparta.hpp"
@@ -74,8 +74,7 @@ int run(int argc, char** argv) {
     reef_perf::SpikeOptions spike;
     spike.isa = opts.isa;
     if (cls.getVariablesMap().contains("highmem")) {
-        constexpr std::uint32_t kOneMiB = 1024 * 1024;
-        spike.regions = {{0x00000000, kOneMiB}, {0x00100000, kOneMiB}};
+        spike.regions = reef_perf::highmem_memory_map();
     }
 
     sparta::Scheduler scheduler;
