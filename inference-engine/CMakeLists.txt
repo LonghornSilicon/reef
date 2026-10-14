@@ -3,14 +3,11 @@ project(inference_engine LANGUAGES CXX)
 
 # C++17 is a conservative host baseline while the Coral target toolchain is
 # unconfirmed. Revisit the standard when that toolchain is pinned.
-add_library(inference_engine STATIC
-    src/csrc/src/operator/activation.cpp
-    src/csrc/src/operator/attention.cpp
-    src/csrc/src/operator/mlp.cpp
-    src/csrc/src/model.cpp
-)
-target_compile_features(inference_engine PUBLIC cxx_std_17)
-target_include_directories(inference_engine PUBLIC src/csrc/include)
+# Every operator is a template, so the engine may be header-only: consumers get
+# the includes and the standard, and nothing is compiled into a library.
+add_library(inference_engine INTERFACE)
+target_compile_features(inference_engine INTERFACE cxx_std_17)
+target_include_directories(inference_engine INTERFACE src/csrc/include)
 
 add_executable(tensor_cli tools/tensor_cli.cpp)
 target_link_libraries(tensor_cli PRIVATE inference_engine)
