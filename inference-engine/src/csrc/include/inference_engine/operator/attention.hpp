@@ -9,9 +9,11 @@
 #include "inference_engine/tensor.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -27,7 +29,7 @@ namespace inference_engine {
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct AttentionWeights {
-    std::size_t num_heads = 0;     ///< Heads that split the model width.
+    std::size_t num_heads;         ///< Heads that split the model width.
     Tensor<Scalar> query_weights;  ///< [d_model, d_model], no bias.
     Tensor<Scalar> key_weights;    ///< [d_model, d_model], no bias.
     Tensor<Scalar> value_weights;  ///< [d_model, d_model], no bias.
@@ -35,29 +37,29 @@ template <typename Scalar> struct AttentionWeights {
     Tensor<Scalar> output_bias;    ///< [d_model].
 };
 
-/** Projected query, key, and value tensors.
+/** Projected query, key, and value tensors for one batch.
  *
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct Qkv {
-    Tensor<Scalar> query; ///< [batch, heads, query_len, head_dim].
-    Tensor<Scalar> key;   ///< [batch, heads, query_len, head_dim].
-    Tensor<Scalar> value; ///< [batch, heads, query_len, head_dim].
+    Tensor<Scalar> query; ///< [1, heads, query_len, head_dim].
+    Tensor<Scalar> key;   ///< [1, heads, query_len, head_dim].
+    Tensor<Scalar> value; ///< [1, heads, query_len, head_dim].
 };
 
 /** Mutable key and value tensors retained across decode steps.
  *
  * The tensors hold only filled positions, so `key.shape[2]` is the number of
- * cached tokens. An empty cache has shape `[batch, heads, 0, head_dim]`, and
+ * cached tokens. An empty cache has shape `[1, heads, 0, head_dim]`, and
  * a default-constructed cache bootstraps its shape from the first append. A
- * capacity of 0 grows on demand.
+ * disengaged capacity grows on demand.
  *
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct KvCache {
-    std::size_t capacity = 0; ///< Maximum cached positions per head.
-    Tensor<Scalar> key;       ///< [batch, heads, cached_len, head_dim].
-    Tensor<Scalar> value;     ///< [batch, heads, cached_len, head_dim].
+    std::optional<std::size_t> capacity; ///< Optional maximum cached positions.
+    Tensor<Scalar> key;                  ///< [1, heads, cached_len, head_dim].
+    Tensor<Scalar> value;                ///< [1, heads, cached_len, head_dim].
 };
 
 /** Shared attention pipeline with an overridable position-mask policy.
@@ -82,8 +84,8 @@ template <typename Scalar> class Attention {
 
     /** Process input positions using the variant's mask policy.
      *
-     * @param input Input tensor for prefill or decode.
-     * @return Attention output tensor.
+     * @param input Input rows [query_len, d_model] for prefill or decode.
+     * @return Output rows [query_len, d_model].
      */
     Tensor<Scalar> forward(const Tensor<Scalar>& input);
 
@@ -107,7 +109,7 @@ template <typename Scalar> class Attention {
             const std::size_t visible_end =
                 std::min(query_start + row + 1, num_keys);
             for (std::size_t key = 0; key < visible_end; ++key) {
-                visible.values[(row * num_keys) + key] = true;
+                visible.values.at((row * num_keys) + key) = true;
             }
         }
         return visible;
@@ -187,7 +189,7 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
                 (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
             for (std::size_t key = 0; key < std::min(window_start, num_keys);
                  ++key) {
-                visible.values[(row * num_keys) + key] = false;
+                visible.values.at((row * num_keys) + key) = false;
             }
         }
         return visible;
@@ -201,24 +203,22 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
 // once the weight and cache struct representations are defined.
 template <typename Scalar>
 Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
-    if (input.shape.size() != 3 || weights_.num_heads == 0 ||
-        input.shape[2] % weights_.num_heads != 0) {
+    if (!valid_matrix(input) || weights_.num_heads == 0 ||
+        input.shape[1] % weights_.num_heads != 0) {
         throw std::invalid_argument(
-            "project_qkv requires [batch, length, d_model] input");
+            "project_qkv requires [length, d_model] input and valid heads");
     }
-    const std::size_t batch = input.shape[0];
-    const std::size_t length = input.shape[1];
-    const std::size_t hidden = input.shape[2];
+    const std::size_t length = input.shape[0];
+    const std::size_t hidden = input.shape[1];
     const std::size_t head_dim = hidden / weights_.num_heads;
-    const Tensor<Scalar> rows = reshape(input, {batch * length, hidden});
 
     // Project at full width, then split columns into heads:
-    // [batch * length, d_model] -> [batch, heads, length, head_dim].
+    // [length, d_model] -> [1, heads, length, head_dim].
     const auto split_heads = [&](const Tensor<Scalar>& weight) {
-        const Tensor<Scalar> projected = linear<Scalar>(rows, weight);
+        const Tensor<Scalar> projected = linear<Scalar>(input, weight);
         return transpose(
-            reshape(projected, {batch, length, weights_.num_heads, head_dim}),
-            1, 2);
+            reshape(projected, {1, length, weights_.num_heads, head_dim}), 1,
+            2);
     };
     return {split_heads(weights_.query_weights),
             split_heads(weights_.key_weights),
@@ -228,25 +228,39 @@ Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
 template <typename Scalar>
 void Attention<Scalar>::append_kv_cache(const Tensor<Scalar>& key,
                                         const Tensor<Scalar>& value) {
-    if (key.shape.size() != 4 || value.shape != key.shape) {
+    if (key.shape.size() != 4 || key.shape[0] != 1 ||
+        value.shape != key.shape || !valid_tensor(key) ||
+        !valid_tensor(value)) {
         throw std::invalid_argument("KV cache append shape mismatch");
     }
     // A default-constructed cache bootstraps its shape from the first append.
-    if (cache_.key.shape.size() != 4) {
+    if (cache_.key.shape.empty() && cache_.value.shape.empty() &&
+        cache_.key.values.empty() && cache_.value.values.empty()) {
         const std::vector<std::size_t> empty_shape{key.shape[0], key.shape[1],
                                                    0, key.shape[3]};
         cache_.key = Tensor<Scalar>{empty_shape, {}};
         cache_.value = Tensor<Scalar>{empty_shape, {}};
     }
+    if (cache_.key.shape.size() != 4 ||
+        cache_.value.shape != cache_.key.shape) {
+        throw std::invalid_argument("KV cache append shape mismatch");
+    }
     const std::vector<std::size_t>& cached = cache_.key.shape;
     if (key.shape[0] != cached[0] || key.shape[1] != cached[1] ||
-        key.shape[3] != cached[3]) {
+        key.shape[3] != cached[3] ||
+        (cached[2] == 0 &&
+         (!cache_.key.values.empty() || !cache_.value.values.empty())) ||
+        (cached[2] != 0 &&
+         (!valid_tensor(cache_.key) || !valid_tensor(cache_.value)))) {
         throw std::invalid_argument("KV cache append shape mismatch");
     }
     const std::size_t old_len = cached[2];
     const std::size_t new_len = key.shape[2];
+    if (new_len > std::numeric_limits<std::size_t>::max() - old_len) {
+        throw std::length_error("KV cache length overflow");
+    }
     const std::size_t total_len = old_len + new_len;
-    if (cache_.capacity != 0 && total_len > cache_.capacity) {
+    if (cache_.capacity && total_len > *cache_.capacity) {
         throw std::length_error("KV cache capacity exceeded");
     }
 
@@ -256,16 +270,17 @@ void Attention<Scalar>::append_kv_cache(const Tensor<Scalar>& key,
     const std::size_t head_dim = key.shape[3];
     const auto extend = [&](Tensor<Scalar>& stored,
                             const Tensor<Scalar>& fresh) {
-        const auto old_block = static_cast<std::ptrdiff_t>(old_len * head_dim);
-        const auto new_block = static_cast<std::ptrdiff_t>(new_len * head_dim);
+        const std::size_t old_block = old_len * head_dim;
+        const std::size_t new_block = new_len * head_dim;
         std::vector<Scalar> merged;
         merged.reserve(stored.values.size() + fresh.values.size());
         for (std::size_t block = 0; block < blocks; ++block) {
-            const auto index = static_cast<std::ptrdiff_t>(block);
-            const auto old_begin = stored.values.begin() + (index * old_block);
-            const auto new_begin = fresh.values.begin() + (index * new_block);
-            merged.insert(merged.end(), old_begin, old_begin + old_block);
-            merged.insert(merged.end(), new_begin, new_begin + new_block);
+            for (std::size_t index = 0; index < old_block; ++index) {
+                merged.push_back(stored.values.at((block * old_block) + index));
+            }
+            for (std::size_t index = 0; index < new_block; ++index) {
+                merged.push_back(fresh.values.at((block * new_block) + index));
+            }
         }
         stored.values = std::move(merged);
         stored.shape[2] = total_len;
@@ -283,17 +298,15 @@ Tensor<Scalar> Attention<Scalar>::forward(const Tensor<Scalar>& input) {
     // Compute context
     Tensor<Scalar> mixed = context(qkv);
 
-    // Merge heads and project to output
+    // Merge heads and project to 2-D output rows.
     Tensor<Scalar> swapped = transpose(mixed, 1, 2);
     const std::size_t batch = swapped.shape[0];
+    assert(batch == 1);
     const std::size_t query_len = swapped.shape[1];
     const std::size_t hidden = swapped.shape[2] * swapped.shape[3];
-    Tensor<Scalar> merged = reshape(swapped, {batch * query_len, hidden});
-    Tensor<Scalar> out_proj = linear<Scalar>(merged, weights_.output_weights,
-                                             std::cref(weights_.output_bias));
-
-    // Reshape output to original shape
-    return reshape(out_proj, {batch, query_len, hidden});
+    const Tensor<Scalar> merged = reshape(swapped, {query_len, hidden});
+    return linear<Scalar>(merged, weights_.output_weights,
+                          std::cref(weights_.output_bias));
 }
 
 template <typename Scalar>
@@ -307,6 +320,34 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
     const std::size_t query_len = query.shape[2];
     const std::size_t head_dim = query.shape[3];
     const std::size_t key_len = key.shape[2];
+    assert(batch == 1 && key_len >= query_len);
+
+    const auto head_matrix = [](const Tensor<Scalar>& tensor,
+                                std::size_t batch_index, std::size_t head) {
+        const std::size_t rows = tensor.shape.at(2);
+        const std::size_t columns = tensor.shape.at(3);
+        const std::size_t start =
+            ((batch_index * tensor.shape.at(1)) + head) * rows * columns;
+        std::vector<Scalar> values;
+        values.reserve(rows * columns);
+        for (std::size_t index = 0; index < rows * columns; ++index) {
+            values.push_back(tensor.values.at(start + index));
+        }
+        return Tensor<Scalar>{{rows, columns}, std::move(values)};
+    };
+    const auto store_head_matrix = [](Tensor<Scalar>& destination,
+                                      const Tensor<Scalar>& matrix,
+                                      std::size_t batch_index,
+                                      std::size_t head) {
+        const std::size_t rows = destination.shape.at(2);
+        const std::size_t columns = destination.shape.at(3);
+        assert(matrix.shape == (std::vector<std::size_t>{rows, columns}));
+        const std::size_t start =
+            ((batch_index * destination.shape.at(1)) + head) * rows * columns;
+        for (std::size_t index = 0; index < rows * columns; ++index) {
+            destination.values.at(start + index) = matrix.values.at(index);
+        }
+    };
 
     // Raw scores matmul
     Tensor<Scalar> scores{
@@ -316,29 +357,11 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
 
     for (std::size_t b = 0; b < batch; ++b) {
         for (std::size_t h = 0; h < heads; ++h) {
-            const std::size_t q_off = ((b * heads) + h) * query_len * head_dim;
-            const std::size_t k_off = ((b * heads) + h) * key_len * head_dim;
-            const Tensor<Scalar> query_slice{
-                {query_len, head_dim},
-                {
-                    query.values.begin() + q_off,
-                    query.values.begin() + q_off + (query_len * head_dim),
-                },
-            };
-            const Tensor<Scalar> key_slice{
-                {key_len, head_dim},
-                {
-                    key.values.begin() + k_off,
-                    key.values.begin() + k_off + (key_len * head_dim),
-                },
-            };
-
+            const Tensor<Scalar> query_slice = head_matrix(query, b, h);
+            const Tensor<Scalar> key_slice = head_matrix(key, b, h);
             const Tensor<Scalar> head_scores =
                 matmul(query_slice, transpose(key_slice, 0, 1));
-
-            std::copy(head_scores.values.begin(), head_scores.values.end(),
-                      scores.values.begin() +
-                          (((b * heads) + h) * query_len * key_len));
+            store_head_matrix(scores, head_scores, b, h);
         }
     }
 
@@ -355,28 +378,10 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
 
     for (std::size_t b = 0; b < batch; ++b) {
         for (std::size_t h = 0; h < heads; ++h) {
-            const std::size_t w_off = ((b * heads) + h) * query_len * key_len;
-            const std::size_t v_off = ((b * heads) + h) * key_len * head_dim;
-            const Tensor<Scalar> probs_slice{
-                {query_len, key_len},
-                {
-                    probs.values.begin() + w_off,
-                    probs.values.begin() + w_off + (query_len * key_len),
-                },
-            };
-            const Tensor<Scalar> value_slice{
-                {key_len, head_dim},
-                {
-                    value.values.begin() + v_off,
-                    value.values.begin() + v_off + (key_len * head_dim),
-                },
-            };
-
+            const Tensor<Scalar> probs_slice = head_matrix(probs, b, h);
+            const Tensor<Scalar> value_slice = head_matrix(value, b, h);
             const Tensor<Scalar> head_mix = matmul(probs_slice, value_slice);
-
-            std::copy(head_mix.values.begin(), head_mix.values.end(),
-                      mixed.values.begin() +
-                          (((b * heads) + h) * query_len * head_dim));
+            store_head_matrix(mixed, head_mix, b, h);
         }
     }
 

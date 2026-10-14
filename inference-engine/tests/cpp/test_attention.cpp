@@ -2,9 +2,9 @@
 // consistency, against the structs attention.hpp defines:
 //   AttentionWeights { num_heads, query_weights, key_weights, value_weights,
 //                      output_weights, output_bias }
-//   Qkv              { query, key, value }   (batch, heads, len, head_dim)
+//   Qkv              { query, key, value }   (1, heads, len, head_dim)
 //   KvCache          { capacity, key, value } default-constructed == empty,
-//                                             capacity 0 == grow on demand
+//                                             no capacity == grow on demand
 #include "inference_engine/operator/attention.hpp"
 
 #include <gtest/gtest.h>
@@ -68,21 +68,24 @@ AttentionWeights<float> pattern_weights(std::size_t hidden,
                                    zero_bias(hidden)};
 }
 
-/// Input shaped (1, len, hidden) with small deterministic values.
+/// Input shaped (len, hidden) with small deterministic values.
 Tensor<float> make_input(std::size_t len, std::size_t hidden) {
     std::vector<float> values(len * hidden);
     for (std::size_t i = 0; i < values.size(); ++i) {
         values[i] = (0.1F * static_cast<float>(i % 7)) - 0.3F;
     }
-    return make_tensor({1, len, hidden}, std::move(values));
+    return make_tensor({len, hidden}, std::move(values));
 }
 
-/// One token row of a (1, len, hidden) output.
+/// One token row of a (len, hidden) output.
 std::vector<float> row(const Tensor<float>& output, std::size_t index) {
-    const std::size_t hidden = output.shape[2];
-    const auto begin =
-        output.values.begin() + static_cast<std::ptrdiff_t>(index * hidden);
-    return {begin, begin + static_cast<std::ptrdiff_t>(hidden)};
+    const std::size_t hidden = output.shape.at(1);
+    std::vector<float> values;
+    values.reserve(hidden);
+    for (std::size_t column = 0; column < hidden; ++column) {
+        values.push_back(output.values.at((index * hidden) + column));
+    }
+    return values;
 }
 
 void expect_near(const std::vector<float>& actual,
@@ -112,7 +115,7 @@ TEST(AttentionTest, SingleTokenPassthrough) {
     KvCache<float> cache;
     GlobalAttention<float> attention(weights, cache);
 
-    const Tensor<float> input = make_tensor({1, 1, 2}, {0.3F, -0.7F});
+    const Tensor<float> input = make_tensor({1, 2}, {0.3F, -0.7F});
     const Tensor<float> output = attention.forward(input);
 
     ASSERT_EQ(output.shape, input.shape);
@@ -130,8 +133,7 @@ TEST(AttentionTest, HandComputedPrefill) {
     KvCache<float> cache;
     GlobalAttention<float> attention(weights, cache);
 
-    const Tensor<float> input =
-        make_tensor({1, 2, 2}, {1.0F, 0.0F, 0.0F, 1.0F});
+    const Tensor<float> input = make_tensor({2, 2}, {1.0F, 0.0F, 0.0F, 1.0F});
     const Tensor<float> output = attention.forward(input);
 
     ASSERT_EQ(output.shape, input.shape);
@@ -148,12 +150,12 @@ TEST(AttentionTest, CausalityHolds) {
     KvCache<float> cache_a;
     GlobalAttention<float> attention_a(weights, cache_a);
     const Tensor<float> output_a =
-        attention_a.forward(make_tensor({1, 2, 2}, {0.5F, -0.1F, 0.8F, 0.2F}));
+        attention_a.forward(make_tensor({2, 2}, {0.5F, -0.1F, 0.8F, 0.2F}));
 
     KvCache<float> cache_b;
     GlobalAttention<float> attention_b(weights, cache_b);
     const Tensor<float> output_b =
-        attention_b.forward(make_tensor({1, 2, 2}, {0.5F, -0.1F, -0.9F, 0.4F}));
+        attention_b.forward(make_tensor({2, 2}, {0.5F, -0.1F, -0.9F, 0.4F}));
 
     expect_near(row(output_a, 0), row(output_b, 0), kTight);
 }
@@ -168,12 +170,12 @@ TEST(AttentionTest, ShapesAndCacheGrowth) {
     GlobalAttention<float> attention(weights, cache);
 
     const Tensor<float> prefill_out = attention.forward(make_input(3, hidden));
-    EXPECT_EQ(prefill_out.shape, (std::vector<std::size_t>{1, 3, hidden}));
+    EXPECT_EQ(prefill_out.shape, (std::vector<std::size_t>{3, hidden}));
 
     for (std::size_t step = 0; step < 2; ++step) {
         const Tensor<float> decode_out =
             attention.forward(make_input(1, hidden));
-        EXPECT_EQ(decode_out.shape, (std::vector<std::size_t>{1, 1, hidden}));
+        EXPECT_EQ(decode_out.shape, (std::vector<std::size_t>{1, hidden}));
     }
 
     const std::size_t head_dim = hidden / heads;
@@ -195,6 +197,28 @@ TEST(AttentionTest, CapacityBoundsCache) {
     EXPECT_THROW(attention.forward(make_input(1, 2)), std::length_error);
 }
 
+TEST(AttentionTest, RequiresTwoDimensionalInput) {
+    const AttentionWeights<float> weights = identity_weights(2, 1);
+    KvCache<float> cache;
+    GlobalAttention<float> attention(weights, cache);
+
+    EXPECT_THROW(attention.forward(make_tensor({1, 1, 2}, {1.0F, 2.0F})),
+                 std::invalid_argument);
+    EXPECT_THROW(attention.forward(make_tensor({1, 2}, {1.0F})),
+                 std::invalid_argument);
+    EXPECT_TRUE(cache.key.shape.empty());
+}
+
+TEST(AttentionTest, RejectsMalformedCache) {
+    const AttentionWeights<float> weights = identity_weights(2, 1);
+    KvCache<float> cache;
+    cache.key = Tensor<float>{{1, 1, 1, 2}, {1.0F}};
+    cache.value = Tensor<float>{{1, 1, 1, 2}, {1.0F, 2.0F}};
+    GlobalAttention<float> attention(weights, cache);
+
+    EXPECT_THROW(attention.forward(make_input(1, 2)), std::invalid_argument);
+}
+
 // Sliding window of 2 over 4 tokens: token 3 may see only tokens 2 and 3
 // (the window includes the query's own position). Perturbing token 0 must
 // leave row 3 unchanged; perturbing token 2 must change it. Pins the
@@ -208,7 +232,7 @@ TEST(AttentionTest, LocalWindowBoundary) {
                                      token2_first, 0.5F, -0.6F, 0.7F};
         KvCache<float> cache;
         LocalAttention<float> attention(weights, cache, window);
-        return attention.forward(make_tensor({1, 4, 2}, std::move(values)));
+        return attention.forward(make_tensor({4, 2}, std::move(values)));
     };
 
     const Tensor<float> base = run(0.4F, -0.8F);
@@ -239,7 +263,7 @@ void expect_prefill_matches_decode(const AttentionWeights<float>& weights,
     KvCache<float> decode_cache;
     auto decode_attention = make_attention(weights, decode_cache);
     for (std::size_t i = 0; i < tokens; ++i) {
-        const Tensor<float> token = make_tensor({1, 1, hidden}, row(input, i));
+        const Tensor<float> token = make_tensor({1, hidden}, row(input, i));
         const Tensor<float> decode_out = decode_attention.forward(token);
         expect_near(row(decode_out, 0), row(prefill_out, i), kTight);
     }
