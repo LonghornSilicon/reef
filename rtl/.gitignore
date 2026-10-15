@@ -1,0 +1,10 @@
+out/
+build/
+obj_dir/
+*.vcd
+*.fst
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/

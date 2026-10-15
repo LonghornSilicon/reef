@@ -1,0 +1,8 @@
+# Verible lint rules. Same base CoralNPU uses (lowRISC style guide rules).
+# One per line, - disables, + enables.
+line-length=length:100
++no-trailing-spaces
++posix-eof
+explicit-parameter-storage-type=exempt_type:string
+parameter-name-style=localparam_style:CamelCase|ALL_CAPS
+-typedef-structs-unions
