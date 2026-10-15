@@ -1,0 +1,13 @@
+name: toy_counter
+top: toy_counter
+description: 8-bit counter that proves lint, sim, synth and handoff plumbing.
+filelist: filelists/toy_counter.f
+defines: []
+include_dirs: [src/common]
+constraints: constraints/toy_counter.sdc
+clocks:
+  - {name: clk, port: clk_i, period_ns: 20.0}
+macros: []
+technology_hint: sky130
+status: smoke
+owner: A14N77
