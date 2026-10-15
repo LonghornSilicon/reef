@@ -1,0 +1,6 @@
+# Whole words, case-insensitive, that must not appear under pd/. One per line.
+tsmc
+confidential
+proprietary
+nda
+license_server
