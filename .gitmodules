@@ -7,3 +7,6 @@
 [submodule "reef-perf/ext/yaml-cpp"]
 	path = reef-perf/ext/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "rtl/ext/coralnpu"]
+	path = rtl/ext/coralnpu
+	url = https://github.com/google-coral/coralnpu.git

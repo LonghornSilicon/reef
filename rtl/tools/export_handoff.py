@@ -66,8 +66,13 @@ def parse_filelist(path: Path) -> tuple[list[str], list[str]]:
 
 
 def tree_dirty() -> bool:
-    """True if rtl/ has uncommitted changes."""
-    return bool(git("status", "--porcelain", "--", "."))
+    """True if rtl/ has uncommitted changes.
+
+    Submodule contents are ignored, only a moved submodule pin counts.
+    """
+    return bool(
+        git("status", "--porcelain", "--ignore-submodules=dirty", "--", ".")
+    )
 
 
 def tool_version(tool: str, flag: str = "--version") -> str:

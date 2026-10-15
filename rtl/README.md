@@ -6,6 +6,7 @@ Reef RTL. There is no chip RTL here yet. This is the structure, the tooling and 
 src/reef/      Reef-owned SV. Empty. Split by block when the first one lands.
 src/common/    reef_defs.svh, included first by every file
 src/toy/       toy_counter and its testbench, the smoke test
+ext/coralnpu   CoralNPU M3-2026-04-27 as a git submodule, a pointer only
 filelists/     one .f per target, paths relative to rtl/
 targets/       one yaml per synthesis target: what to build and why
 constraints/   one SDC per target, tool neutral
@@ -32,7 +33,9 @@ Pinned in `docker/Dockerfile`: OSS CAD Suite 2026-10-12 (Verilator 5.053, Yosys 
 
 ## Existing RTL
 
-- The baseline core is CoralNPU release `M3-2026-04-27`, commit `72d700ef`, the same pin `reef-perf/docs/deviations.md` uses. It is not in this tree. How it comes in is open: a submodule, vendored generated SV, or Chisel kept as the generator. Pick one before the first core change lands, and never edit upstream files in place.
+- The baseline core is CoralNPU release `M3-2026-04-27`, commit `72d700ef`, the same pin `reef-perf/docs/deviations.md` uses. `ext/coralnpu` is a submodule pointing at that commit and is empty until you run `git submodule update --init rtl/ext/coralnpu`. Nothing runs it for you. Never edit anything under `ext/`.
+- The submodule holds Chisel, not SystemVerilog. The SV to synthesize is the `RvvCoreMiniAxi.sv` asset Google attaches to the release tag. Fetching it is the next step when the core is needed; it is not here yet.
+- On macOS the submodule shows as modified forever: upstream has both `SRAM.scala` and `Sram.scala`, which collide on a case-insensitive filesystem. Harmless. The export tool ignores submodule contents for that reason.
 - SV from other repos (pe-apprentice, lambda-arch): copy the file into `src/reef/`, add a header with the origin repo, commit and license, make it lint clean, give it a testbench in `tb/unit/`, add it to a filelist.
 
 ## Conventions
