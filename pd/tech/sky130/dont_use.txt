@@ -1,0 +1,4 @@
+# Added to the PDK's drc_exclude.cells (dont_use_file in platform.yaml). Globs.
+sky130_fd_sc_hd__probe_p_*
+sky130_fd_sc_hd__probec_p_*
+sky130_fd_sc_hd__lpflow_*

@@ -1,0 +1,70 @@
+# sky130_fd_sc_hd. Values read from the installed PDK, its LibreLane defaults,
+# or the lab's Innovus floorplan of the OpenFrame wrapper. TBD otherwise.
+node: sky130
+pdk_version: 1e931c9417df0478df9ee6b7289202f3e87440ab   # the commit ChipFoundry pins
+pdk: ${PDK_ROOT}/sky130A
+stdcell: sky130_fd_sc_hd
+site: unithd                    # 0.46 x 2.72 um
+
+lef:
+  - ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/techlef/sky130_fd_sc_hd__nom.tlef
+  - ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef
+lib:
+  setup:
+    - ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ss_100C_1v60.lib
+  hold:
+    - ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__ff_n40C_1v95.lib
+  typical:
+    - ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+gds: ${PDK_ROOT}/sky130A/libs.ref/sky130_fd_sc_hd/gds/sky130_fd_sc_hd.gds
+magicrc: ${PDK_ROOT}/sky130A/libs.tech/magic/sky130A.magicrc
+netgen_setup: ${PDK_ROOT}/sky130A/libs.tech/netgen/sky130A_setup.tcl
+dont_use_file: ${PDK_ROOT}/sky130A/libs.tech/librelane/sky130_fd_sc_hd/drc_exclude.cells   # read by synth, with dont_use.txt
+
+layers:                         # li1 stays inside the cells
+  signal_min: met1
+  signal_max: met4
+  clock_min: met3
+  clock_max: met4
+  pin_hor: met3
+  pin_ver: met2
+  pitch_um: {met1: 0.34, met2: 0.46, met3: 0.68, met4: 0.92, met5: 3.4}
+
+power:
+  nets: {power: VPWR, ground: VGND}
+  grid:                         # ring and straps as in ChipFoundry's wrapper configs
+    rail_layer: met1
+    rail_width_um: 0.48
+    ring_layer_v: met4
+    ring_layer_h: met5
+    ring_width_um: 10.0
+    strap_layer_v: met4
+    strap_layer_h: met5
+    strap_width_um: 3.1
+    strap_pitch_um: 180.0
+
+cells:
+  tap: sky130_fd_sc_hd__tapvpwrvgnd_1
+  tap_distance_um: 13           # FP_TAPCELL_DIST in the PDK's LibreLane config
+  endcap: sky130_fd_sc_hd__decap_3
+  fill: [sky130_fd_sc_hd__fill_1, sky130_fd_sc_hd__fill_2, sky130_fd_sc_hd__fill_4, sky130_fd_sc_hd__fill_8]
+  decap: [sky130_fd_sc_hd__decap_3, sky130_fd_sc_hd__decap_4, sky130_fd_sc_hd__decap_6, sky130_fd_sc_hd__decap_8, sky130_fd_sc_hd__decap_12]
+  tie_hi: {cell: sky130_fd_sc_hd__conb_1, port: HI}
+  tie_lo: {cell: sky130_fd_sc_hd__conb_1, port: LO}
+
+cts:
+  buffers: [sky130_fd_sc_hd__clkbuf_2, sky130_fd_sc_hd__clkbuf_4, sky130_fd_sc_hd__clkbuf_8, sky130_fd_sc_hd__clkbuf_16]
+  root_buffer: sky130_fd_sc_hd__clkbuf_16
+  ndr: clock
+
+ndr:                            # multiples of the layer minimum
+  clock: {width_x: 2, spacing_x: 2, layers: [met3, met4]}
+
+extraction:
+  corners:
+    - {name: ss, temp_c: 100, lib: setup}
+    - {name: ff, temp_c: -40, lib: hold}
+  rcx_rules: TBD                # none in the open PDK; use the router's wire RC estimate until there is
+
+gates:
+  strict: true
