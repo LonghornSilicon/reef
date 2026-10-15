@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Resolved PD run configuration",
+  "type": "object",
+  "required": [
+    "node",
+    "top",
+    "handoff",
+    "lef",
+    "lib",
+    "site",
+    "layers",
+    "floorplan",
+    "clock",
+    "gates"
+  ],
+  "properties": {
+    "node": {
+      "type": "string"
+    },
+    "top": {
+      "type": "string"
+    },
+    "handoff": {
+      "type": "string",
+      "description": "path to the RTL handoff package"
+    },
+    "lef": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "lib": {
+      "type": "object",
+      "required": [
+        "setup",
+        "hold"
+      ],
+      "properties": {
+        "setup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "hold": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "site": {
+      "type": "string"
+    },
+    "layers": {
+      "type": "object",
+      "required": [
+        "signal_min",
+        "signal_max",
+        "clock_min",
+        "clock_max",
+        "pin_hor",
+        "pin_ver"
+      ]
+    },
+    "floorplan": {
+      "type": "object",
+      "required": [
+        "core_margin_um"
+      ],
+      "properties": {
+        "utilization": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "aspect_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "core_margin_um": {
+          "type": "number",
+          "minimum": 0
+        },
+        "die_um": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "utilization",
+            "aspect_ratio"
+          ]
+        },
+        {
+          "required": [
+            "die_um"
+          ]
+        }
+      ]
+    },
+    "clock": {
+      "type": "object",
+      "required": [
+        "name",
+        "port",
+        "period_ns"
+      ],
+      "properties": {
+        "period_ns": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "strict"
+      ],
+      "properties": {
+        "strict": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
