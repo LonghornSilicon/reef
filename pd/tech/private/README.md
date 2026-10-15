@@ -1,0 +1,3 @@
+Slot for a private node. Only this file and `.gitignore` are ever committed. The real tech directory is mounted at run time: `PDK_ROOT_PRIVATE=/path docker/run.sh shell`, then `make run TECH=private PRIVATE_TECH_DIR=/path`.
+
+The overlay mirrors `tech/sky130/`: a `platform.yaml` and a `dont_use.txt`, every path through `${PDK_ROOT_PRIVATE}`. The node supplies: timing libraries per corner, tech and cell LEF, cell GDS, layer map, DRC and LVS decks, RC extraction tables, SRAM macro views, IO pad views. No value, cell name, rule number or server name from it goes in this repo, not even in a comment. `tools/check_no_private.sh` enforces that in CI.
