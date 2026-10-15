@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/LonghornSilicon/reef/rtl/handoff/schema/handoff.schema.json",
+  "title": "Reef RTL-to-PD handoff manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "target", "top", "git_sha", "dirty", "created_utc",
+    "defines", "clocks", "technology_hint", "checks", "tool_versions", "files"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "target": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "top": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "dirty": {"type": "boolean"},
+    "created_utc": {"type": "string", "format": "date-time"},
+    "defines": {"type": "array", "items": {"type": "string"}},
+    "clocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "port", "period_ns"],
+        "properties": {
+          "name": {"type": "string"},
+          "port": {"type": "string"},
+          "period_ns": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "technology_hint": {"enum": ["open", "sky130", "private-node"]},
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lint", "sim_smoke"],
+      "properties": {
+        "lint": {"enum": ["pass", "fail"]},
+        "sim_smoke": {"enum": ["pass", "fail", "none"]}
+      }
+    },
+    "tool_versions": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "notes": {"type": "string"}
+  }
+}
