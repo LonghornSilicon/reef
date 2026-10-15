@@ -1,0 +1,19 @@
+top: toy_counter
+handoff: inputs/toy_counter
+status: smoke
+floorplan:
+  utilization: 0.4
+  aspect_ratio: 1.0
+  core_margin_um: 10
+  io_placement: random          # random | file
+clock:
+  name: clk
+  port: clk_i
+  period_ns: 20.0
+placement:
+  density: 0.6
+constraints:
+  dont_touch: []
+  special_nets: []              # {net: <name>, ndr: <rule from tech ndr>}
+  io_place: {}                  # {left: [...], right: [...], top: [...], bottom: [...]}
+macros: []

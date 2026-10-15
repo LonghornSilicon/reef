@@ -1,0 +1,20 @@
+# Reef in the ChipFoundry double-wide OpenFrame wrapper on SKY130. Die, core
+# margin and pin count are the frame's, measured by Nathan Mara in Innovus
+# (/misc/scratch/gcNPU/pd-flow/*/floorplan/README.md on the ECE servers).
+top: double_wide_openframe_project_wrapper   # name and ports fixed by ChipFoundry
+handoff: inputs/reef_top_sky130_openframe
+status: experimental
+floorplan:
+  die_um: [6754.63, 4766.63]    # 32.20 mm2, fixed
+  core_margin_um: 55
+  io_placement: file
+  pin_template: TBD             # ChipFoundry pin_template.def, 1216 pins, 63 GPIO
+clock:
+  name: core_clk
+  port: TBD                     # a gpio_in pad
+  period_ns: 20.0
+constraints:
+  dont_touch: []
+  special_nets: []
+  io_place: {}                  # GPIO assignment, from the package's io_map.yaml
+macros: []                      # ITCM and DTCM, from the package's macros.yaml
