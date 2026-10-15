@@ -1,0 +1,1 @@
+`handoff_example/` is a real `make export TARGET=toy_counter` from branch `alan/rtl-review` at `2e979c96`, unmodified. It is the smoke input and the good package for the import tests. Regenerate it from that branch when the contract changes; `schema_version` here must match what `flow/stages/00_import/run.py` expects.

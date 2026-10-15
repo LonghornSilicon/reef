@@ -1,0 +1,5 @@
+$ verilator --lint-only -Wall -f toy_counter.f --top-module toy_counter
+exit 0
+
+$ verible-verilog-lint src/toy/toy_counter.sv
+exit 0
