@@ -1,0 +1,3 @@
+Core alive check: program written into itcm over the axi slave, PC_START
+written, RESET released, result read back from dtcm. Status goes in
+manifest checks.sim_smoke.

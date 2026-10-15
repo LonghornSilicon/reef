@@ -1,0 +1,13 @@
+# The only memories in the core. Everything else (regfiles, fifos, robs) is
+# flops. Both are single port, 128 bits wide, one read or write per cycle,
+# 1-cycle read. Macro names are TBD until one is chosen; the stub in
+# blackbox/ comes with it.
+macros:
+- name: TBD            # itcm, 8 KB at 0x0000_0000: 512 x 128
+  role: sram
+  blackbox: TBD
+  views_pd_must_supply: [lib, lef, gds]
+- name: TBD            # dtcm, 32 KB at 0x0001_0000: 2048 x 128
+  role: sram
+  blackbox: TBD
+  views_pd_must_supply: [lib, lef, gds]

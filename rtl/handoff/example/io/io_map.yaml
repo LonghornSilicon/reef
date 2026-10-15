@@ -1,0 +1,4 @@
+# Empty on purpose. The core boundary is two 128-bit AXI ports, interrupts,
+# boot address, debug and status, about 600 signals. Nothing maps to a pad
+# until a chip top target puts a pad level interface in front of the core.
+ports: []
