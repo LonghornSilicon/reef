@@ -1,0 +1,12 @@
+# B03: Correlate all 15 workloads against CoralNPU M3 RTL.
+name: m3
+
+# REEF simulation configuration.
+sim_config: configs/m3.yaml
+
+# Run every available benchmark.
+workloads: all
+
+# Baseline model without parameter overrides.
+variants:
+  m3: {}
