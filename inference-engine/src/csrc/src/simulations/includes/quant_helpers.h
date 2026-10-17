@@ -1,13 +1,14 @@
-// quant_helpers.h — scalar quantization helpers shared by the attention
-// kernels.
+// quant_helpers.h — scalar quantization helpers shared by the kernels.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
 
 #define QUANT_INLINE static inline __attribute__((always_inline))
 
-// newlib's expf, declared directly: the freestanding build has no <math.h>.
+// newlib's math, declared directly: the freestanding build has no <math.h>.
 extern "C" float expf(float);
+extern "C" float tanhf(float);
+extern "C" float sqrtf(float);
 
 namespace quant {
 
