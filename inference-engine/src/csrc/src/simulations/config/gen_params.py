@@ -67,6 +67,13 @@ def render(model: dict, hardware: dict) -> str:
         else:
             emit(key, float(value))
     lines.append("")
+    for key, value in model["sequences"].items():
+        if isinstance(value, list):
+            items = ", ".join(str(v) for v in value)
+            lines.append(f"constexpr size_t {const(key)}[] = {{{items}}};")
+        else:
+            emit(key, value)
+    lines.append("")
     for kernel, shape in model["tiles"].items():
         if not kernel.startswith("_"):
             for dim, value in shape.items():

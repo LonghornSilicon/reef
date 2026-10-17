@@ -33,6 +33,9 @@ constexpr float kResidualOutScale = 0.05F;
 constexpr float kEmbeddingScale = 0.02F;
 constexpr float kScoreScale = 0.00031250000000000006F;
 
+constexpr size_t kPrefillLens[] = {16, 64, 128, 256, 1024};
+constexpr size_t kDecodeContext = 1024;
+
 constexpr size_t kMatmulVmeN = 16;
 constexpr size_t kMatmulVmeK = 512;
 constexpr size_t kMatmulVmeM = 16;
