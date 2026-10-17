@@ -54,6 +54,13 @@ struct InstRecord {
     std::uint32_t next_pc = 0;
     /// Raw 32-bit instruction word.
     std::uint32_t encoding = 0;
+
+    /// Dividend value before executing an integer DIV/REM instruction.
+    std::uint32_t div_dividend = 0;
+
+    /// Whether the divisor was zero before execution.
+    bool div_by_zero = false;
+    
     /// Spike's disassembly, e.g. "addi a0, a0, 1".
     std::string disasm;
     /// Vector length in effect before the instruction executed.

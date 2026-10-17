@@ -27,6 +27,11 @@ InstPtr FuncSim::next() {
     inst->pc = rec->pc;
     inst->next_pc = rec->next_pc;
     inst->encoding = rec->encoding;
+    
+    //ADDED
+    inst->div_dividend = rec->div_dividend;
+    inst->div_by_zero = rec->div_by_zero;
+
     inst->disasm = std::move(rec->disasm);
     inst->vl = rec->vl;
     inst->sew_bytes = rec->sew_bytes;

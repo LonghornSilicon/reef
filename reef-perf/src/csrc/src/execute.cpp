@@ -9,6 +9,42 @@
 
 namespace reef_perf {
 
+namespace {
+
+// Number of restoring-division iterations performed by M3's Dvu.scala.
+std::uint32_t m3_div_iterations(const Inst& inst) {
+    // M3 disables early termination when the divisor is zero.
+    if (inst.div_by_zero) {
+        return 32;
+    }
+
+    std::uint32_t dividend = inst.div_dividend;
+
+    // DIV and REM use the magnitude of the signed dividend.
+    const bool is_signed =
+        inst.mnemonic == "div" || inst.mnemonic == "rem";
+
+    if (is_signed && (dividend & 0x80000000u)) {
+        dividend = ~dividend + 1u;
+    }
+
+    // Match M3's Clz1: one less than conventional CLZ.
+    // A zero dividend also needs special handling.
+    if (dividend == 0) {
+        return 32;
+    }
+
+    const std::uint32_t leading_zeros =
+        static_cast<std::uint32_t>(__builtin_clz(dividend));
+
+    const std::uint32_t clz =
+        leading_zeros == 0 ? 0 : leading_zeros - 1;
+
+    return 32 - clz;
+}
+
+} // namespace
+
 ExecuteConfig Execute::read_config(const ExecuteParameterSet* params) {
     ExecuteConfig cfg;
     cfg.alu_count = params->alu_count;
@@ -86,11 +122,21 @@ void Execute::receive_inst(const InstPtr& inst) {
         occupancy = cfg_.mul_occupancy;
         latency = cfg_.mul_latency;
         break;
-    case InstClass::DIV:
+
+    case InstClass::DIV: {
         pool = &div_;
-        occupancy = cfg_.div_occupancy;
-        latency = cfg_.div_latency;
+
+        const std::uint64_t iterations = m3_div_iterations(*inst);
+
+        // M3 DVU: one setup cycle, N computation cycles,
+        // then the result becomes valid.
+        latency = iterations + 2; //PLUS 2 accounting for SETUP and RESULT cycles
+
+        // Single, non-pipelined divider.
+        occupancy = latency;
         break;
+    }
+
     case InstClass::FP:
         pool = &fpu_;
         occupancy = cfg_.fpu_occupancy;

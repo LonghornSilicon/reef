@@ -245,6 +245,20 @@ class SpikeDriver::Impl {
         rec.pc = static_cast<std::uint32_t>(pc);
         std::memcpy(&rec.encoding, host, sizeof(rec.encoding));
         rec.disasm = proc_->get_disassembler()->disassemble(rec.encoding);
+
+        // ADDED Identify RV32 integer DIV, DIVU, REM, and REMU instructions.
+        const std::uint32_t opcode = rec.encoding & 0x7F;
+        const std::uint32_t funct3 = (rec.encoding >> 12) & 0x7;
+        const std::uint32_t funct7 = (rec.encoding >> 25) & 0x7F;
+
+        if (opcode == 0x33 && funct7 == 0x01 && funct3 >= 4 && funct3 <= 7) {
+            const std::uint32_t rs1 = (rec.encoding >> 15) & 0x1F;
+            const std::uint32_t rs2 = (rec.encoding >> 20) & 0x1F;
+
+            rec.div_dividend = static_cast<std::uint32_t>(state->XPR[rs1]);
+            rec.div_by_zero = (state->XPR[rs2] == 0); //for checking if divisor is zero before execution
+        }
+
         // Before the first vsetvli, vtype is illegal (vill); keep the
         // defaults (vl = 0, SEW = 8, LMUL = 1) rather than garbage.
         if (proc_->VU.vl && !proc_->VU.vill) {

@@ -92,6 +92,13 @@ struct Inst {
     std::uint32_t next_pc = 0;
     /// Raw 32-bit instruction word.
     std::uint32_t encoding = 0;
+
+    /// ADDED Dividend value captured by Spike before DIV/REM execution.
+    std::uint32_t div_dividend = 0;
+
+    /// Whether the divisor was zero.
+    bool div_by_zero = false;
+
     /// Disassembly from the functional simulator.
     std::string disasm;
     /// First token of the disassembly, e.g. "addi".
