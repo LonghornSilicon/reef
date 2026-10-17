@@ -83,7 +83,9 @@ void attention_flash(...);  // identical signature
 One attention head: `out[nq x d] (int8) = softmax(q . kt) * v`, row-major.
 K arrives transposed (`kt[d x nk]`) so it matches the uint8 B operand the
 VME matmul wants; `k_zero`/`v_zero` are the uint8 zero points and the three
-scales carry the quantization (GPT-Neo applies no 1/sqrt(d)). Causal and
+scales carry the quantization. We run GPT-2, so `score_scale` includes its
+1/sqrt(d_head) (`params::kScoreScale`) and `window >= nk` gives the full
+causal prefix; a smaller `window` still works as a sliding window. Causal and
 sliding-window masking happen through loop bounds — query row `i` sees keys
 `[max(0, query_start + i + 1 - window), query_start + i]` — so there are no
 mask buffers or sentinel scores. `window >= nk` disables the local limit;

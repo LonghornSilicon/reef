@@ -9,14 +9,16 @@
 //
 // Quantization: q is int8 with zero point 0. kt (K transposed, so it can be
 // the uint8 B operand of the VME matmul) and v are uint8 with zero points
-// k_zero and v_zero. score_scale turns a q.k accumulator into a real score
-// (the q and k scales multiplied; GPT-Neo applies no 1/sqrt(d)). v_scale
-// dequantizes v and out_scale requantizes the result into int8.
+// k_zero and v_zero. score_scale turns a q.k accumulator into a real score:
+// q_scale * k_scale / sqrt(d) for GPT-2, which folds its 1/sqrt(d_head) in
+// here (params::kScoreScale). v_scale dequantizes v and out_scale
+// requantizes the result into int8.
 //
-// Masking is causal with a sliding window, done by loop bounds instead of
-// mask values: query row i sees key positions [lo, query_start + i], where
-// lo = max(0, query_start + i + 1 - window). window >= nk disables the
-// local limit; window must be at least 1.
+// Masking is causal, done by loop bounds instead of mask values: query row i
+// sees key positions [lo, query_start + i], where lo = max(0, query_start +
+// i + 1 - window). GPT-2 attends to the full causal prefix, so pass
+// window >= nk (params::kWindow = n_ctx). A smaller window gives a sliding
+// local window; window must be at least 1.
 //
 // Limits (not checked, like the matmul kernels): d <= 128, nk <= 1024, and
 // query_start + nq <= nk, which the decode cache layout guarantees.
