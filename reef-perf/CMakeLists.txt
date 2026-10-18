@@ -39,38 +39,33 @@ target_link_libraries(spike INTERFACE ${CMAKE_DL_LIBS} pthread)
 # The model as a library, so the simulator, tools and tests share it.
 # One block per module; see docs/interfaces.md.
 add_library(reef_perf_core STATIC
-    src/csrc/src/common/inst.cpp
-    src/csrc/src/common/module.cpp
-    src/csrc/src/common/resource_pool.cpp
+    src/common/Inst.cpp
+    src/common/Module.cpp
+    src/common/ResourcePool.cpp
 
-    src/csrc/src/frontend/fetch.cpp
-    src/csrc/src/frontend/frontend.cpp
-    src/csrc/src/frontend/func_sim.cpp
-    src/csrc/src/frontend/inst_decode.cpp
-    src/csrc/src/frontend/spike_driver.cpp
+    src/frontend/Fetch.cpp
+    src/frontend/FuncSim.cpp
+    src/frontend/InstDecode.cpp
 
-    src/csrc/src/backend/backend.cpp
-    src/csrc/src/backend/dispatch.cpp
-    src/csrc/src/backend/lsu.cpp
-    src/csrc/src/backend/rob.cpp
-    src/csrc/src/backend/scalar_exec.cpp
+    src/backend/Backend.cpp
+    src/backend/Dispatch.cpp
+    src/backend/Lsu.cpp
+    src/backend/Rob.cpp
+    src/backend/ScalarExec.cpp
 
-    src/csrc/src/vector/vector.cpp
-    src/csrc/src/vector/vxu.cpp
+    src/vector/Vector.cpp
 
-    src/csrc/src/matrix/matrix.cpp
-    src/csrc/src/matrix/mxu.cpp
+    src/matrix/Matrix.cpp
 
-    src/csrc/src/mem/mem_timing.cpp
-    src/csrc/src/mem/memory.cpp
-    src/csrc/src/mem/units.cpp
+    src/mem/MemTiming.cpp
+    src/mem/Memory.cpp
 
-    src/csrc/src/reef_sim.cpp
+    src/ReefSim.cpp
 )
-target_include_directories(reef_perf_core PUBLIC src/csrc/include)
+target_include_directories(reef_perf_core PUBLIC src)
 target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta PRIVATE spike)
 
-add_executable(reef_perf src/csrc/src/main.cpp)
+add_executable(reef_perf src/main.cpp)
 target_link_libraries(reef_perf PRIVATE reef_perf_core)
 
 add_executable(reef_trace tools/reef_trace.cpp)

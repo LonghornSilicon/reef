@@ -9,9 +9,8 @@ uv run ruff check --fix .
 uv run ruff format .
 uv run ruff check .
 
-shopt -s globstar  # module subdirectories
-sources=(src/csrc/src/**/*.cpp tools/*.cpp tests/cpp/**/*.cpp)
-headers=(src/csrc/include/reef_perf/**/*.hpp)
+sources=(src/*.cpp src/*/*.cpp tools/*.cpp tests/cpp/*/*.cpp)
+headers=(src/*.h src/*/*.h)
 
 uv run clang-format -i "${sources[@]}" "${headers[@]}"
 bash tools/check_cpp.sh

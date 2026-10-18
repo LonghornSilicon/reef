@@ -1,7 +1,7 @@
 # Experiments
 
 An experiment is a program that runs the simulator and produces artifacts:
-results we can analyse on their own, or feed into another experiment.
+results we can analyze on their own, or feed into another experiment.
 
 Each experiment has its own directory with:
 

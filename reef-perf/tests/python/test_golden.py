@@ -10,9 +10,9 @@ To (re)generate the golden file from the current code:
     REEF_PERF_UPDATE_GOLDEN=1 uv run pytest tests/python/test_golden.py
 
 Only keys present in the golden file are compared, so adding a new counter
-(for example a new stall reason) does not break the check. Pool utilisation
+(for example a new stall reason) does not break the check. Pool utilization
 is not compared: it describes how work is spread over units, which modules are
-free to reorganise.
+free to reorganize.
 """
 
 import json
@@ -32,7 +32,7 @@ UPDATE_ENV = "REEF_PERF_UPDATE_GOLDEN"
 """Set to 1 to rewrite the golden file instead of checking it."""
 
 
-def summarise(result: SimResult) -> dict[str, Any]:
+def summarize(result: SimResult) -> dict[str, Any]:
     """Pick the numbers a refactor must preserve.
 
     Args:
@@ -85,7 +85,7 @@ def test_timing_matches_golden(
     with ThreadPoolExecutor() as pool:
         results = list(pool.map(lambda n: run_sim(workload_elfs[n]), names))
     actual = {
-        name: summarise(result)
+        name: summarize(result)
         for name, result in zip(names, results, strict=True)
     }
 
