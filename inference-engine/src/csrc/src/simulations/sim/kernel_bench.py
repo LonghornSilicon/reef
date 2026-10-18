@@ -36,6 +36,8 @@ with open(runfile("model.json")) as f:
 Q, T = MODEL["quant"], MODEL["tiles"]
 # same as config/gen_params.py derived(): GPT-2's 1/sqrt(d_head) folded in
 SCORE_SCALE = Q["q_scale"] * Q["k_scale"] / math.sqrt(MODEL["model"]["d_head"])
+with open(runfile("gpt_neo_28m.json")) as f:
+    NEO = json.load(f)
 OUT_DIR = os.environ.get("TEST_UNDECLARED_OUTPUTS_DIR", ".")
 
 # bench_main.cc Op values
@@ -326,12 +328,16 @@ async def run_chunked(
     query_start: int,
     phase: str,
     op: str = "attention_flash_chunk",
+    window: int | None = None,
 ) -> None:
     """Stream K and V through DTCM in `block`-key blocks, then finish.
 
     op is attention_flash_chunk (scalar) or attention_vme_block (both
     matmuls on the matrix engine, which also needs a scratch buffer).
+    window defaults to nk (global attention); blocks wholly before the
+    first query's window are skipped, as the host would skip them.
     """
+    window = window or nk
     q, kt, v = attention_inputs(np.random.default_rng(nq * 7 + nk), nq, nk, d)
     arena = Arena()
     oq, ok, ov = (
@@ -357,7 +363,8 @@ async def run_chunked(
         "acc": (oa, np.zeros(nq * d, np.float32)),
         **({"exp_table": (vme_args[1], exp_table(SCORE_SCALE))} if vme else {}),
     }
-    for start in range(0, nk, block):
+    first = max(0, query_start + 1 - window) // block * block
+    for start in range(first, nk, block):
         kt_block = np.ascontiguousarray(kt[:, start : start + block])
         await bench.call(
             f"{name}_block{start // block}",
@@ -366,7 +373,7 @@ async def run_chunked(
                 nq,
                 d,
                 query_start,
-                nk,
+                window,
                 start,
                 block,
                 oq,
@@ -380,7 +387,7 @@ async def run_chunked(
                 *vme_args,
             ],
             {
-                **(setup if start == 0 else {}),
+                **(setup if start == first else {}),
                 "kt": (ok, kt_block),
                 "v": (ov, v[start : start + block]),
             },
@@ -406,7 +413,7 @@ async def run_chunked(
             "phase": phase,
             "stream": name,
             "query_start": query_start,
-            "window": nk,
+            "window": window,
             "ops": 0,
         },
         save={"q": q, "kt": kt, "v": v},
@@ -480,6 +487,44 @@ async def attention_vme_test(dut: SimHandleBase) -> None:
         "decode",
         vme,
     )
+    # GPT-Neo 28M heads (d_head 32): the same streams at its head size, plus
+    # a local layer whose 256-key window skips the oldest blocks
+    neo = NEO["model"]
+    dn = neo["d_head"]
+    await run_chunked(
+        bench,
+        "vme_d32_prefill",
+        nq,
+        4 * block,
+        dn,
+        block,
+        4 * block - nq,
+        "prefill",
+        vme,
+    )
+    await run_chunked(
+        bench,
+        "vme_d32_decode",
+        1,
+        4 * block,
+        dn,
+        block,
+        4 * block - 1,
+        "decode",
+        vme,
+    )
+    await run_chunked(
+        bench,
+        "vme_d32_local",
+        nq,
+        6 * block,
+        dn,
+        block,
+        6 * block - nq,
+        "prefill",
+        vme,
+        window=neo["window"],
+    )
 
 
 @cocotb.test()
@@ -545,36 +590,41 @@ async def pointwise_test(dut: SimHandleBase) -> None:
         {"kernel": "gelu", "shape": [n], "phase": "both", "ops": n},
     )
 
-    rows, d = T["layernorm"]["rows"], T["layernorm"]["d"]
-    x = rng.integers(-60, 60, (rows, d)).astype(np.int8)
-    gamma = rng.integers(20, 70, d).astype(np.int8)
-    beta = rng.integers(-30, 30, d).astype(np.int8)
-    arena = Arena()
-    ox, og, ob, oo = (arena.take(s) for s in (x.nbytes, d, d, x.nbytes))
-    await bench.call(
-        "layernorm",
-        "layernorm",
-        [
-            rows,
-            d,
-            ox,
-            og,
-            ob,
-            oo,
-            Q["act_scale"],
-            Q["ln_gamma_scale"],
-            Q["ln_beta_scale"],
-            Q["ln_out_scale"],
-        ],
-        {"x": (ox, x), "gamma": (og, gamma), "beta": (ob, beta)},
-        {"out": (oo, np.int8, (rows, d))},
-        {
-            "kernel": "layernorm",
-            "shape": [rows, d],
-            "phase": "both",
-            "ops": 8 * rows * d,
-        },
-    )
+    # GPT-2's row width, then GPT-Neo 28M's
+    rows = T["layernorm"]["rows"]
+    for name, d in [
+        ("layernorm", T["layernorm"]["d"]),
+        ("layernorm_d512", NEO["model"]["d_model"]),
+    ]:
+        x = rng.integers(-60, 60, (rows, d)).astype(np.int8)
+        gamma = rng.integers(20, 70, d).astype(np.int8)
+        beta = rng.integers(-30, 30, d).astype(np.int8)
+        arena = Arena()
+        ox, og, ob, oo = (arena.take(s) for s in (x.nbytes, d, d, x.nbytes))
+        await bench.call(
+            name,
+            "layernorm",
+            [
+                rows,
+                d,
+                ox,
+                og,
+                ob,
+                oo,
+                Q["act_scale"],
+                Q["ln_gamma_scale"],
+                Q["ln_beta_scale"],
+                Q["ln_out_scale"],
+            ],
+            {"x": (ox, x), "gamma": (og, gamma), "beta": (ob, beta)},
+            {"out": (oo, np.int8, (rows, d))},
+            {
+                "kernel": "layernorm",
+                "shape": [rows, d],
+                "phase": "both",
+                "ops": 8 * rows * d,
+            },
+        )
 
     n = T["residual"]["n"]
     a = rng.integers(-128, 128, n).astype(np.int8)

@@ -5,11 +5,13 @@ All cycle counts come from Coral's **VME RTL model** (coralnpu
 cocotb, behavioral SRAM model). Raw numbers: `results/results.json`. Model
 numbers: `analysis/roofline.json`. Reproduce with the two commands in the
 simulations README. Milliseconds assume the **50 MHz clock, which is not yet
-confirmed**. Section 7 lists every number that is assumed rather than
+confirmed**. Section 8 lists every number that is assumed rather than
 measured.
 
 The end-to-end figures include the final LayerNorm and LM head; section 3
-also has a vocab-size sweep. Every matmul in a block runs on the matrix
+also has a vocab-size sweep. Section 7 runs the same analysis for the
+planned deployment model, GPT-Neo 28M (TinyStories), with its own
+attention and LayerNorm shapes measured on the sim. Every matmul in a block runs on the matrix
 engine (VME) in prefill:
 qkv, attn_out, fc1, fc2, and attention's QKᵀ and P·V. Decode's single-row
 products run on the vector unit (RVV), which measured faster than a padded
@@ -65,11 +67,24 @@ was measured on the dev Mac (arm64), not an x86 host.
   kernel also rounds each block's probabilities against that block's
   running max, which adds up to one more step relative to serial (2 LSB at
   256 keys, 1 at 64).
-- `run_all.py` therefore checks uint8-probability kernels (serial, VME)
-  against float with a 2-LSB tolerance, and float-probability kernels
-  (flash, chunked) with 1 LSB.
+- **uint8 P is worst on long, flat rows.** When every one of 256 visible
+  keys gets p ≈ 1/255, rounding each p is a ±50% error. The GPT-Neo-shaped
+  run (d_head = 32, section 7) has smaller dot products on the same random
+  inputs, so it is flatter: **1.80 LSB** vs float with 256 global keys, and
+  **3.45 LSB** for a local layer with a full 256-key window. An exact NumPy
+  model of the kernel's uint8-P algorithm shows the same 1.80 and 3.45 on
+  the same inputs, and the sim matches that model within 1 LSB. So the
+  kernel is correct, and the error comes from the probability format.
+- `run_all.py` therefore checks each VME stream against its own uint8-P
+  algorithm: the sim must sit within 1 LSB of that model's error vs float
+  (stored as `uint8_probs_error_lsb`). Serial gets a 2-LSB tolerance vs
+  float, and float-probability kernels (flash, chunked) get 1 LSB.
 - This should be re-checked on calibrated activations before committing to
-  uint8 P.
+  uint8 P. Real scores are usually peakier than these uniform random ones,
+  and GPT-Neo doesn't scale scores by 1/√d, which also makes them peakier.
+  If calibrated rows stay flat, uint16 P is the fallback: it doubles the
+  P bytes, and P·V would need a 16-bit A operand, which the VME int8 path
+  doesn't take.
 
 ### Softmax: two versions
 
@@ -125,7 +140,9 @@ too small for the table's range.
 Each figure has two panels. The left panel plots intensity against
 DTCM↔core bytes (ceiling: 16 B/cycle). The right panel plots intensity
 against host↔DTCM bytes (ceiling: the measured 15.7 B/cycle). Both panels
-share the measured VME peak.
+share the measured VME peak. The decode figure also draws the measured RVV
+matmul rate (3.5 ops/cycle, dashed), the ceiling for decode's single-row
+matmuls: they sit right on it.
 
 | Operator | Engine | Attained ops/cycle | What bounds it |
 | --- | --- | ---: | --- |
@@ -311,7 +328,91 @@ e. **Vector float for the pointwise kernels** (software plus a build flag,
    prefill-16, 18% of prefill-1024 and 14% of decode block time. Moving them
    to RVV is the cheapest remaining software win, alongside (b).
 
-## 7. Numbers that are assumed, not measured
+## 7. GPT-Neo 28M (TinyStories), the planned model
+
+`analysis/roofline.py --model config/gpt_neo_28m.json` reruns the whole
+estimate for TinyStories-Instruct-28M on the same measured tiles. Its
+outputs are `analysis/roofline_gpt-neo-28m.json`,
+`roofline_{prefill,decode}_gpt-neo-28m.png` and
+`vocab_sweep_gpt-neo-28m.csv`.
+
+- **Shape:** width 512, 8 layers, feed-forward width 2048, vocab 50,257,
+  context 2048. Layers alternate global and local attention, with a
+  256-token window. The LM head shares weights with the token embedding.
+  These dims come from `workloads/results/flops/gpt_neo.csv` and reproduce
+  the published 51,987,968 parameters exactly. "28M" undercounts: 25M are
+  in the blocks and 26M in the embedding / LM head.
+- **Assumed:** 16 heads of 32 dims (TinyStories' Hugging Face configs use
+  16). The repo's FLOP counts don't pin the head count down.
+- **What we tested:** GPT-2 small, 124M parameters (85M in its 12 blocks).
+
+**Measured on the sim for this model** (`attention_vme_test`,
+`pointwise_test`):
+
+| Kernel | GPT-2 shape | GPT-Neo 28M shape |
+| --- | ---: | ---: |
+| `attention_vme_block` 16q × 64-key prefill block | 74.6k cycles (d_head 64) | **58.4k** (d_head 32) |
+| `attention_vme_block` 1q × 64-key decode block | 9.0k | **5.9k** |
+| `attention_flash_finish`, 16 queries | 68.8k | 34.6k |
+| `layernorm`, 4 rows | 243k (d 768) | **162k** (d 512) |
+| Matmuls | 16×512×16 and 1×512×32 tiles | same tiles: every K is 512 or a multiple |
+
+Halving the head size saves only 22% of a prefill block (35% of a decode
+block), because the per-score softmax loop doesn't shrink with d. With 16
+heads instead of GPT-2's 12, attention per layer costs about the same as
+GPT-2's.
+
+A local layer streams only the KV blocks its window reaches. The sim ran
+it with 384 keys, a 256-key window and the first block skipped: the
+edge block was cheaper (26.5k cycles, since most of its rows see few keys)
+and the rest cost the same as global blocks. The estimate charges every
+visited block the full-block cost, which slightly overstates local
+layers.
+
+**End to end (8 blocks + head, 50 MHz):**
+
+| Phase | GPT-2 small (124M) | GPT-Neo 28M | Speedup | Attention | Matmuls | LN / res / GeLU | Head share |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| prefill 16 | 4.30 s | **1.71 s** | 2.5× | 17% | 52% | 31% | 19% |
+| prefill 256 | 66.5 s | **26.0 s** | 2.6× | 29% | 45% | 27% | 1.3% |
+| prefill 1024 | 5.8 min | **2.3 min** | 2.5× | 48% | 33% | 20% | 0.2% |
+| prefill 2048 | n/a (n_ctx 1024) | 6.0 min | | 59% | 26% | 16% | 0.1% |
+| decode, context 512 | | **0.89 s/token** | | 18% | 57% | 25% | 37% |
+| decode, context 1024 | 2.26 s/token | **0.95 s/token** | 2.4× | 26% | 51% | 22% | 35% |
+| decode, context 2048 | | 1.08 s/token | | 39% | 43% | 19% | 31% |
+
+Attention, matmul and pointwise shares are of block time; head share is of
+the whole token or prompt. Host transfer is 6–7% of decode and 2–3% of
+prefill.
+
+What's different from GPT-2:
+
+- **It's about 2.5× faster, not 4–5×.** Block parameters shrink 3.4×,
+  but block time only shrinks 2.5–2.9×: attention per layer costs as much
+  as GPT-2's, and the pointwise kernels shrink only with width. The LM
+  head (512 × 50,257) has as many parameters as the whole block stack. It takes **329 ms of
+  a 0.89 s decoded token (37%)**.
+- **Vocab is the biggest single lever for this model**
+  (`vocab_sweep_gpt-neo-28m.csv`): 8,192 entries would take decode at
+  context 512 from 887 to 614 ms per token (−31%), and 16,384 to 667 ms
+  (−25%).
+- **The decode GEMV mode (6a) is worth more.** Decode matmul kernels
+  (286 ms) plus the LM head (293 ms) are 65% of a token, so a VME-rate
+  one-row path saves about **−56% per decoded token**.
+- **Local attention keeps long contexts cheap.** Half the layers never read
+  more than 256 keys, so decode only grows from 0.89 s/token at context 512
+  to 1.08 s at 2048.
+- **Pointwise kernels are a bigger share** (25% of decode, 31% of short
+  prefill), so moving LayerNorm/GeLU/residual to RVV (6e) matters more
+  here.
+- **Accuracy:** the d_head = 32 runs are where uint8 P is weakest on these
+  random inputs (1.80 / 3.45 LSB, section 1). Re-check this on calibrated
+  TinyStories activations first.
+- **No kernel changes were needed:** `attention_vme_block` already takes
+  `window` and any d that's a multiple of 16, and `matmul()` handles the
+  new widths.
+
+## 8. Numbers that are assumed, not measured
 
 | Number | Status / source |
 | --- | --- |
@@ -325,6 +426,8 @@ e. **Vector float for the pointwise kernels** (software plus a build flag,
 | Full-model cycles | Extrapolated from measured tiles. The VME k-chunk cost uses the measured k-sweep fit; RVV scales linearly in k; VME attention uses the measured full-block cycles (masked keys still cost work); scalar attention uses the measured cycles per visible pair |
 | Final LayerNorm and LM head | Included, for one token per step (newest position only). Sampling/argmax on the host is not counted |
 | Vocab sweep | Extrapolated from the measured RVV tile and host rate; only the GPT-2 vocab's tile shapes ran on the sim |
+| GPT-Neo 28M head count | 16 heads × 32 dims, assumed from TinyStories' Hugging Face configs; the d_head = 32 attention blocks were measured on the sim |
+| GPT-Neo local layers | Every KV block a window reaches is charged the full-block cost; edge blocks measured cheaper (26.5k vs 58.4k cycles) |
 | Host-side work (summing K-split partial sums, orchestration) | Not counted |
 | Quantization scales | Placeholders, not calibrated; affect accuracy numbers, not cycles |
 | `expf` cost of about 280 cycles | Upper bound inferred from the `online_softmax` measurement; no longer on the attention path |

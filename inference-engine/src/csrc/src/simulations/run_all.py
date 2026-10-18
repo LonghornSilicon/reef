@@ -36,6 +36,7 @@ CONFIG = json.loads((HERE / "config" / "model.json").read_text())
 HARDWARE = json.loads((HERE / "config" / "hardware.json").read_text())
 Q = CONFIG["quant"]
 SCORE_SCALE = Q["q_scale"] * Q["k_scale"] / math.sqrt(CONFIG["model"]["d_head"])
+KV_BLOCK = CONFIG["tiles"]["attention_flash_chunk"]["kv_block"]  # VME streams
 
 CORALNPU_SRC = Path(
     os.environ.get("CORALNPU", Path.home() / "Projects/coralnpu")
@@ -219,6 +220,41 @@ def attention_ref(
     return Q["v_scale"] * out / Q["attn_out_scale"]
 
 
+def attention_u8_ref(
+    q: np.ndarray,
+    kt: np.ndarray,
+    v: np.ndarray,
+    query_start: int,
+    window: int,
+    block: int,
+) -> np.ndarray:
+    """attention_vme_block's own algorithm in float64, in output LSBs.
+
+    Streams `block`-key blocks with a running max and rounds each block's
+    probabilities to uint8 (scale 1/255) against it, so it shows how far
+    uint8 P alone is from attention_ref on these inputs.
+    """
+    scores = SCORE_SCALE * (
+        q.astype(np.float64) @ (kt.astype(np.float64) - Q["k_zero"])
+    )
+    v = v.astype(np.float64)
+    out = np.empty((q.shape[0], v.shape[1]))
+    for row in range(q.shape[0]):
+        pos = query_start + row
+        lo = max(0, pos + 1 - window)
+        m, total, acc = -np.inf, 0.0, np.zeros(v.shape[1])
+        for start in range(lo // block * block, pos + 1, block):
+            a, b = max(lo, start), min(pos + 1, start + block)
+            s = scores[row, a:b]
+            m_new = max(m, s.max())
+            corr = np.exp(m - m_new)
+            p = np.floor(255 * np.exp(s - m_new) + 0.5)
+            acc = acc * corr + p @ v[a:b] / 255
+            total, m = total * corr + p.sum() / 255, m_new
+        out[row] = acc / total - Q["v_zero"]
+    return Q["v_scale"] * out / Q["attn_out_scale"]
+
+
 def gelu_ref(x: np.ndarray) -> np.ndarray:
     """GPT-2's tanh GeLU, input and output in int8 LSBs."""
     r = x.astype(np.float64) * Q["gelu_in_scale"]
@@ -253,14 +289,26 @@ def check(job: dict, data: dict, outputs: dict) -> tuple[float, float]:
             job["query_start"],
             job["window"],
         )
-        # uint8 probabilities (serial, VME) round each p to 1/255 and lose
-        # mass on long rows: the serial algorithm itself is 1.44 LSB from
-        # float at 256 keys. Float-probability kernels (flash) stay at 1.
-        uint8_probs = op == "attention_serial" or job.get(
-            "stream", ""
-        ).startswith("vme")
         err = float(np.abs(data["out_out"] - expected).max())
-        return err, 2.0 if uint8_probs else 1.0
+        # uint8 probabilities round each p to 1/255, which costs most on
+        # long, flat rows (p near 1/255 per key). VME streams must sit
+        # within 1 LSB of their own uint8-P algorithm's error vs float;
+        # serial (1.44 LSB at 256 keys) gets 2; float-P kernels get 1.
+        stream = job.get("stream", "")
+        if stream.startswith("vme"):
+            block = 16 if "vs_serial" in stream else KV_BLOCK
+            u8 = attention_u8_ref(
+                data["in_q"],
+                data["in_kt"],
+                data["in_v"],
+                job["query_start"],
+                job["window"],
+                block,
+            )
+            u8_err = float(np.abs(to_int8(u8) - expected).max())
+            job["uint8_probs_error_lsb"] = u8_err
+            return err, u8_err + 1.0
+        return err, 2.0 if op == "attention_serial" else 1.0
     if op == "softmax_lut_table":
         table = data["out_table"].astype(np.int64)
         gap = np.arange(256)

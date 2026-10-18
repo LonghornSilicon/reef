@@ -1,0 +1,28 @@
+{
+  "_comment": "TinyStories-Instruct-28M (GPT-Neo), the planned deployment model. Overlays model.json for analysis/roofline.py --model; dtypes, quant scales and tiles come from model.json. Dims are derived from workloads/results/flops/gpt_neo.csv and reproduce the published 51,987,968 parameters with tied embeddings. n_head is an assumption (TinyStories' Hugging Face configs use 16 heads); the FLOP counts don't pin it down.",
+  "model": {
+    "name": "gpt-neo-28m",
+    "d_model": 512,
+    "n_head": 16,
+    "d_head": 32,
+    "d_ff": 2048,
+    "n_ctx": 2048,
+    "vocab": 50257,
+    "layers": 8,
+    "window": 256,
+    "attention_layers": ["global", "local"],
+    "scales_scores": false
+  },
+  "assumed": {
+    "n_head": "16 (d_head 32), from TinyStories' Hugging Face configs; not in the repo"
+  },
+  "sequences": {
+    "prefill_lens": [16, 64, 128, 256, 512, 1024, 2048],
+    "decode_context": [512, 1024, 2048]
+  },
+  "sim_jobs": {
+    "_comment": "Sim job names this model's estimate reads (measured in attention_vme_test and pointwise_test).",
+    "attention_stream": "vme_d32",
+    "layernorm": "layernorm_d512"
+  }
+}

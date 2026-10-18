@@ -33,6 +33,11 @@ uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
   `analysis/roofline_{prefill,decode}.png`, `analysis/vocab_sweep.csv`
   (LM-head cost per vocab size in `config/model.json` `sweeps`). The write-up is
   `analysis/REPORT.md`.
+- Other models on the same measured tiles: `analysis/roofline.py --model
+  src/csrc/src/simulations/config/gpt_neo_28m.json` (GPT-Neo 28M: global /
+  local attention layers, its own d_head = 32 attention and d = 512
+  LayerNorm sim jobs). Outputs carry the model name as a suffix
+  (`analysis/roofline_gpt-neo-28m.json` and so on).
 
 ## Layout
 
@@ -40,6 +45,7 @@ uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
 simulations/
 ├── config/
 │   ├── model.json       # GPT-2 small dims, dtypes, quant scales, tiles
+│   ├── gpt_neo_28m.json # GPT-Neo 28M overlay for roofline.py --model
 │   ├── hardware.json    # hardware facts: value, units, source, confirmed
 │   └── gen_params.py    # writes includes/params.h from the two JSON files
 ├── includes/

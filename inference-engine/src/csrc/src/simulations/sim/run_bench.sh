@@ -9,7 +9,7 @@ logs=bazel-testlogs/tests/cocotb/reef/reef_bench_$test
 
 # kernels, headers, config and bench sources go flat into one Bazel package
 rm -rf "$pkg" && mkdir -p "$pkg"
-cp /reef/kernels/* /reef/includes/* /reef/config/model.json \
+cp /reef/kernels/* /reef/includes/* /reef/config/*.json \
     /reef/sim/BUILD /reef/sim/*.cc /reef/sim/*.py "$pkg"/
 
 cd /work/coralnpu

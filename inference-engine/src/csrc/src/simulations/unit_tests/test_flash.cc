@@ -218,6 +218,10 @@ int main() {
     // GPT-2 head width (d = 64) with full causal attention (window = nk)
     failures += check_case("gpt2 prefill", 16, 64, 64, 48, 64);
     failures += check_case("gpt2 decode", 1, 256, 64, 255, 256);
+    // GPT-Neo 28M head width (d = 32); its local layers use a window
+    failures += check_case("neo prefill", 16, 64, 32, 48, 64);
+    failures += check_case("neo local", 16, 256, 32, 240, 64);
+    failures += check_case("neo decode", 1, 256, 32, 255, 64);
     if (failures != 0) {
         printf("%d case(s) failed\n", failures);
     }

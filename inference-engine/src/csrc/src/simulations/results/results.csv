@@ -18,6 +18,22 @@ attention_flash_chunk,chunk_vs_serial_block1,"[16, 16, 64]",prefill,554868,65536
 attention_flash_chunk,chunk_vs_serial_block2,"[16, 16, 64]",prefill,555115,65536,2048,136,0,,
 attention_flash_chunk,chunk_vs_serial_block3,"[16, 16, 64]",prefill,297807,65536,2048,136,0,,
 attention_flash_finish,chunk_vs_serial_finish,"[16, 64, 64]",prefill,68761,0,0,0,1024,0.49982445275863085,True
+attention_vme_block,vme_d32_decode_block0,"[1, 64, 32]",decode,5874,8192,5284,359,0,,
+attention_vme_block,vme_d32_decode_block1,"[1, 64, 32]",decode,5945,8192,4096,268,0,,
+attention_vme_block,vme_d32_decode_block2,"[1, 64, 32]",decode,5945,8192,4096,268,0,,
+attention_vme_block,vme_d32_decode_block3,"[1, 64, 32]",decode,5945,8192,4096,268,0,,
+attention_flash_finish,vme_d32_decode_finish,"[1, 256, 32]",decode,2221,0,0,0,32,0.57352385371229,True
+attention_vme_block,vme_d32_local_block1,"[16, 64, 32]",prefill,26498,131072,7744,516,0,,
+attention_vme_block,vme_d32_local_block2,"[16, 64, 32]",prefill,58327,131072,4096,268,0,,
+attention_vme_block,vme_d32_local_block3,"[16, 64, 32]",prefill,58398,131072,4096,268,0,,
+attention_vme_block,vme_d32_local_block4,"[16, 64, 32]",prefill,58398,131072,4096,268,0,,
+attention_vme_block,vme_d32_local_block5,"[16, 64, 32]",prefill,54318,131072,4096,268,0,,
+attention_flash_finish,vme_d32_local_finish,"[16, 384, 32]",prefill,34412,0,0,0,512,3.450847120820839,True
+attention_vme_block,vme_d32_prefill_block0,"[16, 64, 32]",prefill,57278,131072,7744,516,0,,
+attention_vme_block,vme_d32_prefill_block1,"[16, 64, 32]",prefill,58414,131072,4096,268,0,,
+attention_vme_block,vme_d32_prefill_block2,"[16, 64, 32]",prefill,58414,131072,4096,268,0,,
+attention_vme_block,vme_d32_prefill_block3,"[16, 64, 32]",prefill,54334,131072,4096,268,0,,
+attention_flash_finish,vme_d32_prefill_finish,"[16, 256, 32]",prefill,34604,0,0,0,512,1.7953031190863271,True
 attention_vme_block,vme_decode_block0,"[1, 64, 64]",decode,8888,16384,9540,629,0,,
 attention_vme_block,vme_decode_block1,"[1, 64, 64]",decode,8959,16384,8192,528,0,,
 attention_vme_block,vme_decode_block2,"[1, 64, 64]",decode,8959,16384,8192,528,0,,
@@ -51,9 +67,10 @@ matmul_vme_u8,sweep_vme_k512,"[16, 512, 16]",sweep,11005,262144,16384,1048,1024,
 matmul_vme_u8,sweep_vme_k64,"[16, 64, 16]",sweep,1597,32768,2048,136,1024,0.0,True
 gelu,gelu,[4096],both,53296,4096,4096,264,4352,0.48654059591837945,True
 layernorm,layernorm,"[4, 768]",both,243078,24576,4608,304,3072,0.4998295351929798,True
+layernorm,layernorm_d512,"[4, 512]",both,162169,16384,3072,204,2048,0.49994288728336045,True
 online_softmax,online_softmax_64,[64],prefill,35606,384,4096,264,1024,0.4600034092071894,True
 online_softmax,online_softmax_row,[1024],decode,572943,6144,4096,264,1024,0.4940754458765195,True
-residual_add,residual_add,[4096],both,241857,12288,8192,528,4096,1.7763568394002505e-14,True
+residual_add,residual_add,[4096],both,242082,12288,8192,528,4096,1.7763568394002505e-14,True
 softmax_lut,softmax_lut_64,[64],prefill,3307,384,4096,264,1024,0.4600034092071894,True
 softmax_lut,softmax_lut_row,[1024],decode,52674,6144,4096,264,1024,0.4940754458765195,True
 softmax_lut_table,softmax_lut_table,[512],both,127576,0,0,0,1024,0.4983310991651422,True

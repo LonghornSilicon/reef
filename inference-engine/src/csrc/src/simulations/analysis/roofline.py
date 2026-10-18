@@ -1,6 +1,13 @@
 """Roofline and end-to-end estimate for GPT-2 small on Reef, from results.json.
 
     uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
+    uv run --group sim python src/csrc/src/simulations/analysis/roofline.py \
+        --model src/csrc/src/simulations/config/gpt_neo_28m.json
+
+--model overlays another model's dims, layer pattern (global / local
+attention) and sequences on model.json, and reads the sim jobs it names
+(e.g. GPT-Neo 28M's d_head = 32 attention streams). Its outputs carry the
+model name as a suffix: roofline_<name>.json and so on.
 
 Per operator of one GPT-2 block, for prefill (each config length) and decode
 (one token at the decode context):
@@ -12,7 +19,7 @@ Per operator of one GPT-2 block, for prefill (each config length) and decode
   * kernel_cycles       measured sim cycles per tile x number of tiles
   * host_cycles         host_bytes / measured host->DTCM rate
 Writes analysis/roofline.json, analysis/roofline_{prefill,decode}.png and
-prints the block and 12-layer totals in ms at the configured clock.
+prints the block and all-layer totals in ms at the configured clock.
 
 Tiling schedule (the cheapest the current interface allows): matmuls are
 A-stationary (one A tile of 16 x 512 stays in DTCM while every B tile
@@ -20,9 +27,12 @@ streams past; K is split in 512-wide chunks whose int32 partial sums the
 host adds); attention streams 64-key K/V blocks through attention_vme_block
 for 16-query blocks (both its matmuls on the matrix engine; decode's single
 query on the vector unit). The scalar attention_flash_chunk estimate is
-kept alongside for comparison but not counted in the totals.
+kept alongside for comparison but not counted in the totals (measured at
+d_head = 64, so it only applies to GPT-2). Local-attention layers stream
+only the KV blocks their window reaches.
 """
 
+import argparse
 import csv
 import json
 import math
@@ -40,6 +50,31 @@ CONFIG = json.loads((SIMS / "config" / "model.json").read_text())
 HARDWARE = json.loads((SIMS / "config" / "hardware.json").read_text())
 M = CONFIG["model"]
 D, DFF, H, DH = M["d_model"], M["d_ff"], M["n_head"], M["d_head"]
+# sim job names this model's estimate reads; --model can point elsewhere
+SIM_JOBS = {"attention_stream": "vme", "layernorm": "layernorm"}
+SUFFIX = ""  # output file suffix, "_<name>" under --model
+
+
+def use_model(path: Path) -> None:
+    """Overlay another model's config (see the module docstring)."""
+    global M, D, DFF, H, DH, SUFFIX
+    overlay = json.loads(path.read_text())
+    M = {**M, **overlay["model"]}
+    CONFIG["sequences"] = {**CONFIG["sequences"], **overlay["sequences"]}
+    jobs = overlay.get("sim_jobs", {})
+    SIM_JOBS.update({k: v for k, v in jobs.items() if not k.startswith("_")})
+    D, DFF, H, DH = M["d_model"], M["d_ff"], M["n_head"], M["d_head"]
+    SUFFIX = "_" + M["name"]
+
+
+def layer_windows() -> list[int]:
+    """Attention window of each layer: n_ctx for global, window for local."""
+    pattern = M.get("attention_layers", ["global"])
+    return [
+        M["window"] if pattern[i % len(pattern)] == "local" else M["n_ctx"]
+        for i in range(M["layers"])
+    ]
+
 
 # reference palette (dataviz skill): one slot per engine, all-pairs safe
 ENGINE_COLORS = {"VME": "#2a78d6", "RVV": "#eb6834", "scalar": "#1baf7a"}
@@ -122,26 +157,31 @@ def matmul_op(meas: Measured, name: str, n: int, k: int, m: int) -> dict:
     }
 
 
-def attention_blocks(nq: int, ctx: int) -> tuple[int, int, int, int, int]:
+def attention_blocks(
+    nq: int, ctx: int, window: int
+) -> tuple[int, int, int, int, int]:
     """(query block, query blocks, KV block, visible pairs, block pairs)."""
     block = CONFIG["tiles"]["attention_flash_chunk"]["kv_block"]
     qb = CONFIG["tiles"]["attention_flash_chunk"]["nq"] if nq > 1 else 1
     pairs = 0  # (query block, kv block) pairs that see at least one key
     for q0 in range(0, nq, qb):
+        first_pos = ctx - nq + q0
         last_pos = ctx - nq + min(q0 + qb, nq) - 1
-        pairs += cdiv(last_pos + 1, block)
-    visible = sum(ctx - nq + i + 1 for i in range(nq))  # causal key count
+        lo = max(0, first_pos + 1 - window)  # oldest key any row sees
+        pairs += last_pos // block - lo // block + 1
+    # causal key count, capped by the window
+    visible = sum(min(ctx - nq + i + 1, window) for i in range(nq))
     return qb, cdiv(nq, qb), block, visible, pairs
 
 
-def attention_host_bytes(nq: int, ctx: int) -> int:
+def attention_host_bytes(nq: int, ctx: int, window: int) -> int:
     """Host traffic of streamed attention: K/V per block pair, q/state/out."""
-    qb, q_blocks, block, _, pairs = attention_blocks(nq, ctx)
+    qb, q_blocks, block, _, pairs = attention_blocks(nq, ctx, window)
     per_q_block = qb * DH + qb * (DH + 2) * 4 + qb * DH  # q, state, out
     return H * (pairs * 2 * block * DH + q_blocks * per_q_block)
 
 
-def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
+def attention_op(meas: Measured, nq: int, ctx: int, window: int) -> dict:
     """All heads of causal attention via attention_vme_block (the default).
 
     Both matmuls run through matmul(): the matrix engine for prefill's
@@ -149,8 +189,9 @@ def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
     computes whole blocks (masked keys still cost work), so each (query
     block, KV block) pair costs the measured cycles of one full block.
     """
-    qb, q_blocks, block, visible, pairs = attention_blocks(nq, ctx)
-    stream = "vme_prefill" if nq > 1 else "vme_decode"
+    qb, q_blocks, block, visible, pairs = attention_blocks(nq, ctx, window)
+    stream = SIM_JOBS["attention_stream"]
+    stream += "_prefill" if nq > 1 else "_decode"
     per_block = meas.mean_cycles(f"{stream}_block")
     finish = meas.cycles(f"{stream}_finish")
     if nq > 1:  # matrix engine: 16x16x4 steps of 128 operand bytes
@@ -168,18 +209,18 @@ def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
         "ops": H * 4 * visible * DH,
         "kernel_cycles": H * (pairs * per_block + q_blocks * finish),
         "dtcm_bytes": H * pairs * (mm_bytes + state),
-        "host_bytes": attention_host_bytes(nq, ctx),
+        "host_bytes": attention_host_bytes(nq, ctx, window),
         "tiles": H * pairs,
     }
 
 
-def attention_scalar_op(meas: Measured, nq: int, ctx: int) -> dict:
+def attention_scalar_op(meas: Measured, nq: int, ctx: int, window: int) -> dict:
     """Scalar attention_flash_chunk, kept for comparison (not in totals).
 
     Cost per visible (query, key) pair comes from the measured stream: masked
     keys cost nothing, so diagonal blocks are charged only for what they do.
     """
-    _, q_blocks, _, visible, pairs = attention_blocks(nq, ctx)
+    _, q_blocks, _, visible, pairs = attention_blocks(nq, ctx, window)
     stream = "chunk_prefill" if nq > 1 else "chunk_decode"
     finish = meas.cycles(f"{stream}_finish")
     fin = meas.jobs.get(f"{stream}_finish", {})
@@ -195,7 +236,7 @@ def attention_scalar_op(meas: Measured, nq: int, ctx: int) -> dict:
         # per visible pair: a d-byte kt column, a d-byte v row and a float
         # acc row read and written (8d)
         "dtcm_bytes": H * visible * (DH + DH + 8 * DH),
-        "host_bytes": attention_host_bytes(nq, ctx),
+        "host_bytes": attention_host_bytes(nq, ctx, window),
         "tiles": H * pairs,
         "cycles_per_visible_pair": per_pair,
     }
@@ -231,15 +272,16 @@ def pointwise_op(meas: Measured, name: str, job: str, elems: int) -> dict:
     }
 
 
-def block_ops(meas: Measured, nq: int, ctx: int) -> list[dict]:
-    """Every operator of one GPT-2 block for nq new tokens at context ctx."""
+def block_ops(meas: Measured, nq: int, ctx: int, window: int) -> list[dict]:
+    """Every operator of one block for nq new tokens at context ctx."""
+    ln = SIM_JOBS["layernorm"]
     return [
-        pointwise_op(meas, "ln1", "layernorm", nq * D),
+        pointwise_op(meas, "ln1", ln, nq * D),
         matmul_op(meas, "qkv", nq, D, 3 * D),
-        attention_op(meas, nq, ctx),
+        attention_op(meas, nq, ctx, window),
         matmul_op(meas, "attn_out", nq, D, D),
         pointwise_op(meas, "residual1", "residual_add", nq * D),
-        pointwise_op(meas, "ln2", "layernorm", nq * D),
+        pointwise_op(meas, "ln2", ln, nq * D),
         matmul_op(meas, "fc1", nq, D, DFF),
         pointwise_op(meas, "gelu", "gelu", nq * DFF),
         matmul_op(meas, "fc2", nq, DFF, D),
@@ -256,7 +298,7 @@ def head_ops(meas: Measured, vocab: int) -> list[dict]:
     streaming the d_model x vocab weight matrix through DTCM once per token.
     """
     return [
-        pointwise_op(meas, "ln_f", "layernorm", D),
+        pointwise_op(meas, "ln_f", SIM_JOBS["layernorm"], D),
         matmul_op(meas, "lm_head", 1, D, vocab),
     ]
 
@@ -279,8 +321,13 @@ def roofline_panel(
     dashed: bool,
     peak: float,
     xlabel: str,
+    rvv_peak: float | None = None,
 ) -> None:
-    """One log-log roofline: ops/cycle vs ops per byte of `key` traffic."""
+    """One log-log roofline: ops/cycle vs ops per byte of `key` traffic.
+
+    rvv_peak, when given, adds the measured RVV matmul rate as a second
+    horizontal ceiling (decode runs its matmuls on RVV).
+    """
     # ops that land within ~25% of each other share one point and label
     points: dict[tuple, list[tuple]] = {}
     for o in ops:
@@ -315,6 +362,16 @@ def roofline_panel(
         fontsize=7,
         va="bottom",
     )
+    if rvv_peak is not None:
+        ax.axhline(rvv_peak, color=ENGINE_COLORS["RVV"], lw=1.0, ls="--")
+        ax.annotate(
+            f"RVV peak {rvv_peak:.1f} (measured)",
+            (x_hi / 1.3, rvv_peak),
+            color=INK,
+            fontsize=7,
+            va="bottom",
+            ha="right",
+        )
     for group in points.values():
         (x, y), first = group[0]
         color = ENGINE_COLORS[first["engine"]]
@@ -339,8 +396,18 @@ def roofline_panel(
     ax.tick_params(colors=MUTED, labelsize=7)
 
 
-def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
-    """DTCM and host rooflines side by side for one phase."""
+def plot(
+    ops: list[dict],
+    title: str,
+    ceilings: dict,
+    path: Path,
+    rvv: bool = False,
+) -> None:
+    """DTCM and host rooflines side by side for one phase.
+
+    rvv adds the measured RVV matmul ceiling (for decode).
+    """
+    rvv_peak = ceilings["rvv_ops_per_cycle"] if rvv else None
     fig, (left, right) = plt.subplots(
         1, 2, figsize=(11, 4.6), dpi=150, sharey=True
     )
@@ -355,6 +422,7 @@ def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
         False,
         peak,
         "ops per DTCM<->core byte",
+        rvv_peak,
     )
     roofline_panel(
         right,
@@ -365,6 +433,7 @@ def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
         not ceilings["host_measured"],
         peak,
         "ops per host<->DTCM byte (no DMA)",
+        rvv_peak,
     )
     left.set_ylabel(
         "attained ops per cycle (kernel only)", color=MUTED, fontsize=8
@@ -408,7 +477,7 @@ def vocab_sweep(
             row[f"{phase}_ms"] = 1e3 * (blocks + head_cycles) / clock_hz
             row[f"{phase}_head_share"] = head_cycles / (blocks + head_cycles)
         rows.append(row)
-    with open(HERE / "vocab_sweep.csv", "w", newline="") as f:
+    with open(HERE / f"vocab_sweep{SUFFIX}.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
@@ -426,6 +495,10 @@ def vocab_sweep(
 
 def main() -> int:
     """Build per-phase operator tables, plots and the end-to-end estimate."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--model", type=Path, help="model overlay JSON")
+    if (model := parser.parse_args().model) is not None:
+        use_model(model)
     results = json.loads((SIMS / "results" / "results.json").read_text())
     meas = Measured(results)
     micro = results["microbench"]
@@ -436,6 +509,15 @@ def main() -> int:
     source = "measured" if host_measured else "RTL bound, unconfirmed"
     ceilings = {
         "vme_ops_per_cycle": 2 * micro.get("vme_peak_macs_per_cycle", math.nan),
+        # best measured RVV matmul tile (ops = 2 x MACs)
+        "rvv_ops_per_cycle": max(
+            (
+                j["ops"] / j["cycles"]
+                for j in meas.jobs.values()
+                if j["op"].startswith("matmul_rvv")
+            ),
+            default=math.nan,
+        ),
         "dtcm_bytes_per_cycle": HARDWARE["dbus_bytes_per_cycle"]["value"],
         "host_bytes_per_cycle": host_bw,
         "host_measured": host_measured,
@@ -444,21 +526,37 @@ def main() -> int:
 
     lens = CONFIG["sequences"]["prefill_lens"]
     phases = {f"prefill_{n}": (n, n) for n in lens}
-    ctx = CONFIG["sequences"]["decode_context"]
-    phases["decode"] = (1, ctx)
-    out = {"ceilings": ceilings, "clock_hz": clock_hz, "phases": {}}
+    # decode_context: one context, or a list (the first is "decode")
+    ctxs = CONFIG["sequences"]["decode_context"]
+    for i, ctx in enumerate(ctxs if isinstance(ctxs, list) else [ctxs]):
+        phases["decode" if i == 0 else f"decode_{ctx}"] = (1, ctx)
+    windows = layer_windows()
+    out = {"model": M, "ceilings": ceilings, "clock_hz": clock_hz}
+    out["phases"] = {}
     for phase, (nq, context) in phases.items():
-        ops = block_ops(meas, nq, context)
-        scalar_attention = attention_scalar_op(meas, nq, context)
+        # one operator table per distinct window (global, local)
+        by_window = {w: block_ops(meas, nq, context, w) for w in set(windows)}
+        scalar_attention = attention_scalar_op(meas, nq, context, M["n_ctx"])
         head = head_ops(meas, M["vocab"])
-        add_costs([*ops, scalar_attention, *head], host_bw)
-        block = sum(o["total_cycles"] for o in ops)
+        layer_ops = [o for ops in by_window.values() for o in ops]
+        add_costs([*layer_ops, scalar_attention, *head], host_bw)
+        layer_cycles = {
+            w: sum(o["total_cycles"] for o in ops)
+            for w, ops in by_window.items()
+        }
+        block = sum(layer_cycles[w] for w in windows) / M["layers"]  # mean
+        ops = by_window[windows[0]]
         head_cycles = sum(o["total_cycles"] for o in head)
         full = M["layers"] * block + head_cycles
         out["phases"][phase] = {
             "nq": nq,
             "context": context,
             "operators": ops,
+            **(
+                {"local_operators": by_window[M["window"]]}
+                if len(by_window) > 1
+                else {}
+            ),
             "attention_scalar_for_comparison": scalar_attention,
             "block_cycles": block,
             "block_ms": 1e3 * block / clock_hz,
@@ -466,12 +564,15 @@ def main() -> int:
             "head_operators": head,
             "head_ms": 1e3 * head_cycles / clock_hz,
             "full_model_ms": 1e3 * full / clock_hz,
-            "kernel_share": sum(o["kernel_cycles"] for o in ops) / block,
+            "kernel_share": sum(
+                sum(o["kernel_cycles"] for o in by_window[w]) for w in windows
+            )
+            / (M["layers"] * block),
         }
         p = out["phases"][phase]
         print(
             f"{phase:<13} block {p['block_ms']:10.2f} ms   "
-            f"12 layers {p['model_ms']:10.1f} ms   "
+            f"{M['layers']} layers {p['model_ms']:10.1f} ms   "
             f"+ head {p['head_ms']:8.1f} ms = {p['full_model_ms']:10.1f} ms"
         )
 
@@ -480,16 +581,19 @@ def main() -> int:
         p = out["phases"][phase]
         plot(
             p["operators"],
-            f"{label}: one GPT-2 block ({p['nq']} "
+            f"{label}: one {M['name']} block ({p['nq']} "
             f"token{'s' if p['nq'] > 1 else ''}, context {p['context']})",
             ceilings,
-            HERE / f"roofline_{label.lower()}.png",
+            HERE / f"roofline_{label.lower()}{SUFFIX}.png",
+            rvv=label == "Decode",
         )
     out["vocab_sweep"] = vocab_sweep(meas, out, host_bw, clock_hz, longest)
     out["missing"] = sorted(set(meas.missing))
     if out["missing"]:
         print("missing measurements (estimates are NaN):", out["missing"])
-    (HERE / "roofline.json").write_text(json.dumps(out, indent=2) + "\n")
+    (HERE / f"roofline{SUFFIX}.json").write_text(
+        json.dumps(out, indent=2) + "\n"
+    )
     return 0
 
 

@@ -1,6 +1,19 @@
 {
+  "model": {
+    "name": "gpt2-small",
+    "d_model": 768,
+    "n_head": 12,
+    "d_head": 64,
+    "d_ff": 3072,
+    "n_ctx": 1024,
+    "vocab": 50257,
+    "layers": 12,
+    "layernorm_eps": 1e-05,
+    "window": 1024
+  },
   "ceilings": {
     "vme_ops_per_cycle": 24.4,
+    "rvv_ops_per_cycle": 3.5422471454631443,
     "dtcm_bytes_per_cycle": 16,
     "host_bytes_per_cycle": 15.745,
     "host_measured": true,
@@ -68,12 +81,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 36864,
-          "kernel_cycles": 725571,
+          "kernel_cycles": 726246,
           "dtcm_bytes": 36864,
           "host_bytes": 36864,
           "tiles": 3,
           "host_cycles": 2341.314703080343,
-          "total_cycles": 727912.3147030803,
+          "total_cycles": 728587.3147030803,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -133,12 +146,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 36864,
-          "kernel_cycles": 725571,
+          "kernel_cycles": 726246,
           "dtcm_bytes": 36864,
           "host_bytes": 36864,
           "tiles": 3,
           "host_cycles": 2341.314703080343,
-          "total_cycles": 727912.3147030803,
+          "total_cycles": 728587.3147030803,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -157,9 +170,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 2.4070796460176993
       },
-      "block_cycles": 15848323.181327406,
-      "block_ms": 316.9664636265481,
-      "model_ms": 3803.5975635185773,
+      "block_cycles": 15849673.181327408,
+      "block_ms": 316.99346362654813,
+      "model_ms": 3803.921563518578,
       "head_operators": [
         {
           "op": "ln_f",
@@ -189,8 +202,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 4297.180795052398,
-      "kernel_share": 0.9653136060491818
+      "full_model_ms": 4297.504795052398,
+      "kernel_share": 0.9653165604717303
     },
     "prefill_64": {
       "nq": 64,
@@ -252,12 +265,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 147456,
-          "kernel_cycles": 2902284,
+          "kernel_cycles": 2904984,
           "dtcm_bytes": 147456,
           "host_bytes": 147456,
           "tiles": 12,
           "host_cycles": 9365.258812321372,
-          "total_cycles": 2911649.2588123213,
+          "total_cycles": 2914349.2588123213,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -317,12 +330,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 147456,
-          "kernel_cycles": 2902284,
+          "kernel_cycles": 2904984,
           "dtcm_bytes": 147456,
           "host_bytes": 147456,
           "tiles": 12,
           "host_cycles": 9365.258812321372,
-          "total_cycles": 2911649.2588123213,
+          "total_cycles": 2914349.2588123213,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -341,9 +354,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 9.20353982300885
       },
-      "block_cycles": 63393292.725309625,
-      "block_ms": 1267.8658545061924,
-      "model_ms": 15214.39025407431,
+      "block_cycles": 63398692.72530963,
+      "block_ms": 1267.9738545061925,
+      "model_ms": 15215.686254074311,
       "head_operators": [
         {
           "op": "ln_f",
@@ -373,8 +386,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 15707.973485608132,
-      "kernel_share": 0.9653136060491818
+      "full_model_ms": 15709.269485608133,
+      "kernel_share": 0.9653165604717303
     },
     "prefill_128": {
       "nq": 128,
@@ -436,12 +449,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 294912,
-          "kernel_cycles": 5804568,
+          "kernel_cycles": 5809968,
           "dtcm_bytes": 294912,
           "host_bytes": 294912,
           "tiles": 24,
           "host_cycles": 18730.517624642744,
-          "total_cycles": 5823298.517624643,
+          "total_cycles": 5828698.517624643,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -501,12 +514,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 294912,
-          "kernel_cycles": 5804568,
+          "kernel_cycles": 5809968,
           "dtcm_bytes": 294912,
           "host_bytes": 294912,
           "tiles": 24,
           "host_cycles": 18730.517624642744,
-          "total_cycles": 5823298.517624643,
+          "total_cycles": 5828698.517624643,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -525,9 +538,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 14.23448275862069
       },
-      "block_cycles": 130332599.47411877,
-      "block_ms": 2606.6519894823755,
-      "model_ms": 31279.823873788508,
+      "block_cycles": 130343399.47411877,
+      "block_ms": 2606.8679894823754,
+      "model_ms": 31282.415873788505,
       "head_operators": [
         {
           "op": "ln_f",
@@ -557,8 +570,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 31773.407105322323,
-      "kernel_share": 0.9660657157766808
+      "full_model_ms": 31775.999105322324,
+      "kernel_share": 0.9660685275053229
     },
     "prefill_256": {
       "nq": 256,
@@ -620,12 +633,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 589824,
-          "kernel_cycles": 11609136,
+          "kernel_cycles": 11619936,
           "dtcm_bytes": 589824,
           "host_bytes": 589824,
           "tiles": 48,
           "host_cycles": 37461.03524928549,
-          "total_cycles": 11646597.035249285,
+          "total_cycles": 11657397.035249285,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -685,12 +698,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 589824,
-          "kernel_cycles": 11609136,
+          "kernel_cycles": 11619936,
           "dtcm_bytes": 589824,
           "host_bytes": 589824,
           "tiles": 48,
           "host_cycles": 37461.03524928549,
-          "total_cycles": 11646597.035249285,
+          "total_cycles": 11657397.035249285,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -709,9 +722,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 19.67464114832536
       },
-      "block_cycles": 274849255.0422356,
-      "block_ms": 5496.985100844712,
-      "model_ms": 65963.82121013655,
+      "block_cycles": 274870855.0422356,
+      "block_ms": 5497.417100844713,
+      "model_ms": 65969.00521013654,
       "head_operators": [
         {
           "op": "ln_f",
@@ -741,8 +754,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 66457.40444167037,
-      "kernel_share": 0.9674534935855621
+      "full_model_ms": 66462.58844167038,
+      "kernel_share": 0.9674560511667885
     },
     "prefill_1024": {
       "nq": 1024,
@@ -804,12 +817,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 2359296,
-          "kernel_cycles": 46436544,
+          "kernel_cycles": 46479744,
           "dtcm_bytes": 2359296,
           "host_bytes": 2359296,
           "tiles": 192,
           "host_cycles": 149844.14099714195,
-          "total_cycles": 46586388.14099714,
+          "total_cycles": 46629588.14099714,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -869,12 +882,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 2359296,
-          "kernel_cycles": 46436544,
+          "kernel_cycles": 46479744,
           "dtcm_bytes": 2359296,
           "host_bytes": 2359296,
           "tiles": 192,
           "host_cycles": 149844.14099714195,
-          "total_cycles": 46586388.14099714,
+          "total_cycles": 46629588.14099714,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -893,9 +906,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 27.655986509274875
       },
-      "block_cycles": 1439814366.4248967,
-      "block_ms": 28796.287328497936,
-      "model_ms": 345555.4479419752,
+      "block_cycles": 1439900766.424897,
+      "block_ms": 28798.01532849794,
+      "model_ms": 345576.1839419753,
       "head_operators": [
         {
           "op": "ln_f",
@@ -925,8 +938,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 346049.0311735091,
-      "kernel_share": 0.973483360553141
+      "full_model_ms": 346069.76717350906,
+      "kernel_share": 0.9734849516611545
     },
     "decode": {
       "nq": 1,
@@ -988,12 +1001,12 @@
           "op": "residual1",
           "engine": "scalar",
           "ops": 12288,
-          "kernel_cycles": 241857,
+          "kernel_cycles": 242082,
           "dtcm_bytes": 12288,
           "host_bytes": 12288,
           "tiles": 1,
           "host_cycles": 780.4382343601144,
-          "total_cycles": 242637.4382343601,
+          "total_cycles": 242862.4382343601,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         },
@@ -1053,12 +1066,12 @@
           "op": "residual2",
           "engine": "scalar",
           "ops": 12288,
-          "kernel_cycles": 241857,
+          "kernel_cycles": 242082,
           "dtcm_bytes": 12288,
           "host_bytes": 12288,
           "tiles": 1,
           "host_cycles": 780.4382343601144,
-          "total_cycles": 242637.4382343601,
+          "total_cycles": 242862.4382343601,
           "intensity_dtcm": 1.0,
           "intensity_host": 1.0
         }
@@ -1077,9 +1090,9 @@
         "intensity_dtcm": 0.4,
         "intensity_host": 1.9940363901904703
       },
-      "block_cycles": 7374932.106065418,
-      "block_ms": 147.49864212130834,
-      "model_ms": 1769.9837054557004,
+      "block_cycles": 7375382.106065418,
+      "block_ms": 147.50764212130835,
+      "model_ms": 1770.0917054557003,
       "head_operators": [
         {
           "op": "ln_f",
@@ -1109,8 +1122,8 @@
         }
       ],
       "head_ms": 493.58323153382025,
-      "full_model_ms": 2263.5669369895204,
-      "kernel_share": 0.9244150185997017
+      "full_model_ms": 2263.6749369895206,
+      "kernel_share": 0.9244196303257304
     }
   },
   "vocab_sweep": [
@@ -1121,10 +1134,10 @@
       "lm_head_host_bytes": 6357760,
       "lm_head_host_cycles": 403795.49063194665,
       "head_ms": 84.50946529056844,
-      "decode_ms": 1854.4931707462686,
-      "decode_head_share": 0.045570114047150084,
-      "prefill_1024_ms": 345639.95740726584,
-      "prefill_1024_head_share": 0.0002445014341643126
+      "decode_ms": 1854.6011707462685,
+      "decode_head_share": 0.04556746033788109,
+      "prefill_1024_ms": 345660.6934072659,
+      "prefill_1024_head_share": 0.0002444867666541342
     },
     {
       "vocab": 16384,
@@ -1133,10 +1146,10 @@
       "lm_head_host_bytes": 12714752,
       "lm_head_host_cycles": 807542.2038742459,
       "head_ms": 164.14663955541442,
-      "decode_ms": 1934.1303450111145,
-      "decode_head_share": 0.08486844745433698,
-      "prefill_1024_ms": 345719.5945815307,
-      "prefill_1024_head_share": 0.00047479703820115383
+      "decode_ms": 1934.2383450111145,
+      "decode_head_share": 0.08486370874550686,
+      "prefill_1024_ms": 345740.3305815307,
+      "prefill_1024_head_share": 0.00047476856194162234
     },
     {
       "vocab": 32768,
@@ -1145,10 +1158,10 @@
       "lm_head_host_bytes": 25428736,
       "lm_head_host_cycles": 1615035.630358844,
       "head_ms": 323.4209880851064,
-      "decode_ms": 2093.4046935408064,
-      "decode_head_share": 0.15449520538624034,
-      "prefill_1024_ms": 345878.86893006036,
-      "prefill_1024_head_share": 0.0009350700986318561
+      "decode_ms": 2093.5126935408066,
+      "decode_head_share": 0.15448723529738767,
+      "prefill_1024_ms": 345899.60493006033,
+      "prefill_1024_head_share": 0.000935014043021243
     },
     {
       "vocab": 50257,
@@ -1157,10 +1170,10 @@
       "lm_head_host_bytes": 39011840,
       "lm_head_host_cycles": 2477728.802794538,
       "head_ms": 493.58323153382025,
-      "decode_ms": 2263.5669369895204,
-      "decode_head_share": 0.2180555049943749,
-      "prefill_1024_ms": 346049.0311735091,
-      "prefill_1024_head_share": 0.0014263390071054339
+      "decode_ms": 2263.6749369895206,
+      "decode_head_share": 0.21804510155960846,
+      "prefill_1024_ms": 346069.76717350906,
+      "prefill_1024_head_share": 0.0014262535429347468
     },
     {
       "vocab": 100352,
@@ -1169,10 +1182,10 @@
       "lm_head_host_bytes": 77873920,
       "lm_head_host_cycles": 4945946.014607812,
       "head_ms": 980.4276757700858,
-      "decode_ms": 2750.411381225786,
-      "decode_head_share": 0.3564658299709096,
-      "prefill_1024_ms": 346535.87561774533,
-      "prefill_1024_head_share": 0.0028292241720207054
+      "decode_ms": 2750.519381225786,
+      "decode_head_share": 0.35645183322909435,
+      "prefill_1024_ms": 346556.61161774537,
+      "prefill_1024_head_share": 0.0028290548871464185
     }
   ],
   "missing": []
