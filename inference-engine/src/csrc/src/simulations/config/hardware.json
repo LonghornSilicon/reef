@@ -61,8 +61,9 @@
     "confirmed": false
   },
   "sim": {
-    "value": "google-coral/coralnpu@382b5c12, cocotb + Verilator, hdl_toplevel VmeCoreMiniAxi", "units": "",
-    "source": "~/Projects/coralnpu main; the experimental RTL with a working matrix unit",
+    "value": "google-coral/coralnpu, cocotb + Verilator, hdl_toplevel VmeCoreMiniAxi, behavioral SRAM model", "units": "",
+    "commit": "382b5c12",
+    "source": "coralnpu main: the experimental RTL with a working matrix unit. Its Verilator flow has only the behavioral SRAM model (no sram22 macro option)",
     "confirmed": true
   }
 }

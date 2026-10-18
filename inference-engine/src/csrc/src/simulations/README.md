@@ -8,27 +8,63 @@ The code builds freestanding for `riscv32-unknown-elf` with
 `-march=rv32imf_zve32x -mabi=ilp32f`. It has no C++ standard library, so only
 the C headers (`<stddef.h>`, `<stdint.h>`) are available.
 
+## Run everything
+
+From `inference-engine/`, one command builds every kernel, runs it on the
+host and on Coral's VME RTL model, checks it and writes the results:
+
+```sh
+uv run --group sim python src/csrc/src/simulations/run_all.py
+uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
+```
+
+- Host: every unit test (`clang++ -DVME_EMULATE -DRVV_EMULATE`) and the
+  embedding timing.
+- Sim: Docker image `coralnpu-reef` (built from coralnpu's
+  `utils/coralnpu.dockerfile`) and volume `reef-coralnpu` (a checkout of
+  coralnpu at the commit pinned in `config/hardware.json`, plus the Bazel
+  cache). `~/Projects/coralnpu` (override with `CORALNPU=`) is only read.
+  The benches run with cocotb on `VmeCoreMiniAxi` under Verilator, with
+  coralnpu's behavioral SRAM model. **The first run builds the RTL model
+  and takes hours** under amd64 emulation on Apple Silicon; later runs
+  reuse the cache.
+- `--skip-sim` reuses `results/sim_raw/` from the last sim run.
+- Outputs: `results/results.{json,csv}`, `analysis/roofline.json`,
+  `analysis/roofline_{prefill,decode}.png`. The write-up is
+  `analysis/REPORT.md`.
+
 ## Layout
 
 ```
 simulations/
-├── .clang-tidy          # repo lint rules, plus the exceptions below
-├── compile_flags.txt    # target flags and include paths for clangd/clang-tidy
+├── config/
+│   ├── model.json       # GPT-2 small dims, dtypes, quant scales, tiles
+│   ├── hardware.json    # hardware facts: value, units, source, confirmed
+│   └── gen_params.py    # writes includes/params.h from the two JSON files
 ├── includes/
-│   ├── quant_helpers.h  # namespace quant: scalar requantization + expf
-│   ├── rvv_helpers.h    # namespace rvv: wrappers over RVV intrinsics
-│   └── vme_helpers.h    # namespace vme: wrappers over VME (Zvt) instructions
+│   ├── params.h         # GENERATED: namespace params, kCamelCase constants
+│   ├── quant_helpers.h  # namespace quant: requantization + newlib math decls
+│   ├── rvv_helpers.h    # namespace rvv: RVV wrappers (+ -DRVV_EMULATE model)
+│   └── vme_helpers.h    # namespace vme: VME (Zvt) wrappers (+ -DVME_EMULATE)
 ├── kernels/
-│   ├── attention_flash.h/.cc  # fused attention head (online softmax)
-│   ├── attention_serial.h/.cc # unfused attention head, flash's reference
-│   ├── matmul_rvv.h/.cc # matmul on the vector unit
-│   └── matmul_vme.h/.cc # matmul on the matrix engine
-├── unit_tests/          # one test per kernel (stubs for now)
-└── integration_tests/   # test_main.cc (stub for now)
+│   ├── matmul.h/.cc            # the one matmul entry point (VME or RVV)
+│   ├── matmul_rvv.h/.cc        # matmul on the vector unit
+│   ├── matmul_vme.h/.cc        # matmul on the matrix engine
+│   ├── online_softmax.h/.cc    # int32 scores -> uint8 probabilities
+│   ├── attention_serial.h/.cc  # unfused attention head, the reference
+│   ├── attention_flash.h/.cc   # fused attention head (online softmax)
+│   ├── attention_flash_chunk.h/.cc # flash with KV streamed in blocks
+│   ├── gelu.h/.cc              # 256-entry lookup table
+│   ├── layernorm.h/.cc
+│   └── residual.h/.cc
+├── unit_tests/          # one host test per kernel family
+├── host/embedding_bench.cc  # host-side token + position embedding, timed
+├── sim/                 # coralnpu Bazel package: bench ELFs + cocotb bench
+├── run_all.py           # the one command (see above)
+├── analysis/            # roofline.py, REPORT.md, plots
+├── results/             # results.json/.csv, raw sim records
+└── integration_tests/   # test_main.cc (stub)
 ```
-
-`kernels/` and `includes/` are on the include path, so any file includes a
-header by its bare name: `#include "matmul_rvv.h"`, `#include "vme_helpers.h"`.
 
 ## Kernels
 
@@ -91,9 +127,10 @@ sliding-window masking happen through loop bounds — query row `i` sees keys
 mask buffers or sentinel scores. `window >= nk` disables the local limit;
 `window` must be at least 1.
 
-- `attention_serial` materializes one score row at a time and normalizes it
-  with a private float softmax. That softmax is a stand-in: once the
-  standalone softmax kernel exists it should be called here instead.
+- `attention_serial` materializes one int32 score row at a time, turns it
+  into uint8 probabilities with `online_softmax`, and does P·V in int32
+  with a `v_zero * sum(p)` lift (the probabilities sum to ~255, not
+  exactly 255).
 - `attention_flash` fuses everything into one pass per query row with the
   online-softmax recurrence (running max, denominator and weighted sum), so
   it never materializes a score row and its per-row state is O(d).
@@ -102,28 +139,67 @@ mask buffers or sentinel scores. `window >= nk` disables the local limit;
 - Internals use scalar float registers (`rv32imf`); only int8/uint8 data
   touches memory. `expf` comes from newlib and is declared directly in
   `quant_helpers.h`, since the freestanding build has no `<math.h>`.
-- TODO: the matmul kernels get ported in **after the standalone softmax
-  kernel lands**, as sibling VME kernels (the scalar ones stay as the
-  reference). Gated on three things: the value stage needs the softmax
-  kernel's uint8 probabilities to feed `matmul_vme_u8` (the score stage
-  already maps to `matmul_vme_s8u8` plus a per-row `k_zero * sum(q)`
-  fixup); VME can only be verified on Coral's RTL model, which nothing
-  builds for yet; and VME's 16×16 tile shape needs padding/masking work
-  (decode is `nq = 1`) and turns flash into a per-block online update
-  (block flash).
+- TODO: a VME attention kernel (scores via `matmul_vme_s8u8`, P·V via
+  `matmul_vme_u8`) is now unblocked: every stage has the data types it
+  needs. It needs padding/masking for decode (`nq = 1`) and becomes a
+  per-block flash update. The scalar kernels stay as the reference.
+
+### `matmul` (dispatcher)
+
+```c
+void matmul(size_t n, size_t k, size_t m, const uint8_t* a, bool signed_a,
+            const uint8_t* b, int32_t* c);
+```
+
+The one entry point attention and the MLP call. VME when `n % 16`, `m % 16`
+and `k % 4` are all 0, RVV otherwise (decode's `n = 1`). It does not pad to
+VME's shape: that needs a 16 × k scratch copy in DTCM and wastes 15 of 16
+rows. `matmul_rvv_s8u8` is the signed RVV fallback for the score matmul.
+
+### `online_softmax`
+
+```c
+void online_softmax(const int32_t* scores, size_t lo, size_t hi,
+                    float score_scale, uint8_t* probs);
+```
+
+One int32 score row (the q·kt accumulator after the `k_zero * q_sum` fixup),
+visible slice `[lo, hi]`, to uint8 probabilities with scale 1/255 and zero
+point 0, the A operand `matmul_vme_u8` takes for P·V. Pass 1 keeps the
+running max and normalizer, pass 2 normalizes.
+
+### `gelu`, `layernorm`, `residual_add`
+
+- `gelu_table` builds a 256-entry int8 table of GPT-2's tanh GeLU from the
+  input and output scales; `gelu` is then a pure lookup, exact for int8.
+- `layernorm`: exact int32 row sums, float mean/variance/1/sqrt, eps 1e-5,
+  int8 gamma and beta with their own scales.
+- `residual_add`: dequantize both inputs, add, requantize.
+
+### `attention_flash_chunk` and `attention_flash_finish`
+
+One head's K and V at n_ctx = 1024 are 64 KB each, twice the 32 KB DTCM.
+The chunked variant takes one KV block at absolute offset `kv_start` plus
+the per-row running state (`m`, `l`, `acc`) in and out, so the host
+streams blocks through DTCM; `attention_flash_finish` normalizes and
+requantizes. Zero `l` and `acc` before the first block. It matches
+`attention_serial` within one int8 step. `attention_flash` is unchanged.
 
 ## Helpers
 
 ### `quant_helpers.h`
 
-The `expf` declaration and `quant::to_int8` (round to nearest, ties away
-from zero, clamped), shared by the two attention kernels.
+The newlib `expf`, `tanhf` and `sqrtf` declarations and `quant::to_int8`
+(round to nearest, ties away from zero, clamped), shared by the kernels.
 
 ### `rvv_helpers.h`
 
-Type aliases (`rvv::vu8`, `rvv::vu16`, `rvv::vu32`) and small always-inline
-wrappers (`set_vl`, `zeros`, `load_widen`, `mac`, `store`), so the element
-widths and register-group sizes are chosen in one place.
+Type aliases (`rvv::vu8`, `rvv::vu16`, `rvv::vu32`, and the signed
+`vi16`/`vi32`) and small always-inline wrappers (`set_vl`, `zeros`,
+`load_widen`, `mac`, `store` and their `_s` variants), so the element
+widths and register-group sizes are chosen in one place. Build with
+`-DRVV_EMULATE` for a plain C model of each wrapper (16 lanes), like
+`-DVME_EMULATE` below.
 
 ### `vme_helpers.h`
 
@@ -179,50 +255,35 @@ clang++ -std=c++17 -DVME_EMULATE -Ikernels -Iincludes \
 
 ## Verification status
 
+Sim = coralnpu `VmeCoreMiniAxi` RTL under Verilator (cocotb), pinned commit
+in `config/hardware.json`. Numbers live in `results/results.json`.
+
 | What | Status |
 | --- | --- |
-| Lint (clang-tidy, clang-format, clangd) | Clean, in real and emulation modes |
-| RISC-V compile (`-O2 -Wall -Wextra -Wpedantic`) | Both kernels build with no warnings; the VME asm assembles |
-| VME tiling logic | Matches a scalar reference under `-DVME_EMULATE` for 16×4×16, 32×8×48 and 64×768×32, signed and unsigned |
-| Attention kernels | `test_flash` passes on the host: serial and flash match a double-precision reference exactly (0 int8 steps) on global/local × prefill/decode cases. Cross-compiled with the Kelvin toolchain and **run on the MPACT functional simulator**: all six cases pass on-core and the serial output bytes match the host run exactly |
-| `matmul_rvv` results | **Not run yet.** No RISC-V emulator was available, so the first real run will be on the Coral sim |
-| VME encodings on hardware | **Not checked.** Only Coral's RTL model can run them |
+| Lint (clang-tidy, clang-format, ruff) | Clean, in real and emulation modes (the only tidy finding left is `main` linkage under `-ffreestanding`, as before) |
+| Host unit tests (`-DVME_EMULATE -DRVV_EMULATE`) | All pass: matmul (every variant, incl. non-multiple-of-16 shapes), softmax, GeLU, LayerNorm, residual, serial/flash/chunked attention |
+| VME encodings and `tk = 4` int8 steps | **Verified on the sim**: matmul_vme_u8/s8u8 bit-exact vs NumPy; coralnpu's own `vme_matmul_int8_test` passes on the same build |
+| `matmul_rvv`, `matmul_rvv_s8u8`, `matmul()` dispatch | **Verified on the sim**: bit-exact vs NumPy (decode, prefill and 7×13×23 shapes) |
+| softmax, GeLU, LayerNorm, residual | **Verified on the sim**: within 0.5 int8 LSB of float references |
+| Attention (serial, flash, chunked flash) | See `results/results.json`; host: chunked matches serial within 1 LSB on GPT-2 head shapes |
+| `mstatus.MS` enable (bit 29) | Works on the sim: the VME benches call `enable_matrix_state()` and run |
 
 ## Known issues and open questions
 
-1. **No simulator build.** Nothing cross-compiles this folder or runs it on
-   the Coral sim yet (see the TODO in `inference-engine/CMakeLists.txt`).
-   `compile_flags.txt` only configures the editor and lint, so the future build
-   (CMake toolchain file or Coral's Bazel rules) must pass the same flags,
-   including `-std=c++17`, `-ffreestanding`, `-nostdinc++`, `-Ikernels` and
-   `-Iincludes`.
-2. **The VME kernel doesn't check its shape rules.** If `n` or `m` isn't a
+1. **The VME kernel doesn't check its shape rules.** If `n` or `m` isn't a
    multiple of 16, or `k` isn't a multiple of 4, it silently reads and writes
-   past the arrays. A check needs a way to report failure that works without a
-   C library, so the harness has to decide how to handle it.
-3. **Nothing calls `vme::enable_matrix_state()`.** Matrix instructions trap as
-   illegal (mcause 2) until matrix state is on, and Coral's startup code
-   doesn't turn it on. The test harness should call it once before any VME
-   kernel.
-4. **The output types differ.** `matmul_rvv` writes `uint32_t` and the VME
-   kernels write `int32_t`, so `test_matmul` needs a cast to compare them.
-5. **The RVV types must stay in step.** `rvv::set_vl` uses 8-bit elements in
+   past the arrays. `matmul()` only routes valid shapes to it.
+2. **The RVV types must stay in step.** `rvv::set_vl` uses 8-bit elements in
    one register (e8m1), and the accumulator uses 32-bit elements in four
    registers (e32m4). Both give the same `vl`. If you change one, change the
-   other, or `vl` will mean different things in the two places.
-6. **Unverified VME details.** The instruction encodings and the
-   `mstatus.MS` bit (bit 29 in `enable_matrix_state`) have only been checked to
-   assemble. Emulation mode can't test them.
-7. **Most tests are stubs.** `unit_tests/test_matmul.cc`,
-   `unit_tests/test_softmax.cc` and `integration_tests/` hold only comments.
-   Planned coverage:
-   - `test_matmul`: RVV and VME against a scalar reference, plus cycle counts.
-     Include an `m > 16` case for `matmul_rvv`, since that's where its
-     column-strip loop matters.
-   - `test_softmax`: online softmax accuracy and cycles.
-   - `test_flash` is implemented for correctness (host build command in the
-     file header); cycle measurement still waits on the simulator build.
-8. **`test_main.cc` is a test runner rather than an integration test.** Each
-   ELF usually runs as its own program on the simulator. Either build one
-   binary per test, or turn this file into a real integration test, such as an
-   attention block built from the matmul, softmax and flash kernels.
+   other.
+3. **uint8 probabilities lose mass on long rows.** On a flat 1024-key row
+   the average probability is 0.25 LSB, so many round to 0 (row sum 246 of
+   255 in `test_softmax`). Attention lifts `v_zero` with the actual sum, but
+   long-context accuracy should be checked on real activations.
+4. **Quantization scales are placeholders** (`config/model.json`) until
+   calibrated on real GPT-2 activations.
+5. **Only the behavioral SRAM model.** coralnpu's Verilator flow has no
+   `sram22` macro option.
+6. **`test_main.cc` is still a stub.** A real integration test (one GPT-2
+   block chained from these kernels) is the next step.
