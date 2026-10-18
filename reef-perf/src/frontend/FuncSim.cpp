@@ -3,27 +3,21 @@
 #include "frontend/FuncSim.h"
 #include "frontend/InstDecode.h"
 
-#include <riscv/cfg.h>
 #include <riscv/decode.h>
 #include <riscv/disasm.h>
-#include <riscv/processor.h>
-#include <riscv/simif.h>
 
 #include <elf.h>
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
-#include <map>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 using namespace reef_perf;
@@ -35,63 +29,6 @@ static std::string toHex(uint64_t Value) {
   OS << "0x" << std::hex << Value;
   return OS.str();
 }
-
-namespace {
-
-/// Spike's view of the memory map: flat regions of host RAM. Everything else
-/// is unmapped (Spike raises an access fault); there is no MMIO. The
-/// overridden methods keep Spike's names.
-class FlatMemory final : public simif_t {
-public:
-  FlatMemory(const std::vector<MemoryRegion> &Regions, const cfg_t *Config)
-      : Config(Config) {
-    for (const MemoryRegion &Region : Regions)
-      Backings.push_back({Region, std::vector<char>(Region.Length, 0)});
-  }
-
-  char *addr_to_mem(reg_t PAddr) override {
-    for (Backing &B : Backings) {
-      reg_t Start = B.Region.Start;
-      if (PAddr >= Start && PAddr - Start < B.Region.Length)
-        return &B.Bytes.at(PAddr - Start);
-    }
-    return nullptr;
-  }
-
-  bool mmio_load(reg_t /*PAddr*/, size_t /*Len*/,
-                 uint8_t * /*Bytes*/) override {
-    return false;
-  }
-
-  bool mmio_store(reg_t /*PAddr*/, size_t /*Len*/,
-                  const uint8_t * /*Bytes*/) override {
-    return false;
-  }
-
-  void proc_reset(unsigned /*Id*/) override {}
-
-  const cfg_t &get_cfg() const override { return *Config; }
-
-  const std::map<size_t, processor_t *> &get_harts() const override {
-    return Harts;
-  }
-
-  const char *get_symbol(uint64_t /*PAddr*/) override { return nullptr; }
-
-  void setHart(processor_t *Proc) { Harts[0] = Proc; }
-
-private:
-  struct Backing {
-    MemoryRegion Region;
-    std::vector<char> Bytes;
-  };
-
-  const cfg_t *Config; // Owned by FuncSim::Impl.
-  std::vector<Backing> Backings;
-  std::map<size_t, processor_t *> Harts;
-};
-
-} // namespace
 
 /// Copies a POD value out of \p Data at \p Offset, with bounds checking.
 template <typename T>
@@ -105,7 +42,7 @@ static T readPOD(const std::vector<char> &Data, size_t Offset) {
 
 /// Loads the PT_LOAD segments of the 32-bit RISC-V ELF \p Path into \p Mem.
 /// \returns the entry point.
-static uint32_t loadELF(const std::string &Path, FlatMemory &Mem) {
+static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
   std::ifstream In(Path, std::ios::binary);
   if (!In)
     throw std::runtime_error("cannot open ELF: " + Path);
@@ -156,103 +93,87 @@ static std::vector<uint16_t> getWrittenRegs(const commit_log_reg_t &Log) {
   return Ids;
 }
 
-class FuncSim::Impl {
-public:
-  Impl(const std::string &ElfPath, const SpikeOptions &Options)
-      : ISA(Options.ISA), Mem(Options.Regions, &Config),
-        Log(std::fopen("/dev/null", "w"), &std::fclose) {
-    if (!Log)
-      throw std::runtime_error("cannot open /dev/null");
-    Config.isa = ISA.c_str();
-    Config.priv = "M";
-    Config.hartids = {0};
-    Proc = std::make_unique<processor_t>(ISA.c_str(), "M", &Config, &Mem, 0,
-                                         false, Log.get(), ConsoleOut);
-    Mem.setHart(Proc.get());
-    // Commit logging makes Spike record each instruction's memory accesses
-    // and register writes; the textual log goes to /dev/null.
-    Proc->enable_log_commits();
-    Proc->get_state()->pc = loadELF(ElfPath, Mem);
+FuncSim::FlatMemory::FlatMemory(const std::vector<MemoryRegion> &Regions,
+                                const cfg_t *Config)
+    : Config(Config) {
+  for (const MemoryRegion &Region : Regions)
+    Backings.push_back({Region, std::vector<char>(Region.Length, 0)});
+}
+
+char *FuncSim::FlatMemory::addr_to_mem(reg_t PAddr) {
+  for (Backing &B : Backings) {
+    reg_t Start = B.Region.Start;
+    if (PAddr >= Start && PAddr - Start < B.Region.Length)
+      return &B.Bytes.at(PAddr - Start);
   }
-
-  InstRef next() {
-    if (Halted)
-      return nullptr;
-    state_t *State = Proc->get_state();
-    reg_t PC = State->pc;
-    const char *Host = Mem.addr_to_mem(PC);
-    if (!Host)
-      throw std::runtime_error("fetch from unmapped address " + toHex(PC));
-
-    auto I = std::make_shared<Inst>();
-    I->Seq = NumExecuted++;
-    I->PC = static_cast<uint32_t>(PC);
-    std::memcpy(&I->Encoding, Host, sizeof(I->Encoding));
-    I->Disasm = Proc->get_disassembler()->disassemble(I->Encoding);
-    // Before the first vsetvli, vtype is illegal (vill); keep the defaults
-    // (vl = 0, SEW = 8, LMUL = 1) rather than garbage.
-    if (Proc->VU.vl && !Proc->VU.vill) {
-      I->VL = static_cast<uint32_t>(Proc->VU.vl->read());
-      I->SEWBytes = static_cast<uint8_t>(Proc->VU.vsew / 8);
-      I->LMUL8 = static_cast<uint8_t>(Proc->VU.vflmul * 8);
-    }
-
-    if (I->Encoding == MpauseEncoding) {
-      // Spike does not implement mpause: report it without executing it.
-      Halted = true;
-      I->NextPC = I->PC + 4;
-    } else {
-      execute(*I);
-    }
-    decodeInst(*I);
-    return I;
-  }
-
-  bool isHalted() const { return Halted; }
-  uint64_t getNumExecuted() const { return NumExecuted; }
-
-private:
-  /// Runs \p I in Spike and records its outcome, memory accesses and register
-  /// writes.
-  void execute(Inst &I) {
-    state_t *State = Proc->get_state();
-    reg_t CauseBefore = State->mcause->read();
-    reg_t EPCBefore = State->mepc->read();
-    State->log_mem_read.clear();
-    State->log_mem_write.clear();
-    State->log_reg_write.clear();
-    Proc->step(1);
-    if (State->mcause->read() != CauseBefore ||
-        State->mepc->read() != EPCBefore)
-      throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
-                               "), mcause=" + toHex(State->mcause->read()));
-    I.NextPC = static_cast<uint32_t>(State->pc);
-    for (const auto &[Addr, Value, Size] : State->log_mem_read)
-      I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
-    for (const auto &[Addr, Value, Size] : State->log_mem_write)
-      I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true});
-    I.Dsts = getWrittenRegs(State->log_reg_write);
-  }
-
-  std::string ISA; // Config points into it.
-  cfg_t Config;
-  FlatMemory Mem;
-  std::unique_ptr<std::FILE, int (*)(std::FILE *)> Log;
-  std::ostringstream ConsoleOut;
-  std::unique_ptr<processor_t> Proc;
-  uint64_t NumExecuted = 0;
-  bool Halted = false;
-};
+  return nullptr;
+}
 
 FuncSim::FuncSim(const std::string &ElfPath, const SpikeOptions &Options)
-    : TheImpl(std::make_unique<Impl>(ElfPath, Options)) {}
+    : ISA(Options.ISA), Mem(Options.Regions, &Config),
+      Log(std::fopen("/dev/null", "w"), &std::fclose) {
+  if (!Log)
+    throw std::runtime_error("cannot open /dev/null");
+  Config.isa = ISA.c_str();
+  Config.priv = "M";
+  Config.hartids = {0};
+  Proc = std::make_unique<processor_t>(ISA.c_str(), "M", &Config, &Mem, 0,
+                                       false, Log.get(), ConsoleOut);
+  Mem.setHart(Proc.get());
+  // Commit logging makes Spike record each instruction's memory accesses and
+  // register writes; the textual log goes to /dev/null.
+  Proc->enable_log_commits();
+  Proc->get_state()->pc = loadELF(ElfPath, Mem);
+}
 
-FuncSim::~FuncSim() = default;
-FuncSim::FuncSim(FuncSim &&) noexcept = default;
-FuncSim &FuncSim::operator=(FuncSim &&) noexcept = default;
+InstRef FuncSim::next() {
+  if (Halted)
+    return nullptr;
+  state_t *State = Proc->get_state();
+  reg_t PC = State->pc;
+  const char *Host = Mem.addr_to_mem(PC);
+  if (!Host)
+    throw std::runtime_error("fetch from unmapped address " + toHex(PC));
 
-InstRef FuncSim::next() { return TheImpl->next(); }
+  auto I = std::make_shared<Inst>();
+  I->Seq = NumExecuted++;
+  I->PC = static_cast<uint32_t>(PC);
+  std::memcpy(&I->Encoding, Host, sizeof(I->Encoding));
+  I->Disasm = Proc->get_disassembler()->disassemble(I->Encoding);
+  // Before the first vsetvli, vtype is illegal (vill); keep the defaults
+  // (vl = 0, SEW = 8, LMUL = 1) rather than garbage.
+  if (Proc->VU.vl && !Proc->VU.vill) {
+    I->VL = static_cast<uint32_t>(Proc->VU.vl->read());
+    I->SEWBytes = static_cast<uint8_t>(Proc->VU.vsew / 8);
+    I->LMUL8 = static_cast<uint8_t>(Proc->VU.vflmul * 8);
+  }
 
-bool FuncSim::isHalted() const { return TheImpl->isHalted(); }
+  if (I->Encoding == MpauseEncoding) {
+    // Spike does not implement mpause: report it without executing it.
+    Halted = true;
+    I->NextPC = I->PC + 4;
+  } else {
+    execute(*I);
+  }
+  decodeInst(*I);
+  return I;
+}
 
-uint64_t FuncSim::getNumExecuted() const { return TheImpl->getNumExecuted(); }
+void FuncSim::execute(Inst &I) {
+  state_t *State = Proc->get_state();
+  reg_t CauseBefore = State->mcause->read();
+  reg_t EPCBefore = State->mepc->read();
+  State->log_mem_read.clear();
+  State->log_mem_write.clear();
+  State->log_reg_write.clear();
+  Proc->step(1);
+  if (State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore)
+    throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
+                             "), mcause=" + toHex(State->mcause->read()));
+  I.NextPC = static_cast<uint32_t>(State->pc);
+  for (const auto &[Addr, Value, Size] : State->log_mem_read)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
+  for (const auto &[Addr, Value, Size] : State->log_mem_write)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true});
+  I.Dsts = getWrittenRegs(State->log_reg_write);
+}

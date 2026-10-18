@@ -15,8 +15,16 @@
 #include "common/Inst.h"
 #include "common/MemoryMap.h"
 
+#include <riscv/cfg.h>
+#include <riscv/processor.h>
+#include <riscv/simif.h>
+
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -41,11 +49,12 @@ public:
   /// Loads the 32-bit RISC-V ELF \p ElfPath into a machine configured by
   /// \p Options. \throws std::runtime_error if the ELF cannot be loaded.
   FuncSim(const std::string &ElfPath, const SpikeOptions &Options);
-  ~FuncSim();                                   ///< Releases Spike.
-  FuncSim(const FuncSim &) = delete;            ///< Not copyable.
+  /// Not copyable or movable: Spike's processor points into Config and Mem.
+  FuncSim(const FuncSim &) = delete;
   FuncSim &operator=(const FuncSim &) = delete; ///< Not copyable.
-  FuncSim(FuncSim &&) noexcept;                 ///< Movable.
-  FuncSim &operator=(FuncSim &&) noexcept;      ///< Movable.
+  FuncSim(FuncSim &&) = delete;                 ///< Not movable.
+  FuncSim &operator=(FuncSim &&) = delete;      ///< Not movable.
+  ~FuncSim() = default;                         ///< Releases Spike.
 
   /// Executes and decodes the next instruction. `mpause` is reported but not
   /// executed, and ends the program.
@@ -54,14 +63,57 @@ public:
   InstRef next();
 
   /// \returns true once next() has returned nullptr.
-  bool isHalted() const;
+  bool isHalted() const { return Halted; }
 
   /// \returns the instructions handed out so far, including `mpause`.
-  uint64_t getNumExecuted() const;
+  uint64_t getNumExecuted() const { return NumExecuted; }
 
 private:
-  class Impl; // Spike state, kept out of this header.
-  std::unique_ptr<Impl> TheImpl;
+  /// Spike's view of the memory map: flat regions of host RAM. Everything
+  /// else is unmapped (Spike raises an access fault); there is no MMIO. The
+  /// overridden methods keep Spike's names.
+  class FlatMemory final : public simif_t {
+  public:
+    FlatMemory(const std::vector<MemoryRegion> &Regions, const cfg_t *Config);
+    char *addr_to_mem(reg_t PAddr) override;
+    bool mmio_load(reg_t /*PAddr*/, size_t /*Len*/,
+                   uint8_t * /*Bytes*/) override {
+      return false;
+    }
+    bool mmio_store(reg_t /*PAddr*/, size_t /*Len*/,
+                    const uint8_t * /*Bytes*/) override {
+      return false;
+    }
+    void proc_reset(unsigned /*Id*/) override {}
+    const cfg_t &get_cfg() const override { return *Config; }
+    const std::map<size_t, processor_t *> &get_harts() const override {
+      return Harts;
+    }
+    const char *get_symbol(uint64_t /*PAddr*/) override { return nullptr; }
+    void setHart(processor_t *Proc) { Harts[0] = Proc; }
+
+  private:
+    struct Backing {
+      MemoryRegion Region;
+      std::vector<char> Bytes;
+    };
+    const cfg_t *Config; // Owned by FuncSim.
+    std::vector<Backing> Backings;
+    std::map<size_t, processor_t *> Harts;
+  };
+
+  /// Runs \p I in Spike and records its outcome, memory accesses and register
+  /// writes.
+  void execute(Inst &I);
+
+  std::string ISA; // Config points into it.
+  cfg_t Config;
+  FlatMemory Mem;
+  std::unique_ptr<std::FILE, int (*)(std::FILE *)> Log;
+  std::ostringstream ConsoleOut;
+  std::unique_ptr<processor_t> Proc;
+  uint64_t NumExecuted = 0;
+  bool Halted = false;
 };
 
 } // namespace reef_perf

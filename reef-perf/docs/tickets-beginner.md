@@ -441,7 +441,7 @@ dividing a large one.
 **This ticket touches both halves of the model.**
 1. **Driver** (`src/frontend/FuncSim.h` / `.cpp`):
    - add `uint32_t Rs1Val, Rs2Val` to `Inst`;
-   - in `FuncSim::Impl::execute()`, fill them *before* `proc_->step(1)` from
+   - in `FuncSim::execute()`, fill them *before* `Proc->step(1)` from
      Spike's register file: `state->XPR[n]` for the encoding's rs1/rs2 fields.
 2. **Model:**
    - copy the values into `Inst` (`src/frontend/FuncSim.cpp`);

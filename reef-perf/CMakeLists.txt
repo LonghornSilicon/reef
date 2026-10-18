@@ -63,7 +63,8 @@ add_library(reef_perf_core STATIC
     src/ReefSim.cpp
 )
 target_include_directories(reef_perf_core PUBLIC src)
-target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta PRIVATE spike)
+# Spike is public: frontend/FuncSim.h holds Spike objects directly.
+target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta spike)
 
 add_executable(reef_perf src/main.cpp)
 target_link_libraries(reef_perf PRIVATE reef_perf_core)
