@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Checks C++ formatting, warnings and clang-tidy without modifying files.
+# Checks the C++ code against the LLVM coding style without modifying files:
+# tools/check_style.sh (names, header guards, file banners), clang-format,
+# a warnings-as-errors build, and clang-tidy (naming and llvm-* checks).
 # Run inside the Docker image (tools/docker.sh shell).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-shopt -s globstar  # module subdirectories
-sources=(src/csrc/src/**/*.cpp tools/*.cpp tests/cpp/**/*.cpp)
-headers=(src/csrc/include/reef_perf/**/*.hpp)
+sources=(src/*.cpp src/*/*.cpp tools/*.cpp tests/cpp/*/*.cpp)
+headers=(src/*.h src/*/*.h)
+
+bash tools/check_style.sh
 
 uv run clang-format --dry-run --Werror "${sources[@]}" "${headers[@]}"
 

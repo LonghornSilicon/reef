@@ -42,25 +42,24 @@ the interfaces in [docs/interfaces.md](docs/interfaces.md).
  |  decode          |    credits     |     |    \--> lsu --------------+--> MemoryInterface
  +------------------+                |     |    \--> rob --> retired  |        |
                                      +-----|--------|------------------+        v
-                          InstPtr, credits |        | InstPtr, credits  +---------------+
+                          InstRef, credits |        | InstRef, credits  +---------------+
                                     +------v--+  +--v------+            | mem           |
-                                    | vector  |  | matrix  |            |  tcm (I/DTCM) |
-                                    |  vxu    |  |  mxu    |            |  axi          |
+                                    | vector  |  | matrix  |            |  ITCM, DTCM   |
+                                    |  lanes  |  |  stub   |            |  AXI port     |
                                     +---------+  +---------+            +---------------+
 ```
 
-| Module | Units (`top.<module>.<unit>`) | What it does now |
+| Module | Parameters | What it does now |
 | --- | --- | --- |
-| `frontend` | `fetch` | Runs each instruction in Spike as it is fetched (execute-at-fetch) and decodes it; up to 4 per cycle; a fixed penalty on every taken branch or jump |
-| `backend` | `dispatch`, `scalar_exec`, `lsu`, `rob` | In-order dispatch with a register scoreboard and stall accounting; integer/FP pools; the LSU for scalar *and* vector memory ops; 8-entry retirement buffer |
-| `vector` | `vxu` | RVV command queue and 2 lanes; time per instruction from vl × SEW / VLEN |
-| `matrix` | `mxu` | Stub with the vector module's interface; no matrix ISA yet, so it sees no traffic |
-| `mem` | `tcm`, `axi` | ITCM and DTCM ports; an AXI port to off-core memory (black box) |
+| `frontend` | `top.frontend.params` | Runs each instruction in Spike as it is fetched (execute-at-fetch) and decodes it; up to 4 per cycle; a fixed penalty on every taken branch or jump |
+| `backend` | `top.backend.{dispatch,scalar_exec,lsu,rob}.params` | In-order dispatch with a register scoreboard and stall accounting; integer/FP pools; the LSU for scalar *and* vector memory ops; 8-entry retirement buffer |
+| `vector` | `top.vector.params` | RVV command queue and 2 lanes; time per instruction from vl × SEW / VLEN |
+| `matrix` | `top.matrix.params` | Stub with the vector module's interface; no matrix ISA yet, so it sees no traffic |
+| `mem` | `top.mem.params` | ITCM and DTCM ports; an AXI port to off-core memory (black box) |
 
-Code is laid out the same way: `src/csrc/include/reef_perf/<module>/`,
-`src/csrc/src/<module>/` and `tests/cpp/<module>/`, plus `common/` for the
-shared types (`Inst`, `ResourcePool`, the `Module` base class and the
-interface types).
+Code is laid out the same way: `src/<module>/` (headers beside sources) and
+`tests/cpp/<module>/`, plus `src/common/` for the shared types (`Inst`,
+`ResourcePool`, the `Module` base class and the interface types).
 
 ## Requirements
 
@@ -111,7 +110,7 @@ Notes:
 
 ```sh
 build/bin/reef_perf --elf build/workloads/gemv_int8.elf -c configs/m3.yaml
-build/bin/reef_perf --elf x.elf -p top.frontend.fetch.params.fetch_interval 2
+build/bin/reef_perf --elf x.elf -p top.frontend.params.fetch_interval 2
 build/bin/reef_perf --elf x.elf --show-parameters --no-run   # every parameter
 build/bin/reef_trace build/workloads/gemv_int8.elf 40        # Spike's instruction stream
 ```
@@ -131,7 +130,7 @@ Every parameter is listed there, with the ticket that will correct it.
     ibuf_empty                 1003   14.3%
     raw_hazard                    0    0.0%
     ...
-  Pools: utilisation (busy cycles / (units * cycles))
+  Pools: utilization (busy cycles / (units * cycles))
     backend.alu      x4  ops      22009  util  78.5%
 ```
 
@@ -165,7 +164,7 @@ uv run pytest
 This builds the C++ targets (into `build/pytest`), runs the Google Test
 suite through CTest, runs the simulator end to end, checks that runs are
 deterministic and can run in parallel, runs the full `run` experiment
-sweep, and checks lint (Ruff, clang-format, clang-tidy) and Doxygen.
+sweep, and checks lint (Ruff, clang-format, clang-tidy, tools/check_style.sh) and Doxygen.
 
 **Subsets**, by category mark:
 
@@ -210,22 +209,40 @@ bash tools/check_cpp.sh   # C++ checks only, no edits
 mkdir -p build && doxygen # C++ API docs into build/doxygen/html
 ```
 
-- **clang-tidy** rules are in [.clang-tidy](.clang-tidy), and warnings are
-  errors.
-- **Doxygen** ([Doxyfile](Doxyfile)) fails on any undocumented member,
-  *including private ones*, and on any missing `@param` or `@return`.
+C++ follows the [LLVM coding standards](https://llvm.org/docs/CodingStandards.html),
+and the checks enforce it:
+
+- **clang-format** ([.clang-format](.clang-format)): `BasedOnStyle: LLVM`,
+  plus `RemoveBracesLLVM` (no braces on single-statement bodies).
+- **clang-tidy** ([.clang-tidy](.clang-tidy)): llvm-project's own naming rules
+  (types, variables, parameters and members `UpperCamelCase`, functions
+  `lowerCamelCase`), the `llvm-*` checks, and bug/performance checks.
+  Warnings are errors.
+- **[tools/check_style.sh](tools/check_style.sh)**: what the tools above can't
+  check here: file names (`.h`/`.cpp`, `UpperCamelCase`, tests `*Test.cpp`),
+  `REEF_PERF_<DIR>_<FILE>_H` header guards, the 80-column
+  `//===- File - Description ---===//` banner, and `///` doc comments.
+- **Doxygen** ([Doxyfile](Doxyfile)) fails on any undocumented public
+  declaration. Private members need no Doxygen comment.
+
+Deliberate deviations from LLVM: exceptions and RTTI are used (Sparta and
+Spike need them); Sparta-defined names (`name`, `buildTree_`, `unit_port_set_`,
+`PARAMETER` names, which are also config keys) keep Sparta's spelling, marked
+with `NOLINT`; and the standard library is used instead of LLVM's ADT.
 
 ## Contributing
 
-- Put public C++ declarations in `src/csrc/include/reef_perf/` and their
-  implementations in `src/csrc/src/`, and add the `.cpp` to `CMakeLists.txt`.
-- Cover new C++ behaviour with Google Test cases in `tests/cpp/`, and new
-  Python behaviour with pytest cases in `tests/python/`.
-- Give every function, member and parameter a Doxygen comment
-  (`/** ... */` or `///`, with `@param`/`@return`), private ones included.
-- **A new parameter:** add a `PARAMETER(...)` line, with a `///` comment, to
-  the unit's parameter set, read it in the constructor, and list it in
-  `configs/m3.yaml`.
+- Put C++ headers and sources together in `src/<module>/`, one class per
+  `Name.h`/`Name.cpp` pair, and add the `.cpp` to `CMakeLists.txt`.
+- Cover new C++ behavior with Google Test cases in `tests/cpp/<module>/`
+  (`NameTest.cpp`), and new Python behavior with pytest cases in
+  `tests/python/`.
+- Document public declarations briefly with `///` (`\p Name` for parameters,
+  `\returns` for results). Use plain `//` comments elsewhere, and only where
+  the code is not obvious.
+- **A new parameter:** add a `PARAMETER(...)` line (its description string is
+  its documentation) to the unit's parameter set, read it in the constructor,
+  and list it in `configs/m3.yaml`.
 - **A new workload:** add `src/reef_perf/experiments/run/workloads/<name>.S`
   using `common.inc`.
 - **A new experiment:** add a directory under `src/reef_perf/experiments/`
@@ -233,7 +250,7 @@ mkdir -p build && doxygen # C++ API docs into build/doxygen/html
   in `tests/python/experiments/`. Only experiments may run standalone from
   `src/`.
 - **An ISA extension:** add the instruction to Spike (`ext/spike`, e.g. as an
-  extension), then teach `src/csrc/src/inst_decode.cpp` its class and
+  extension), then teach `src/frontend/InstDecode.cpp` its class and
   registers.
 
 Before a PR is complete: `bash tools/lint.sh` passes and `uv run pytest`

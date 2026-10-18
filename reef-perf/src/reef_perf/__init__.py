@@ -1,6 +1,6 @@
 """Python interface to the reef_perf performance model.
 
-The simulator itself is C++ (src/csrc/). This package runs it, reads its
+The simulator itself is C++ (src/<module>/). This package runs it, reads its
 results, and holds the experiments built on top of it.
 """
 

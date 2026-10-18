@@ -3,18 +3,18 @@
 `reef_perf` runs real programs, but its timing is **deliberately generic**: a
 plain 4-wide in-order core with guessed latencies. Reef's baseline is the
 CoralNPU M3 release, so these tickets turn the model into a first-order model
-of the **M3 RTL**, one behaviour at a time.
+of the **M3 RTL**, one behavior at a time.
 
 Each ticket:
 
-- explains the hardware behaviour in plain terms;
+- explains the hardware behavior in plain terms;
 - points to the RTL code that proves it (paths are relative to the CoralNPU
   checkout at tag `M3-2026-04-27`);
 - names the model file to change and a workload that shows the effect;
 - says how to check your work against the RTL.
 
-Paths to model code are relative to `reef-perf/`. Headers are in
-`src/csrc/include/reef_perf/` and implementations in `src/csrc/src/`. Run
+Paths to model code are relative to `reef-perf/`. C++ headers and sources
+sit together in `src/<module>/`. Run
 everything inside the Docker image (`tools/docker.sh shell`).
 
 "First order" means we care about effects big enough to move a workload's
@@ -32,12 +32,12 @@ cycle count by roughly 5% or more. Don't chase single cycles.
 
 ### Ground rules
 
-- **One behaviour per PR.**
+- **One behavior per PR.**
 - **Every new timing number comes from somewhere.** Either the RTL (cite
   `file:line`) or a measurement (cite the B01 result). Put that source in a
   comment next to the value in `configs/m3.yaml`.
-- **New behaviour goes behind a parameter.** Its default (in the `.hpp`) must
-  keep the old super-coarse behaviour, and `configs/m3.yaml` turns it on. That
+- **New behavior goes behind a parameter.** Its default (in the `.h`) must
+  keep the old super-coarse behavior, and `configs/m3.yaml` turns it on. That
   way old results stay reproducible, and we can switch a rule off to see what it
   costs.
 - **Every PR includes a before/after table** from the `run` experiment:
@@ -45,7 +45,7 @@ cycle count by roughly 5% or more. Don't chase single cycles.
   src/reef_perf/experiments/run/configs/all.yaml`. After B03 exists, use the
   `correlate` experiment's table instead.
 - **Every PR passes `bash tools/lint.sh` and `uv run pytest`.** New C++
-  behaviour gets a Google Test in `tests/cpp/`, and every new function or member
+  behavior gets a Google Test in `tests/cpp/`, and every new function or member
   gets a Doxygen comment (private ones included).
 
 ### Order
@@ -84,7 +84,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 4. Run `build/bin/reef_trace build/workloads/gemv_int8.elf 60` and match the
    printed instructions to
    `src/reef_perf/experiments/run/workloads/gemv_int8.S`.
-5. Change one parameter with `-p` (e.g. `top.vector.vxu.params.vec_units 1`)
+5. Change one parameter with `-p` (e.g. `top.vector.params.vec_units 1`)
    and explain the change in cycles to a teammate.
 6. Run `uv run pytest` and make sure it passes.
 
@@ -145,12 +145,12 @@ reads. The model currently reports the whole program, including setup. To
 compare like with like, the model needs to report the same region.
 
 **Where**
-- `src/csrc/src/rob.cpp`: retirement is where "time" is counted.
-- `src/csrc/src/reef_sim.cpp`: the summary and JSON output.
+- `src/backend/Rob.cpp`: retirement is where "time" is counted.
+- `src/ReefSim.cpp`: the summary and JSON output.
 - `src/reef_perf/sim.py`: `SimResult`, which parses the JSON.
 
 **Steps**
-1. In `Rob::retire_insts()`, detect a retiring instruction that is `csrr` of `mcycle`
+1. In `Rob::retireInsts()`, detect a retiring instruction that is `csrr` of `mcycle`
    (`inst->mnemonic` starts with `csrr` and the CSR number, bits 31:20 of
    `inst->encoding`, is `0xB00`).
    - The first one's retire cycle is `roi_start`.
@@ -255,10 +255,10 @@ branch/jump, and nothing for not-taken branches.
 
 **Steps**
 1. Add a parameter `predictor` (string: `none` | `static_btfn`). Default `none`
-   keeps today's behaviour.
+   keeps today's behavior.
 2. Add parameters `taken_bubble` (cost of a correctly predicted taken branch)
    and `mispredict_penalty`.
-3. In `Fetch::fetch_group()` (`src/csrc/src/fetch.cpp`), for each control-flow
+3. In `Fetch::fetchGroup()` (`src/frontend/Fetch.cpp`), for each control-flow
    instruction:
    - work out the prediction from `inst->encoding` (the sign bit, bit 31, gives
      the offset direction);
@@ -289,7 +289,7 @@ of the RTL.
 **RTL evidence.** `UncachedFetch.scala`, the predecode logic around line 120:
 `startElem` and `validsIn`.
 
-**Model.** In `Fetch::fetch_group()`, stop the group at the end of the 16-byte block
+**Model.** In `Fetch::fetchGroup()`, stop the group at the end of the 16-byte block
 that contains the first instruction's PC. Put this behind a parameter
 `aligned_blocks` (default `false`).
 
@@ -304,8 +304,8 @@ within 1 cycle per iteration.
 
 ## Group 2: Dispatch rules
 
-All four tickets change `Dispatch::can_dispatch()` / `Dispatch::dispatch_group()`
-in `src/csrc/src/dispatch.cpp`. The RTL for every rule is `DispatchV2` in
+All four tickets change `Dispatch::canDispatch()` / `Dispatch::dispatchGroup()`
+in `src/backend/Dispatch.cpp`. The RTL for every rule is `DispatchV2` in
 `hdl/chisel/src/coralnpu/scalar/Decode.scala` (lines ~301-530 at M3); read the
 `canDispatch` expression there first. Add one stall reason per rule to
 `StallReason` so the summary shows the rule's cost.
@@ -345,8 +345,8 @@ a cycle, and nothing else dispatches with them:
 - Deviation D3.
 
 **Steps**
-1. Add a `dispatch_alone` flag to `Inst` (`inst.hpp`), set in
-   `src/csrc/src/inst_decode.cpp` for the instructions above, and add decoder
+1. Add a `dispatch_alone` flag to `Inst` (`Inst.h`), set in
+   `src/frontend/InstDecode.cpp` for the instructions above, and add decoder
    tests for it in `tests/cpp/test_inst_decode.cpp`. Hint: FP-scalar vector ops
    are `OPFVF` (funct3 = 5) plus `vfmv.f.s`.
 2. Add a parameter `enforce_dispatch_alone` (default `false`).
@@ -374,7 +374,7 @@ store is treated the same way.
 1. Add a parameter `addr_extra_cycle` (default `0`).
 2. In `can_dispatch()`, for load/store base registers (the first `x` source of a
    memory instruction), `jalr`'s source, and a scalar store's data register,
-   require `result_ready_cycle + addr_extra_cycle <= now`.
+   require `ResultReadyCycle + addr_extra_cycle <= Now`.
 3. Record the stall as a new reason, `addr_not_registered`.
 
 **Check.** `addr_forward` should slow down by about 1 cycle per
@@ -439,13 +439,13 @@ dividing a large one.
 **RTL evidence.** `scalar/Dvu.scala:90-136` (`clz`, `count`).
 
 **This ticket touches both halves of the model.**
-1. **Driver** (`spike_driver.hpp` / `src/csrc/src/spike_driver.cpp`):
-   - add `std::uint32_t rs1_val, rs2_val` to `InstRecord`;
-   - in `SpikeDriver::Impl::step()`, fill them *before* `proc_->step(1)` from
+1. **Driver** (`src/frontend/FuncSim.h` / `.cpp`):
+   - add `uint32_t Rs1Val, Rs2Val` to `Inst`;
+   - in `FuncSim::Impl::execute()`, fill them *before* `proc_->step(1)` from
      Spike's register file: `state->XPR[n]` for the encoding's rs1/rs2 fields.
 2. **Model:**
-   - copy the values into `Inst` (`src/csrc/src/func_sim.cpp`);
-   - in `ScalarExec::receive_inst()` (`backend/scalar_exec.cpp`) for `DIV`, compute latency and occupancy as
+   - copy the values into `Inst` (`src/frontend/FuncSim.cpp`);
+   - in `ScalarExec::receiveInst()` (`backend/scalar_exec.cpp`) for `DIV`, compute latency and occupancy as
      `div_base + (32 − clz(dividend))`. Use the unsigned or absolute value as the
      RTL does.
    - Keep the flat latency when a parameter `div_data_dependent` is `false`.
@@ -476,11 +476,11 @@ dividing a large one.
    - `load_chain` gives load-to-use latency (cycles per step, minus the loop
      overhead);
    - `load_stream` gives the throughput of back-to-back independent loads.
-2. Set `top.mem.tcm.params.dtcm_latency` and `dtcm_cycles_per_line`. If the
+2. Set `top.mem.params.dtcm_latency` and `dtcm_cycles_per_line`. If the
    independent-load throughput doesn't fit "one line per cycle", add a
    parameter `dtcm_min_cycles_per_access` (time the port is busy per access,
    even for a 1-line access) and use it in `TcmModel`
-   (`src/csrc/src/mem/mem_timing.cpp`).
+   (`src/mem/MemTiming.cpp`).
 3. Check that stores behave the same way. Add a `store_stream` workload.
 
 **Done when** `load_chain`, `load_stream` and `store_stream` are within 10% of
@@ -506,8 +506,8 @@ the RTL.
 
 **Steps**
 1. Add a parameter `lsu_vector_reg_overhead` (cycles per register, default `0`)
-   to the LSU (`backend/lsu.hpp`).
-2. In `Lsu::receive_inst()`, for `V_LOAD`/`V_STORE`, compute occupancy per register: group
+   to the LSU (`backend/Lsu.h`).
+2. In `Lsu::receiveInst()`, for `V_LOAD`/`V_STORE`, compute occupancy per register: group
    the element accesses by register (16 bytes of `vl × SEW` each), then add the
    overhead to each register's line count.
 3. Fit it with `vec_memcpy` (LMUL=8, 8 registers per op) and `vec_add_m1`
@@ -540,7 +540,7 @@ own reservation station:
 `NUM_MUL`, `NUM_DIV`, `NUM_PMTRDT`, `NUM_FMA`, the RS depths under `DISPATCH3`).
 
 **Steps**
-1. In `Vxu` (`vector/vxu.cpp`), replace the single `lanes_` `ResourcePool` with one pool per unit type,
+1. In `Vector` (`src/vector/Vector.cpp`), replace the single `lanes_` `ResourcePool` with one pool per unit type,
    each with its own `count`, `latency` and `cycles_per_uop` parameters. Keep a
    parameter `vec_unified` (default `true`) that restores today's single pool.
 2. Map the vector classes to pools: `V_ALU` → ALU, `V_MUL` → MUL, `V_DIV` → DIV,
@@ -570,13 +570,14 @@ A long LMUL=8 instruction can therefore hold up the ones behind it.
 `NUM_DE_UOP`, `NUM_DP_UOP`, `UQ_DEPTH`) and `rvv_backend_config.svh:5`.
 
 **Steps**
-1. Add a Sparta unit for these stages to the vector module, in front of
-   `vxu`: `vector/vdecode.hpp` and `.cpp`. Register it in
-   `Vector::add_factories()`, bind it in `Vector::bind()` and point
-   `Vector::kInInsts` at its input port (see docs/interfaces.md, "Adding a
-   unit to a module"). Copy the structure of `Rob` (queue + tick event).
-2. It issues uops into the B15 pools in `vxu`. Nothing outside the vector
-   module changes.
+1. Add a Sparta unit for these stages in front of the vector lanes:
+   `src/vector/VectorDecode.h` and `.cpp`. The vector module then has two
+   units, so give it a `Module` subclass like `Backend` (see
+   docs/interfaces.md, "Adding a unit to a module") and point its public
+   input port at the new unit. Copy the structure of `Rob` (queue + tick
+   event).
+2. It issues uops into the B15 pools. Nothing outside the vector module
+   changes.
 3. Parameters: `decode_width`, `max_uops_per_decode_cycle`,
    `uop_queue_entries`, `uop_dispatch_width`.
 
@@ -636,8 +637,8 @@ matches the RTL within 15%.
 instruction with the RTL's `--instr_trace` log.
 
 **Steps**
-1. Add an option `--inst-trace FILE` (`src/csrc/src/main.cpp`). When set,
-   `Rob::retire_insts()` writes one line per retired instruction:
+1. Add an option `--inst-trace FILE` (`src/main.cpp`). When set,
+   `Rob::retireInsts()` writes one line per retired instruction:
    `seq pc disasm fetch dispatch issue ready complete retire`.
 2. Write `tools/diff_trace.py`. It lines up the model trace with the RTL
    `--instr_trace` log by PC sequence, and prints the first 20 places where the

@@ -65,7 +65,7 @@ if design decisions need more precision.
 
 ---
 
-## 2. The hardware we are modelling (the M3 baseline), in plain terms
+## 2. The hardware we are modeling (the M3 baseline), in plain terms
 
 Reef's baseline, CoralNPU M3, is a small RISC-V processor for ML at the edge.
 It has two parts.
@@ -207,13 +207,8 @@ executes wrong-path instructions**. So we never have to undo anything Spike did.
 When the fetch unit guesses a branch wrong, the model just adds the lost cycles;
 it doesn't have to simulate the wrong instructions.
 
-Two more benefits:
-
-- **Data-dependent timing is easy.** For example, the divider's latency depends
-  on the operand values, and we can read those values from Spike.
-- **This is the approach tt-rpm uses.** tt-rpm is Tenstorrent's open-source
-  RISC-V performance model; it pairs Sparta with the Whisper instruction-set
-  simulator. We follow its structure, with Spike in place of Whisper.
+It also makes **data-dependent timing easy**. For example, the divider's
+latency depends on the operand values, and we can read those values from Spike.
 
 ### 3.3 Sparta, briefly
 
@@ -224,7 +219,7 @@ project. It gives us:
 - **Ports:** typed connections between units. Unit A sends an instruction to unit
   B with a delay of N cycles.
 - **Events:** "do this at cycle X". This is how multi-cycle operations are
-  modelled.
+  modeled.
 - **Parameters:** values for each unit, loaded from YAML at startup.
 - **Counters and statistics:** reported automatically at the end of a run.
 - **Pipeline collection:** a per-instruction, per-cycle log that can be viewed as
@@ -349,7 +344,7 @@ computed per register.
 ### 4.3 The instruction table
 
 *Current state:* classification is done in code, in
-`src/csrc/src/inst_decode.cpp`, from the encoding and mnemonic. Unknown opcodes
+`src/frontend/InstDecode.cpp`, from the encoding and mnemonic. Unknown opcodes
 are counted (`num_unknown_class`) and timed as ALU ops. A data-driven table is
 the plan below (ticket T09).
 
@@ -373,7 +368,7 @@ When Spike executes an instruction that isn't in the table, the model stops with
 an error. That way no instruction is silently timed as "1 cycle".
 
 Adding a new instruction for ISA exploration takes two steps: implement its
-behaviour in Spike (as a Spike extension), then add one line here.
+behavior in Spike (as a Spike extension), then add one line here.
 
 ### 4.4 Configuration presets
 
@@ -398,8 +393,8 @@ reef-perf/
   docs/                         plan, tickets, deviation register
   ext/                          spike, map (Sparta), yaml-cpp (git submodules)
   src/
-    csrc/include/reef_perf/     C++ headers (Sparta units, SpikeDriver, Inst, ...)
-    csrc/src/                   C++ implementations and main.cpp
+    <module>/                   C++ headers and sources, one directory per module
+    main.cpp, reef_sim.*        the simulator binary and top-level simulation
     reef_perf/                  Python package: sim.py runs the simulator
       experiments/run/          the run experiment, with its workloads/
   tests/cpp/                    Google Test
@@ -407,8 +402,8 @@ reef-perf/
   tools/                        docker.sh, build_deps.sh, lint.sh, check_cpp.sh, reef_trace.cpp
 ```
 
-Spike's per-instruction output is an **InstRecord** (`spike_driver.hpp`).
-`FuncSim` turns it into an **Inst** (`inst.hpp`), the object that flows through
+`FuncSim` (`src/frontend/FuncSim.h`) runs each instruction in Spike and
+returns an **Inst** (`src/common/Inst.h`), the object that flows through
 the model. An Inst holds:
 
 - PC, encoding and disassembly;
@@ -478,7 +473,7 @@ fidelity: the Docker build, the Spike driver, all units with seed values, the
 - The matrix engine (VME/Zvt) and BF16. They don't exist at M3, and will come
   with a future pin bump.
 - Power and area.
-- Detailed modelling of the vector register-file read ports, and of bus
+- Detailed modeling of the vector register-file read ports, and of bus
   arbitration. These may be added if calibration shows they matter.
 
 ---
@@ -501,6 +496,6 @@ fidelity: the Docker build, the Spike driver, all units with seed values, the
 | **RTL** | The hardware design source (Chisel/SystemVerilog) |
 | **Scoreboard** | A bitmask of registers still waiting for a result |
 | **Slot 0** | The first of the 4 dispatch positions each cycle |
-| **Sparta** | The C++ performance-modelling framework we build on |
+| **Sparta** | The C++ performance-modeling framework we build on |
 | **Uop** | Micro-op: one internal piece of a vector instruction, usually one register's worth |
 | **Verilator** | A tool that turns the Verilog RTL into a fast, cycle-accurate C++ simulator |

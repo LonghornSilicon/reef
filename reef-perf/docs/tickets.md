@@ -12,7 +12,7 @@ The near-term work for new team members is in
 
 | Status | Tickets |
 | --- | --- |
-| Done | T01 (Docker image + pinned submodules), T04 (`SpikeDriver`), T07 (CMake/Sparta project, tests, lint, Doxygen), T08 (execute-at-fetch end to end) |
+| Done | T01 (Docker image + pinned submodules), T04 (`FuncSim`), T07 (CMake/Sparta project, tests, lint, Doxygen), T08 (execute-at-fetch end to end) |
 | Obsolete | T06: Spike already implements Zve32f |
 | Partly done | T03 (workloads in `src/reef_perf/experiments/run/workloads/`), T10–T15 (super-coarse versions of every unit), T19 (the `run` experiment; correlation is beginner ticket B03) |
 | Open | Everything else |
@@ -75,7 +75,7 @@ compare anything.
 
 **Tasks**
 - Build the M3 Verilator simulators for `CoreMini` and `RvvCoreMini`, in both the
-  normal and the `Verification` flavour, using the **highmem (1 MB/1 MB)**
+  normal and the `Verification` flavor, using the **highmem (1 MB/1 MB)**
   variants. The default 8 KB instruction memory is too small for real kernels.
 - Build one trivial test program with the M3 toolchain, run it on each simulator,
   and read back its `mcycle` value.
@@ -134,9 +134,10 @@ with a self-check passing, and is listed in the workload table in
 **Why.** Execute-at-fetch needs to tell the functional simulator "execute the
 next instruction and tell me everything about it".
 
-**What was done.** `SpikeDriver` (`spike_driver.hpp`) embeds Spike as a
-library. `step()` returns an `InstRecord`: PC, encoding, disassembly, next PC,
-per-element memory accesses (from Spike's commit log), `vl`/SEW/LMUL. It stops
+**What was done.** `FuncSim` (`src/frontend/FuncSim.h`) embeds Spike as a
+library. `next()` returns a decoded `Inst`: PC, encoding, disassembly, next PC,
+per-element memory accesses and registers written (from Spike's commit log),
+`vl`/SEW/LMUL. It stops
 at `mpause` and throws on traps. `tools/reef_trace.cpp` prints the stream.
 
 **Depends on:** T01.
@@ -170,7 +171,7 @@ workaround.
 ### T06: Vector FP32 support in the functional simulator — obsolete
 
 This ticket existed because MPACT lacked Zve32f. Spike implements it, and the
-driver's default ISA string (`kDefaultIsa`) enables it, so FP kernels such as
+driver's default ISA string (`DefaultISA`) enables it, so FP kernels such as
 `rvv_float_matmul` run today.
 
 ---
@@ -299,7 +300,7 @@ result, and the retirement buffer limits how many can be in flight.
 - Model ALU, BRU, MLU, DVU and FPU pools, each with `count`, `latency` and
   `issue_interval`.
 - Model the DVU `latency_model: dvu_clz`, which computes latency from the operand
-  values, which `SpikeDriver` reads from Spike's registers (the divider skips
+  values, which `FuncSim` reads from Spike's registers (the divider skips
   leading zeros; U10).
 - Model FPU div/sqrt as non-pipelined.
 - Add a retirement buffer with `rob_entries` and `retire_width`. Instructions
@@ -317,7 +318,7 @@ retirement buffer works.
 ### T13: LSU and memory model (M)
 
 **Why.** Every load and store, scalar or vector, goes through one LSU that handles
-one instruction at a time (D5). For LLM workloads, memory behaviour usually
+one instruction at a time (D5). For LLM workloads, memory behavior usually
 decides performance.
 
 **Tasks**
@@ -328,7 +329,7 @@ decides performance.
     boundary;
   - a vector access is, for each register's worth of elements, the number of
     distinct 16-byte lines touched plus `vector_per_register_overhead`.
-- Use the per-element addresses in `Inst::mem` to count lines exactly.
+- Use the per-element addresses in `Inst::Mem` to count lines exactly.
 - Memory regions:
   - ITCM and DTCM: fixed latency;
   - external: `ext_latency` plus bytes ÷ `ext_bytes_per_cycle`.
@@ -392,7 +393,7 @@ cycles went, not just the total.
 **Tasks**
 - End-of-run JSON summary:
   - cycles, instructions, IPC;
-  - per-unit utilisation;
+  - per-unit utilization;
   - the stall breakdown by reason;
   - memory bytes per region;
   - vector uop counts.
@@ -504,7 +505,7 @@ the `correlate` experiment directory.
 
 Each calibration ticket follows the same method:
 
-1. Use T17 benchmarks and targeted T03 microbenchmarks to measure the behaviour
+1. Use T17 benchmarks and targeted T03 microbenchmarks to measure the behavior
    on the RTL.
 2. Set the model parameters and rules to match.
 3. Confirm the change with T19, and debug with T18 when it doesn't match.
@@ -560,7 +561,7 @@ stall breakdown for them names the expected rule.
   interval.
 - Fit the DVU `dvu_clz` formula against operand-size sweeps.
 - Measure retirement-buffer stalls with a long-latency op (e.g. `div`) followed
-  by N independent ALU ops, and set `rob_entries` behaviour and `retire_width`.
+  by N independent ALU ops, and set `rob_entries` behavior and `retire_width`.
 
 **Done when** per-instruction latency and throughput match the T17 table exactly
 for scalar instructions.
@@ -604,7 +605,7 @@ kernel is within 10%.
   especially for widening, narrowing, reductions, permutes and masks.
 - Measure how an 8-entry vector ROB and 8-entry command queue limit overlap of
   long operations.
-- Decide whether vector register-file read-port conflicts (U9) need modelling.
+- Decide whether vector register-file read-port conflicts (U9) need modeling.
   Only add it if kernels are off by more than 5% because of it.
 
 **Done when** vector microbenchmarks are within 10%, and `rvv_matmul` (int8) is

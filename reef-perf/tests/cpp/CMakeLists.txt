@@ -13,13 +13,13 @@ set(INSTALL_GTEST OFF CACHE BOOL "Install Google Test" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
-# One directory per module, matching src/csrc/src/<module>/.
+# One directory per module, matching src/<module>/.
 set(REEF_PERF_TESTS
-    common/test_interfaces
-    common/test_resource_pool
-    frontend/test_inst_decode
-    mem/test_mem_timing
-    vector/test_vxu
+    common/InterfacesTest
+    common/ResourcePoolTest
+    frontend/InstDecodeTest
+    mem/MemTimingTest
+    vector/VectorTest
 )
 foreach(path ${REEF_PERF_TESTS})
     get_filename_component(test ${path} NAME)
