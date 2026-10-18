@@ -14,7 +14,9 @@
 //      for nq % 16 == 0, the vector unit for decode's nq = 1)
 //   2. per row: fix up k_zero * sum(q), apply score_scale and the causal /
 //      window bounds, take the block max, and update the running max m
-//   3. P = round(255 * exp(s - m)) as uint8 (0 for masked keys)
+//   3. P = round(255 * exp(s - m)) as uint8 (0 for masked keys), with exp
+//      read from exp_table (softmax_lut_table for score_scale) on the
+//      integer score gap, so no expf per score
 //   4. PV = P . v  via matmul() (uint8 x uint8 -> int32)
 //   5. acc = acc * exp(m_old - m) + PV / 255, l = l * exp(m_old - m) +
 //      sum(P) / 255
@@ -27,6 +29,8 @@
 // shape (decode's nq = 1) falls back to the vector unit inside matmul().
 // nq <= 64. Zero l and acc before the first block.
 //
+// exp_table: kSoftmaxLutEntries entries from softmax_lut_table(score_scale),
+// built once per layer and kept in DTCM.
 // scratch: nq * max(kv_len, d) int32 (scores, then P . V) followed by
 // nq * kv_len bytes (P). The host places it in DTCM next to the block.
 extern "C" void attention_vme_block(size_t nq, size_t d, size_t query_start,
@@ -34,5 +38,5 @@ extern "C" void attention_vme_block(size_t nq, size_t d, size_t query_start,
                                     size_t kv_len, const int8_t* q,
                                     const uint8_t* kt, int32_t k_zero,
                                     const uint8_t* v, float score_scale,
-                                    int32_t* scratch, float* m, float* l,
-                                    float* acc);
+                                    const uint16_t* exp_table, int32_t* scratch,
+                                    float* m, float* l, float* acc);

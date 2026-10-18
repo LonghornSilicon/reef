@@ -1,12 +1,13 @@
-// Checks online_softmax against a double-precision softmax: the max error of
-// each uint8 probability in 1/255 steps, and how far each row's sum drifts
-// from 255. Cycle counts come from the sim benches in sim/.
+// Checks online_softmax and softmax_lut against a double-precision softmax:
+// the max error of each uint8 probability in 1/255 steps, and how far each
+// row's sum drifts from 255. Cycle counts come from the sim benches in sim/.
 //
 // Host build, from simulations/:
 //   clang++ -std=c++17 -Ikernels -Iincludes kernels/online_softmax.cc \
-//       unit_tests/test_softmax.cc -o test_softmax
+//       kernels/softmax_lut.cc unit_tests/test_softmax.cc -o test_softmax
 #include "online_softmax.h"
 #include "params.h"
+#include "softmax_lut.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -34,13 +35,9 @@ void fill(int32_t* scores, size_t lo, size_t hi, int32_t spread) {
     }
 }
 
-// The kernel must sit within one 1/255 step of the exact probability.
-int check_case(const char* name, size_t lo, size_t hi, int32_t spread) {
-    int32_t scores[kMaxRow];
-    uint8_t probs[kMaxRow];
-    fill(&scores[0], lo, hi, spread);
-    online_softmax(&scores[0], lo, hi, params::kScoreScale, &probs[0]);
-
+// Each kernel must sit within one 1/255 step of the exact probability.
+int check_probs(const char* name, const char* kernel, const int32_t* scores,
+                const uint8_t* probs, size_t lo, size_t hi) {
     double m = params::kScoreScale * static_cast<double>(scores[lo]);
     for (size_t j = lo; j <= hi; ++j) {
         const double s = params::kScoreScale * static_cast<double>(scores[j]);
@@ -64,9 +61,23 @@ int check_case(const char* name, size_t lo, size_t hi, int32_t spread) {
     }
 
     const bool pass = worst <= 1.0;
-    printf("%-14s %s (max err %.3f LSB, row sum %d of 255)\n", name,
-           pass ? "pass" : "FAIL", worst, p_sum);
+    printf("%-14s %-14s %s (max err %.3f LSB, row sum %d of 255)\n", name,
+           kernel, pass ? "pass" : "FAIL", worst, p_sum);
     return pass ? 0 : 1;
+}
+
+int check_case(const char* name, size_t lo, size_t hi, int32_t spread) {
+    int32_t scores[kMaxRow];
+    uint8_t probs[kMaxRow];
+    uint16_t table[kSoftmaxLutEntries];
+    fill(&scores[0], lo, hi, spread);
+    online_softmax(&scores[0], lo, hi, params::kScoreScale, &probs[0]);
+    int failures =
+        check_probs(name, "online_softmax", &scores[0], &probs[0], lo, hi);
+    softmax_lut_table(params::kScoreScale, &table[0]);
+    softmax_lut(&scores[0], lo, hi, &table[0], &probs[0]);
+    failures += check_probs(name, "softmax_lut", &scores[0], &probs[0], lo, hi);
+    return failures;
 }
 
 } // namespace

@@ -54,6 +54,8 @@ OPS = {
     "gelu": 21,
     "layernorm": 22,
     "residual_add": 23,
+    "softmax_lut": 24,
+    "softmax_lut_table": 25,
     "load_chain_scalar": 30,
     "load_chain_vector": 31,
 }
@@ -62,6 +64,16 @@ OPS = {
 def f32_bits(value: float) -> int:
     """IEEE-754 bits of a float32, as bench_main.cc's arg_f() reads them."""
     return int(np.float32(value).view(np.uint32))
+
+
+def exp_table(score_scale: float) -> np.ndarray:
+    """softmax_lut_table's Q15 exp(-score_scale * gap) table, in float32."""
+    gap = np.arange(256, dtype=np.float32)
+    scale = np.float32(score_scale)
+    coarse = np.exp(-scale * np.float32(256) * gap)
+    fine = np.exp(-scale * gap)
+    q15 = np.float32(32768) * np.concatenate([coarse, fine]) + np.float32(0.5)
+    return q15.astype(np.uint16)
 
 
 class Arena:
@@ -328,15 +340,22 @@ async def run_chunked(
         arena.take(block * d),
     )
     om, ol, oa = arena.take(nq * 4), arena.take(nq * 4), arena.take(nq * d * 4)
-    oo = arena.take(nq * d)
     vme = op == "attention_vme_block"
-    # scores / P.V int32 (nq x max(block, d)), then P bytes (nq x block)
-    scratch = [arena.take(nq * max(block, d) * 4 + nq * block)] if vme else []
+    # scores / P.V int32 (nq x max(block, d)), then P bytes (nq x block),
+    # then the exp table (softmax_lut_table, 512 uint16). The finish step's
+    # output reuses the scratch, which is free by then.
+    vme_args = (
+        [arena.take(nq * max(block, d) * 4 + nq * block), arena.take(1024)]
+        if vme
+        else []
+    )
+    oo = vme_args[0] if vme else arena.take(nq * d)
     # q and the zeroed state go in once; only K/V blocks stream per call
     setup = {
         "q": (oq, q),
         "l": (ol, np.zeros(nq, np.float32)),
         "acc": (oa, np.zeros(nq * d, np.float32)),
+        **({"exp_table": (vme_args[1], exp_table(SCORE_SCALE))} if vme else {}),
     }
     for start in range(0, nk, block):
         kt_block = np.ascontiguousarray(kt[:, start : start + block])
@@ -358,7 +377,7 @@ async def run_chunked(
                 oa,
                 Q["k_zero"],
                 SCORE_SCALE,
-                *scratch,
+                *vme_args,
             ],
             {
                 **(setup if start == 0 else {}),
@@ -471,27 +490,47 @@ async def pointwise_test(dut: SimHandleBase) -> None:
 
     row = T["softmax"]["row"]
     scores = rng.integers(-40000, 40000, row).astype(np.int32)
-    for name, lo, hi, phase in [
-        ("online_softmax_row", 0, row - 1, "decode"),
-        ("online_softmax_64", 0, 63, "prefill"),
-    ]:
-        arena = Arena()
-        os_, op = arena.take(scores.nbytes), arena.take(row)
-        await bench.call(
-            name,
-            "online_softmax",
-            [lo, hi, os_, op, SCORE_SCALE],
-            {"scores": (os_, scores)},
-            {"probs": (op, np.uint8, (row,))},
-            {
-                "kernel": "online_softmax",
-                "shape": [hi - lo + 1],
-                "phase": phase,
-                "lo": lo,
-                "hi": hi,
-                "ops": 6 * (hi - lo + 1),
-            },
-        )
+    # float expf (online_softmax) and the lookup-table version (softmax_lut,
+    # its table built untimed in bench_main) on the same rows
+    for kernel in ["online_softmax", "softmax_lut"]:
+        for suffix, lo, hi, phase in [
+            ("row", 0, row - 1, "decode"),
+            ("64", 0, 63, "prefill"),
+        ]:
+            arena = Arena()
+            os_, op = arena.take(scores.nbytes), arena.take(row)
+            ot = arena.take(1024)
+            await bench.call(
+                f"{kernel}_{suffix}",
+                kernel,
+                [lo, hi, os_, op, SCORE_SCALE, ot],
+                {"scores": (os_, scores)},
+                {"probs": (op, np.uint8, (row,))},
+                {
+                    "kernel": kernel,
+                    "shape": [hi - lo + 1],
+                    "phase": phase,
+                    "lo": lo,
+                    "hi": hi,
+                    "ops": 6 * (hi - lo + 1),
+                },
+            )
+    # the once-per-layer table build, checked against NumPy's float32 table
+    arena = Arena()
+    ot = arena.take(1024)
+    await bench.call(
+        "softmax_lut_table",
+        "softmax_lut_table",
+        [SCORE_SCALE, ot],
+        {},
+        {"table": (ot, np.uint16, (512,))},
+        {
+            "kernel": "softmax_lut_table",
+            "shape": [512],
+            "phase": "both",
+            "ops": 0,
+        },
+    )
 
     n = T["gelu"]["n"]
     x = rng.integers(-128, 128, n).astype(np.int8)

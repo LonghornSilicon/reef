@@ -29,6 +29,7 @@ BENCHES = {
         "gelu.cc",
         "layernorm.cc",
         "residual.cc",
+        "softmax_lut.cc",
     ]),
     "bench_ubench": (3, []),
     "bench_attention_vme": (4, [

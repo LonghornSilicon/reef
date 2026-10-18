@@ -4,12 +4,13 @@
 //
 // Host build, from simulations/:
 //   clang++ -std=c++17 -DVME_EMULATE -DRVV_EMULATE -Ikernels -Iincludes \
-//       kernels/attention_*.cc kernels/online_softmax.cc kernels/matmul*.cc \
+//       kernels/attention_*.cc kernels/*softmax*.cc kernels/matmul*.cc \
 //       unit_tests/test_flash.cc -o test_flash
 #include "attention_flash.h"
 #include "attention_flash_chunk.h"
 #include "attention_serial.h"
 #include "attention_vme.h"
+#include "softmax_lut.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -120,6 +121,8 @@ void chunked_attention(size_t nq, size_t nk, size_t d, size_t query_start,
     uint8_t kt_block[kVmeBlock * kMaxKV / kMaxKeys];
     // scores / P.V (nq x max(len, d) int32) then P (nq x len bytes)
     static int32_t scratch[kMaxQ + (kMaxQ / 4)];
+    static uint16_t exp_table[kSoftmaxLutEntries];
+    softmax_lut_table(kScoreScale, &exp_table[0]);
     const size_t block = vme && nk % kVmeBlock == 0 ? kVmeBlock : kBlock;
     for (size_t i = 0; i < nq; ++i) {
         l[i] = 0;
@@ -137,8 +140,8 @@ void chunked_attention(size_t nq, size_t nk, size_t d, size_t query_start,
         if (vme) {
             attention_vme_block(nq, d, query_start, window, start, len, q,
                                 &kt_block[0], kKZero, v + (start * d),
-                                kScoreScale, &scratch[0], &m[0], &l[0],
-                                &acc[0]);
+                                kScoreScale, &exp_table[0], &scratch[0], &m[0],
+                                &l[0], &acc[0]);
         } else {
             attention_flash_chunk(nq, d, query_start, window, start, len, q,
                                   &kt_block[0], kKZero, v + (start * d),

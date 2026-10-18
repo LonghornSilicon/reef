@@ -14,7 +14,10 @@ engine (VME) in prefill:
 qkv, attn_out, fc1, fc2, and attention's QKᵀ and P·V. Decode's single-row
 products run on the vector unit (RVV), which measured faster than a padded
 VME tile (see 4). LayerNorm, residual add and GeLU are scalar: they aren't
-matmuls, so VME can't run them.
+matmuls, so VME can't run them. Softmax has two versions, float `expf`
+(`online_softmax`) and a lookup table (`softmax_lut`). Attention uses the
+lookup table; section 1 compares the two, and section 3 shows both
+end-to-end.
 
 ## 1. What runs, and how well
 
@@ -25,12 +28,15 @@ Every kernel ran on the RTL model and was checked against NumPy:
 | `matmul_vme_s8u8` 16×512×16 | 11,005 | bit-exact |
 | `matmul_rvv_s8u8` 16×512×16 | 74,006 | bit-exact |
 | `matmul_rvv_s8u8` 1×512×32 (decode) | 9,318 | bit-exact |
-| `attention_vme_block` 16q × 64-key block (VME) | ~337k | 1.35 LSB vs float at 256 keys; within 1 LSB of serial at 64 keys, 2 at 256 |
-| `attention_vme_block` 1q × 64-key block (decode, RVV) | ~25k | 0.76 LSB vs float |
+| `attention_vme_block` 16q × 64-key block (VME, LUT exp) | ~74.6k (was ~337k with `expf`) | 1.35 LSB vs float at 256 keys; within 1 LSB of serial at 64 keys, 2 at 256 |
+| `attention_vme_block` 1q × 64-key block (decode, RVV, LUT exp) | ~9.0k (was ~25k) | 0.76 LSB vs float |
 | `attention_flash_chunk` 16q × 64-key block (scalar reference) | ~2.2M | 0.50 LSB; within 1 LSB of serial |
 | `attention_serial` 16q×64k (scalar reference) | 1,814,058 | 0.90 LSB vs float |
 | `attention_flash` 16q×64k (scalar reference) | 1,980,632 | 0.50 LSB; within 1 LSB of serial |
-| `online_softmax`, 1024-key row | 572,993 | 0.49 LSB (1/255) |
+| `online_softmax` (`expf`), 1024-key row | 572,943 | 0.49 LSB (1/255) |
+| `softmax_lut` (lookup-table exp), 1024-key row | **52,674** | 0.49 LSB (1/255) |
+| `softmax_lut` 64-key row (vs `online_softmax` 35,606) | 3,307 | 0.46 LSB |
+| `softmax_lut_table` (once per layer) | 127,576 | within 0.5 Q15 step |
 | `gelu`, 4096 elements | 53,287 | 0.49 LSB |
 | `layernorm`, 4×768 | 243,069 | 0.50 LSB |
 | `residual_add`, 4096 elements | 241,850 | exact |
@@ -65,6 +71,52 @@ was measured on the dev Mac (arm64), not an x86 host.
 - This should be re-checked on calibrated activations before committing to
   uint8 P.
 
+### Softmax: two versions
+
+Both versions share one contract: an int32 score row in, uint8
+probabilities with scale 1/255 out, and only the visible slice `[lo, hi]`
+touched. Both are kept in the tree.
+
+- **`online_softmax` (float `expf`)** is the reference. It makes one pass
+  for a running max and normalizer, rescaling the sum when the max grows,
+  and a second to normalize. Every score costs two newlib `expf` calls.
+- **`softmax_lut` (lookup table)** is what attention uses now. The score
+  gap `d = max − s` is an integer, so `exp(−score_scale · d)` is a coarse
+  table on d's high byte times a fine table on its low byte: two 256-entry
+  Q15 tables, 1 KB in all. That's exact up to Q15 rounding, because
+  exp(a + b) = exp(a) · exp(b). It makes three integer passes (max, sum,
+  normalize) with one division per row.
+
+| | `online_softmax` (`expf`) | `softmax_lut` (lookup table) |
+| --- | ---: | ---: |
+| 1024-key row (sim) | 572,943 cycles (560 / score) | **52,674 cycles (51 / score), 10.9×** |
+| 64-key row (sim) | 35,606 cycles | **3,307 cycles, 10.8×** |
+| Max error vs float (sim, 1024 / 64 keys) | 0.49 / 0.46 LSB | 0.49 / 0.46 LSB |
+| Host `test_softmax`, all 6 cases | ≤ 0.50 LSB | identical per case |
+| Float ops per score | 2 `expf` + multiplies | none (two table loads, one multiply) |
+| Extra DTCM | none | 1 KB table |
+| Setup | none | 127,576 cycles to build the table, once per layer |
+| Range limit | none | gaps ≥ 65,536 read as 0, so it needs score_scale · 65,536 ≥ 13 (GPT-2: 20.5) |
+
+**Inside `attention_vme_block`.** The running max is always `score_scale`
+times an integer score, so the block rescale `exp(m_old − m_new)` comes
+from the same table, and the kernel makes no `expf` calls. Measured on the
+sim, same inputs:
+
+| | with `expf` | with lookup table |
+| --- | ---: | ---: |
+| 16q × 64-key prefill block | ~337k cycles | **~74.6k (4.5×)** |
+| 1q × 64-key decode block | ~25.4k cycles | **~9.0k (2.8×)** |
+| Error vs float (256-key prefill / decode / vs serial) | 1.35 / 0.76 / 0.93 LSB | 1.35 / 0.76 / 0.93 LSB |
+| Exp share of the block | up to ~85% (prefill) | small; the scalar loop around it dominates |
+| 12 blocks + head: decode | 3.0 s / token | **2.26 s / token (−25%)** |
+| 12 blocks + head: prefill 1024 | 12.4 min | **5.8 min (−53%)** |
+
+The two tables cost 12 × 128k cycles = 31 ms per model at 50 MHz. That's
+not counted in section 3, and the host could build them instead. The
+`expf` version stays as the accuracy reference and for any score scale
+too small for the table's range.
+
 ## 2. Where each operator sits on the roofline
 
 ![prefill](roofline_prefill.png)
@@ -79,13 +131,14 @@ share the measured VME peak.
 | --- | --- | ---: | --- |
 | qkv, attn_out, fc1, fc2 (prefill) | VME | 23.6–23.8 | **VME issue rate**: at 97% of the measured peak. They sit at about 15 ops/byte, far right of both bandwidth ridges (~1.5 ops/byte), so the 84-cycle step is the limit, not bandwidth. |
 | qkv, attn_out, fc1, fc2 (decode) | RVV | 3.5 | **Vector compute** on a matrix-vector product, at about 1.9 ops/byte. |
-| attention (prefill) | VME + scalar softmax | 0.74 | **Software exp.** The block's two matmuls take about 12.8k cycles at the measured VME rate (2 × 4 tiles × (253 + 84 × 16)). That's under 4% of the ~337k-cycle block. The rest is the per-score softmax: 1,024 `expf` calls per block plus the rescale. |
-| attention (decode) | RVV + scalar softmax | 0.64 | Same: 64 `expf` calls per block dominate a ~25k-cycle block. |
+| attention (prefill) | VME + scalar LUT softmax | 3.03 | **Scalar per-score loop.** The block's two matmuls take about 12.8k cycles at the measured VME rate (2 × 4 tiles × (253 + 84 × 16)), 17% of the ~74.6k-cycle block. The other ~62k cycles are scalar per-score work: max, `k_zero` fixup, table lookups, the uint8 store, and the float rescale of the 16 × 64 accumulator. |
+| attention (decode) | RVV + scalar LUT softmax | 1.78 | About half matmul (two 1×64×64 RVV products, ~4.7k cycles at the measured RVV rate) and half the per-score loop, in a ~9.0k-cycle block. |
 | layernorm, residual, gelu | scalar | 0.05–0.10 | **Scalar float per element**: 79, 59 and 13 cycles per element. |
 
-Attention went from 0.12 ops/cycle (scalar) to **0.74 (prefill) and 0.64
-(decode)**. That's 6.2× and 5.4×, and it moved attention's bottleneck from
-the matmuls to exp.
+Attention went from 0.12 ops/cycle (scalar) to 0.74 / 0.64 on VME with
+`expf`, and to **3.03 (prefill) and 1.78 (decode)** with the lookup-table
+exp. That's 25× and 15× over scalar. Exp is no longer the bottleneck: the
+scalar per-score loop around it is.
 
 ## 3. End-to-end estimate
 
@@ -102,22 +155,27 @@ block.
 
 | Phase | One block | 12 blocks + head | Attention | Matmuls | LN / residual / GeLU | Host transfer |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| prefill 16 | 0.38 s | 5.0 s | 25% | 53% | 21% | 2.9% |
-| prefill 64 | 1.5 s | 18.6 s | 25% | 53% | 21% | 2.9% |
-| prefill 256 | 7.9 s | 96 s | 43% | 41% | 16% | 2.3% |
-| prefill 1024 | 62 s | 12.4 min | 71% | 21% | 8% | 1.2% |
-| decode (context 1024) | 0.21 s | **3.0 s per token** | 48% | 43% | 10% | 5.3% |
+| prefill 16 | 0.32 s | 4.3 s | 11% | 64% | 26% | 3.5% |
+| prefill 64 | 1.3 s | 15.7 s | 11% | 64% | 26% | 3.5% |
+| prefill 256 | 5.5 s | 66 s | 18% | 59% | 24% | 3.3% |
+| prefill 1024 | 29 s | **5.8 min** | 37% | 45% | 18% | 2.7% |
+| decode (context 1024) | 0.15 s | **2.26 s per token** | 25% | 61% | 14% | 7.6% |
 
 The head (final LayerNorm + LM head) costs **494 ms per token**: 439 ms of
 RVV compute plus 50 ms streaming the 39 MB weight matrix from the host.
-That's 16% of a decoded token.
+That's 22% of a decoded token.
 
-Moving attention to VME cut decode from 7.7 to 2.5 s per token for the 12
-blocks (3.0 s with the head), and prefill 1024 from 58 to 12.4 min.
+How we got here, for the 12 blocks + head:
 
-At short prefill, VME attention is no faster than scalar (0.09 vs 0.10
-ops/cycle at 16 tokens). The matrix engine computes the whole 64-key block
-while only 16 keys are visible, which wastes most of it.
+| Attention version | Decode (s/token) | Prefill 1024 |
+| --- | ---: | ---: |
+| Scalar (`attention_flash_chunk`) | 8.2 | 58 min |
+| VME matmuls, `expf` softmax | 3.0 | 12.4 min |
+| **VME matmuls, lookup-table softmax** | **2.26 (−25%)** | **5.8 min (−53%)** |
+
+At short prefill, attention is 11% of the block. The matrix engine still
+computes the whole 64-key block while only 16 keys are visible, which
+wastes most of it (0.24 ops/cycle at 16 tokens, versus 3.03 at 1024).
 
 ### Vocab size sensitivity
 
@@ -129,11 +187,11 @@ blocks are unchanged. These figures are extrapolated from the measured
 
 | Vocab | LM-head weights (host traffic) | Head (ms/token) | Decode (ms/token) | Head share of decode | Prefill 1024 |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 8,192 | 6.4 MB | 85 | 2,608 | 3.2% | 12.4 min |
-| 16,384 | 12.7 MB | 164 | 2,688 | 6.1% | 12.4 min |
-| 32,768 | 25.4 MB | 323 | 2,847 | 11.4% | 12.4 min |
-| **50,257 (GPT-2)** | 39.0 MB | **494** | **3,017** | **16.4%** | 12.4 min |
-| 100,352 | 77.9 MB | 980 | 3,504 | 28.0% | 12.4 min |
+| 8,192 | 6.4 MB | 85 | 1,855 | 4.6% | 5.8 min |
+| 16,384 | 12.7 MB | 164 | 1,934 | 8.5% | 5.8 min |
+| 32,768 | 25.4 MB | 323 | 2,093 | 15.4% | 5.8 min |
+| **50,257 (GPT-2)** | 39.0 MB | **494** | **2,264** | **21.8%** | 5.8 min |
+| 100,352 | 77.9 MB | 980 | 2,750 | 35.6% | 5.8 min |
 
 - **Each extra 1,000 vocab entries costs about 9.7 ms per decoded token**
   at 50 MHz. About 90% of that is RVV compute and 10% is host transfer:
@@ -186,48 +244,54 @@ blocks are unchanged. These figures are extrapolated from the measured
     them for every 16-query block. That's **58.3 MB of host traffic per
     block at prefill 1024**, versus 3.1 MB if K, V, q and out each crossed
     once (19× more).
-  - At today's attention speed, that's still only 0.17% (prefill 1024) to
-    2% (decode) of attention kernel time. It grows as exp gets faster; see
-    6c.
+  - With the lookup-table exp, that's still only about 0.8% (prefill 1024)
+    to 6% (decode) of attention kernel time, up from 0.17% and 2% with
+    `expf`. It grows as the per-score loop gets faster; see 6c.
 
 ## 6. Initial architecture suggestions
 
 These are candidates to test, not conclusions. Each comes with the
 measurement it rests on and a first-order sensitivity on the blocks in 3.
 
-a. **Hardware exp / softmax support.** This is now the top lever.
-   - **Evidence:** attention is 48% (decode) to 71% (prefill 1024) of block
-      time, and its matmuls are under 4% of it. The measured softmax costs
-      560 cycles per element with two `expf` calls each, an upper bound of
-      about 280 cycles per software `expf`. That puts exp at up to about 85%
-      of a VME prefill attention block (1,040 calls × 280 of ~337k cycles)
-      and about 70% of a decode block (65 × 280 of ~25k).
-   - **Sensitivity:** a few-cycle exp would cut up to about **−60% of
-      prefill-1024 time and −28% of a decoded token** (head included). These are upper bounds,
-      because the 280 cycles include the loop's other float work.
-
-b. **A GEMV mode or smaller tile for decode.**
+a. **A GEMV mode or smaller tile for decode.** This is now the top lever
+   for decode.
    - **Evidence:** decode matmuls get 1.75 MACs/cycle on RVV. VME pads to
       6% utilization (0.74 useful MACs/cycle).
    - **Sensitivity:** a mode that delivered VME's measured step rate on one
       row (12.2 MACs/cycle) would make decode matmul kernels about 7×
       faster. Per token, the 12 blocks' matmul kernels (965 ms) plus the LM
-      head (439 ms) are 47% of decode, so that's about **−40% per decoded
+      head (439 ms) are 62% of decode, so that's about **−53% per decoded
       token**. The saving grows with vocab size. Check `msettm` with a 1-row
       tile first (4); it may already exist.
+
+b. **Vectorize the per-score softmax loop (software), or add softmax
+   support in hardware.** The lookup table took exp from about 85% of an
+   attention block to a minor part of the loop; what's left is the scalar
+   loop around it.
+   - **Evidence:** a 16q × 64-key prefill block is ~74.6k cycles, of which
+      the matmuls are ~12.8k. The other ~62k (about 60 cycles per score)
+      are scalar integer work plus the float accumulator rescale. Decode
+      blocks are about half per-score loop (~4.3k of ~9.0k cycles).
+   - **Sensitivity:** if that loop ran at matmul speed, attention would
+      shrink by up to ~83% (prefill) and ~48% (decode): about **−31% of
+      prefill 1024 and −12% of a decoded token**. RVV has indexed loads
+      (`vluxei16`) for the two table lookups, so this is software first;
+      hardware exp is no longer worth much on its own. These are upper
+      bounds.
 
 c. **Larger DTCM (KV resident) and/or DMA with double buffering.**
    - **Evidence:** streamed attention moves 19× more host bytes than a
       resident KV would (5), and the LM head streams 39 MB per token. All
-      host traffic is serialized with compute today: about 6% of a decoded
-      token (183 ms) and 1.2% of prefill 1024.
+      host traffic is serialized with compute today: about 8% of a decoded
+      token (183 ms) and 2.7% of prefill 1024.
    - **Sensitivity today:** a DMA that fully hid transfers saves at most
-      that much (−6% per decoded token). Doubling the host bus saves about
-      half of it (≤ −3%).
-   - **When it matters:** this grows after (a). With exp at a few cycles,
-      decode attention per block drops to roughly the matmul work, and the
-      streamed K/V would become a large share of it. At that point, KV
-      residency (≥128 KB per head) or DMA overlap is the main lever.
+      that much (−8% per decoded token). Doubling the host bus saves about
+      half of it (≤ −4%).
+   - **When it matters:** this grows after (a) and (b). Every compute
+      speedup raises the host share, because the bytes stay the same. Once
+      decode attention is down to its matmul work, the streamed K/V becomes
+      a large share of it. At that point, KV residency (≥128 KB per head)
+      or DMA overlap is the main lever.
 
 d. **Separate port per DTCM bank (load VME's A and B in parallel).**
    - **Evidence:** a VME step is 84 cycles for 1,024 MACs, which includes
@@ -237,15 +301,15 @@ d. **Separate port per DTCM bank (load VME's A and B in parallel).**
       are mostly serialized load latency, parallel ports would help.
    - **Not yet measured:** how many of the 84 cycles are loads. That needs
       a load-free step microbenchmark before this is worth pursuing.
-   - **Sensitivity:** prefill matmuls are 53% of prefill-16 and 21% of
-      prefill-1024 block time. Halving the step saves up to about **−27%
-      and −10%** respectively.
+   - **Sensitivity:** prefill matmuls are 64% of prefill-16 and 45% of
+      prefill-1024 block time. Halving the step saves up to about **−32%
+      and −22%** respectively.
 
 e. **Vector float for the pointwise kernels** (software plus a build flag,
    not hardware). The RTL enables vector float (`ZVE32F_ON`), but our build
-   targets `zve32x`. LayerNorm, residual and GeLU are scalar today: 21% of
-   prefill-16, 8% of prefill-1024 and 10% of decode block time. Moving them
-   to RVV is the cheapest remaining software win.
+   targets `zve32x`. LayerNorm, residual and GeLU are scalar today: 26% of
+   prefill-16, 18% of prefill-1024 and 14% of decode block time. Moving them
+   to RVV is the cheapest remaining software win, alongside (b).
 
 ## 7. Numbers that are assumed, not measured
 
@@ -263,6 +327,7 @@ e. **Vector float for the pointwise kernels** (software plus a build flag,
 | Vocab sweep | Extrapolated from the measured RVV tile and host rate; only the GPT-2 vocab's tile shapes ran on the sim |
 | Host-side work (summing K-split partial sums, orchestration) | Not counted |
 | Quantization scales | Placeholders, not calibrated; affect accuracy numbers, not cycles |
-| `expf` cost of about 280 cycles | Upper bound inferred from the softmax measurement |
+| `expf` cost of about 280 cycles | Upper bound inferred from the `online_softmax` measurement; no longer on the attention path |
+| Softmax exp tables | Built once per layer (128k cycles measured), not counted in the end-to-end figures |
 | Embedding timing | Measured on an arm64 Mac, not the x86 host |
 | SRAM timing | Behavioral SRAM model only; no `sram22` macro in coralnpu's flow |

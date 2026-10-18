@@ -52,6 +52,7 @@ simulations/
 │   ├── matmul_rvv.h/.cc        # matmul on the vector unit
 │   ├── matmul_vme.h/.cc        # matmul on the matrix engine
 │   ├── online_softmax.h/.cc    # int32 scores -> uint8 probabilities
+│   ├── softmax_lut.h/.cc       # same, exp from two 256-entry tables
 │   ├── attention_serial.h/.cc  # unfused attention head, the reference
 │   ├── attention_flash.h/.cc   # fused attention head (online softmax)
 │   ├── attention_flash_chunk.h/.cc # flash with KV streamed in blocks
@@ -168,6 +169,22 @@ visible slice `[lo, hi]`, to uint8 probabilities with scale 1/255 and zero
 point 0, the A operand `matmul_vme_u8` takes for P·V. Pass 1 keeps the
 running max and normalizer, pass 2 normalizes.
 
+### `softmax_lut`
+
+```c
+void softmax_lut_table(float score_scale, uint16_t* table);  // 512 entries
+void softmax_lut(const int32_t* scores, size_t lo, size_t hi,
+                 const uint16_t* table, uint8_t* probs);
+```
+
+`online_softmax`'s contract with no float and no `expf` per score. The
+score gap `d = max - s` is an integer, so `exp(-score_scale * d)` splits
+into a coarse table on its high byte times a fine table on its low byte,
+both Q15. One division per row normalizes. Same accuracy as
+`online_softmax` and 10.9× faster on the sim (1024-key row). The table is
+built once per `score_scale` (per layer); `exp_lut` is the shared lookup
+that `attention_vme_block` uses too.
+
 ### `attention_vme_block`
 
 ```c
@@ -175,12 +192,14 @@ void attention_vme_block(size_t nq, size_t d, size_t query_start,
                          size_t window, size_t kv_start, size_t kv_len,
                          const int8_t* q, const uint8_t* kt, int32_t k_zero,
                          const uint8_t* v, float score_scale,
-                         int32_t* scratch, float* m, float* l, float* acc);
+                         const uint16_t* exp_table, int32_t* scratch,
+                         float* m, float* l, float* acc);
 ```
 
 Block flash attention with both matmuls through `matmul()`: S = q·kt
 (int8 × uint8, `matmul_vme_s8u8`), then per row the `k_zero` fixup, causal
-mask, running-max update and uint8 probabilities, then P·V (uint8 × uint8,
+mask, running-max update and uint8 probabilities (exp from
+`softmax_lut_table`'s table, so no `expf` per score), then P·V (uint8 × uint8,
 `matmul_vme_u8`) folded into the same `(m, l, acc)` state as
 `attention_flash_chunk`, finished by `attention_flash_finish`. Prefill's
 16-query blocks run on the matrix engine; decode's single query falls back
@@ -286,7 +305,7 @@ in `config/hardware.json`. Numbers live in `results/results.json`.
 | `matmul_rvv`, `matmul_rvv_s8u8`, `matmul()` dispatch | **Verified on the sim**: bit-exact vs NumPy (decode, prefill and 7×13×23 shapes) |
 | softmax, GeLU, LayerNorm, residual | **Verified on the sim**: within 0.5 int8 LSB of float references |
 | Attention (serial, flash, chunked flash) | **Verified on the sim**: serial within 0.9 LSB of a float reference; flash and chunked flash (16- and 64-key streamed blocks) within 1 LSB of serial |
-| Attention on the VME (`attention_vme_block`) | **Verified on the sim**: within 1 LSB of serial at 64 keys, 2 LSB at 256 (uint8 probabilities rounded per block); 1.35 LSB vs float at 256 keys, where the serial algorithm itself is 1.44. About 337k cycles per 16-query × 64-key block, versus ~2.2M for scalar |
+| Attention on the VME (`attention_vme_block`) | **Verified on the sim**: within 1 LSB of serial at 64 keys, 2 LSB at 256 (uint8 probabilities rounded per block); 1.35 LSB vs float at 256 keys, where the serial algorithm itself is 1.44. About 75k cycles per 16-query × 64-key block with the lookup-table exp (337k with `expf`), versus ~2.2M for scalar |
 | `mstatus.MS` enable (bit 29) | Works on the sim: the VME benches call `enable_matrix_state()` and run |
 
 ## Known issues and open questions

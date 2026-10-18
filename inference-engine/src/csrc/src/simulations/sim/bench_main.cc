@@ -33,6 +33,7 @@
 #include "layernorm.h"
 #include "online_softmax.h"
 #include "residual.h"
+#include "softmax_lut.h"
 #endif
 
 enum Op : uint32_t {
@@ -50,6 +51,8 @@ enum Op : uint32_t {
     kGelu,
     kLayernorm,
     kResidual,
+    kSoftmaxLut,
+    kSoftmaxLutTable,
     kLoadChainScalar = 30,
     kLoadChainVector,
 };
@@ -166,13 +169,13 @@ bool run() {
         break;
 #elif BENCH_GROUP == 4
     // args: nq, d, query_start, window, kv_start, kv_len, q, kt, v, m, l,
-    //       acc, k_zero, score_scale, scratch
+    //       acc, k_zero, score_scale, scratch, exp_table
     case kAttentionVmeBlock:
         attention_vme_block(arg(1), arg(2), arg(3), arg(4), arg(5), arg(6),
                             at<int8_t>(7), at<uint8_t>(8),
                             static_cast<int32_t>(arg(13)), at<uint8_t>(9),
-                            arg_f(14), at<int32_t>(15), at<float>(10),
-                            at<float>(11), at<float>(12));
+                            arg_f(14), at<uint16_t>(16), at<int32_t>(15),
+                            at<float>(10), at<float>(11), at<float>(12));
         break;
     // args: nq, d, l, acc, out, v_zero, v_scale, out_scale
     case kAttentionFlashFinish:
@@ -185,6 +188,15 @@ bool run() {
     case kSoftmax:
         online_softmax(at<int32_t>(3), arg(1), arg(2), arg_f(5),
                        at<uint8_t>(4));
+        break;
+    // args: lo, hi, scores, probs, score_scale, table (built untimed below)
+    case kSoftmaxLut:
+        softmax_lut(at<int32_t>(3), arg(1), arg(2), at<uint16_t>(6),
+                    at<uint8_t>(4));
+        break;
+    // args: score_scale, table: the once-per-layer build, timed on its own
+    case kSoftmaxLutTable:
+        softmax_lut_table(arg_f(1), at<uint16_t>(2));
         break;
     // args: n, x, table, y, in_scale, out_scale (table built untimed below)
     case kGelu:
@@ -224,6 +236,8 @@ int main() {
 #elif BENCH_GROUP == 2
     if (arg(0) == kGelu) {
         gelu_table(arg_f(5), arg_f(6), at<int8_t>(3)); // setup, not timed
+    } else if (arg(0) == kSoftmaxLut) {
+        softmax_lut_table(arg_f(5), at<uint16_t>(6)); // setup, not timed
     }
 #endif
     const uint32_t start = mcycle();

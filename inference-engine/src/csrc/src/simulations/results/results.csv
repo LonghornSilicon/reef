@@ -18,21 +18,21 @@ attention_flash_chunk,chunk_vs_serial_block1,"[16, 16, 64]",prefill,554868,65536
 attention_flash_chunk,chunk_vs_serial_block2,"[16, 16, 64]",prefill,555115,65536,2048,136,0,,
 attention_flash_chunk,chunk_vs_serial_block3,"[16, 16, 64]",prefill,297807,65536,2048,136,0,,
 attention_flash_finish,chunk_vs_serial_finish,"[16, 64, 64]",prefill,68761,0,0,0,1024,0.49982445275863085,True
-attention_vme_block,vme_decode_block0,"[1, 64, 64]",decode,25058,16384,8516,561,0,,
-attention_vme_block,vme_decode_block1,"[1, 64, 64]",decode,25350,16384,8192,528,0,,
-attention_vme_block,vme_decode_block2,"[1, 64, 64]",decode,25352,16384,8192,528,0,,
-attention_vme_block,vme_decode_block3,"[1, 64, 64]",decode,25433,16384,8192,528,0,,
-attention_flash_finish,vme_decode_finish,"[1, 256, 64]",decode,4356,0,0,0,64,0.7557556415539999,True
-attention_vme_block,vme_prefill_block0,"[16, 64, 64]",prefill,333128,262144,13376,868,0,,
-attention_vme_block,vme_prefill_block1,"[16, 64, 64]",prefill,337061,262144,8192,528,0,,
-attention_vme_block,vme_prefill_block2,"[16, 64, 64]",prefill,337178,262144,8192,528,0,,
-attention_vme_block,vme_prefill_block3,"[16, 64, 64]",prefill,302515,262144,8192,528,0,,
-attention_flash_finish,vme_prefill_finish,"[16, 256, 64]",prefill,68862,0,0,0,1024,1.3510715035533423,True
-attention_vme_block,vme_vs_serial_block0,"[16, 16, 64]",prefill,100933,65536,7232,476,0,,
-attention_vme_block,vme_vs_serial_block1,"[16, 16, 64]",prefill,105141,65536,2048,136,0,,
-attention_vme_block,vme_vs_serial_block2,"[16, 16, 64]",prefill,105244,65536,2048,136,0,,
-attention_vme_block,vme_vs_serial_block3,"[16, 16, 64]",prefill,70510,65536,2048,136,0,,
-attention_flash_finish,vme_vs_serial_finish,"[16, 64, 64]",prefill,68778,0,0,0,1024,0.9307932811513311,True
+attention_vme_block,vme_decode_block0,"[1, 64, 64]",decode,8888,16384,9540,629,0,,
+attention_vme_block,vme_decode_block1,"[1, 64, 64]",decode,8959,16384,8192,528,0,,
+attention_vme_block,vme_decode_block2,"[1, 64, 64]",decode,8959,16384,8192,528,0,,
+attention_vme_block,vme_decode_block3,"[1, 64, 64]",decode,8959,16384,8192,528,0,,
+attention_flash_finish,vme_decode_finish,"[1, 256, 64]",decode,4353,0,0,0,64,0.7557556415539999,True
+attention_vme_block,vme_prefill_block0,"[16, 64, 64]",prefill,73642,262144,14400,936,0,,
+attention_vme_block,vme_prefill_block1,"[16, 64, 64]",prefill,74638,262144,8192,528,0,,
+attention_vme_block,vme_prefill_block2,"[16, 64, 64]",prefill,74568,262144,8192,528,0,,
+attention_vme_block,vme_prefill_block3,"[16, 64, 64]",prefill,70572,262144,8192,528,0,,
+attention_flash_finish,vme_prefill_finish,"[16, 256, 64]",prefill,68844,0,0,0,1024,1.3510715035533423,True
+attention_vme_block,vme_vs_serial_block0,"[16, 16, 64]",prefill,36794,65536,8256,548,0,,
+attention_vme_block,vme_vs_serial_block1,"[16, 16, 64]",prefill,37930,65536,2048,136,0,,
+attention_vme_block,vme_vs_serial_block2,"[16, 16, 64]",prefill,37930,65536,2048,136,0,,
+attention_vme_block,vme_vs_serial_block3,"[16, 16, 64]",prefill,33849,65536,2048,136,0,,
+attention_flash_finish,vme_vs_serial_finish,"[16, 64, 64]",prefill,68760,0,0,0,1024,0.9307932811513311,True
 matmul,matmul_dispatch_rvv,"[1, 512, 16]",decode,4704,16384,8704,560,64,0.0,True
 matmul,matmul_dispatch_vme,"[16, 512, 16]",prefill,11019,262144,16384,1048,1024,0.0,True
 matmul_rvv,matmul_rvv_16x512x16,"[16, 512, 16]",prefill,74005,262144,16384,1048,1024,0.0,True
@@ -49,11 +49,14 @@ matmul_vme_u8,sweep_vme_k256,"[16, 256, 16]",sweep,5629,131072,8192,528,1024,0.0
 matmul_vme_u8,sweep_vme_k32,"[16, 32, 16]",sweep,925,16384,1024,72,1024,0.0,True
 matmul_vme_u8,sweep_vme_k512,"[16, 512, 16]",sweep,11005,262144,16384,1048,1024,0.0,True
 matmul_vme_u8,sweep_vme_k64,"[16, 64, 16]",sweep,1597,32768,2048,136,1024,0.0,True
-gelu,gelu,[4096],both,53287,4096,4096,264,4352,0.48654059591837945,True
-layernorm,layernorm,"[4, 768]",both,243069,24576,4608,304,3072,0.4998295351929798,True
-online_softmax,online_softmax_64,[64],prefill,35604,384,4096,264,1024,0.4600034092071894,True
-online_softmax,online_softmax_row,[1024],decode,572993,6144,4096,264,1024,0.4940754458765195,True
-residual_add,residual_add,[4096],both,241850,12288,8192,528,4096,1.7763568394002505e-14,True
+gelu,gelu,[4096],both,53296,4096,4096,264,4352,0.48654059591837945,True
+layernorm,layernorm,"[4, 768]",both,243078,24576,4608,304,3072,0.4998295351929798,True
+online_softmax,online_softmax_64,[64],prefill,35606,384,4096,264,1024,0.4600034092071894,True
+online_softmax,online_softmax_row,[1024],decode,572943,6144,4096,264,1024,0.4940754458765195,True
+residual_add,residual_add,[4096],both,241857,12288,8192,528,4096,1.7763568394002505e-14,True
+softmax_lut,softmax_lut_64,[64],prefill,3307,384,4096,264,1024,0.4600034092071894,True
+softmax_lut,softmax_lut_row,[1024],decode,52674,6144,4096,264,1024,0.4940754458765195,True
+softmax_lut_table,softmax_lut_table,[512],both,127576,0,0,0,1024,0.4983310991651422,True
 load_chain_scalar,load_chain_scalar_256,[256],ubench,5150,0,64,8,0,,
 load_chain_scalar,load_chain_scalar_64,[64],ubench,1310,0,64,8,0,,
 load_chain_vector,load_chain_vector_256,[256],ubench,5140,0,64,8,0,,

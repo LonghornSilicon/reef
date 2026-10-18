@@ -52,7 +52,7 @@ SIM_TESTS = [
 # unit test -> kernel sources it links
 UNIT_TESTS = {
     "test_matmul": ["matmul.cc", "matmul_rvv.cc", "matmul_vme.cc"],
-    "test_softmax": ["online_softmax.cc"],
+    "test_softmax": ["online_softmax.cc", "softmax_lut.cc"],
     "test_gelu": ["gelu.cc"],
     "test_layernorm": ["layernorm.cc"],
     "test_residual": ["residual.cc"],
@@ -62,6 +62,7 @@ UNIT_TESTS = {
         "attention_flash_chunk.cc",
         "attention_vme.cc",
         "online_softmax.cc",
+        "softmax_lut.cc",
         "matmul.cc",
         "matmul_rvv.cc",
         "matmul_vme.cc",
@@ -260,7 +261,12 @@ def check(job: dict, data: dict, outputs: dict) -> tuple[float, float]:
         ).startswith("vme")
         err = float(np.abs(data["out_out"] - expected).max())
         return err, 2.0 if uint8_probs else 1.0
-    if op == "online_softmax":
+    if op == "softmax_lut_table":
+        table = data["out_table"].astype(np.int64)
+        gap = np.arange(256)
+        exact = 32768 * np.exp(-SCORE_SCALE * np.concatenate([256 * gap, gap]))
+        return float(np.abs(table - exact).max()), 1.0
+    if op in ("online_softmax", "softmax_lut"):
         lo, hi = job["lo"], job["hi"]
         s = SCORE_SCALE * data["in_scores"][lo : hi + 1].astype(np.float64)
         p = np.exp(s - s.max())
