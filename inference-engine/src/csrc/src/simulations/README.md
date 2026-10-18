@@ -265,7 +265,7 @@ in `config/hardware.json`. Numbers live in `results/results.json`.
 | VME encodings and `tk = 4` int8 steps | **Verified on the sim**: matmul_vme_u8/s8u8 bit-exact vs NumPy; coralnpu's own `vme_matmul_int8_test` passes on the same build |
 | `matmul_rvv`, `matmul_rvv_s8u8`, `matmul()` dispatch | **Verified on the sim**: bit-exact vs NumPy (decode, prefill and 7×13×23 shapes) |
 | softmax, GeLU, LayerNorm, residual | **Verified on the sim**: within 0.5 int8 LSB of float references |
-| Attention (serial, flash, chunked flash) | See `results/results.json`; host: chunked matches serial within 1 LSB on GPT-2 head shapes |
+| Attention (serial, flash, chunked flash) | **Verified on the sim**: serial within 0.9 LSB of a float reference; flash and chunked flash (16- and 64-key streamed blocks) within 1 LSB of serial |
 | `mstatus.MS` enable (bit 29) | Works on the sim: the VME benches call `enable_matrix_state()` and run |
 
 ## Known issues and open questions

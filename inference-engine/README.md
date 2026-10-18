@@ -37,6 +37,23 @@ ctest --test-dir build --output-on-failure
 
 The build produces the C++ library and `tensor_cli` executable. Google Test is fetched during the first CMake configuration.
 
+## Coral NPU kernels: build, simulate, check and report
+
+One command builds the int8 GPT-2 kernels, runs them on the host and on
+Coral's VME RTL model, checks them against NumPy and writes the results;
+a second makes the roofline plots and end-to-end estimate:
+
+```sh
+uv run --group sim python src/csrc/src/simulations/run_all.py
+uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
+```
+
+Needs Docker and a coralnpu checkout at `~/Projects/coralnpu` (or
+`CORALNPU=`). The first run builds the RTL model and takes hours; add
+`--skip-sim` to reuse the last sim results. Details:
+`src/csrc/src/simulations/README.md`; analysis:
+`src/csrc/src/simulations/analysis/REPORT.md`.
+
 ## Contributing
 
 When adding a component, put public C++ declarations in

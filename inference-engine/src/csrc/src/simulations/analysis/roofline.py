@@ -64,6 +64,12 @@ class Measured:
             return math.nan
         return self.jobs[name]["cycles"]
 
+    def sum_cycles(self, prefix: str) -> float:
+        """Total cycles over jobs whose name starts with prefix."""
+        return self.mean_cycles(prefix) * sum(
+            n.startswith(prefix) for n in self.jobs
+        )
+
     def mean_cycles(self, prefix: str) -> float:
         """Mean cycles over jobs whose name starts with prefix."""
         found = [
@@ -113,13 +119,24 @@ def matmul_op(meas: Measured, name: str, n: int, k: int, m: int) -> dict:
     }
 
 
-def attention_op(meas: Measured, nq: int, ctx: int, phase: str) -> dict:
-    """All heads of causal attention via streamed chunked flash."""
+def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
+    """All heads of causal attention via streamed chunked flash.
+
+    Cost per visible (query, key) pair comes from the measured stream: the
+    summed block cycles over the pairs that stream saw (masked keys cost
+    nothing, so diagonal blocks are charged only for what they compute).
+    """
     block = CONFIG["tiles"]["attention_flash_chunk"]["kv_block"]
     qb = CONFIG["tiles"]["attention_flash_chunk"]["nq"] if nq > 1 else 1
     stream = "chunk_prefill" if nq > 1 else "chunk_decode"
-    per_block = meas.mean_cycles(f"{stream}_block")
     finish = meas.cycles(f"{stream}_finish")
+    fin = meas.jobs.get(f"{stream}_finish", {})
+    if fin:
+        sq, _, _ = fin["shape"]
+        seen = sum(fin["query_start"] + i + 1 for i in range(sq))
+        per_pair = meas.sum_cycles(f"{stream}_block") / seen
+    else:
+        per_pair = math.nan
     pairs = 0  # (query block, kv block) pairs that see at least one key
     for q0 in range(0, nq, qb):
         last_pos = ctx - nq + min(q0 + qb, nq) - 1
@@ -127,7 +144,7 @@ def attention_op(meas: Measured, nq: int, ctx: int, phase: str) -> dict:
     q_blocks = cdiv(nq, qb)
     visible = sum(ctx - nq + i + 1 for i in range(nq))  # causal key count
     # per visible (query, key): a d-byte kt column, a d-byte v row, and a
-    # float acc row read and written (8d); per pair the block itself
+    # float acc row read and written (8d)
     dtcm = H * visible * (DH + DH + 8 * DH)
     host = H * (
         pairs * 2 * block * DH  # K and V blocks in
@@ -137,10 +154,11 @@ def attention_op(meas: Measured, nq: int, ctx: int, phase: str) -> dict:
         "op": "attention",
         "engine": "scalar",
         "ops": H * 4 * visible * DH,
-        "kernel_cycles": H * (pairs * per_block + q_blocks * finish),
+        "kernel_cycles": H * (visible * per_pair + q_blocks * finish),
         "dtcm_bytes": dtcm,
         "host_bytes": host,
         "tiles": H * pairs,
+        "cycles_per_visible_pair": per_pair,
     }
 
 
@@ -174,12 +192,12 @@ def pointwise_op(meas: Measured, name: str, job: str, elems: int) -> dict:
     }
 
 
-def block_ops(meas: Measured, nq: int, ctx: int, phase: str) -> list[dict]:
+def block_ops(meas: Measured, nq: int, ctx: int) -> list[dict]:
     """Every operator of one GPT-2 block for nq new tokens at context ctx."""
     return [
         pointwise_op(meas, "ln1", "layernorm", nq * D),
         matmul_op(meas, "qkv", nq, D, 3 * D),
-        attention_op(meas, nq, ctx, phase),
+        attention_op(meas, nq, ctx),
         matmul_op(meas, "attn_out", nq, D, D),
         pointwise_op(meas, "residual1", "residual_add", nq * D),
         pointwise_op(meas, "ln2", "layernorm", nq * D),
@@ -190,72 +208,111 @@ def block_ops(meas: Measured, nq: int, ctx: int, phase: str) -> list[dict]:
     ]
 
 
-def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
-    """Roofline vs DTCM bytes: attained ops/cycle against ops per byte."""
-    fig, ax = plt.subplots(figsize=(8, 5.2), dpi=150)
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    xs = [o["ops"] / o["dtcm_bytes"] for o in ops if o["kernel_cycles"] > 0]
+def roofline_panel(
+    ax: plt.Axes,
+    ops: list[dict],
+    key: str,
+    bw: float,
+    bw_label: str,
+    dashed: bool,
+    peak: float,
+    xlabel: str,
+) -> None:
+    """One log-log roofline: ops/cycle vs ops per byte of `key` traffic."""
+    # ops that land within ~25% of each other share one point and label
+    points: dict[tuple, list[tuple]] = {}
+    for o in ops:
+        if o["kernel_cycles"] > 0:
+            xy = (o["ops"] / o[key], o["ops"] / o["kernel_cycles"])
+            cell = (round(math.log10(xy[0]), 1), round(math.log10(xy[1]), 1))
+            points.setdefault(cell, []).append((xy, o))
+    xs = [g[0][0][0] for g in points.values()]
     x_lo, x_hi = min([*xs, 0.1]) / 3, max([*xs, 100]) * 3
     grid = [x_lo * (x_hi / x_lo) ** (i / 200) for i in range(201)]
-    peak = ceilings["vme_ops_per_cycle"]
-    for label, bw, dashed in [
-        ("DTCM 16 B/cycle", ceilings["dtcm_bytes_per_cycle"], False),
-        (
-            ceilings["host_label"],
-            ceilings["host_bytes_per_cycle"],
-            not ceilings["host_measured"],
-        ),
-    ]:
-        if not bw or math.isnan(bw):
-            continue
-        ys = [min(peak, bw * x) if peak == peak else bw * x for x in grid]
-        ax.plot(grid, ys, color=MUTED, lw=1.5, ls="--" if dashed else "-")
+    ax.plot(
+        grid,
+        [min(peak, bw * x) for x in grid],
+        color=MUTED,
+        lw=1.5,
+        ls="--" if dashed else "-",
+    )
+    ax.annotate(
+        bw_label,
+        (grid[30], bw * grid[30]),
+        color=MUTED,
+        fontsize=7,
+        rotation=38,
+        va="bottom",
+        ha="left",
+    )
+    ax.axhline(peak, color=INK, lw=1.0, alpha=0.6)
+    ax.annotate(
+        f"VME peak {peak:.1f} ops/cycle (measured)",
+        (x_lo * 1.3, peak),
+        color=INK,
+        fontsize=7,
+        va="bottom",
+    )
+    for group in points.values():
+        (x, y), first = group[0]
+        color = ENGINE_COLORS[first["engine"]]
+        ax.scatter(
+            x, y, s=46, color=color, edgecolor="white", linewidth=1.5, zorder=3
+        )
+        label = ", ".join(o["op"] for _, o in group)
         ax.annotate(
             label,
-            (grid[25], bw * grid[25]),
-            color=MUTED,
-            fontsize=8,
-            rotation=33,
-            va="bottom",
-        )
-    if peak == peak:
-        ax.axhline(peak, color=INK, lw=1.5)
-        label = f"VME peak {peak:.0f} ops/cycle (measured)"
-        ax.annotate(
-            label, (x_lo * 1.2, peak), color=INK, fontsize=8, va="bottom"
-        )
-    for o in ops:
-        if not o["kernel_cycles"] > 0:
-            continue
-        x, y = o["ops"] / o["dtcm_bytes"], o["ops"] / o["kernel_cycles"]
-        ax.scatter(
-            x,
-            y,
-            s=46,
-            color=ENGINE_COLORS[o["engine"]],
-            edgecolor="white",
-            linewidth=1.5,
-            zorder=3,
-        )
-        ax.annotate(
-            o["op"],
             (x, y),
-            xytext=(5, 4),
+            xytext=(6, -3),
             textcoords="offset points",
-            fontsize=8,
+            fontsize=7,
             color=INK,
         )
-    for engine, color in ENGINE_COLORS.items():
-        ax.scatter([], [], color=color, label=engine, s=46)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
-    ax.set_xlabel("arithmetic intensity (ops per DTCM byte)", color=MUTED)
-    ax.set_ylabel("attained ops per cycle", color=MUTED)
-    ax.set_title(title, loc="left", fontsize=11, color=INK)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel(xlabel, color=MUTED, fontsize=8)
     ax.grid(True, which="major", color=GRID, lw=0.6)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.tick_params(colors=MUTED, labelsize=8)
+    ax.tick_params(colors=MUTED, labelsize=7)
+
+
+def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
+    """DTCM and host rooflines side by side for one phase."""
+    fig, (left, right) = plt.subplots(
+        1, 2, figsize=(11, 4.6), dpi=150, sharey=True
+    )
+    peak = ceilings["vme_ops_per_cycle"]
+    dtcm = ceilings["dtcm_bytes_per_cycle"]
+    roofline_panel(
+        left,
+        ops,
+        "dtcm_bytes",
+        dtcm,
+        f"DTCM {dtcm} B/cycle",
+        False,
+        peak,
+        "ops per DTCM<->core byte",
+    )
+    roofline_panel(
+        right,
+        ops,
+        "host_bytes",
+        ceilings["host_bytes_per_cycle"],
+        ceilings["host_label"],
+        not ceilings["host_measured"],
+        peak,
+        "ops per host<->DTCM byte (no DMA)",
+    )
+    left.set_ylabel(
+        "attained ops per cycle (kernel only)", color=MUTED, fontsize=8
+    )
+    engines = {o["engine"] for o in ops}
+    for engine, color in ENGINE_COLORS.items():
+        if engine in engines:
+            right.scatter([], [], color=color, label=engine, s=46)
+    right.legend(frameon=False, fontsize=7, loc="lower right")
+    fig.suptitle(title, x=0.06, ha="left", fontsize=11, color=INK)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
@@ -285,7 +342,7 @@ def main() -> int:
     phases["decode"] = (1, ctx)
     out = {"ceilings": ceilings, "clock_hz": clock_hz, "phases": {}}
     for phase, (nq, context) in phases.items():
-        ops = block_ops(meas, nq, context, phase)
+        ops = block_ops(meas, nq, context)
         for o in ops:
             o["host_cycles"] = o["host_bytes"] / host_bw
             o["total_cycles"] = o["kernel_cycles"] + o["host_cycles"]
@@ -313,8 +370,8 @@ def main() -> int:
         p = out["phases"][phase]
         plot(
             p["operators"],
-            f"{label}: one GPT-2 block ({p['nq']} tokens, "
-            f"context {p['context']})",
+            f"{label}: one GPT-2 block ({p['nq']} "
+            f"token{'s' if p['nq'] > 1 else ''}, context {p['context']})",
             ceilings,
             HERE / f"roofline_{label.lower()}.png",
         )

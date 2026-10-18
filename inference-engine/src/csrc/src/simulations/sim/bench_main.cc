@@ -147,17 +147,16 @@ void run() {
     // args: nq, d, query_start, window, kv_start, kv_len, q, kt, v, m, l,
     //       acc, k_zero, score_scale
     case kAttentionFlashChunk:
-        attention_flash_chunk(arg(1), arg(2), arg(3), arg(4), arg(5), arg(6),
-                              at<int8_t>(7), at<uint8_t>(8),
-                              static_cast<int32_t>(arg(13)), at<uint8_t>(9),
-                              arg_f(14), at<float>(10), at<float>(11),
-                              at<float>(12));
+        attention_flash_chunk(
+            arg(1), arg(2), arg(3), arg(4), arg(5), arg(6), at<int8_t>(7),
+            at<uint8_t>(8), static_cast<int32_t>(arg(13)), at<uint8_t>(9),
+            arg_f(14), at<float>(10), at<float>(11), at<float>(12));
         break;
     // args: nq, d, l, acc, out, v_zero, v_scale, out_scale
     case kAttentionFlashFinish:
         attention_flash_finish(arg(1), arg(2), at<float>(3), at<float>(4),
-                               static_cast<int32_t>(arg(6)), arg_f(7),
-                               arg_f(8), at<int8_t>(5));
+                               static_cast<int32_t>(arg(6)), arg_f(7), arg_f(8),
+                               at<int8_t>(5));
         break;
 #elif BENCH_GROUP == 2
     // args: lo, hi, scores, probs, score_scale
@@ -173,8 +172,7 @@ void run() {
     //       out_scale
     case kLayernorm:
         layernorm(arg(1), arg(2), at<int8_t>(3), arg_f(7), at<int8_t>(4),
-                  arg_f(8), at<int8_t>(5), arg_f(9), arg_f(10),
-                  at<int8_t>(6));
+                  arg_f(8), at<int8_t>(5), arg_f(9), arg_f(10), at<int8_t>(6));
         break;
     // args: n, a, b, out, a_scale, b_scale, out_scale
     case kResidual:

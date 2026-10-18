@@ -8,3 +8,8 @@ cmake-build-*/
 dist/
 results/
 .DS_Store
+# kernel sim results: keep the summaries the report cites, not raw/build
+!src/csrc/src/simulations/results/
+src/csrc/src/simulations/results/*
+!src/csrc/src/simulations/results/results.json
+!src/csrc/src/simulations/results/results.csv

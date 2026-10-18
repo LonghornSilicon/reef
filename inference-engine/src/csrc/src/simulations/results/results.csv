@@ -1,0 +1,45 @@
+kernel,name,shape,phase,cycles,ops,host_write_bytes,host_write_cycles,out_bytes,error_lsb,ok
+attention_flash,attention_flash_decode,"[1, 64, 64]",decode,139769,16384.0,8256,536,64,0.4962627545084608,True
+attention_flash,attention_flash_prefill,"[16, 64, 64]",prefill,1980632,231424.0,9216,596,1024,0.49982445275863085,True
+attention_serial,attention_serial_decode,"[1, 64, 64]",decode,128046,16384.0,8256,536,64,0.8850583244312578,True
+attention_serial,attention_serial_prefill,"[16, 64, 64]",prefill,1814058,231424.0,9216,596,1024,0.8995510595639278,True
+attention_flash_chunk,chunk_decode_block0,"[1, 64, 64]",decode,137019,16384,8516,561,0,,
+attention_flash_chunk,chunk_decode_block1,"[1, 64, 64]",decode,137804,16384,8192,528,0,,
+attention_flash_chunk,chunk_decode_block2,"[1, 64, 64]",decode,137807,16384,8192,528,0,,
+attention_flash_chunk,chunk_decode_block3,"[1, 64, 64]",decode,137824,16384,8192,528,0,,
+attention_flash_finish,chunk_decode_finish,"[1, 256, 64]",decode,4358,0,0,0,64,0.4961980478751489,True
+attention_flash_chunk,chunk_prefill_block0,"[16, 64, 64]",prefill,2189701,262144,13376,868,0,,
+attention_flash_chunk,chunk_prefill_block1,"[16, 64, 64]",prefill,2202270,262144,8192,528,0,,
+attention_flash_chunk,chunk_prefill_block2,"[16, 64, 64]",prefill,2202298,262144,8192,528,0,,
+attention_flash_chunk,chunk_prefill_block3,"[16, 64, 64]",prefill,1945094,262144,8192,528,0,,
+attention_flash_finish,chunk_prefill_finish,"[16, 256, 64]",prefill,68849,0,0,0,1024,0.49982138500455875,True
+attention_flash_chunk,chunk_vs_serial_block0,"[16, 16, 64]",prefill,543420,65536,7232,476,0,,
+attention_flash_chunk,chunk_vs_serial_block1,"[16, 16, 64]",prefill,554868,65536,2048,136,0,,
+attention_flash_chunk,chunk_vs_serial_block2,"[16, 16, 64]",prefill,555115,65536,2048,136,0,,
+attention_flash_chunk,chunk_vs_serial_block3,"[16, 16, 64]",prefill,297807,65536,2048,136,0,,
+attention_flash_finish,chunk_vs_serial_finish,"[16, 64, 64]",prefill,68761,0,0,0,1024,0.49982445275863085,True
+matmul,matmul_dispatch_rvv,"[1, 512, 16]",decode,4704,16384,8704,560,64,0.0,True
+matmul,matmul_dispatch_vme,"[16, 512, 16]",prefill,11019,262144,16384,1048,1024,0.0,True
+matmul_rvv,matmul_rvv_16x512x16,"[16, 512, 16]",prefill,74005,262144,16384,1048,1024,0.0,True
+matmul_rvv,matmul_rvv_1x512x16,"[1, 512, 16]",decode,4690,16384,8704,560,64,0.0,True
+matmul_rvv,matmul_rvv_1x512x32,"[1, 512, 32]",decode,9317,32768,16896,1080,128,0.0,True
+matmul_rvv,matmul_rvv_odd_7x13x23,"[7, 13, 23]",check,2011,4186,390,33,644,0.0,True
+matmul_rvv_s8u8,matmul_rvv_s8u8_16x512x16,"[16, 512, 16]",prefill,74006,262144,16384,1048,1024,0.0,True
+matmul_rvv_s8u8,matmul_rvv_s8u8_1x512x32,"[1, 512, 32]",decode,9318,32768,16896,1080,128,0.0,True
+matmul_vme_s8u8,matmul_vme_s8u8_16x512x16,"[16, 512, 16]",prefill,11005,262144,16384,1048,1024,0.0,True
+matmul_vme_u8,matmul_vme_u8_16x512x16,"[16, 512, 16]",prefill,11005,262144,16384,1048,1024,0.0,True
+matmul_vme_u8,sweep_vme_k128,"[16, 128, 16]",sweep,2941,65536,4096,268,1024,0.0,True
+matmul_vme_u8,sweep_vme_k16,"[16, 16, 16]",sweep,589,8192,512,40,1024,0.0,True
+matmul_vme_u8,sweep_vme_k256,"[16, 256, 16]",sweep,5629,131072,8192,528,1024,0.0,True
+matmul_vme_u8,sweep_vme_k32,"[16, 32, 16]",sweep,925,16384,1024,72,1024,0.0,True
+matmul_vme_u8,sweep_vme_k512,"[16, 512, 16]",sweep,11005,262144,16384,1048,1024,0.0,True
+matmul_vme_u8,sweep_vme_k64,"[16, 64, 16]",sweep,1597,32768,2048,136,1024,0.0,True
+gelu,gelu,[4096],both,53287,4096,4096,264,4352,0.48654059591837945,True
+layernorm,layernorm,"[4, 768]",both,243069,24576,4608,304,3072,0.4998295351929798,True
+online_softmax,online_softmax_64,[64],prefill,35604,384,4096,264,1024,0.4600034092071894,True
+online_softmax,online_softmax_row,[1024],decode,572993,6144,4096,264,1024,0.4940754458765195,True
+residual_add,residual_add,[4096],both,241850,12288,8192,528,4096,1.7763568394002505e-14,True
+load_chain_scalar,load_chain_scalar_256,[256],ubench,5150,0,64,8,0,,
+load_chain_scalar,load_chain_scalar_64,[64],ubench,1310,0,64,8,0,,
+load_chain_vector,load_chain_vector_256,[256],ubench,5140,0,64,8,0,,
+load_chain_vector,load_chain_vector_64,[64],ubench,1300,0,64,8,0,,
