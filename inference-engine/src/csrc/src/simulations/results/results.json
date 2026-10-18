@@ -5,6 +5,7 @@
     "status": {
       "matmul_test": "skipped (--skip-sim)",
       "attention_test": "skipped (--skip-sim)",
+      "attention_vme_test": "skipped (--skip-sim)",
       "pointwise_test": "skipped (--skip-sim)",
       "ubench_test": "skipped (--skip-sim)"
     }
@@ -38,7 +39,7 @@
     {
       "test": "test_flash",
       "pass": true,
-      "output": "global prefill   pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)\nglobal decode    pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)\nchunked decode   pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)\nlocal prefill    pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)\nlocal decode     pass (serial vs ref +-0, flash vs serial +-0, chunked vs serial +-0)\nwindow of one    pass (serial vs ref +-0, flash vs serial +-0, chunked vs serial +-0)\ngpt2 prefill     pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)\ngpt2 decode      pass (serial vs ref +-1, flash vs serial +-1, chunked vs serial +-1)"
+      "output": "global prefill   pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)\nglobal decode    pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)\nchunked decode   pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)\nlocal prefill    pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)\nlocal decode     pass (vs ref: serial +-0; vs serial: flash +-0, chunked +-0, vme +-0)\nwindow of one    pass (vs ref: serial +-0; vs serial: flash +-0, chunked +-0, vme +-0)\ngpt2 prefill     pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)\ngpt2 decode      pass (vs ref: serial +-1; vs serial: flash +-1, chunked +-1, vme +-1)"
     }
   ],
   "embedding_host": [
@@ -55,8 +56,8 @@
     {
       "phase": "prefill",
       "tokens": 16,
-      "median_ms": 0.005583,
-      "p95_ms": 0.00575,
+      "median_ms": 0.005542,
+      "p95_ms": 0.005666,
       "runs": 1000,
       "target_ms": 20.0,
       "pass": true,
@@ -65,8 +66,8 @@
     {
       "phase": "prefill",
       "tokens": 64,
-      "median_ms": 0.02275,
-      "p95_ms": 0.02325,
+      "median_ms": 0.022667,
+      "p95_ms": 0.023042,
       "runs": 1000,
       "target_ms": 20.0,
       "pass": true,
@@ -75,8 +76,8 @@
     {
       "phase": "prefill",
       "tokens": 128,
-      "median_ms": 0.045167,
-      "p95_ms": 0.047667,
+      "median_ms": 0.045333,
+      "p95_ms": 0.046291,
       "runs": 1000,
       "target_ms": 20.0,
       "pass": true,
@@ -85,8 +86,8 @@
     {
       "phase": "prefill",
       "tokens": 256,
-      "median_ms": 0.088542,
-      "p95_ms": 0.095958,
+      "median_ms": 0.088333,
+      "p95_ms": 0.095209,
       "runs": 1000,
       "target_ms": 20.0,
       "pass": true,
@@ -95,8 +96,8 @@
     {
       "phase": "prefill",
       "tokens": 1024,
-      "median_ms": 0.354417,
-      "p95_ms": 0.37725,
+      "median_ms": 0.355167,
+      "p95_ms": 0.374666,
       "runs": 1000,
       "target_ms": 20.0,
       "pass": true,
@@ -182,7 +183,7 @@
       "ops": 16384.0,
       "out_bytes": 64,
       "error_lsb": 0.8850583244312578,
-      "tolerance_lsb": 1.0,
+      "tolerance_lsb": 2.0,
       "ok": true
     },
     {
@@ -204,7 +205,7 @@
       "ops": 231424.0,
       "out_bytes": 1024,
       "error_lsb": 0.8995510595639278,
-      "tolerance_lsb": 1.0,
+      "tolerance_lsb": 2.0,
       "ok": true
     },
     {
@@ -502,6 +503,304 @@
       "out_bytes": 1024,
       "error_lsb": 0.49982445275863085,
       "tolerance_lsb": 1.0,
+      "ok": true,
+      "vs_serial_lsb": 1
+    },
+    {
+      "name": "vme_decode_block0",
+      "op": "attention_vme_block",
+      "cycles": 25058,
+      "halted": 25232,
+      "host_write_bytes": 8516,
+      "host_write_cycles": 561,
+      "kernel": "attention_vme_block",
+      "shape": [
+        1,
+        64,
+        64
+      ],
+      "phase": "decode",
+      "stream": "vme_decode",
+      "kv_start": 0,
+      "ops": 16384,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_decode_block1",
+      "op": "attention_vme_block",
+      "cycles": 25350,
+      "halted": 25524,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        1,
+        64,
+        64
+      ],
+      "phase": "decode",
+      "stream": "vme_decode",
+      "kv_start": 64,
+      "ops": 16384,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_decode_block2",
+      "op": "attention_vme_block",
+      "cycles": 25352,
+      "halted": 25526,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        1,
+        64,
+        64
+      ],
+      "phase": "decode",
+      "stream": "vme_decode",
+      "kv_start": 128,
+      "ops": 16384,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_decode_block3",
+      "op": "attention_vme_block",
+      "cycles": 25433,
+      "halted": 25607,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        1,
+        64,
+        64
+      ],
+      "phase": "decode",
+      "stream": "vme_decode",
+      "kv_start": 192,
+      "ops": 16384,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_decode_finish",
+      "op": "attention_flash_finish",
+      "cycles": 4356,
+      "halted": 4530,
+      "host_write_bytes": 0,
+      "host_write_cycles": 0,
+      "kernel": "attention_flash_finish",
+      "shape": [
+        1,
+        256,
+        64
+      ],
+      "phase": "decode",
+      "stream": "vme_decode",
+      "query_start": 255,
+      "window": 256,
+      "ops": 0,
+      "out_bytes": 64,
+      "error_lsb": 0.7557556415539999,
+      "tolerance_lsb": 2.0,
+      "ok": true
+    },
+    {
+      "name": "vme_prefill_block0",
+      "op": "attention_vme_block",
+      "cycles": 333128,
+      "halted": 333302,
+      "host_write_bytes": 13376,
+      "host_write_cycles": 868,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        64,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_prefill",
+      "kv_start": 0,
+      "ops": 262144,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_prefill_block1",
+      "op": "attention_vme_block",
+      "cycles": 337061,
+      "halted": 337235,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        64,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_prefill",
+      "kv_start": 64,
+      "ops": 262144,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_prefill_block2",
+      "op": "attention_vme_block",
+      "cycles": 337178,
+      "halted": 337352,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        64,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_prefill",
+      "kv_start": 128,
+      "ops": 262144,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_prefill_block3",
+      "op": "attention_vme_block",
+      "cycles": 302515,
+      "halted": 302689,
+      "host_write_bytes": 8192,
+      "host_write_cycles": 528,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        64,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_prefill",
+      "kv_start": 192,
+      "ops": 262144,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_prefill_finish",
+      "op": "attention_flash_finish",
+      "cycles": 68862,
+      "halted": 69036,
+      "host_write_bytes": 0,
+      "host_write_cycles": 0,
+      "kernel": "attention_flash_finish",
+      "shape": [
+        16,
+        256,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_prefill",
+      "query_start": 240,
+      "window": 256,
+      "ops": 0,
+      "out_bytes": 1024,
+      "error_lsb": 1.3510715035533423,
+      "tolerance_lsb": 2.0,
+      "ok": true
+    },
+    {
+      "name": "vme_vs_serial_block0",
+      "op": "attention_vme_block",
+      "cycles": 100933,
+      "halted": 101107,
+      "host_write_bytes": 7232,
+      "host_write_cycles": 476,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        16,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_vs_serial",
+      "kv_start": 0,
+      "ops": 65536,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_vs_serial_block1",
+      "op": "attention_vme_block",
+      "cycles": 105141,
+      "halted": 105315,
+      "host_write_bytes": 2048,
+      "host_write_cycles": 136,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        16,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_vs_serial",
+      "kv_start": 16,
+      "ops": 65536,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_vs_serial_block2",
+      "op": "attention_vme_block",
+      "cycles": 105244,
+      "halted": 105418,
+      "host_write_bytes": 2048,
+      "host_write_cycles": 136,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        16,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_vs_serial",
+      "kv_start": 32,
+      "ops": 65536,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_vs_serial_block3",
+      "op": "attention_vme_block",
+      "cycles": 70510,
+      "halted": 70684,
+      "host_write_bytes": 2048,
+      "host_write_cycles": 136,
+      "kernel": "attention_vme_block",
+      "shape": [
+        16,
+        16,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_vs_serial",
+      "kv_start": 48,
+      "ops": 65536,
+      "out_bytes": 0
+    },
+    {
+      "name": "vme_vs_serial_finish",
+      "op": "attention_flash_finish",
+      "cycles": 68778,
+      "halted": 68952,
+      "host_write_bytes": 0,
+      "host_write_cycles": 0,
+      "kernel": "attention_flash_finish",
+      "shape": [
+        16,
+        64,
+        64
+      ],
+      "phase": "prefill",
+      "stream": "vme_vs_serial",
+      "query_start": 48,
+      "window": 64,
+      "ops": 0,
+      "out_bytes": 1024,
+      "error_lsb": 0.9307932811513311,
+      "tolerance_lsb": 2.0,
       "ok": true,
       "vs_serial_lsb": 1
     },

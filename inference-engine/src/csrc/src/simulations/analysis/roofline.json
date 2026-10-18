@@ -40,16 +40,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "VME",
           "ops": 417792,
-          "kernel_cycles": 4331278.647887324,
-          "dtcm_bytes": 1044480,
+          "kernel_cycles": 4755990.0,
+          "dtcm_bytes": 516096,
           "host_bytes": 173568,
           "tiles": 12,
-          "cycles_per_visible_pair": 2147.7271126760565,
           "host_cycles": 11023.690060336616,
-          "total_cycles": 4342302.337947661,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 4767013.690060337,
+          "intensity_dtcm": 0.8095238095238095,
           "intensity_host": 2.4070796460176993
         },
         {
@@ -144,10 +143,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 18472991.82921473,
-      "block_ms": 369.4598365842946,
-      "model_ms": 4433.518039011535,
-      "kernel_share": 0.9702418976628339
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 417792,
+        "kernel_cycles": 4331278.647887324,
+        "dtcm_bytes": 1044480,
+        "host_bytes": 173568,
+        "tiles": 12,
+        "cycles_per_visible_pair": 2147.7271126760565,
+        "host_cycles": 11023.690060336616,
+        "total_cycles": 4342302.337947661,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 2.4070796460176993
+      },
+      "block_cycles": 18897703.181327406,
+      "block_ms": 377.95406362654813,
+      "model_ms": 4535.448763518577,
+      "kernel_share": 0.9709106881374568
     },
     "prefill_64": {
       "nq": 64,
@@ -181,16 +194,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "VME",
           "ops": 6389760,
-          "kernel_cycles": 56912020.73239437,
-          "dtcm_bytes": 15974400,
+          "kernel_cycles": 19023960.0,
+          "dtcm_bytes": 2064384,
           "host_bytes": 694272,
           "tiles": 48,
-          "cycles_per_visible_pair": 2147.7271126760565,
           "host_cycles": 44094.76024134646,
-          "total_cycles": 56956115.49263571,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 19068054.76024135,
+          "intensity_dtcm": 3.0952380952380953,
           "intensity_host": 9.20353982300885
         },
         {
@@ -285,10 +297,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 113478873.457704,
-      "block_ms": 2269.57746915408,
-      "model_ms": 27234.92962984896,
-      "kernel_share": 0.9806229595138765
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 6389760,
+        "kernel_cycles": 56912020.73239437,
+        "dtcm_bytes": 15974400,
+        "host_bytes": 694272,
+        "tiles": 48,
+        "cycles_per_visible_pair": 2147.7271126760565,
+        "host_cycles": 44094.76024134646,
+        "total_cycles": 56956115.49263571,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 9.20353982300885
+      },
+      "block_cycles": 75590812.72530963,
+      "block_ms": 1511.8162545061925,
+      "model_ms": 18141.795054074308,
+      "kernel_share": 0.9709106881374568
     },
     "prefill_128": {
       "nq": 128,
@@ -322,16 +348,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "VME",
           "ops": 25362432,
-          "kernel_cycles": 219389124.5070423,
-          "dtcm_bytes": 63406080,
+          "kernel_cycles": 53766504.0,
+          "dtcm_bytes": 6193152,
           "host_bytes": 1781760,
           "tiles": 144,
-          "cycles_per_visible_pair": 2147.7271126760565,
           "host_cycles": 113163.54398221658,
-          "total_cycles": 219502288.0510245,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 53879667.543982215,
+          "intensity_dtcm": 4.095238095238095,
           "intensity_host": 14.23448275862069
         },
         {
@@ -426,10 +451,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 332547803.98116106,
-      "block_ms": 6650.956079623222,
-      "model_ms": 79811.47295547865,
-      "kernel_share": 0.9867004279650293
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 25362432,
+        "kernel_cycles": 219389124.5070423,
+        "dtcm_bytes": 63406080,
+        "host_bytes": 1781760,
+        "tiles": 144,
+        "cycles_per_visible_pair": 2147.7271126760565,
+        "host_cycles": 113163.54398221658,
+        "total_cycles": 219502288.0510245,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 14.23448275862069
+      },
+      "block_cycles": 166925183.47411877,
+      "block_ms": 3338.5036694823757,
+      "model_ms": 40062.04403378851,
+      "kernel_share": 0.9735046361365569
     },
     "prefill_256": {
       "nq": 256,
@@ -463,16 +502,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "VME",
           "ops": 101056512,
-          "kernel_cycles": 861038581.1830986,
-          "dtcm_bytes": 252641280,
+          "kernel_cycles": 170407344.0,
+          "dtcm_bytes": 20643840,
           "host_bytes": 5136384,
           "tiles": 480,
-          "cycles_per_visible_pair": 2147.7271126760565,
           "host_cycles": 326223.1819625278,
-          "total_cycles": 861364804.365061,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 170733567.18196252,
+          "intensity_dtcm": 4.895238095238096,
           "intensity_host": 19.67464114832536
         },
         {
@@ -567,10 +605,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 1087455836.2253342,
-      "block_ms": 21749.116724506686,
-      "model_ms": 260989.4006940802,
-      "kernel_share": 0.9917740263611202
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 101056512,
+        "kernel_cycles": 861038581.1830986,
+        "dtcm_bytes": 252641280,
+        "host_bytes": 5136384,
+        "tiles": 480,
+        "cycles_per_visible_pair": 2147.7271126760565,
+        "host_cycles": 326223.1819625278,
+        "total_cycles": 861364804.365061,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 19.67464114832536
+      },
+      "block_cycles": 396824599.0422356,
+      "block_ms": 7936.491980844712,
+      "model_ms": 95237.90377013655,
+      "kernel_share": 0.9774575894139982
     },
     "prefill_1024": {
       "nq": 1024,
@@ -604,16 +656,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "VME",
           "ops": 1612185600,
-          "kernel_cycles": 13578402296.788734,
-          "dtcm_bytes": 4030464000,
+          "kernel_cycles": 2190613440.0,
+          "dtcm_bytes": 280756224,
           "host_bytes": 58294272,
           "tiles": 6528,
-          "cycles_per_visible_pair": 2147.7271126760565,
           "host_cycles": 3702398.9838043824,
-          "total_cycles": 13582104695.77254,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 2194315838.983804,
+          "intensity_dtcm": 5.742296918767507,
           "intensity_host": 27.655986509274875
         },
         {
@@ -708,10 +759,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 14486468823.21363,
-      "block_ms": 289729.3764642726,
-      "model_ms": 3476752.5175712714,
-      "kernel_share": 0.9973645034624506
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 1612185600,
+        "kernel_cycles": 13578402296.788734,
+        "dtcm_bytes": 4030464000,
+        "host_bytes": 58294272,
+        "tiles": 6528,
+        "cycles_per_visible_pair": 2147.7271126760565,
+        "host_cycles": 3702398.9838043824,
+        "total_cycles": 13582104695.77254,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 27.655986509274875
+      },
+      "block_cycles": 3098679966.4248967,
+      "block_ms": 61973.59932849793,
+      "model_ms": 743683.1919419752,
+      "kernel_share": 0.9876789346306887
     },
     "decode": {
       "nq": 1,
@@ -745,16 +810,15 @@
         },
         {
           "op": "attention",
-          "engine": "scalar",
+          "engine": "RVV",
           "ops": 3145728,
-          "kernel_cycles": 26474088.0,
-          "dtcm_bytes": 7864320,
+          "kernel_cycles": 4909536.0,
+          "dtcm_bytes": 1990656,
           "host_bytes": 1577568,
           "tiles": 192,
-          "cycles_per_visible_pair": 2150.2109375,
           "host_cycles": 100194.85550968561,
-          "total_cycles": 26574282.855509687,
-          "intensity_dtcm": 0.4,
+          "total_cycles": 5009730.855509685,
+          "intensity_dtcm": 1.5802469135802468,
           "intensity_host": 1.9940363901904703
         },
         {
@@ -849,10 +913,24 @@
           "intensity_host": 1.0
         }
       ],
-      "block_cycles": 32080023.10606542,
-      "block_ms": 641.6004621213084,
-      "model_ms": 7699.2055454557,
-      "kernel_share": 0.9826236376382153
+      "attention_scalar_for_comparison": {
+        "op": "attention (scalar)",
+        "engine": "scalar",
+        "ops": 3145728,
+        "kernel_cycles": 26474088.0,
+        "dtcm_bytes": 7864320,
+        "host_bytes": 1577568,
+        "tiles": 192,
+        "cycles_per_visible_pair": 2150.2109375,
+        "host_cycles": 100194.85550968561,
+        "total_cycles": 26574282.855509687,
+        "intensity_dtcm": 0.4,
+        "intensity_host": 1.9940363901904703
+      },
+      "block_cycles": 10515471.106065417,
+      "block_ms": 210.30942212130833,
+      "model_ms": 2523.7130654557,
+      "kernel_share": 0.9469891457602995
     }
   },
   "missing": []

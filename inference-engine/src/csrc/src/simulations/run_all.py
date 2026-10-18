@@ -41,7 +41,13 @@ CORALNPU_SRC = Path(
     os.environ.get("CORALNPU", Path.home() / "Projects/coralnpu")
 )
 IMAGE, VOLUME = "coralnpu-reef", "reef-coralnpu"
-SIM_TESTS = ["matmul_test", "attention_test", "pointwise_test", "ubench_test"]
+SIM_TESTS = [
+    "matmul_test",
+    "attention_test",
+    "attention_vme_test",
+    "pointwise_test",
+    "ubench_test",
+]
 
 # unit test -> kernel sources it links
 UNIT_TESTS = {
@@ -54,7 +60,11 @@ UNIT_TESTS = {
         "attention_serial.cc",
         "attention_flash.cc",
         "attention_flash_chunk.cc",
+        "attention_vme.cc",
         "online_softmax.cc",
+        "matmul.cc",
+        "matmul_rvv.cc",
+        "matmul_vme.cc",
     ],
 }
 
@@ -242,7 +252,14 @@ def check(job: dict, data: dict, outputs: dict) -> tuple[float, float]:
             job["query_start"],
             job["window"],
         )
-        return float(np.abs(data["out_out"] - expected).max()), 1.0
+        # uint8 probabilities (serial, VME) round each p to 1/255 and lose
+        # mass on long rows: the serial algorithm itself is 1.44 LSB from
+        # float at 256 keys. Float-probability kernels (flash) stay at 1.
+        uint8_probs = op == "attention_serial" or job.get(
+            "stream", ""
+        ).startswith("vme")
+        err = float(np.abs(data["out_out"] - expected).max())
+        return err, 2.0 if uint8_probs else 1.0
     if op == "online_softmax":
         lo, hi = job["lo"], job["hi"]
         s = SCORE_SCALE * data["in_scores"][lo : hi + 1].astype(np.float64)
@@ -280,12 +297,18 @@ def load_sim_jobs() -> list[dict]:
         jobs.append(job)
     # flash and chunked flash vs serial, on identical inputs
     serial = by_name.get("attention_serial_prefill")
-    for name in ("attention_flash_prefill", "chunk_vs_serial_finish"):
+    for name in (
+        "attention_flash_prefill",
+        "chunk_vs_serial_finish",
+        "vme_vs_serial_finish",
+    ):
         if serial and name in by_name:
             job, data = by_name[name]
             diff = np.abs(data["out_out"].astype(int) - serial[1]["out_out"])
             job["vs_serial_lsb"] = int(diff.max())
-            job["ok"] = job.get("ok", True) and job["vs_serial_lsb"] <= 1
+            # one rounding step, plus one for VME's per-block uint8 P
+            limit = 2 if name.startswith("vme") else 1
+            job["ok"] = job.get("ok", True) and job["vs_serial_lsb"] <= limit
     return jobs
 
 

@@ -17,8 +17,10 @@ prints the block and 12-layer totals in ms at the configured clock.
 Tiling schedule (the cheapest the current interface allows): matmuls are
 A-stationary (one A tile of 16 x 512 stays in DTCM while every B tile
 streams past; K is split in 512-wide chunks whose int32 partial sums the
-host adds); attention streams 64-key K/V blocks through
-attention_flash_chunk for 16-query blocks.
+host adds); attention streams 64-key K/V blocks through attention_vme_block
+for 16-query blocks (both its matmuls on the matrix engine; decode's single
+query on the vector unit). The scalar attention_flash_chunk estimate is
+kept alongside for comparison but not counted in the totals.
 """
 
 import json
@@ -119,44 +121,80 @@ def matmul_op(meas: Measured, name: str, n: int, k: int, m: int) -> dict:
     }
 
 
-def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
-    """All heads of causal attention via streamed chunked flash.
-
-    Cost per visible (query, key) pair comes from the measured stream: the
-    summed block cycles over the pairs that stream saw (masked keys cost
-    nothing, so diagonal blocks are charged only for what they compute).
-    """
+def attention_blocks(nq: int, ctx: int) -> tuple[int, int, int, int, int]:
+    """(query block, query blocks, KV block, visible pairs, block pairs)."""
     block = CONFIG["tiles"]["attention_flash_chunk"]["kv_block"]
     qb = CONFIG["tiles"]["attention_flash_chunk"]["nq"] if nq > 1 else 1
-    stream = "chunk_prefill" if nq > 1 else "chunk_decode"
-    finish = meas.cycles(f"{stream}_finish")
-    fin = meas.jobs.get(f"{stream}_finish", {})
-    if fin:
-        sq, _, _ = fin["shape"]
-        seen = sum(fin["query_start"] + i + 1 for i in range(sq))
-        per_pair = meas.sum_cycles(f"{stream}_block") / seen
-    else:
-        per_pair = math.nan
     pairs = 0  # (query block, kv block) pairs that see at least one key
     for q0 in range(0, nq, qb):
         last_pos = ctx - nq + min(q0 + qb, nq) - 1
         pairs += cdiv(last_pos + 1, block)
-    q_blocks = cdiv(nq, qb)
     visible = sum(ctx - nq + i + 1 for i in range(nq))  # causal key count
-    # per visible (query, key): a d-byte kt column, a d-byte v row, and a
-    # float acc row read and written (8d)
-    dtcm = H * visible * (DH + DH + 8 * DH)
-    host = H * (
-        pairs * 2 * block * DH  # K and V blocks in
-        + q_blocks * (qb * DH + qb * (DH + 2) * 4 + qb * DH)  # q, state, out
-    )
+    return qb, cdiv(nq, qb), block, visible, pairs
+
+
+def attention_host_bytes(nq: int, ctx: int) -> int:
+    """Host traffic of streamed attention: K/V per block pair, q/state/out."""
+    qb, q_blocks, block, _, pairs = attention_blocks(nq, ctx)
+    per_q_block = qb * DH + qb * (DH + 2) * 4 + qb * DH  # q, state, out
+    return H * (pairs * 2 * block * DH + q_blocks * per_q_block)
+
+
+def attention_op(meas: Measured, nq: int, ctx: int) -> dict:
+    """All heads of causal attention via attention_vme_block (the default).
+
+    Both matmuls run through matmul(): the matrix engine for prefill's
+    16-query blocks, the vector unit for decode's single query. The engine
+    computes whole blocks (masked keys still cost work), so each (query
+    block, KV block) pair costs the measured cycles of one full block.
+    """
+    qb, q_blocks, block, visible, pairs = attention_blocks(nq, ctx)
+    stream = "vme_prefill" if nq > 1 else "vme_decode"
+    per_block = meas.mean_cycles(f"{stream}_block")
+    finish = meas.cycles(f"{stream}_finish")
+    if nq > 1:  # matrix engine: 16x16x4 steps of 128 operand bytes
+        steps = (qb // 16) * (block // 16) * (DH // 4)  # q . kt
+        steps += (qb // 16) * (DH // 16) * (block // 4)  # P . v
+        mm_bytes = steps * 128
+    else:  # vector unit: one 16-byte row load + 1 A byte per k per strip
+        mm_bytes = DH * cdiv(block, 16) * 17 + block * cdiv(DH, 16) * 17
+    # scores and P.V written then read (int32), P written then read, acc
+    # read and written (float)
+    state = qb * block * (8 + 2) + qb * DH * (8 + 8)
     return {
         "op": "attention",
+        "engine": "VME" if nq > 1 else "RVV",
+        "ops": H * 4 * visible * DH,
+        "kernel_cycles": H * (pairs * per_block + q_blocks * finish),
+        "dtcm_bytes": H * pairs * (mm_bytes + state),
+        "host_bytes": attention_host_bytes(nq, ctx),
+        "tiles": H * pairs,
+    }
+
+
+def attention_scalar_op(meas: Measured, nq: int, ctx: int) -> dict:
+    """Scalar attention_flash_chunk, kept for comparison (not in totals).
+
+    Cost per visible (query, key) pair comes from the measured stream: masked
+    keys cost nothing, so diagonal blocks are charged only for what they do.
+    """
+    _, q_blocks, _, visible, pairs = attention_blocks(nq, ctx)
+    stream = "chunk_prefill" if nq > 1 else "chunk_decode"
+    finish = meas.cycles(f"{stream}_finish")
+    fin = meas.jobs.get(f"{stream}_finish", {})
+    per_pair = math.nan
+    if fin:
+        seen = sum(fin["query_start"] + i + 1 for i in range(fin["shape"][0]))
+        per_pair = meas.sum_cycles(f"{stream}_block") / seen
+    return {
+        "op": "attention (scalar)",
         "engine": "scalar",
         "ops": H * 4 * visible * DH,
         "kernel_cycles": H * (visible * per_pair + q_blocks * finish),
-        "dtcm_bytes": dtcm,
-        "host_bytes": host,
+        # per visible pair: a d-byte kt column, a d-byte v row and a float
+        # acc row read and written (8d)
+        "dtcm_bytes": H * visible * (DH + DH + 8 * DH),
+        "host_bytes": attention_host_bytes(nq, ctx),
         "tiles": H * pairs,
         "cycles_per_visible_pair": per_pair,
     }
@@ -343,7 +381,8 @@ def main() -> int:
     out = {"ceilings": ceilings, "clock_hz": clock_hz, "phases": {}}
     for phase, (nq, context) in phases.items():
         ops = block_ops(meas, nq, context)
-        for o in ops:
+        scalar_attention = attention_scalar_op(meas, nq, context)
+        for o in [*ops, scalar_attention]:
             o["host_cycles"] = o["host_bytes"] / host_bw
             o["total_cycles"] = o["kernel_cycles"] + o["host_cycles"]
             o["intensity_dtcm"] = o["ops"] / o["dtcm_bytes"]
@@ -353,6 +392,7 @@ def main() -> int:
             "nq": nq,
             "context": context,
             "operators": ops,
+            "attention_scalar_for_comparison": scalar_attention,
             "block_cycles": block,
             "block_ms": 1e3 * block / clock_hz,
             "model_ms": 1e3 * M["layers"] * block / clock_hz,

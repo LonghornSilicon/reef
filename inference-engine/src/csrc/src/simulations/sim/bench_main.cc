@@ -9,7 +9,7 @@
 //
 // BENCH_GROUP selects which kernels this ELF links, to keep each one inside
 // the 8 KB ITCM: 0 = matmul, 1 = attention, 2 = pointwise + softmax,
-// 3 = microbenchmarks.
+// 3 = microbenchmarks, 4 = attention on the matrix engine.
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,6 +24,10 @@
 #include "attention_flash.h"
 #include "attention_flash_chunk.h"
 #include "attention_serial.h"
+#elif BENCH_GROUP == 4
+#include "attention_flash_chunk.h"
+#include "attention_vme.h"
+#include "vme_helpers.h"
 #elif BENCH_GROUP == 2
 #include "gelu.h"
 #include "layernorm.h"
@@ -41,6 +45,7 @@ enum Op : uint32_t {
     kAttentionFlash,
     kAttentionFlashChunk,
     kAttentionFlashFinish,
+    kAttentionVmeBlock,
     kSoftmax = 20,
     kGelu,
     kLayernorm,
@@ -105,7 +110,8 @@ void load_chain_vector(uint32_t iters, const uint32_t* p) {
 }
 #endif
 
-void run() {
+// Runs the call in bench_args; false if this ELF doesn't have that op.
+bool run() {
     switch (static_cast<Op>(arg(0))) {
 #if BENCH_GROUP == 0
     // args: n, k, m, a, b, c [, signed_a]
@@ -158,6 +164,22 @@ void run() {
                                static_cast<int32_t>(arg(6)), arg_f(7), arg_f(8),
                                at<int8_t>(5));
         break;
+#elif BENCH_GROUP == 4
+    // args: nq, d, query_start, window, kv_start, kv_len, q, kt, v, m, l,
+    //       acc, k_zero, score_scale, scratch
+    case kAttentionVmeBlock:
+        attention_vme_block(arg(1), arg(2), arg(3), arg(4), arg(5), arg(6),
+                            at<int8_t>(7), at<uint8_t>(8),
+                            static_cast<int32_t>(arg(13)), at<uint8_t>(9),
+                            arg_f(14), at<int32_t>(15), at<float>(10),
+                            at<float>(11), at<float>(12));
+        break;
+    // args: nq, d, l, acc, out, v_zero, v_scale, out_scale
+    case kAttentionFlashFinish:
+        attention_flash_finish(arg(1), arg(2), at<float>(3), at<float>(4),
+                               static_cast<int32_t>(arg(6)), arg_f(7), arg_f(8),
+                               at<int8_t>(5));
+        break;
 #elif BENCH_GROUP == 2
     // args: lo, hi, scores, probs, score_scale
     case kSoftmax:
@@ -189,14 +211,15 @@ void run() {
         break;
 #endif
     default:
-        break;
+        return false;
     }
+    return true;
 }
 
 } // namespace
 
 int main() {
-#if BENCH_GROUP == 0
+#if BENCH_GROUP == 0 || BENCH_GROUP == 4
     vme::enable_matrix_state(); // the CRT turns on FP and vector, not matrix
 #elif BENCH_GROUP == 2
     if (arg(0) == kGelu) {
@@ -204,7 +227,8 @@ int main() {
     }
 #endif
     const uint32_t start = mcycle();
-    run();
-    bench_cycles = mcycle() - start;
+    const bool ran = run();
+    // an op this ELF doesn't link reports all-ones, which the harness rejects
+    bench_cycles = ran ? mcycle() - start : 0xFFFFFFFFU;
     return 0;
 }

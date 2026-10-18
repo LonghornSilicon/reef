@@ -49,6 +49,7 @@ OPS = {
     "attention_flash": 11,
     "attention_flash_chunk": 12,
     "attention_flash_finish": 13,
+    "attention_vme_block": 14,
     "online_softmax": 20,
     "gelu": 21,
     "layernorm": 22,
@@ -130,6 +131,7 @@ class Bench:
         await self.fx.write("bench_args", np.array(words, dtype=np.uint32))
         halted = await self.fx.run_to_halt(timeout_cycles=TIMEOUT_CYCLES)
         cycles = int(await self.fx.read_word("bench_cycles"))
+        assert cycles != 0xFFFFFFFF, f"{name}: op {op} not in this bench ELF"
         outputs = {}
         for key, (offset, dtype, shape) in reads.items():
             nbytes = int(np.prod(shape)) * np.dtype(dtype).itemsize
@@ -311,8 +313,13 @@ async def run_chunked(
     block: int,
     query_start: int,
     phase: str,
+    op: str = "attention_flash_chunk",
 ) -> None:
-    """Stream K and V through DTCM in `block`-key blocks, then finish."""
+    """Stream K and V through DTCM in `block`-key blocks, then finish.
+
+    op is attention_flash_chunk (scalar) or attention_vme_block (both
+    matmuls on the matrix engine, which also needs a scratch buffer).
+    """
     q, kt, v = attention_inputs(np.random.default_rng(nq * 7 + nk), nq, nk, d)
     arena = Arena()
     oq, ok, ov = (
@@ -322,6 +329,9 @@ async def run_chunked(
     )
     om, ol, oa = arena.take(nq * 4), arena.take(nq * 4), arena.take(nq * d * 4)
     oo = arena.take(nq * d)
+    vme = op == "attention_vme_block"
+    # scores / P.V int32 (nq x max(block, d)), then P bytes (nq x block)
+    scratch = [arena.take(nq * max(block, d) * 4 + nq * block)] if vme else []
     # q and the zeroed state go in once; only K/V blocks stream per call
     setup = {
         "q": (oq, q),
@@ -332,7 +342,7 @@ async def run_chunked(
         kt_block = np.ascontiguousarray(kt[:, start : start + block])
         await bench.call(
             f"{name}_block{start // block}",
-            "attention_flash_chunk",
+            op,
             [
                 nq,
                 d,
@@ -348,6 +358,7 @@ async def run_chunked(
                 oa,
                 Q["k_zero"],
                 SCORE_SCALE,
+                *scratch,
             ],
             {
                 **(setup if start == 0 else {}),
@@ -356,7 +367,7 @@ async def run_chunked(
             },
             {},
             {
-                "kernel": "attention_flash_chunk",
+                "kernel": op,
                 "shape": [nq, block, d],
                 "phase": phase,
                 "stream": name,
@@ -413,6 +424,42 @@ async def attention_test(dut: SimHandleBase) -> None:
     )
     await run_chunked(
         bench, "chunk_decode", 1, 4 * block, d, block, 4 * block - 1, "decode"
+    )
+
+
+@cocotb.test()
+async def attention_vme_test(dut: SimHandleBase) -> None:
+    """Block-flash attention with both matmuls on the matrix engine."""
+    bench = await Bench.load(dut, "bench_attention_vme")
+    nq, nk, d = (T["attention_serial"][x] for x in ("nq", "nk", "d"))
+    vme = "attention_vme_block"
+    # same inputs as attention_serial_prefill: checked directly against it
+    await run_chunked(
+        bench, "vme_vs_serial", nq, nk, d, 16, nk - nq, "prefill", vme
+    )
+    block = T["attention_flash_chunk"]["kv_block"]
+    await run_chunked(
+        bench,
+        "vme_prefill",
+        nq,
+        4 * block,
+        d,
+        block,
+        4 * block - nq,
+        "prefill",
+        vme,
+    )
+    # decode: nq = 1, so matmul() takes the vector unit inside the kernel
+    await run_chunked(
+        bench,
+        "vme_decode",
+        1,
+        4 * block,
+        d,
+        block,
+        4 * block - 1,
+        "decode",
+        vme,
     )
 
 

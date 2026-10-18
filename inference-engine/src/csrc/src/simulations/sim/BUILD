@@ -31,6 +31,13 @@ BENCHES = {
         "residual.cc",
     ]),
     "bench_ubench": (3, []),
+    "bench_attention_vme": (4, [
+        "attention_vme.cc",
+        "attention_flash_chunk.cc",
+        "matmul.cc",
+        "matmul_rvv.cc",
+        "matmul_vme.cc",
+    ]),
 }
 
 [
@@ -52,6 +59,7 @@ TESTCASES = [
     "attention_test",
     "pointwise_test",
     "ubench_test",
+    "attention_vme_test",
 ]
 
 cocotb_test_suite(
