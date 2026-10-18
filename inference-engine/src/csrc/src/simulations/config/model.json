@@ -45,6 +45,10 @@
     "prefill_lens": [16, 64, 128, 256, 1024],
     "decode_context": 1024
   },
+  "sweeps": {
+    "_comment": "Vocab sizes for the LM-head and embedding sensitivity study (GPT-2 is 50257).",
+    "vocab_sizes": [8192, 16384, 32768, 50257, 100352]
+  },
   "tiles": {
     "_comment": "Per-kernel shapes run on the sim; each fits in 32 KB DTCM with room for the stack.",
     "matmul_vme": {"n": 16, "k": 512, "m": 16},

@@ -160,6 +160,36 @@
       "block_cycles": 18897703.181327406,
       "block_ms": 377.95406362654813,
       "model_ms": 4535.448763518577,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 5029.031815052398,
       "kernel_share": 0.9709106881374568
     },
     "prefill_64": {
@@ -314,6 +344,36 @@
       "block_cycles": 75590812.72530963,
       "block_ms": 1511.8162545061925,
       "model_ms": 18141.795054074308,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 18635.37810560813,
       "kernel_share": 0.9709106881374568
     },
     "prefill_128": {
@@ -468,6 +528,36 @@
       "block_cycles": 166925183.47411877,
       "block_ms": 3338.5036694823757,
       "model_ms": 40062.04403378851,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 40555.627085322325,
       "kernel_share": 0.9735046361365569
     },
     "prefill_256": {
@@ -622,6 +712,36 @@
       "block_cycles": 396824599.0422356,
       "block_ms": 7936.491980844712,
       "model_ms": 95237.90377013655,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 95731.48682167035,
       "kernel_share": 0.9774575894139982
     },
     "prefill_1024": {
@@ -776,6 +896,36 @@
       "block_cycles": 3098679966.4248967,
       "block_ms": 61973.59932849793,
       "model_ms": 743683.1919419752,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 744176.774993509,
       "kernel_share": 0.9876789346306887
     },
     "decode": {
@@ -930,8 +1080,100 @@
       "block_cycles": 10515471.106065417,
       "block_ms": 210.30942212130833,
       "model_ms": 2523.7130654557,
+      "head_operators": [
+        {
+          "op": "ln_f",
+          "engine": "scalar",
+          "ops": 24576,
+          "kernel_cycles": 243069,
+          "dtcm_bytes": 10752,
+          "host_bytes": 7680,
+          "tiles": 1,
+          "host_cycles": 487.77389647507147,
+          "total_cycles": 243556.77389647506,
+          "intensity_dtcm": 2.2857142857142856,
+          "intensity_host": 3.2
+        },
+        {
+          "op": "lm_head",
+          "engine": "RVV",
+          "ops": 77194752,
+          "kernel_cycles": 21957867.0,
+          "dtcm_bytes": 41424128,
+          "host_bytes": 39011840,
+          "tiles": 3142,
+          "host_cycles": 2477728.802794538,
+          "total_cycles": 24435595.80279454,
+          "intensity_dtcm": 1.86352147231681,
+          "intensity_host": 1.9787518866067326
+        }
+      ],
+      "head_ms": 493.58305153382025,
+      "full_model_ms": 3017.29611698952,
       "kernel_share": 0.9469891457602995
     }
   },
+  "vocab_sweep": [
+    {
+      "vocab": 8192,
+      "lm_head_ops": 12582912,
+      "lm_head_kernel_cycles": 3578112.0,
+      "lm_head_host_bytes": 6357760,
+      "lm_head_host_cycles": 403795.49063194665,
+      "head_ms": 84.50928529056844,
+      "decode_ms": 2608.2223507462686,
+      "decode_head_share": 0.03240110463219844,
+      "prefill_1024_ms": 743767.7012272658,
+      "prefill_1024_head_share": 0.00011362322557314944
+    },
+    {
+      "vocab": 16384,
+      "lm_head_ops": 25165824,
+      "lm_head_kernel_cycles": 7156224.0,
+      "lm_head_host_bytes": 12714752,
+      "lm_head_host_cycles": 807542.2038742459,
+      "head_ms": 164.14645955541442,
+      "decode_ms": 2687.8595250111143,
+      "decode_head_share": 0.06106958270251704,
+      "prefill_1024_ms": 743847.3384015306,
+      "prefill_1024_head_share": 0.00022067224157600973
+    },
+    {
+      "vocab": 32768,
+      "lm_head_ops": 50331648,
+      "lm_head_kernel_cycles": 14312448.0,
+      "lm_head_host_bytes": 25428736,
+      "lm_head_host_cycles": 1615035.630358844,
+      "head_ms": 323.4208080851064,
+      "decode_ms": 2847.1338735408067,
+      "decode_head_share": 0.1135952232842805,
+      "prefill_1024_ms": 744006.6127500605,
+      "prefill_1024_head_share": 0.00043470152353841445
+    },
+    {
+      "vocab": 50257,
+      "lm_head_ops": 77194752,
+      "lm_head_kernel_cycles": 21957867.0,
+      "lm_head_host_bytes": 39011840,
+      "lm_head_host_cycles": 2477728.802794538,
+      "head_ms": 493.58305153382025,
+      "decode_ms": 3017.29611698952,
+      "decode_head_share": 0.16358455796055188,
+      "prefill_1024_ms": 744176.774993509,
+      "prefill_1024_head_share": 0.0006632604887973364
+    },
+    {
+      "vocab": 100352,
+      "lm_head_ops": 154140672,
+      "lm_head_kernel_cycles": 43831872.0,
+      "lm_head_host_bytes": 77873920,
+      "lm_head_host_cycles": 4945946.014607812,
+      "head_ms": 980.4274957700858,
+      "decode_ms": 3504.1405612257863,
+      "decode_head_share": 0.2797911438310345,
+      "prefill_1024_ms": 744663.6194377453,
+      "prefill_1024_head_share": 0.001316604531466641
+    }
+  ],
   "missing": []
 }

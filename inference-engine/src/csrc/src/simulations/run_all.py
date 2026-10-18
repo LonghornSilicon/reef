@@ -396,6 +396,7 @@ def write_results(
     for row in embed:
         print(
             f"  {row['phase']:<8} {row['tokens']:>5} tok  "
+            f"vocab {row['vocab']:>6}  "
             f"median {row['median_ms']:.4f}  p95 {row['p95_ms']:.4f}"
         )
     print("\n== sim:", ", ".join(f"{k} {v}" for k, v in sim_status.items()))

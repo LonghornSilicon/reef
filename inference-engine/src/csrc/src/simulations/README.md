@@ -30,7 +30,8 @@ uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
   reuse the cache.
 - `--skip-sim` reuses `results/sim_raw/` from the last sim run.
 - Outputs: `results/results.{json,csv}`, `analysis/roofline.json`,
-  `analysis/roofline_{prefill,decode}.png`. The write-up is
+  `analysis/roofline_{prefill,decode}.png`, `analysis/vocab_sweep.csv`
+  (LM-head cost per vocab size in `config/model.json` `sweeps`). The write-up is
   `analysis/REPORT.md`.
 
 ## Layout

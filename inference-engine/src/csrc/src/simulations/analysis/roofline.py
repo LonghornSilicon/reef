@@ -23,6 +23,7 @@ query on the vector unit). The scalar attention_flash_chunk estimate is
 kept alongside for comparison but not counted in the totals.
 """
 
+import csv
 import json
 import math
 import sys
@@ -246,6 +247,29 @@ def block_ops(meas: Measured, nq: int, ctx: int) -> list[dict]:
     ]
 
 
+def head_ops(meas: Measured, vocab: int) -> list[dict]:
+    """Final LayerNorm and LM head (d_model -> vocab) for one token.
+
+    Only the newest position needs logits (decode, and the first token after
+    prefill), so this is a 1-row product: matmul() sends it to the vector
+    unit, like the other decode matmuls. Its host traffic is dominated by
+    streaming the d_model x vocab weight matrix through DTCM once per token.
+    """
+    return [
+        pointwise_op(meas, "ln_f", "layernorm", D),
+        matmul_op(meas, "lm_head", 1, D, vocab),
+    ]
+
+
+def add_costs(ops: list[dict], host_bw: float) -> None:
+    """Fill in host cycles, totals and intensities for each operator."""
+    for o in ops:
+        o["host_cycles"] = o["host_bytes"] / host_bw
+        o["total_cycles"] = o["kernel_cycles"] + o["host_cycles"]
+        o["intensity_dtcm"] = o["ops"] / o["dtcm_bytes"]
+        o["intensity_host"] = o["ops"] / o["host_bytes"]
+
+
 def roofline_panel(
     ax: plt.Axes,
     ops: list[dict],
@@ -356,6 +380,50 @@ def plot(ops: list[dict], title: str, ceilings: dict, path: Path) -> None:
     plt.close(fig)
 
 
+def vocab_sweep(
+    meas: Measured, out: dict, host_bw: float, clock_hz: float, longest: str
+) -> list[dict]:
+    """LM-head cost and full-model time per token at each sweep vocab size.
+
+    Writes analysis/vocab_sweep.csv and prints the table. The 12 blocks
+    don't depend on vocab; only the LM head (and the host embedding table,
+    timed separately in results.json) does.
+    """
+    rows = []
+    for vocab in CONFIG["sweeps"]["vocab_sizes"]:
+        head = head_ops(meas, vocab)
+        add_costs(head, host_bw)
+        lm = head[1]
+        head_cycles = sum(o["total_cycles"] for o in head)
+        row = {
+            "vocab": vocab,
+            "lm_head_ops": lm["ops"],
+            "lm_head_kernel_cycles": lm["kernel_cycles"],
+            "lm_head_host_bytes": lm["host_bytes"],
+            "lm_head_host_cycles": lm["host_cycles"],
+            "head_ms": 1e3 * head_cycles / clock_hz,
+        }
+        for phase in ("decode", longest):
+            blocks = M["layers"] * out["phases"][phase]["block_cycles"]
+            row[f"{phase}_ms"] = 1e3 * (blocks + head_cycles) / clock_hz
+            row[f"{phase}_head_share"] = head_cycles / (blocks + head_cycles)
+        rows.append(row)
+    with open(HERE / "vocab_sweep.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    print(
+        f"\n{'vocab':>7} {'head ms':>9} {'decode ms/token':>16} "
+        f"{'head share':>11} {f'{longest} ms':>17}"
+    )
+    for r in rows:
+        print(
+            f"{r['vocab']:>7} {r['head_ms']:>9.1f} {r['decode_ms']:>16.1f} "
+            f"{r['decode_head_share']:>11.1%} {r[f'{longest}_ms']:>17.0f}"
+        )
+    return rows
+
+
 def main() -> int:
     """Build per-phase operator tables, plots and the end-to-end estimate."""
     results = json.loads((SIMS / "results" / "results.json").read_text())
@@ -382,12 +450,11 @@ def main() -> int:
     for phase, (nq, context) in phases.items():
         ops = block_ops(meas, nq, context)
         scalar_attention = attention_scalar_op(meas, nq, context)
-        for o in [*ops, scalar_attention]:
-            o["host_cycles"] = o["host_bytes"] / host_bw
-            o["total_cycles"] = o["kernel_cycles"] + o["host_cycles"]
-            o["intensity_dtcm"] = o["ops"] / o["dtcm_bytes"]
-            o["intensity_host"] = o["ops"] / o["host_bytes"]
+        head = head_ops(meas, M["vocab"])
+        add_costs([*ops, scalar_attention, *head], host_bw)
         block = sum(o["total_cycles"] for o in ops)
+        head_cycles = sum(o["total_cycles"] for o in head)
+        full = M["layers"] * block + head_cycles
         out["phases"][phase] = {
             "nq": nq,
             "context": context,
@@ -396,13 +463,16 @@ def main() -> int:
             "block_cycles": block,
             "block_ms": 1e3 * block / clock_hz,
             "model_ms": 1e3 * M["layers"] * block / clock_hz,
+            "head_operators": head,
+            "head_ms": 1e3 * head_cycles / clock_hz,
+            "full_model_ms": 1e3 * full / clock_hz,
             "kernel_share": sum(o["kernel_cycles"] for o in ops) / block,
         }
         p = out["phases"][phase]
         print(
             f"{phase:<13} block {p['block_ms']:10.2f} ms   "
             f"12 layers {p['model_ms']:10.1f} ms   "
-            f"kernel share {p['kernel_share']:.0%}"
+            f"+ head {p['head_ms']:8.1f} ms = {p['full_model_ms']:10.1f} ms"
         )
 
     longest = f"prefill_{max(CONFIG['sequences']['prefill_lens'])}"
@@ -415,6 +485,7 @@ def main() -> int:
             ceilings,
             HERE / f"roofline_{label.lower()}.png",
         )
+    out["vocab_sweep"] = vocab_sweep(meas, out, host_bw, clock_hz, longest)
     out["missing"] = sorted(set(meas.missing))
     if out["missing"]:
         print("missing measurements (estimates are NaN):", out["missing"])

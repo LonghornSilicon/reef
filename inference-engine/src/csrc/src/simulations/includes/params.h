@@ -35,6 +35,7 @@ constexpr float kScoreScale = 0.00031250000000000006F;
 
 constexpr size_t kPrefillLens[] = {16, 64, 128, 256, 1024};
 constexpr size_t kDecodeContext = 1024;
+constexpr size_t kVocabSizes[] = {8192, 16384, 32768, 50257, 100352};
 
 constexpr size_t kMatmulVmeN = 16;
 constexpr size_t kMatmulVmeK = 512;

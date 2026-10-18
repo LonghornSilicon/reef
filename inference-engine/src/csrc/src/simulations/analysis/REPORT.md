@@ -8,7 +8,9 @@ simulations README. Milliseconds assume the **50 MHz clock, which is not yet
 confirmed**. Section 7 lists every number that is assumed rather than
 measured.
 
-Every matmul in a block runs on the matrix engine (VME) in prefill:
+The end-to-end figures include the final LayerNorm and LM head; section 3
+also has a vocab-size sweep. Every matmul in a block runs on the matrix
+engine (VME) in prefill:
 qkv, attn_out, fc1, fc2, and attention's QKᵀ and P·V. Decode's single-row
 products run on the vector unit (RVV), which measured faster than a padded
 VME tile (see 4). LayerNorm, residual add and GeLU are scalar: they aren't
@@ -85,29 +87,66 @@ Attention went from 0.12 ops/cycle (scalar) to **0.74 (prefill) and 0.64
 (decode)**. That's 6.2× and 5.4×, and it moved attention's bottleneck from
 the matmuls to exp.
 
-## 3. End-to-end estimate (12 transformer blocks)
+## 3. End-to-end estimate
 
 The estimate is the sum of measured kernel cycles per tile × the number of
 tiles, plus host↔DTCM transfer for every tile at the measured rate. Transfers
 are not overlapped with compute: there is no DMA, and the core wins the DTCM
 arbiter. Tiling is A-stationary for the matmuls, and attention streams
-64-key K/V blocks for 16-query blocks. The final LayerNorm, the LM head
-(768 → vocab) and sampling are **not yet included**.
+64-key K/V blocks for 16-query blocks.
 
-| Phase | One block | 12 layers | Attention | Matmuls | LN / residual / GeLU | Host transfer |
+The full model is 12 blocks plus the final LayerNorm and LM head (768 →
+50,257) for one token: only the newest position needs logits. Sampling and
+argmax on the host are not counted. Per-operator shares below are for one
+block.
+
+| Phase | One block | 12 blocks + head | Attention | Matmuls | LN / residual / GeLU | Host transfer |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| prefill 16 | 0.38 s | 4.5 s | 25% | 53% | 21% | 2.9% |
-| prefill 64 | 1.5 s | 18 s | 25% | 53% | 21% | 2.9% |
-| prefill 256 | 7.9 s | 95 s | 43% | 41% | 16% | 2.3% |
+| prefill 16 | 0.38 s | 5.0 s | 25% | 53% | 21% | 2.9% |
+| prefill 64 | 1.5 s | 18.6 s | 25% | 53% | 21% | 2.9% |
+| prefill 256 | 7.9 s | 96 s | 43% | 41% | 16% | 2.3% |
 | prefill 1024 | 62 s | 12.4 min | 71% | 21% | 8% | 1.2% |
-| decode (context 1024) | 0.21 s | **2.5 s per token** | 48% | 43% | 10% | 5.3% |
+| decode (context 1024) | 0.21 s | **3.0 s per token** | 48% | 43% | 10% | 5.3% |
 
-Moving attention to VME cut the decode estimate from 7.7 to 2.5 s per token
-and prefill 1024 from 58 to 12.4 min.
+The head (final LayerNorm + LM head) costs **494 ms per token**: 439 ms of
+RVV compute plus 50 ms streaming the 39 MB weight matrix from the host.
+That's 16% of a decoded token.
+
+Moving attention to VME cut decode from 7.7 to 2.5 s per token for the 12
+blocks (3.0 s with the head), and prefill 1024 from 58 to 12.4 min.
 
 At short prefill, VME attention is no faster than scalar (0.09 vs 0.10
 ops/cycle at 16 tokens). The matrix engine computes the whole 64-key block
 while only 16 keys are visible, which wastes most of it.
+
+### Vocab size sensitivity
+
+Only the LM head depends on vocab size. It's a 1 × 768 × V matrix-vector
+product per generated token on RVV, so its cost is linear in V. The 12
+blocks are unchanged. These figures are extrapolated from the measured
+1×512×32 RVV tile and the measured host rate, not separately simulated
+(`analysis/vocab_sweep.csv`):
+
+| Vocab | LM-head weights (host traffic) | Head (ms/token) | Decode (ms/token) | Head share of decode | Prefill 1024 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 8,192 | 6.4 MB | 85 | 2,608 | 3.2% | 12.4 min |
+| 16,384 | 12.7 MB | 164 | 2,688 | 6.1% | 12.4 min |
+| 32,768 | 25.4 MB | 323 | 2,847 | 11.4% | 12.4 min |
+| **50,257 (GPT-2)** | 39.0 MB | **494** | **3,017** | **16.4%** | 12.4 min |
+| 100,352 | 77.9 MB | 980 | 3,504 | 28.0% | 12.4 min |
+
+- **Each extra 1,000 vocab entries costs about 9.7 ms per decoded token**
+  at 50 MHz. About 90% of that is RVV compute and 10% is host transfer:
+  every token streams the whole 768 × V weight matrix through DTCM, because
+  32 KB can't keep any of it resident.
+- **Prefill barely moves** (under 0.1%), because the head runs once while
+  the blocks scale with sequence length.
+- **The host embedding lookup is insensitive to vocab:** p95 at 1024
+  tokens is 0.375–0.43 ms from 8k to 100k (`results.json`,
+  `embedding_host`). It gathers one row per token regardless of table
+  size; only the table's footprint grows (77 MB at 100k).
+- **Tying embedding and LM-head weights** (as GPT-2 does) saves memory, not
+  time: the head still streams all V × 768 bytes per token.
 
 ## 4. Prefill vs decode
 
@@ -164,7 +203,7 @@ a. **Hardware exp / softmax support.** This is now the top lever.
       of a VME prefill attention block (1,040 calls × 280 of ~337k cycles)
       and about 70% of a decode block (65 × 280 of ~25k).
    - **Sensitivity:** a few-cycle exp would cut up to about **−60% of
-      prefill-1024 block time and −33% of decode**. These are upper bounds,
+      prefill-1024 time and −28% of a decoded token** (head included). These are upper bounds,
       because the 280 cycles include the loop's other float work.
 
 b. **A GEMV mode or smaller tile for decode.**
@@ -172,17 +211,19 @@ b. **A GEMV mode or smaller tile for decode.**
       6% utilization (0.74 useful MACs/cycle).
    - **Sensitivity:** a mode that delivered VME's measured step rate on one
       row (12.2 MACs/cycle) would make decode matmul kernels about 7×
-      faster. Matmul kernels are about 38% of the decode block, so that's
-      about **−33% of decode time**. Check `msettm` with a 1-row tile first
-      (4); it may already exist.
+      faster. Per token, the 12 blocks' matmul kernels (965 ms) plus the LM
+      head (439 ms) are 47% of decode, so that's about **−40% per decoded
+      token**. The saving grows with vocab size. Check `msettm` with a 1-row
+      tile first (4); it may already exist.
 
 c. **Larger DTCM (KV resident) and/or DMA with double buffering.**
    - **Evidence:** streamed attention moves 19× more host bytes than a
-      resident KV would (5). All host traffic is serialized with compute
-      today: 5.3% of decode and 1.2% of prefill-1024 block time.
+      resident KV would (5), and the LM head streams 39 MB per token. All
+      host traffic is serialized with compute today: about 6% of a decoded
+      token (183 ms) and 1.2% of prefill 1024.
    - **Sensitivity today:** a DMA that fully hid transfers saves at most
-      that much (−5.3% decode). Doubling the host bus saves about half of it
-      (≤ −2.7%).
+      that much (−6% per decoded token). Doubling the host bus saves about
+      half of it (≤ −3%).
    - **When it matters:** this grows after (a). With exp at a few cycles,
       decode attention per block drops to roughly the matmul work, and the
       streamed K/V would become a large share of it. At that point, KV
@@ -218,7 +259,8 @@ e. **Vector float for the pointwise kernels** (software plus a build flag,
 | `ebus` latency | Unknown ("tens of cycles"); not used |
 | DTCM↔core byte counts | **Derived** from each kernel's loop structure, not measured |
 | Full-model cycles | Extrapolated from measured tiles. The VME k-chunk cost uses the measured k-sweep fit; RVV scales linearly in k; VME attention uses the measured full-block cycles (masked keys still cost work); scalar attention uses the measured cycles per visible pair |
-| Final LayerNorm, LM head (768 → vocab), sampling | **Not included** in the end-to-end estimate yet |
+| Final LayerNorm and LM head | Included, for one token per step (newest position only). Sampling/argmax on the host is not counted |
+| Vocab sweep | Extrapolated from the measured RVV tile and host rate; only the GPT-2 vocab's tile shapes ran on the sim |
 | Host-side work (summing K-split partial sums, orchestration) | Not counted |
 | Quantization scales | Placeholders, not calibrated; affect accuracy numbers, not cycles |
 | `expf` cost of about 280 cycles | Upper bound inferred from the softmax measurement |

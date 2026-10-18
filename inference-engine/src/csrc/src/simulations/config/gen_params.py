@@ -67,7 +67,8 @@ def render(model: dict, hardware: dict) -> str:
         else:
             emit(key, float(value))
     lines.append("")
-    for key, value in model["sequences"].items():
+    sweeps = {k: v for k, v in model["sweeps"].items() if k[0] != "_"}
+    for key, value in {**model["sequences"], **sweeps}.items():
         if isinstance(value, list):
             items = ", ".join(str(v) for v in value)
             lines.append(f"constexpr size_t {const(key)}[] = {{{items}}};")

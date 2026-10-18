@@ -1,7 +1,9 @@
 // Host-side (x86/arm64) GPT-2 embedding: token lookup plus learned position
 // embedding, requantized to int8 in the [seq x d_model] row-major layout the
 // first layernorm reads. Times decode (1 token) and every prefill length in
-// config/model.json with a steady clock, and prints JSON for run_all.py.
+// config/model.json with a steady clock, then decode and the longest
+// prefill at every vocab size in the vocab sweep, and prints JSON for
+// run_all.py.
 //
 // Weights are random int8 tables of GPT-2's shape (wte 50257 x 768, wpe
 // 1024 x 768): the cost depends on the shapes, not the values.
@@ -67,7 +69,9 @@ Tensor<int8_t> random_table(std::size_t rows, std::mt19937* rng) {
 void time_length(const char* phase, std::size_t length,
                  std::size_t position_offset, const Tensor<int8_t>& wte,
                  const Tensor<int8_t>& wpe, std::mt19937* rng, bool last) {
-    std::uniform_int_distribution<std::uint32_t> token(0, params::kVocab - 1);
+    const std::size_t vocab = wte.shape[0];
+    std::uniform_int_distribution<std::uint32_t> token(
+        0, static_cast<std::uint32_t>(vocab - 1));
     TokenIds ids(length);
     for (std::uint32_t& id : ids) {
         id = token(*rng);
@@ -85,10 +89,10 @@ void time_length(const char* phase, std::size_t length,
     std::sort(ms.begin(), ms.end());
     const double median = ms[kRuns / 2];
     const double p95 = ms[(kRuns * 95) / 100];
-    std::printf("  {\"phase\": \"%s\", \"tokens\": %zu, \"median_ms\": %.6f, "
-                "\"p95_ms\": %.6f, \"runs\": %d, \"target_ms\": %.1f, "
-                "\"pass\": %s, \"sink\": %zu}%s\n",
-                phase, length, median, p95, kRuns, kTargetMs,
+    std::printf("  {\"phase\": \"%s\", \"tokens\": %zu, \"vocab\": %zu, "
+                "\"median_ms\": %.6f, \"p95_ms\": %.6f, \"runs\": %d, "
+                "\"target_ms\": %.1f, \"pass\": %s, \"sink\": %zu}%s\n",
+                phase, length, vocab, median, p95, kRuns, kTargetMs,
                 p95 < kTargetMs ? "true" : "false", sink, last ? "" : ",");
 }
 
@@ -102,9 +106,18 @@ int main() {
     // decode: one token at the last position of the decode context
     time_length("decode", 1, params::kDecodeContext - 1, wte, wpe, &rng, false);
     const std::size_t count = std::size(params::kPrefillLens);
+    const std::size_t longest = params::kPrefillLens[count - 1];
     for (std::size_t i = 0; i < count; ++i) {
         time_length("prefill", params::kPrefillLens[i], 0, wte, wpe, &rng,
-                    i + 1 == count);
+                    false);
+    }
+    // vocab sweep: the table size changes, the work per token does not
+    const std::size_t sizes = std::size(params::kVocabSizes);
+    for (std::size_t i = 0; i < sizes; ++i) {
+        const Tensor<int8_t> table = random_table(params::kVocabSizes[i], &rng);
+        time_length("decode", 1, params::kDecodeContext - 1, table, wpe, &rng,
+                    false);
+        time_length("prefill", longest, 0, table, wpe, &rng, i + 1 == sizes);
     }
     std::printf("]\n");
     return 0;
