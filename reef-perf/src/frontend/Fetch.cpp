@@ -2,8 +2,10 @@
 
 #include "frontend/Fetch.h"
 
+#include "sparta/events/StartupEvent.hpp"
 #include "sparta/utils/SpartaAssert.hpp"
 
+#include <algorithm>
 #include <cstdint>
 
 using namespace reef_perf;
@@ -11,23 +13,46 @@ using namespace reef_perf;
 Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
     : sparta::Unit(Node, name), FetchWidth(Params->fetch_width),
       FetchInterval(Params->fetch_interval),
-      RedirectPenalty(Params->redirect_penalty) {
-  sparta_assert(FetchWidth > 0 && FetchInterval > 0);
-  InCreditsPort.registerConsumerHandler(
-      CREATE_SPARTA_HANDLER_WITH_DATA(Fetch, receiveCredits, uint32_t));
-  // Fetch starts when Dispatch sends its initial credits.
+      RedirectPenalty(Params->redirect_penalty),
+      IbufEntries(Params->ibuf_entries) {
+  sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
+  // The first group is fetched in cycle 1.
+  sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));
 }
 
-void Fetch::receiveCredits(const uint32_t &NewCredits) {
-  Credits += NewCredits;
-  scheduleFetch();
+void Fetch::scheduleFirstFetch() { FetchEvent.schedule(1); }
+
+uint32_t Fetch::getFreeEntries(uint64_t Now) const {
+  uint64_t Used = Ibuf.size() + (FreedCycle == Now ? FreedAtCycle : 0);
+  return Used >= IbufEntries ? 0 : static_cast<uint32_t>(IbufEntries - Used);
 }
 
-void Fetch::scheduleFetch() {
-  if (Done || Credits == 0)
+InstRef Fetch::peek(uint64_t Now) const {
+  if (Ibuf.empty() || Ibuf.front()->FetchCycle >= Now)
+    return nullptr;
+  return Ibuf.front();
+}
+
+void Fetch::pop(uint64_t Now) {
+  sparta_assert(!Ibuf.empty(), "pop() from an empty instruction buffer");
+  Ibuf.pop_front();
+  if (FreedCycle != Now) {
+    FreedCycle = Now;
+    FreedAtCycle = 0;
+  }
+  ++FreedAtCycle;
+  scheduleFetch(Now + 1); // The entry can be refilled next cycle.
+}
+
+bool Fetch::isDrained(uint64_t Now) const {
+  return Done && DoneCycle < Now && Ibuf.empty();
+}
+
+void Fetch::scheduleFetch(uint64_t Earliest) {
+  if (Done)
     return;
   uint64_t Now = getClock()->currentCycle();
-  FetchEvent.schedule(NextFetchCycle > Now ? NextFetchCycle - Now : 0);
+  FetchEvent.schedule(std::max(Earliest, NextFetchCycle) - Now);
 }
 
 void Fetch::fetchGroup() {
@@ -35,27 +60,27 @@ void Fetch::fetchGroup() {
   uint64_t Now = getClock()->currentCycle();
   if (Done)
     return;
-  if (Now < NextFetchCycle) { // Woken early by a credit; wait.
-    scheduleFetch();
+  if (Now < NextFetchCycle) { // Woken early by a pop(); wait.
+    scheduleFetch(Now);
     return;
   }
-  if (Credits == 0) {
+  if (getFreeEntries(Now) == 0) {
     ++CyclesNoCredit;
-    return; // receiveCredits() wakes us up.
+    return; // pop() wakes us up.
   }
 
-  FetchPacket Packet;
+  uint32_t Fetched = 0;
   bool Redirect = false;
-  while (Packet.Insts.size() < FetchWidth && Credits > 0) {
+  while (Fetched < FetchWidth && getFreeEntries(Now) > 0) {
     InstRef I = TheFuncSim->next(); // Execute-at-fetch.
     if (!I) {
       Done = true;
-      Packet.Last = true;
+      DoneCycle = Now;
       break;
     }
     I->FetchCycle = Now;
-    Packet.Insts.push_back(I);
-    --Credits;
+    Ibuf.push_back(I);
+    ++Fetched;
     ++NumFetched;
     if (I->isRedirect()) {
       Redirect = true;
@@ -63,10 +88,9 @@ void Fetch::fetchGroup() {
       break; // The rest of this group would be on the wrong path.
     }
   }
-  if (!Packet.Insts.empty() || Packet.Last) {
+  if (Fetched > 0 || Done)
     ++NumGroups;
-    OutInstsPort.send(Packet);
-  }
   NextFetchCycle = Now + FetchInterval + (Redirect ? RedirectPenalty : 0);
-  scheduleFetch();
+  if (getFreeEntries(Now) > 0)
+    scheduleFetch(NextFetchCycle);
 }

@@ -28,11 +28,6 @@ class ScalarExec;
 /// The backend module. Units: dispatch, scalar_exec, lsu, rob.
 class Backend : public Module {
 public:
-  /// Public port: fetch groups in from the frontend (FetchPacket).
-  static constexpr const char *InInsts = "dispatch.ports.in_insts";
-  /// Public port: instruction-buffer credits out to the frontend.
-  static constexpr const char *OutFetchCredits =
-      "dispatch.ports.out_fetch_credits";
   /// Public port: vector instructions out (InstRef).
   static constexpr const char *OutVector = "dispatch.ports.out_vector";
   /// Public port: vector command-queue credits in.
@@ -55,6 +50,10 @@ public:
 
   /// Connects the memory module \p Mem, which must outlive the simulation.
   void setMemory(MemoryInterface *Mem);
+
+  /// Connects the frontend's instruction buffer \p Buffer, which must outlive
+  /// the simulation.
+  void setInstBuffer(InstBufferInterface *Buffer);
 
   /// \returns alu, mul, div, fpu, fdiv and lsu.
   std::vector<const ResourcePool *> getPools() const override;

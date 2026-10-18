@@ -68,9 +68,6 @@ void ReefSim::bindTree_() {
     M->bind();
 
   // The interfaces between modules (docs/interfaces.md).
-  bindPorts(FrontendModule, Fetch::OutInsts, BackendModule, Backend::InInsts);
-  bindPorts(BackendModule, Backend::OutFetchCredits, FrontendModule,
-            Fetch::InCredits);
   bindPorts(BackendModule, Backend::OutVector, VectorModule, Vector::InInsts);
   bindPorts(VectorModule, Vector::OutCredits, BackendModule,
             Backend::InVectorCredits);
@@ -81,6 +78,7 @@ void ReefSim::bindTree_() {
   FrontendModule.getUnit()->setFuncSim(TheFuncSim.get());
   MemModule.getUnit()->setMemoryMap(Regions);
   BackendModule.setMemory(MemModule.getUnit());
+  BackendModule.setInstBuffer(FrontendModule.getUnit());
 }
 
 void ReefSim::printSummary(std::ostream &OS) const {

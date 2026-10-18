@@ -70,9 +70,3 @@ std::ostream &reef_perf::operator<<(std::ostream &OS, const Inst &I) {
   return OS << "#" << I.Seq << " 0x" << std::hex << I.PC << std::dec << " "
             << I.Disasm;
 }
-
-std::ostream &reef_perf::operator<<(std::ostream &OS,
-                                    const FetchPacket &Packet) {
-  return OS << "[" << Packet.Insts.size() << " insts"
-            << (Packet.Last ? ", last" : "") << "]";
-}

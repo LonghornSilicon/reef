@@ -36,10 +36,10 @@ the interfaces in [docs/interfaces.md](docs/interfaces.md).
 ```
  ELF --> Spike                                   execute-at-fetch
            |
- +---------v--------+  FetchPacket   +----------------------------------+
- | frontend         | -------------> | backend                          |
- |  fetch, Spike,   | <------------- |  dispatch --> scalar_exec        |
- |  decode          |    credits     |     |    \--> lsu --------------+--> MemoryInterface
+ +---------v--------+  InstBuffer-   +----------------------------------+
+ | frontend         |   Interface    | backend                          |
+ |  fetch, ibuf,    | <------------- |  dispatch --> scalar_exec        |
+ |  Spike, decode   |   peek / pop   |     |    \--> lsu --------------+--> MemoryInterface
  +------------------+                |     |    \--> rob --> retired  |        |
                                      +-----|--------|------------------+        v
                           InstRef, credits |        | InstRef, credits  +---------------+
@@ -51,7 +51,7 @@ the interfaces in [docs/interfaces.md](docs/interfaces.md).
 
 | Module | Parameters | What it does now |
 | --- | --- | --- |
-| `frontend` | `top.frontend.params` | Runs each instruction in Spike as it is fetched (execute-at-fetch) and decodes it; up to 4 per cycle; a fixed penalty on every taken branch or jump |
+| `frontend` | `top.frontend.params` | Runs each instruction in Spike as it is fetched (execute-at-fetch) and decodes it; up to 4 per cycle into an 8-entry instruction buffer; a fixed penalty on every taken branch or jump |
 | `backend` | `top.backend.{dispatch,scalar_exec,lsu,rob}.params` | In-order dispatch with a register scoreboard and stall accounting; integer/FP pools; the LSU for scalar *and* vector memory ops; 8-entry retirement buffer |
 | `vector` | `top.vector.params` | RVV command queue and 2 lanes; time per instruction from vl × SEW / VLEN |
 | `matrix` | `top.matrix.params` | Stub with the vector module's interface; no matrix ISA yet, so it sees no traffic |

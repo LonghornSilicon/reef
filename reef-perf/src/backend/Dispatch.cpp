@@ -2,7 +2,6 @@
 
 #include "backend/Dispatch.h"
 
-#include "sparta/events/StartupEvent.hpp"
 #include "sparta/utils/SpartaAssert.hpp"
 
 #include <cstddef>
@@ -35,9 +34,8 @@ const char *reef_perf::getStallReasonName(StallReason Reason) {
 }
 
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
-    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
-      IbufEntries(Params->ibuf_entries) {
-  sparta_assert(DispatchWidth > 0 && IbufEntries > 0);
+    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width) {
+  sparta_assert(DispatchWidth > 0);
 
   constexpr auto NumReasons = static_cast<size_t>(StallReason::NumReasons);
   for (size_t Idx = 0; Idx < NumReasons; ++Idx) {
@@ -48,8 +46,6 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
         sparta::Counter::COUNT_NORMAL));
   }
 
-  InInstsPort.registerConsumerHandler(
-      CREATE_SPARTA_HANDLER_WITH_DATA(Dispatch, receiveInsts, FetchPacket));
   InRobCreditsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Dispatch, receiveRobCredits, uint32_t));
   InLsuCreditsPort.registerConsumerHandler(
@@ -58,19 +54,6 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
       CREATE_SPARTA_HANDLER_WITH_DATA(Dispatch, receiveVecCredits, uint32_t));
   InMtxCreditsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Dispatch, receiveMtxCredits, uint32_t));
-  sparta::StartupEvent(Node,
-                       CREATE_SPARTA_HANDLER(Dispatch, sendInitialCredits));
-}
-
-void Dispatch::sendInitialCredits() { OutFetchCreditsPort.send(IbufEntries); }
-
-void Dispatch::receiveInsts(const FetchPacket &Packet) {
-  for (const InstRef &I : Packet.Insts)
-    Ibuf.push_back(I);
-  sparta_assert(Ibuf.size() <= IbufEntries, "instruction buffer overflow");
-  if (Packet.Last)
-    FetchDone = true;
-  scheduleDispatch();
 }
 
 void Dispatch::receiveRobCredits(const uint32_t &Credits) {
@@ -95,8 +78,8 @@ void Dispatch::receiveMtxCredits(const uint32_t &Credits) {
 
 void Dispatch::scheduleDispatch() {
   // Keep ticking every cycle until the program is fully dispatched, so cycles
-  // with an empty buffer are counted as IbufEmpty stalls.
-  if (!Ibuf.empty() || !FetchDone)
+  // with nothing to take are counted as IbufEmpty stalls.
+  if (!Frontend->isDrained(getClock()->currentCycle()))
     DispatchEvent.schedule(); // This cycle.
 }
 
@@ -170,9 +153,9 @@ void Dispatch::dispatchGroup() {
   uint32_t Count = 0;
   StallReason Why = StallReason::IbufEmpty;
 
-  while (Count < DispatchWidth && !Ibuf.empty()) {
-    InstRef I = Ibuf.front();
-    if (!canDispatch(I, Now, Why))
+  while (Count < DispatchWidth) {
+    InstRef I = Frontend->peek(Now);
+    if (!I || !canDispatch(I, Now, Why))
       break;
     I->DispatchCycle = Now;
     for (uint16_t Reg : I->Dsts)
@@ -180,18 +163,17 @@ void Dispatch::dispatchGroup() {
     --RobCredits;
     sendToTarget(I);
     OutRobPort.send(I);
-    Ibuf.pop_front();
+    Frontend->pop(Now);
     ++Count;
   }
 
   if (Count > 0) {
     NumDispatched += Count;
     ++CyclesWithDispatch;
-    OutFetchCreditsPort.send(Count);
   } else {
     ++(*StallCounters.at(static_cast<size_t>(Why)));
   }
 
-  if (!Ibuf.empty() || !FetchDone)
+  if (!Frontend->isDrained(Now))
     DispatchEvent.schedule(1);
 }

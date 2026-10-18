@@ -23,11 +23,11 @@ top:
       fetch_width: 4          # 128-bit fetch = 4 instructions
       fetch_interval: 1       # B04: M3 starts a fetch only every other cycle
       redirect_penalty: 1     # B05: replace with static prediction + penalties
+      ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
   backend:
     dispatch:
       params:
         dispatch_width: 4
-        ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
     scalar_exec:
       params:
         alu_count: 4

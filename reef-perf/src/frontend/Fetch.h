@@ -1,15 +1,18 @@
 //===- Fetch.h - The frontend module ----------------------------*- C++ -*-===//
 ///
 /// \file
-/// The frontend module: fetch. Every fetched instruction is executed in Spike
-/// first (FuncSim), so the frontend knows each branch outcome.
+/// The frontend module: fetch and the instruction buffer. Every fetched
+/// instruction is executed in Spike first (FuncSim), so the frontend knows
+/// each branch outcome. The backend takes instructions from the buffer
+/// through InstBufferInterface; on M3 the buffer is part of fetch
+/// (UncachedFetch.scala, InstructionBuffer).
 ///
 /// Super-coarse, deliberately simpler than the M3 RTL:
-/// - up to `fetch_width` instructions every `fetch_interval` cycles;
+/// - up to `fetch_width` instructions every `fetch_interval` cycles, while
+///   the `ibuf_entries`-entry buffer has room;
 /// - a group ends at any instruction that redirects the PC (taken branch,
 ///   jump, trap), and the next group starts `redirect_penalty` cycles later;
-///   there is no branch predictor, so every redirect costs the same;
-/// - fetch stops while Dispatch's instruction buffer is full (credits).
+///   there is no branch predictor, so every redirect costs the same.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -17,20 +20,21 @@
 #define REEF_PERF_FRONTEND_FETCH_H
 
 #include "common/Inst.h"
+#include "common/Interfaces.h"
 #include "frontend/FuncSim.h"
 
 #include "sparta/events/UniqueEvent.hpp"
-#include "sparta/ports/DataPort.hpp"
 #include "sparta/simulation/ParameterSet.hpp"
 #include "sparta/simulation/Unit.hpp"
 #include "sparta/statistics/Counter.hpp"
 
 #include <cstdint>
+#include <deque>
 
 namespace reef_perf {
 
 /// The frontend module. Tree location: top.frontend.
-class Fetch : public sparta::Unit {
+class Fetch : public sparta::Unit, public InstBufferInterface {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
@@ -45,16 +49,12 @@ public:
     PARAMETER(uint32_t, redirect_penalty, 1,
               "Extra cycles lost after any taken branch/jump before fetching "
               "again")
+    PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
   static constexpr const char *name = "fetch";
   // NOLINTEND(readability-identifier-naming)
-
-  /// Public port: fetch groups out to the backend (FetchPacket).
-  static constexpr const char *OutInsts = "ports.out_insts";
-  /// Public port: instruction-buffer credits in from the backend.
-  static constexpr const char *InCredits = "ports.in_credits";
 
   /// Creates the unit on \p Node with parameters \p Params.
   Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params);
@@ -65,23 +65,34 @@ public:
   /// \returns the taken branches, jumps and traps fetched so far.
   uint64_t getNumRedirects() const { return NumRedirects.get(); }
 
+  /// \returns the oldest buffered instruction fetched before \p Now.
+  InstRef peek(uint64_t Now) const override;
+  /// Removes the oldest instruction; its entry refills from \p Now + 1.
+  void pop(uint64_t Now) override;
+  /// \returns true once fetch finished before \p Now and the buffer is empty.
+  bool isDrained(uint64_t Now) const override;
+
 private:
   void fetchGroup();
-  // Sparta handlers take `const DataT &`.
-  void receiveCredits(const uint32_t &NewCredits);
-  void scheduleFetch();
+  void scheduleFirstFetch();
+  void scheduleFetch(uint64_t Earliest);
+  /// \returns the entries fetch may fill at \p Now. Entries the backend freed
+  /// at \p Now only count from the next cycle.
+  uint32_t getFreeEntries(uint64_t Now) const;
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
   const uint32_t RedirectPenalty;
+  const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
-  uint32_t Credits = 0;        // Free instruction-buffer entries.
+  std::deque<InstRef> Ibuf;    // Oldest first.
+  uint64_t FreedCycle = 0;     // Cycle of the latest pop()s ...
+  uint32_t FreedAtCycle = 0;   // ... and how many entries they freed.
   uint64_t NextFetchCycle = 0; // Earliest start of the next group.
-  bool Done = false;           // The program is fully fetched.
+  bool Done = false;           // The program is fully fetched ...
+  uint64_t DoneCycle = 0;      // ... as of this cycle.
 
-  sparta::DataOutPort<FetchPacket> OutInstsPort{&unit_port_set_, "out_insts"};
-  sparta::DataInPort<uint32_t> InCreditsPort{&unit_port_set_, "in_credits", 1};
   sparta::UniqueEvent<> FetchEvent{&unit_event_set_, "ev_fetch",
                                    CREATE_SPARTA_HANDLER(Fetch, fetchGroup)};
 
@@ -89,7 +100,7 @@ private:
                              "Instructions fetched",
                              sparta::Counter::COUNT_NORMAL};
   sparta::Counter NumGroups{&unit_stat_set_, "num_groups",
-                            "Fetch groups sent to dispatch",
+                            "Fetch groups added to the instruction buffer",
                             sparta::Counter::COUNT_NORMAL};
   sparta::Counter NumRedirects{
       &unit_stat_set_, "num_redirects",

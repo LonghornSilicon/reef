@@ -52,6 +52,10 @@ void Backend::bind() {
 
 void Backend::setMemory(MemoryInterface *Mem) { TheLsu->setMemory(Mem); }
 
+void Backend::setInstBuffer(InstBufferInterface *Buffer) {
+  TheDispatch->setInstBuffer(Buffer);
+}
+
 std::vector<const ResourcePool *> Backend::getPools() const {
   std::vector<const ResourcePool *> Pools = TheScalarExec->getPools();
   for (const ResourcePool *Pool : TheLsu->getPools())

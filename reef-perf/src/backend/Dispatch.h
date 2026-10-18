@@ -1,9 +1,9 @@
 //===- Dispatch.h - The dispatch unit ---------------------------*- C++ -*-===//
 ///
 /// \file
-/// The dispatch unit: holds the instruction buffer and sends instructions, in
-/// program order, to the unit that executes them (getExecTarget()) and to the
-/// Rob.
+/// The dispatch unit: takes instructions from the frontend's instruction
+/// buffer (InstBufferInterface) and sends them, in program order, to the unit
+/// that executes them (getExecTarget()) and to the Rob.
 ///
 /// Super-coarse, deliberately simpler than the M3 RTL:
 /// - up to `dispatch_width` per cycle, strictly in order: the first
@@ -35,7 +35,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <memory>
 #include <vector>
 
@@ -67,8 +66,6 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,
               "Max instructions dispatched per cycle")
-    PARAMETER(uint32_t, ibuf_entries, 8,
-              "Instruction buffer entries between fetch and dispatch")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -77,6 +74,10 @@ public:
 
   /// Creates the unit on \p Node with parameters \p Params.
   Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params);
+
+  /// Connects the frontend's instruction buffer \p Buffer, which must outlive
+  /// the unit.
+  void setInstBuffer(InstBufferInterface *Buffer) { Frontend = Buffer; }
 
   /// \returns the cycles in which at least one instruction dispatched.
   uint64_t getCyclesWithDispatch() const { return CyclesWithDispatch.get(); }
@@ -88,13 +89,11 @@ public:
 
 private:
   // Sparta port handlers take `const DataT &`.
-  void receiveInsts(const FetchPacket &Packet);
   void receiveRobCredits(const uint32_t &Credits);
   void receiveLsuCredits(const uint32_t &Credits);
   void receiveVecCredits(const uint32_t &Credits);
   void receiveMtxCredits(const uint32_t &Credits);
 
-  void sendInitialCredits();
   void dispatchGroup();
   void scheduleDispatch();
   /// \returns true if \p I can dispatch at \p Now; otherwise sets \p Why.
@@ -103,10 +102,8 @@ private:
   void sendToTarget(const InstRef &I);
 
   const uint32_t DispatchWidth;
-  const uint32_t IbufEntries;
 
-  std::deque<InstRef> Ibuf; // Oldest first.
-  bool FetchDone = false;   // The frontend sent its last packet.
+  InstBufferInterface *Frontend = nullptr;
   // Scoreboard: the in-flight instruction that last wrote each register.
   std::array<InstRef, NumRegs> LastWriter{};
 
@@ -115,9 +112,6 @@ private:
   uint32_t VecCredits = 0;
   uint32_t MtxCredits = 0;
 
-  sparta::DataInPort<FetchPacket> InInstsPort{&unit_port_set_, "in_insts", 1};
-  sparta::DataOutPort<uint32_t> OutFetchCreditsPort{&unit_port_set_,
-                                                    "out_fetch_credits"};
   sparta::DataOutPort<InstRef> OutScalarPort{&unit_port_set_, "out_scalar"};
   sparta::DataOutPort<InstRef> OutLsuPort{&unit_port_set_, "out_lsu"};
   sparta::DataOutPort<InstRef> OutVectorPort{&unit_port_set_, "out_vector"};
