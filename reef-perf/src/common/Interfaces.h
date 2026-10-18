@@ -53,6 +53,27 @@ public:
   virtual MemResponse access(const MemRequest &Request) = 0;
 };
 
+/// The frontend's instruction buffer as the backend sees it. Synchronous,
+/// like MemoryInterface: the backend looks at the oldest instruction and
+/// takes it. To match a one-cycle hand-off in each direction, an instruction
+/// becomes visible the cycle after it is fetched, and an entry the backend
+/// frees can be refilled from the next cycle.
+class InstBufferInterface {
+public:
+  virtual ~InstBufferInterface() = default; ///< The backend never owns it.
+
+  /// \returns the oldest instruction the backend may take at cycle \p Now, or
+  /// nullptr if there is none yet.
+  virtual InstRef peek(uint64_t Now) const = 0;
+
+  /// Removes the instruction peek(\p Now) returned; the backend took it.
+  virtual void pop(uint64_t Now) = 0;
+
+  /// \returns true once the program is fully fetched, as seen at cycle \p Now,
+  /// and every instruction has been taken.
+  virtual bool isDrained(uint64_t Now) const = 0;
+};
+
 /// The unit that executes an instruction, and so writes its issue,
 /// result-ready and complete cycles.
 enum class ExecTarget : uint8_t {

@@ -116,17 +116,8 @@ struct Inst {
 /// Shared handle to an instruction; this is what Sparta ports carry.
 using InstRef = std::shared_ptr<Inst>;
 
-/// What the frontend sends the backend in one fetch cycle.
-struct FetchPacket {
-  std::vector<InstRef> Insts; ///< Instructions, in program order.
-  bool Last = false; ///< True once the program has halted; nothing follows.
-};
-
 /// Prints \p I to \p OS (for Sparta's port logging). \returns \p OS.
 std::ostream &operator<<(std::ostream &OS, const Inst &I);
-
-/// Prints \p Packet to \p OS (for Sparta's port logging). \returns \p OS.
-std::ostream &operator<<(std::ostream &OS, const FetchPacket &Packet);
 
 } // namespace reef_perf
 

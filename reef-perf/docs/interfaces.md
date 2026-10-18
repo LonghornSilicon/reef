@@ -25,7 +25,8 @@ The backend has several units and its own `Module` subclass.
 
 ## Rules
 
-1. **Modules connect only through public ports and `MemoryInterface`.** Each
+1. **Modules connect only through public ports, `InstBufferInterface` and
+   `MemoryInterface`.** Each
    module lists its public ports as constants, e.g.
    `Backend::OutVector` or `Vector::InInsts`. `ReefSim::bindTree_()` binds them; nothing else
    reaches into another module's units.
@@ -100,10 +101,20 @@ Every queue between modules uses the same protocol:
 
 ### Frontend → backend
 
-| Port | Type | Direction |
-| --- | --- | --- |
-| `Fetch::OutInsts` → `Backend::InInsts` | `FetchPacket` | instructions, in program order; `last = true` ends the program |
-| `Backend::OutFetchCredits` → `Fetch::InCredits` | `uint32_t` | free instruction-buffer entries |
+The instruction buffer belongs to the frontend (as on M3). The backend takes
+instructions through `InstBufferInterface` (`common/Interfaces.h`), a
+synchronous interface like `MemoryInterface`:
+
+| Call | Meaning |
+| --- | --- |
+| `peek(Now)` | the oldest instruction the backend may take this cycle, or none |
+| `pop(Now)` | the backend took it |
+| `isDrained(Now)` | the program is fully fetched and every instruction taken |
+
+An instruction becomes visible the cycle after it is fetched, and an entry the
+backend frees can be refilled from the next cycle: the one-cycle hand-off in
+each direction that a pair of ports would give. `Fetch` implements it;
+`Backend::setInstBuffer()` connects it.
 
 Not modeled yet: a redirect/flush signal from the backend. Today the frontend
 charges a fixed `redirect_penalty` on every taken branch, because it already
