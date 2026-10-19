@@ -288,6 +288,9 @@ with `NOLINT`; and the standard library is used instead of LLVM's ADT.
   implicit ones would be wrong, for example in a class that hands out
   pointers to its own members (`FuncSim`). Then delete just the copy pair,
   with a comment saying why; that also rules out moves.
+- Using an AI assistant? [AGENTS.md](AGENTS.md) has these rules in short form,
+  plus the writing style for docs and PR text (Claude Code reads it through
+  CLAUDE.md).
 - Use the terms in [docs/glossary.md](docs/glossary.md) with the meanings
   given there.
 - Use `struct` when every member is public and there is no invariant to

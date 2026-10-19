@@ -468,15 +468,15 @@ in [roadmap.md](roadmap.md) take it from there.
   external-memory results as such.
 - **Programs** must run on both the RTL and Spike. Spike at the pin runs
   everything the M3 toolchain emits, including vector floating point. It does
-  not implement CoralNPU's custom CSRs (deviations.md F2), so workloads must not
+  not implement CoralNPU's custom CSRs (deviations.md F2), so programs must not
   use them.
 
 ---
 
 ## 7. Out of scope for the first model
 
-- Interrupts, traps, debug mode, multi-core. The workloads are bare-metal kernels
-  that run to completion.
+- Interrupts, traps, debug mode, multi-core. The microbenchmarks are
+  bare-metal programs that run to completion.
 - The matrix engine (VME/Zvt) and BF16. They don't exist at M3, and will come
   with a future pin bump.
 - Power and area.

@@ -43,10 +43,11 @@ struct MemResponse {
   uint64_t Latency = 1;
 };
 
-/// The memory module as other modules see it. Synchronous for now: access()
-/// books the memory's resources and returns the timing at once ("book a
-/// slot", like the execution pools). The memory owner may replace it with
-/// request/response ports later.
+/// The memory module as other modules see it. It only times accesses; Spike
+/// already did them. access() books the memory's resources and returns the
+/// timing at once, like the execution pools (docs/interfaces.md, "Anything to
+/// memory"). The memory owner may replace it with request/response ports
+/// later; that is an interface change.
 struct MemoryInterface {
   virtual ~MemoryInterface() = default; ///< Requesters never own memory.
 
