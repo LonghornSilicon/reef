@@ -8,42 +8,42 @@ page and both sides of the interface together.
 | Module | Sparta subtree | Code | Owner |
 | --- | --- | --- | --- |
 | Frontend | `top.frontend` | `frontend/` | TBD |
-| Backend | `top.backend` | `backend/` | TBD |
+| Core (scalar pipeline) | `top.core` | `core/` | TBD |
 | Vector engine | `top.vector` | `vector/` | TBD |
 | Matrix engine | `top.matrix` | `matrix/` | TBD |
-| Interconnect / memory | `top.mem` | `mem/` | TBD |
+| Interconnect / memory | `top.memory` | `memory/` | TBD |
 
 Shared types live in `common/` and belong to everyone: changing them needs
 review from every module they touch.
 
-`<module>/` means `src/<module>/` (headers and sources together) and
+`<module>/` means `model/<module>/` (headers and sources together) and
 `tests/cpp/<module>/`.
 
 The frontend, vector, matrix and memory modules are a single Sparta unit
 each, so `top.<module>` *is* the unit (`UnitModule` in `common/Module.h`).
-The backend has several units and its own `Module` subclass.
+The core has several units and its own `Module` subclass.
 
 ## Rules
 
 1. **Modules connect only through public ports, `InstBufferInterface` and
    `MemoryInterface`.** Each
    module lists its public ports as constants, e.g.
-   `Backend::OutVector` or `Vector::InInsts`. `ReefSim::bindTree_()` binds them; nothing else
+   `Core::OutVector` or `Vector::InInsts`. `ReefSim::bindTree_()` binds them; nothing else
    reaches into another module's units.
 2. **A module wires its own units** in `bind()` and may add, remove or rename
    them freely, as long as its public port constants still point at the right
    ports.
 3. **Unit names and pool names are unique across modules.** Sparta's resource
    set is shared, and pools appear unprefixed in the JSON output.
-4. **Each module owns its section of `configs/m3.yaml`**
+4. **Each module owns its section of `configs/machines/m3.yaml`**
    (`top.<module>.params.<name>`, or
-   `top.backend.<unit>.params.<name>`). Mark every value with where it came
+   `top.core.<unit>.params.<name>`). Mark every value with where it came
    from (RTL `file:line`, a measurement, or `ASSUMPTION`).
 5. **Each module reports its own statistics** through `Module::getPools()` and
    its Sparta counters. `ReefSim` only asks for the headline numbers
    (retired instructions, cycles, stall breakdown, redirects).
 6. **Timing-preserving changes pass the golden test unchanged**
-   (`tests/python/test_golden.py`). Changes that move timing regenerate it in
+   (`tests/python/integration/test_golden.py`). Changes that move timing regenerate it in
    the same commit and say why.
 
 ## The instruction object
@@ -56,7 +56,7 @@ one **writer**:
 | --- | --- |
 | `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
-| `DispatchCycle`, `RetireCycle` | backend |
+| `DispatchCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
 
 Within the frontend, `Mem` and `Dsts` come straight from Spike's commit log
@@ -71,8 +71,8 @@ dependent instruction, and the Rob keeps waiting.
 
 | `ExecTarget` | Unit | Instruction classes |
 | --- | --- | --- |
-| `Scalar` | `backend.scalar_exec` | ALU, branch, jump, MUL, DIV, CSR, fence, system, FP, FP divide, unknown |
-| `LSU` | `backend.lsu` | every load and store, scalar, FP and vector (one LSU serves both, as on M3) |
+| `Scalar` | `core.scalar_exec` | ALU, branch, jump, MUL, DIV, CSR, fence, system, FP, FP divide, unknown |
+| `LSU` | `core.lsu` | every load and store, scalar, FP and vector (one LSU serves both, as on M3) |
 | `Vector` | `vector` | `vset*` and vector arithmetic, permutes and vector-to-scalar moves |
 | `Matrix` | `matrix` | `MATRIX` (nothing decodes to it until the matrix ISA exists) |
 
@@ -99,24 +99,24 @@ Every queue between modules uses the same protocol:
 
 ## Interfaces
 
-### Frontend → backend
+### Frontend → core
 
-The instruction buffer belongs to the frontend (as on M3). The backend takes
+The instruction buffer belongs to the frontend (as on M3). The core takes
 instructions through `InstBufferInterface` (`common/Interfaces.h`), a
 synchronous interface like `MemoryInterface`:
 
 | Call | Meaning |
 | --- | --- |
-| `peek(Now)` | the oldest instruction the backend may take this cycle, or none |
-| `pop(Now)` | the backend took it |
+| `peek(Now)` | the oldest instruction the core may take this cycle, or none |
+| `pop(Now)` | the core took it |
 | `isDrained(Now)` | the program is fully fetched and every instruction taken |
 
 An instruction becomes visible the cycle after it is fetched, and an entry the
-backend frees can be refilled from the next cycle: the one-cycle hand-off in
+core frees can be refilled from the next cycle: the one-cycle hand-off in
 each direction that a pair of ports would give. `Fetch` implements it;
-`Backend::setInstBuffer()` connects it.
+`Core::setInstBuffer()` connects it.
 
-Not modeled yet: a redirect/flush signal from the backend. Today the frontend
+Not modeled yet: a redirect/flush signal from the core. Today the frontend
 charges a fixed `redirect_penalty` on every taken branch, because it already
 knows the outcome from Spike.
 
@@ -124,16 +124,16 @@ knows the outcome from Spike.
 
 | Port | Type | Direction |
 | --- | --- | --- |
-| `Backend::OutVector` → `Vector::InInsts` | `InstRef` | instructions routed to `VECTOR` |
+| `Core::OutVector` → `Vector::InInsts` | `InstRef` | instructions routed to `VECTOR` |
 | `Vector::OutCredits` → `Backend::InVectorCredits` | `uint32_t` | free command-queue entries |
 
 Vector loads and stores do **not** cross this interface; they go to the
-backend's LSU.
+core's LSU.
 
 ### Backend → matrix
 
 Same shape as vector, so the two engines stay interchangeable from the
-backend's point of view:
+core's point of view:
 
 | Port | Type | Direction |
 | --- | --- | --- |
@@ -166,9 +166,9 @@ map in `common/MemoryMap.h`, the same list Spike is given:
 
 | Region | Default map | Timed by |
 | --- | --- | --- |
-| ITCM | `0x0`, 8 KB | `mem` (ITCM port) |
-| DTCM | `0x10000`, 32 KB | `mem` (DTCM port) |
-| anything else | — | `mem` (AXI): data channel, outstanding limit, fixed black-box latency |
+| ITCM | `0x0`, 8 KB | `memory` (ITCM port) |
+| DTCM | `0x10000`, 32 KB | `memory` (DTCM port) |
+| anything else | — | `memory` (AXI): data channel, outstanding limit, fixed black-box latency |
 
 Today only the LSU calls it. Instruction fetch is still free, and the matrix
 engine does not touch memory yet.
@@ -180,7 +180,7 @@ interface unless noted.
 
 - **Frontend:** no branch predictor (M3 predicts backward-taken,
   forward-not-taken); fetch does not go through memory (adds an `IFetch`
-  requester); no redirect/flush signal to the backend (interface change).
+  requester); no redirect/flush signal to the core (interface change).
 - **Backend:** Reef's special dispatch rules (a branch ends the group, FP and
   CSR dispatch alone, CSRs wait for an empty Rob); the LSU has one slot.
 - **Vector:** one pool of identical lanes; no per-type units, chaining or
@@ -199,9 +199,9 @@ interface unless noted.
 1. Write the unit (a `sparta::Unit` with a `ParameterSet` and a static
    `name`) in `<module>/`.
 2. If the module is still a `UnitModule`, give it a `Module` subclass like
-   `Backend`. Register each unit's factory in `add_factories()`, list it in
-   `unit_names()`, and bind the ports between units in `bind()`.
+   `Core`. Register each unit's factory in `addFactories()`, list it in
+   `getUnitNames()`, and bind the ports between units in `bind()`.
 3. Add its source to `CMakeLists.txt` and its parameters to the module's
-   section of `configs/m3.yaml`.
+   section of `configs/machines/m3.yaml`.
 4. If other modules need to reach it, add a public port constant and a line
    to this page.

@@ -80,14 +80,14 @@ RUN uv sync --frozen
 # Parallel compile jobs. Sparta needs ~1 GB of RAM per job.
 WORKDIR /app/reef/reef-perf
 ARG JOBS=4
-RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" yaml-cpp
-RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" sparta
-RUN bash tools/build_deps.sh /opt/reef-perf "${JOBS}" spike
+RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" yaml-cpp
+RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" sparta
+RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" spike
 ENV REEF_PERF_DEPS=/opt/reef-perf
 RUN uv sync --frozen
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build -j "${JOBS}"
-ENV PATH="/app/reef/reef-perf/build/bin:/app/reef/reef-perf/tools:$PATH"
+ENV PATH="/app/reef/reef-perf/build/bin:/app/reef/reef-perf/scripts:$PATH"
 
 # Set starting directory. 
 WORKDIR /app/reef

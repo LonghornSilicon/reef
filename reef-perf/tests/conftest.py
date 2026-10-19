@@ -1,4 +1,4 @@
-"""Shared pytest setup: test categories, the C++ build and workload ELFs."""
+"""Shared pytest setup: test categories, the C++ build, microbenchmark ELFs."""
 
 import os
 import subprocess
@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from reef_perf.experiments.run.workloads import build_workloads, list_workloads
+from reef_perf.microbenchmarks import (
+    build_microbenchmarks,
+    list_microbenchmarks,
+)
 from reef_perf.sim import BIN_DIR_ENV, MODULE_ROOT
 
 
@@ -46,10 +49,11 @@ def run_checked(cmd: list[str], cwd: Path | None = None) -> None:
 def cpp_build_dir() -> Path:
     """Configure and build all C++ targets (incremental across runs).
 
-    The build lives in build/pytest so repeated test runs only rebuild what
-    changed. Also points reef_perf.sim at the freshly built binaries.
+    The build lives in build/, shared with scripts/check_cpp.sh, so repeated
+    runs only rebuild what changed. Also points reef_perf.sim at the freshly
+    built binaries.
     """
-    build_dir = MODULE_ROOT / "build" / "pytest"
+    build_dir = MODULE_ROOT / "build"
     run_checked(
         [
             "cmake",
@@ -68,8 +72,10 @@ def cpp_build_dir() -> Path:
 
 
 @pytest.fixture(scope="session")
-def workload_elfs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    """Assemble every workload once per session."""
-    return build_workloads(
-        list_workloads(), tmp_path_factory.mktemp("workloads")
+def microbenchmark_elfs(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Path]:
+    """Assemble every microbenchmark once per session."""
+    return build_microbenchmarks(
+        list_microbenchmarks(), tmp_path_factory.mktemp("microbenchmarks")
     )

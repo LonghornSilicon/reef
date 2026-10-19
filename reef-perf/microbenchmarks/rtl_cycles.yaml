@@ -1,0 +1,21 @@
+# Region-of-interest cycles (s11 - s10, see common.inc) of each microbenchmark
+# on the M3 RTL simulator. The correlation experiment and the PR correlation
+# bot compare the model's roi_cycles against these.
+#
+# null means not measured yet. Roadmap ticket B01 (docs/roadmap.md) fills them
+# in; note the RTL commit and simulator next to each value you add.
+addr_forward: null
+alu_chain: null
+alu_indep: null
+branch_group: null
+branch_tight: null
+div_chain: null
+fp_chain: null
+fp_mix: null
+gemv_int8: null
+load_chain: null
+load_stream: null
+mul_chain: null
+vec_add_m1: null
+vec_add_m4: null
+vec_memcpy: null

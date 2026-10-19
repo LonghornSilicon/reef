@@ -19,8 +19,8 @@ CONTAINER="${NAME}-container"
 
 case "${1:-}" in
 build)
-    if [[ ! -f "${ROOT}/ext/map/sparta/CMakeLists.txt" ||
-          ! -f "${ROOT}/ext/spike/configure" ]]; then
+    if [[ ! -f "${ROOT}/reef-perf/ext/map/sparta/CMakeLists.txt" ||
+          ! -f "${ROOT}/reef-perf/ext/spike/configure" ]]; then
         echo "== fetching submodules"
         git -C "${ROOT}" submodule update --init --recursive
     fi
