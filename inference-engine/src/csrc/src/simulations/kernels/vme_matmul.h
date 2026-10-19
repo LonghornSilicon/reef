@@ -9,9 +9,9 @@
 // Other shapes are not checked: they read and write past the matrices.
 
 // uint8 A x uint8 B (vtmmu.tvv)
-extern "C" void matmul_vme_u8(size_t n, size_t k, size_t m, const uint8_t* a,
+extern "C" void vme_matmul_u8(size_t n, size_t k, size_t m, const uint8_t* a,
                               const uint8_t* b, int32_t* c);
 
 // int8 A x uint8 B (vtmms.tvv). VME has no int8 x int8 matmul.
-extern "C" void matmul_vme_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
+extern "C" void vme_matmul_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
                                 const uint8_t* b, int32_t* c);

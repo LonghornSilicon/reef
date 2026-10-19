@@ -8,7 +8,7 @@
 //
 // Real build: compile-checked; runs only on Coral's VME RTL model.
 // -DVME_EMULATE build: runs anywhere, tests the tiling logic.
-#include "matmul_vme.h"
+#include "vme_matmul.h"
 
 #include "vme_helpers.h"
 
@@ -43,12 +43,12 @@ void matmul_tiles(size_t n, size_t k, size_t m, const uint8_t* a,
 
 } // namespace
 
-extern "C" void matmul_vme_u8(size_t n, size_t k, size_t m, const uint8_t* a,
+extern "C" void vme_matmul_u8(size_t n, size_t k, size_t m, const uint8_t* a,
                               const uint8_t* b, int32_t* c) {
     matmul_tiles<false>(n, k, m, a, b, c);
 }
 
-extern "C" void matmul_vme_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
+extern "C" void vme_matmul_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
                                 const uint8_t* b, int32_t* c) {
     matmul_tiles<true>(n, k, m, reinterpret_cast<const uint8_t*>(a), b, c);
 }

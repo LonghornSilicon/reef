@@ -18,15 +18,15 @@
 #if BENCH_GROUP == 0
 #include "matmul.h"
 #include "matmul_rvv.h"
-#include "matmul_vme.h"
 #include "vme_helpers.h"
+#include "vme_matmul.h"
 #elif BENCH_GROUP == 1
 #include "attention_flash.h"
 #include "attention_flash_chunk.h"
 #include "attention_serial.h"
 #elif BENCH_GROUP == 4
 #include "attention_flash_chunk.h"
-#include "attention_vme.h"
+#include "vme_attention.h"
 #include "vme_helpers.h"
 #elif BENCH_GROUP == 2
 #include "gelu.h"
@@ -37,8 +37,8 @@
 #endif
 
 enum Op : uint32_t {
-    kMatmulVmeU8 = 1,
-    kMatmulVmeS8U8,
+    kVmeMatmulU8 = 1,
+    kVmeMatmulS8U8,
     kMatmulRvv,
     kMatmulRvvS8U8,
     kMatmulDispatch,
@@ -46,7 +46,7 @@ enum Op : uint32_t {
     kAttentionFlash,
     kAttentionFlashChunk,
     kAttentionFlashFinish,
-    kAttentionVmeBlock,
+    kVmeAttentionBlock,
     kSoftmax = 20,
     kGelu,
     kLayernorm,
@@ -118,12 +118,12 @@ bool run() {
     switch (static_cast<Op>(arg(0))) {
 #if BENCH_GROUP == 0
     // args: n, k, m, a, b, c [, signed_a]
-    case kMatmulVmeU8:
-        matmul_vme_u8(arg(1), arg(2), arg(3), at<uint8_t>(4), at<uint8_t>(5),
+    case kVmeMatmulU8:
+        vme_matmul_u8(arg(1), arg(2), arg(3), at<uint8_t>(4), at<uint8_t>(5),
                       at<int32_t>(6));
         break;
-    case kMatmulVmeS8U8:
-        matmul_vme_s8u8(arg(1), arg(2), arg(3), at<int8_t>(4), at<uint8_t>(5),
+    case kVmeMatmulS8U8:
+        vme_matmul_s8u8(arg(1), arg(2), arg(3), at<int8_t>(4), at<uint8_t>(5),
                         at<int32_t>(6));
         break;
     case kMatmulRvv:
@@ -170,8 +170,8 @@ bool run() {
 #elif BENCH_GROUP == 4
     // args: nq, d, query_start, window, kv_start, kv_len, q, kt, v, m, l,
     //       acc, k_zero, score_scale, scratch, exp_table
-    case kAttentionVmeBlock:
-        attention_vme_block(arg(1), arg(2), arg(3), arg(4), arg(5), arg(6),
+    case kVmeAttentionBlock:
+        vme_attention_block(arg(1), arg(2), arg(3), arg(4), arg(5), arg(6),
                             at<int8_t>(7), at<uint8_t>(8),
                             static_cast<int32_t>(arg(13)), at<uint8_t>(9),
                             arg_f(14), at<uint16_t>(16), at<int32_t>(15),

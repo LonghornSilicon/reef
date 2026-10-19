@@ -1,7 +1,7 @@
 // Block-flash attention on the matrix engine: scores and P . V through
 // matmul(), exp from softmax_lut's tables, the online-softmax rescale once
-// per block. See attention_vme.h.
-#include "attention_vme.h"
+// per block. See vme_attention.h.
+#include "vme_attention.h"
 
 #include "matmul.h"
 #include "quant_helpers.h"
@@ -55,7 +55,7 @@ float row_probs(const int32_t* s_row, size_t kv_len, size_t first, size_t last,
 
 } // namespace
 
-extern "C" void attention_vme_block(size_t nq, size_t d, size_t query_start,
+extern "C" void vme_attention_block(size_t nq, size_t d, size_t query_start,
                                     size_t window, size_t kv_start,
                                     size_t kv_len, const int8_t* q,
                                     const uint8_t* kt, int32_t k_zero,

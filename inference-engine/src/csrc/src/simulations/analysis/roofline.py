@@ -2,7 +2,7 @@
 
     uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
     uv run --group sim python src/csrc/src/simulations/analysis/roofline.py \
-        --model src/csrc/src/simulations/config/gpt_neo_28m.json
+        --model src/csrc/src/simulations/analysis/config/gpt_neo_28m.json
 
 --model overlays another model's dims, layer pattern (global / local
 attention) and sequences on model.json, and reads the sim jobs it names
@@ -24,7 +24,7 @@ prints the block and all-layer totals in ms at the configured clock.
 Tiling schedule (the cheapest the current interface allows): matmuls are
 A-stationary (one A tile of 16 x 512 stays in DTCM while every B tile
 streams past; K is split in 512-wide chunks whose int32 partial sums the
-host adds); attention streams 64-key K/V blocks through attention_vme_block
+host adds); attention streams 64-key K/V blocks through vme_attention_block
 for 16-query blocks (both its matmuls on the matrix engine; decode's single
 query on the vector unit). The scalar attention_flash_chunk estimate is
 kept alongside for comparison but not counted in the totals (measured at
@@ -45,9 +45,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
-SIMS = HERE.parent
-CONFIG = json.loads((SIMS / "config" / "model.json").read_text())
-HARDWARE = json.loads((SIMS / "config" / "hardware.json").read_text())
+
+CONFIG = json.loads((HERE / "config" / "model.json").read_text())
+HARDWARE = json.loads((HERE / "config" / "hardware.json").read_text())
 M = CONFIG["model"]
 D, DFF, H, DH = M["d_model"], M["d_ff"], M["n_head"], M["d_head"]
 # sim job names this model's estimate reads; --model can point elsewhere
@@ -129,7 +129,7 @@ def matmul_op(meas: Measured, name: str, n: int, k: int, m: int) -> dict:
     """
     t = CONFIG["tiles"]
     vme = n % 16 == 0
-    tn, tk, tm = (t["matmul_vme" if vme else "matmul_rvv"][x] for x in "nkm")
+    tn, tk, tm = (t["vme_matmul" if vme else "matmul_rvv"][x] for x in "nkm")
     chunks = [min(tk, k - k0) for k0 in range(0, k, tk)]
     if vme:  # prefill: 16 x 512 x 16 tiles on the matrix engine
         step = meas.micro.get("vme_cycles_per_matmul_step", math.nan)
@@ -182,7 +182,7 @@ def attention_host_bytes(nq: int, ctx: int, window: int) -> int:
 
 
 def attention_op(meas: Measured, nq: int, ctx: int, window: int) -> dict:
-    """All heads of causal attention via attention_vme_block (the default).
+    """All heads of causal attention via vme_attention_block (the default).
 
     Both matmuls run through matmul(): the matrix engine for prefill's
     16-query blocks, the vector unit for decode's single query. The engine
@@ -499,7 +499,7 @@ def main() -> int:
     parser.add_argument("--model", type=Path, help="model overlay JSON")
     if (model := parser.parse_args().model) is not None:
         use_model(model)
-    results = json.loads((SIMS / "results" / "results.json").read_text())
+    results = json.loads((HERE / "results" / "results.json").read_text())
     meas = Measured(results)
     micro = results["microbench"]
     clock_hz = HARDWARE["clock_mhz"]["value"] * 1e6

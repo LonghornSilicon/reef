@@ -21,7 +21,7 @@
     "decode_context": [512, 1024, 2048]
   },
   "sim_jobs": {
-    "_comment": "Sim job names this model's estimate reads (measured in attention_vme_test and pointwise_test).",
+    "_comment": "Sim job names this model's estimate reads (measured in vme_attention_test and pointwise_test).",
     "attention_stream": "vme_d32",
     "layernorm": "layernorm_d512"
   }

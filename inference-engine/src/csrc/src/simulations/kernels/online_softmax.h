@@ -10,7 +10,7 @@
 // positions need no sentinel scores.
 //
 // Output is uint8 with scale 1/255 and zero point 0 (params::kProbsScale),
-// the A operand matmul_vme_u8 takes for P . V. Each probability is rounded
+// the A operand vme_matmul_u8 takes for P . V. Each probability is rounded
 // on its own, so a row sums to 255 only up to rounding (about +-(hi-lo)/2
 // LSBs in the worst case).
 //

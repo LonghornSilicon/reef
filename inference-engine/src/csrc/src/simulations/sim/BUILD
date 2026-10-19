@@ -1,8 +1,10 @@
 # Reef kernel benches on Coral's VME RTL model (VmeCoreMiniAxi, Verilator).
 #
-# run_all.py copies kernels/, includes/, config/*.json and sim/ flat into
-# coralnpu's tests/cocotb/reef/ and runs:
-#   bazel test //tests/cocotb/reef:reef_bench_<testcase>
+# build_elfs.py and run_tests.py copy kernels/, includes/, sim/, tests/ and
+# bin/ into coralnpu's tests/cocotb/reef/ (kernels flat) and run:
+#   bazel build //tests/cocotb/reef:bench_<family>.elf   (build_elfs.py)
+#   bazel test //tests/cocotb/reef:<test>_test           (run_tests.py)
+# The tests load the ELFs from bin/, so they run on prebuilt ELFs.
 # Not meant to be built from the reef repo itself.
 
 load("@coralnpu_hw//third_party/python:requirements.bzl", "requirement")
@@ -16,7 +18,7 @@ BENCHES = {
     "bench_matmul": (0, [
         "matmul.cc",
         "matmul_rvv.cc",
-        "matmul_vme.cc",
+        "vme_matmul.cc",
     ]),
     "bench_attention": (1, [
         "attention_serial.cc",
@@ -32,12 +34,12 @@ BENCHES = {
         "softmax_lut.cc",
     ]),
     "bench_ubench": (3, []),
-    "bench_attention_vme": (4, [
-        "attention_vme.cc",
+    "bench_vme_attention": (4, [
+        "vme_attention.cc",
         "attention_flash_chunk.cc",
         "matmul.cc",
         "matmul_rvv.cc",
-        "matmul_vme.cc",
+        "vme_matmul.cc",
     ]),
 }
 
@@ -55,32 +57,35 @@ BENCHES = {
     for name, (group, srcs) in BENCHES.items()
 ]
 
-TESTCASES = [
-    "matmul_test",
-    "attention_test",
-    "pointwise_test",
-    "ubench_test",
-    "attention_vme_test",
-]
+# test -> bench ELF it loads (tests/test_<test>.py)
+TESTS = {
+    "matmul": "bench_matmul",
+    "attention": "bench_attention",
+    "vme_attention": "bench_vme_attention",
+    "pointwise": "bench_pointwise",
+    "ubench": "bench_ubench",
+}
 
-cocotb_test_suite(
-    name = "reef_bench",
-    simulators = ["verilator"],
-    testcases = TESTCASES,
-    testcases_vname = "TESTCASES",
-    tests_kwargs = {
-        "waves": False,
-        "hdl_toplevel": "VmeCoreMiniAxi",
-        "seed": "42",
-        "test_module": ["kernel_bench.py"],
-        "deps": [
-            "//coralnpu_test_utils:core_mini_axi_sim_interface",
-            "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
-            "@bazel_tools//tools/python/runfiles",
-        ],
-        "data": [":" + name for name in BENCHES] + glob(["*.json"]),
-        "size": "enormous",
-        "timeout": "eternal",
-    },
-    verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
-)
+[
+    cocotb_test_suite(
+        name = test,
+        simulators = ["verilator"],
+        testcases = ["test"],
+        tests_kwargs = {
+            "waves": False,
+            "hdl_toplevel": "VmeCoreMiniAxi",
+            "seed": "42",
+            "test_module": ["test_%s.py" % test],
+            "deps": [
+                "//coralnpu_test_utils:core_mini_axi_sim_interface",
+                "//coralnpu_test_utils/sim_backends:verilator_test_fixture",
+                "@bazel_tools//tools/python/runfiles",
+            ],
+            "data": ["bench.py", "bin/%s.elf" % elf],
+            "size": "enormous",
+            "timeout": "eternal",
+        },
+        verilator_model = "//tests/cocotb:vme_core_mini_axi_model",
+    )
+    for test, elf in TESTS.items()
+]

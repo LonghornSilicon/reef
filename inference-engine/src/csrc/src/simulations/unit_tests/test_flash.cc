@@ -9,8 +9,8 @@
 #include "attention_flash.h"
 #include "attention_flash_chunk.h"
 #include "attention_serial.h"
-#include "attention_vme.h"
 #include "softmax_lut.h"
+#include "vme_attention.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -26,7 +26,7 @@ constexpr size_t kMaxQ = 16 * 64;   // largest nq * d used below
 constexpr size_t kMaxKV = 256 * 64; // largest nk * d used below
 constexpr size_t kMaxKeys = 256;
 constexpr size_t kBlock = 3;     // chunked flash block; divides none of the nk
-constexpr size_t kVmeBlock = 16; // attention_vme block when nk allows it
+constexpr size_t kVmeBlock = 16; // vme_attention block when nk allows it
 constexpr float kScoreScale = 2e-4F;
 constexpr float kVScale = 0.1F;
 constexpr float kOutScale = 0.1F;
@@ -110,7 +110,7 @@ void reference_attention(size_t nq, size_t nk, size_t d, size_t query_start,
 
 // Streams K and V block by block, the way the host will through DTCM: each
 // block of kt is copied out to its own [d x len] buffer. vme picks
-// attention_vme_block (16-key blocks when nk allows, so prefill takes the
+// vme_attention_block (16-key blocks when nk allows, so prefill takes the
 // matrix-engine path) over attention_flash_chunk (kBlock-key blocks).
 void chunked_attention(size_t nq, size_t nk, size_t d, size_t query_start,
                        size_t window, const int8_t* q, const uint8_t* kt,
@@ -138,7 +138,7 @@ void chunked_attention(size_t nq, size_t nk, size_t d, size_t query_start,
             }
         }
         if (vme) {
-            attention_vme_block(nq, d, query_start, window, start, len, q,
+            vme_attention_block(nq, d, query_start, window, start, len, q,
                                 &kt_block[0], kKZero, v + (start * d),
                                 kScoreScale, &exp_table[0], &scratch[0], &m[0],
                                 &l[0], &acc[0]);

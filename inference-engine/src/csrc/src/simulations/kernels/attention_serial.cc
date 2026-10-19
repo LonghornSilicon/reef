@@ -8,8 +8,8 @@
 // positions need no sentinel scores.
 //
 // Every stage now has the data types the VME port needs: the score stage
-// maps to matmul_vme_s8u8 plus the per-row k_zero * q_sum fixup, and the
-// value stage to matmul_vme_u8 (uint8 probs x uint8 v) plus a per-row
+// maps to vme_matmul_s8u8 plus the per-row k_zero * q_sum fixup, and the
+// value stage to vme_matmul_u8 (uint8 probs x uint8 v) plus a per-row
 // v_zero * sum(p) fixup. That port is a sibling kernel; this scalar one
 // stays the reference it is checked against.
 #include "attention_serial.h"

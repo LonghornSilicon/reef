@@ -57,7 +57,7 @@
   },
   "vme_cycles_per_matmul_step": {
     "value": null, "units": "cycles per 16x16x4 step",
-    "source": "to measure: sim matmul_vme k sweep slope",
+    "source": "to measure: sim vme_matmul k sweep slope",
     "confirmed": false
   },
   "sim": {

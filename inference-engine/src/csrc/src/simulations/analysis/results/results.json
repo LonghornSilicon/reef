@@ -5,7 +5,7 @@
     "status": {
       "matmul_test": "skipped (--skip-sim)",
       "attention_test": "skipped (--skip-sim)",
-      "attention_vme_test": "skipped (--skip-sim)",
+      "vme_attention_test": "skipped (--skip-sim)",
       "pointwise_test": "skipped (--skip-sim)",
       "ubench_test": "skipped (--skip-sim)"
     }
@@ -14,7 +14,7 @@
     {
       "test": "test_matmul",
       "pass": true,
-      "output": "matmul_rvv         1x768x 64 pass\nmatmul_rvv_s8u8    1x768x 64 pass\nmatmul (u8)        1x768x 64 pass\nmatmul (s8)        1x768x 64 pass\nmatmul_rvv         7x 13x 23 pass\nmatmul_rvv_s8u8    7x 13x 23 pass\nmatmul (u8)        7x 13x 23 pass\nmatmul (s8)        7x 13x 23 pass\nmatmul_rvv         3x  5x 40 pass\nmatmul_rvv_s8u8    3x  5x 40 pass\nmatmul (u8)        3x  5x 40 pass\nmatmul (s8)        3x  5x 40 pass\nmatmul_rvv        16x  4x 16 pass\nmatmul_rvv_s8u8   16x  4x 16 pass\nmatmul_vme_u8     16x  4x 16 pass\nmatmul_vme_s8u8   16x  4x 16 pass\nmatmul (u8)       16x  4x 16 pass\nmatmul (s8)       16x  4x 16 pass\nmatmul_rvv        32x  8x 48 pass\nmatmul_rvv_s8u8   32x  8x 48 pass\nmatmul_vme_u8     32x  8x 48 pass\nmatmul_vme_s8u8   32x  8x 48 pass\nmatmul (u8)       32x  8x 48 pass\nmatmul (s8)       32x  8x 48 pass\nmatmul_rvv        16x768x 64 pass\nmatmul_rvv_s8u8   16x768x 64 pass\nmatmul_vme_u8     16x768x 64 pass\nmatmul_vme_s8u8   16x768x 64 pass\nmatmul (u8)       16x768x 64 pass\nmatmul (s8)       16x768x 64 pass\nmatmul_rvv        32x 64x 64 pass\nmatmul_rvv_s8u8   32x 64x 64 pass\nmatmul_vme_u8     32x 64x 64 pass\nmatmul_vme_s8u8   32x 64x 64 pass\nmatmul (u8)       32x 64x 64 pass\nmatmul (s8)       32x 64x 64 pass"
+      "output": "matmul_rvv         1x768x 64 pass\nmatmul_rvv_s8u8    1x768x 64 pass\nmatmul (u8)        1x768x 64 pass\nmatmul (s8)        1x768x 64 pass\nmatmul_rvv         7x 13x 23 pass\nmatmul_rvv_s8u8    7x 13x 23 pass\nmatmul (u8)        7x 13x 23 pass\nmatmul (s8)        7x 13x 23 pass\nmatmul_rvv         3x  5x 40 pass\nmatmul_rvv_s8u8    3x  5x 40 pass\nmatmul (u8)        3x  5x 40 pass\nmatmul (s8)        3x  5x 40 pass\nmatmul_rvv        16x  4x 16 pass\nmatmul_rvv_s8u8   16x  4x 16 pass\nvme_matmul_u8     16x  4x 16 pass\nvme_matmul_s8u8   16x  4x 16 pass\nmatmul (u8)       16x  4x 16 pass\nmatmul (s8)       16x  4x 16 pass\nmatmul_rvv        32x  8x 48 pass\nmatmul_rvv_s8u8   32x  8x 48 pass\nvme_matmul_u8     32x  8x 48 pass\nvme_matmul_s8u8   32x  8x 48 pass\nmatmul (u8)       32x  8x 48 pass\nmatmul (s8)       32x  8x 48 pass\nmatmul_rvv        16x768x 64 pass\nmatmul_rvv_s8u8   16x768x 64 pass\nvme_matmul_u8     16x768x 64 pass\nvme_matmul_s8u8   16x768x 64 pass\nmatmul (u8)       16x768x 64 pass\nmatmul (s8)       16x768x 64 pass\nmatmul_rvv        32x 64x 64 pass\nmatmul_rvv_s8u8   32x 64x 64 pass\nvme_matmul_u8     32x 64x 64 pass\nvme_matmul_s8u8   32x 64x 64 pass\nmatmul (u8)       32x 64x 64 pass\nmatmul (s8)       32x 64x 64 pass"
     },
     {
       "test": "test_softmax",
@@ -624,12 +624,12 @@
     },
     {
       "name": "vme_d32_decode_block0",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 5874,
       "halted": 6050,
       "host_write_bytes": 5284,
       "host_write_cycles": 359,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -643,12 +643,12 @@
     },
     {
       "name": "vme_d32_decode_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 5945,
       "halted": 6121,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -662,12 +662,12 @@
     },
     {
       "name": "vme_d32_decode_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 5945,
       "halted": 6121,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -681,12 +681,12 @@
     },
     {
       "name": "vme_d32_decode_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 5945,
       "halted": 6121,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -724,12 +724,12 @@
     },
     {
       "name": "vme_d32_local_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 26498,
       "halted": 26674,
       "host_write_bytes": 7744,
       "host_write_cycles": 516,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -743,12 +743,12 @@
     },
     {
       "name": "vme_d32_local_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 58327,
       "halted": 58503,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -762,12 +762,12 @@
     },
     {
       "name": "vme_d32_local_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 58398,
       "halted": 58574,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -781,12 +781,12 @@
     },
     {
       "name": "vme_d32_local_block4",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 58398,
       "halted": 58574,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -800,12 +800,12 @@
     },
     {
       "name": "vme_d32_local_block5",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 54318,
       "halted": 54494,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -843,12 +843,12 @@
     },
     {
       "name": "vme_d32_prefill_block0",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 57278,
       "halted": 57454,
       "host_write_bytes": 7744,
       "host_write_cycles": 516,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -862,12 +862,12 @@
     },
     {
       "name": "vme_d32_prefill_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 58414,
       "halted": 58590,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -881,12 +881,12 @@
     },
     {
       "name": "vme_d32_prefill_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 58414,
       "halted": 58590,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -900,12 +900,12 @@
     },
     {
       "name": "vme_d32_prefill_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 54334,
       "halted": 54510,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -943,12 +943,12 @@
     },
     {
       "name": "vme_decode_block0",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 8888,
       "halted": 9064,
       "host_write_bytes": 9540,
       "host_write_cycles": 629,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -962,12 +962,12 @@
     },
     {
       "name": "vme_decode_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 8959,
       "halted": 9135,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -981,12 +981,12 @@
     },
     {
       "name": "vme_decode_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 8959,
       "halted": 9135,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -1000,12 +1000,12 @@
     },
     {
       "name": "vme_decode_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 8959,
       "halted": 9135,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         1,
         64,
@@ -1043,12 +1043,12 @@
     },
     {
       "name": "vme_prefill_block0",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 73642,
       "halted": 73818,
       "host_write_bytes": 14400,
       "host_write_cycles": 936,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -1062,12 +1062,12 @@
     },
     {
       "name": "vme_prefill_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 74638,
       "halted": 74814,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -1081,12 +1081,12 @@
     },
     {
       "name": "vme_prefill_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 74568,
       "halted": 74744,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -1100,12 +1100,12 @@
     },
     {
       "name": "vme_prefill_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 70572,
       "halted": 70748,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         64,
@@ -1143,12 +1143,12 @@
     },
     {
       "name": "vme_vs_serial_block0",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 36794,
       "halted": 36970,
       "host_write_bytes": 8256,
       "host_write_cycles": 548,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         16,
@@ -1162,12 +1162,12 @@
     },
     {
       "name": "vme_vs_serial_block1",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 37930,
       "halted": 38106,
       "host_write_bytes": 2048,
       "host_write_cycles": 136,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         16,
@@ -1181,12 +1181,12 @@
     },
     {
       "name": "vme_vs_serial_block2",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 37930,
       "halted": 38106,
       "host_write_bytes": 2048,
       "host_write_cycles": 136,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         16,
@@ -1200,12 +1200,12 @@
     },
     {
       "name": "vme_vs_serial_block3",
-      "op": "attention_vme_block",
+      "op": "vme_attention_block",
       "cycles": 33849,
       "halted": 34025,
       "host_write_bytes": 2048,
       "host_write_cycles": 136,
-      "kernel": "attention_vme_block",
+      "kernel": "vme_attention_block",
       "shape": [
         16,
         16,
@@ -1411,13 +1411,13 @@
       "ok": true
     },
     {
-      "name": "matmul_vme_s8u8_16x512x16",
-      "op": "matmul_vme_s8u8",
+      "name": "vme_matmul_s8u8_16x512x16",
+      "op": "vme_matmul_s8u8",
       "cycles": 11005,
       "halted": 11174,
       "host_write_bytes": 16384,
       "host_write_cycles": 1048,
-      "kernel": "matmul_vme_s8u8",
+      "kernel": "vme_matmul_s8u8",
       "shape": [
         16,
         512,
@@ -1432,13 +1432,13 @@
       "ok": true
     },
     {
-      "name": "matmul_vme_u8_16x512x16",
-      "op": "matmul_vme_u8",
+      "name": "vme_matmul_u8_16x512x16",
+      "op": "vme_matmul_u8",
       "cycles": 11005,
       "halted": 11174,
       "host_write_bytes": 16384,
       "host_write_cycles": 1048,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         512,
@@ -1454,12 +1454,12 @@
     },
     {
       "name": "sweep_vme_k128",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 2941,
       "halted": 3110,
       "host_write_bytes": 4096,
       "host_write_cycles": 268,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         128,
@@ -1475,12 +1475,12 @@
     },
     {
       "name": "sweep_vme_k16",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 589,
       "halted": 758,
       "host_write_bytes": 512,
       "host_write_cycles": 40,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         16,
@@ -1496,12 +1496,12 @@
     },
     {
       "name": "sweep_vme_k256",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 5629,
       "halted": 5798,
       "host_write_bytes": 8192,
       "host_write_cycles": 528,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         256,
@@ -1517,12 +1517,12 @@
     },
     {
       "name": "sweep_vme_k32",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 925,
       "halted": 1094,
       "host_write_bytes": 1024,
       "host_write_cycles": 72,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         32,
@@ -1538,12 +1538,12 @@
     },
     {
       "name": "sweep_vme_k512",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 11005,
       "halted": 11174,
       "host_write_bytes": 16384,
       "host_write_cycles": 1048,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         512,
@@ -1559,12 +1559,12 @@
     },
     {
       "name": "sweep_vme_k64",
-      "op": "matmul_vme_u8",
+      "op": "vme_matmul_u8",
       "cycles": 1597,
       "halted": 1766,
       "host_write_bytes": 2048,
       "host_write_cycles": 136,
-      "kernel": "matmul_vme_u8",
+      "kernel": "vme_matmul_u8",
       "shape": [
         16,
         64,

@@ -9,7 +9,7 @@
 //
 // Dispatch:
 // - n % 16 == 0, m % 16 == 0 and k % 4 == 0: the matrix engine
-//   (matmul_vme_s8u8 / matmul_vme_u8).
+//   (vme_matmul_s8u8 / vme_matmul_u8).
 // - anything else, e.g. decode's n = 1: the vector unit (matmul_rvv_s8u8 /
 //   matmul_rvv). We don't pad to VME's shape: padding A to 16 rows needs a
 //   16 x k scratch copy plus a copy-out of C, in a 32 KB DTCM that already

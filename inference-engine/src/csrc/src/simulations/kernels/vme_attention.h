@@ -33,7 +33,7 @@
 // built once per layer and kept in DTCM.
 // scratch: nq * max(kv_len, d) int32 (scores, then P . V) followed by
 // nq * kv_len bytes (P). The host places it in DTCM next to the block.
-extern "C" void attention_vme_block(size_t nq, size_t d, size_t query_start,
+extern "C" void vme_attention_block(size_t nq, size_t d, size_t query_start,
                                     size_t window, size_t kv_start,
                                     size_t kv_len, const int8_t* q,
                                     const uint8_t* kt, int32_t k_zero,

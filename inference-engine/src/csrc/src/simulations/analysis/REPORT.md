@@ -1,9 +1,9 @@
 # GPT-2 small int8 on Reef (Coral NPU + VME): week-3 kernel analysis
 
 All cycle counts come from Coral's **VME RTL model** (coralnpu
-`VmeCoreMiniAxi`, commit pinned in `config/hardware.json`, Verilator via
-cocotb, behavioral SRAM model). Raw numbers: `results/results.json`. Model
-numbers: `analysis/roofline.json`. Reproduce with the two commands in the
+`VmeCoreMiniAxi`, commit pinned in `analysis/config/hardware.json`, Verilator via
+cocotb, behavioral SRAM model). Raw numbers: `analysis/results/results.json`. Model
+numbers: `analysis/roofline.json`. Reproduce with the commands in the
 simulations README. Milliseconds assume the **50 MHz clock, which is not yet
 confirmed**. Section 8 lists every number that is assumed rather than
 measured.
@@ -27,11 +27,11 @@ Every kernel ran on the RTL model and was checked against NumPy:
 
 | Kernel (sim tile) | Cycles | Error vs reference |
 | --- | ---: | --- |
-| `matmul_vme_s8u8` 16×512×16 | 11,005 | bit-exact |
+| `vme_matmul_s8u8` 16×512×16 | 11,005 | bit-exact |
 | `matmul_rvv_s8u8` 16×512×16 | 74,006 | bit-exact |
 | `matmul_rvv_s8u8` 1×512×32 (decode) | 9,318 | bit-exact |
-| `attention_vme_block` 16q × 64-key block (VME, LUT exp) | ~74.6k (was ~337k with `expf`) | 1.35 LSB vs float at 256 keys; within 1 LSB of serial at 64 keys, 2 at 256 |
-| `attention_vme_block` 1q × 64-key block (decode, RVV, LUT exp) | ~9.0k (was ~25k) | 0.76 LSB vs float |
+| `vme_attention_block` 16q × 64-key block (VME, LUT exp) | ~74.6k (was ~337k with `expf`) | 1.35 LSB vs float at 256 keys; within 1 LSB of serial at 64 keys, 2 at 256 |
+| `vme_attention_block` 1q × 64-key block (decode, RVV, LUT exp) | ~9.0k (was ~25k) | 0.76 LSB vs float |
 | `attention_flash_chunk` 16q × 64-key block (scalar reference) | ~2.2M | 0.50 LSB; within 1 LSB of serial |
 | `attention_serial` 16q×64k (scalar reference) | 1,814,058 | 0.90 LSB vs float |
 | `attention_flash` 16q×64k (scalar reference) | 1,980,632 | 0.50 LSB; within 1 LSB of serial |
@@ -75,7 +75,7 @@ was measured on the dev Mac (arm64), not an x86 host.
   model of the kernel's uint8-P algorithm shows the same 1.80 and 3.45 on
   the same inputs, and the sim matches that model within 1 LSB. So the
   kernel is correct, and the error comes from the probability format.
-- `run_all.py` therefore checks each VME stream against its own uint8-P
+- The sim tests (`tests/bench.py`) therefore check each VME stream against its own uint8-P
   algorithm: the sim must sit within 1 LSB of that model's error vs float
   (stored as `uint8_probs_error_lsb`). Serial gets a 2-LSB tolerance vs
   float, and float-probability kernels (flash, chunked) get 1 LSB.
@@ -113,7 +113,7 @@ touched. Both are kept in the tree.
 | Setup | none | 127,576 cycles to build the table, once per layer |
 | Range limit | none | gaps ≥ 65,536 read as 0, so it needs score_scale · 65,536 ≥ 13 (GPT-2: 20.5) |
 
-**Inside `attention_vme_block`.** The running max is always `score_scale`
+**Inside `vme_attention_block`.** The running max is always `score_scale`
 times an integer score, so the block rescale `exp(m_old − m_new)` comes
 from the same table, and the kernel makes no `expf` calls. Measured on the
 sim, same inputs:
@@ -330,7 +330,7 @@ e. **Vector float for the pointwise kernels** (software plus a build flag,
 
 ## 7. GPT-Neo 28M (TinyStories), the planned model
 
-`analysis/roofline.py --model config/gpt_neo_28m.json` reruns the whole
+`analysis/roofline.py --model analysis/config/gpt_neo_28m.json` reruns the whole
 estimate for TinyStories-Instruct-28M on the same measured tiles. Its
 outputs are `analysis/roofline_gpt-neo-28m.json`,
 `roofline_{prefill,decode}_gpt-neo-28m.png` and
@@ -346,13 +346,13 @@ outputs are `analysis/roofline_gpt-neo-28m.json`,
   16). The repo's FLOP counts don't pin the head count down.
 - **What we tested:** GPT-2 small, 124M parameters (85M in its 12 blocks).
 
-**Measured on the sim for this model** (`attention_vme_test`,
+**Measured on the sim for this model** (`vme_attention_test`,
 `pointwise_test`):
 
 | Kernel | GPT-2 shape | GPT-Neo 28M shape |
 | --- | ---: | ---: |
-| `attention_vme_block` 16q × 64-key prefill block | 74.6k cycles (d_head 64) | **58.4k** (d_head 32) |
-| `attention_vme_block` 1q × 64-key decode block | 9.0k | **5.9k** |
+| `vme_attention_block` 16q × 64-key prefill block | 74.6k cycles (d_head 64) | **58.4k** (d_head 32) |
+| `vme_attention_block` 1q × 64-key decode block | 9.0k | **5.9k** |
 | `attention_flash_finish`, 16 queries | 68.8k | 34.6k |
 | `layernorm`, 4 rows | 243k (d 768) | **162k** (d 512) |
 | Matmuls | 16×512×16 and 1×512×32 tiles | same tiles: every K is 512 or a multiple |
@@ -408,7 +408,7 @@ What's different from GPT-2:
 - **Accuracy:** the d_head = 32 runs are where uint8 P is weakest on these
   random inputs (1.80 / 3.45 LSB, section 1). Re-check this on calibrated
   TinyStories activations first.
-- **No kernel changes were needed:** `attention_vme_block` already takes
+- **No kernel changes were needed:** `vme_attention_block` already takes
   `window` and any d that's a multiple of 16, and `matmul()` handles the
   new widths.
 

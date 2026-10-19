@@ -51,7 +51,7 @@
   },
   "tiles": {
     "_comment": "Per-kernel shapes run on the sim; each fits in 32 KB DTCM with room for the stack.",
-    "matmul_vme": {"n": 16, "k": 512, "m": 16},
+    "vme_matmul": {"n": 16, "k": 512, "m": 16},
     "matmul_rvv": {"n": 1, "k": 512, "m": 32},
     "softmax": {"row": 1024},
     "gelu": {"n": 4096},

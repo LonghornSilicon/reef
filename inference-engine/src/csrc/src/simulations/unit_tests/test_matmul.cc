@@ -5,11 +5,11 @@
 //
 // Host build, from simulations/ (emulates both RVV and VME):
 //   clang++ -std=c++17 -DVME_EMULATE -DRVV_EMULATE -Ikernels -Iincludes \
-//       kernels/matmul.cc kernels/matmul_rvv.cc kernels/matmul_vme.cc \
+//       kernels/matmul.cc kernels/matmul_rvv.cc kernels/vme_matmul.cc \
 //       unit_tests/test_matmul.cc -o test_matmul
 #include "matmul.h"
 #include "matmul_rvv.h"
-#include "matmul_vme.h"
+#include "vme_matmul.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -93,10 +93,10 @@ int check_shape(Buffers* buf, size_t n, size_t k, size_t m) {
     failures += check(buf, "matmul_rvv_s8u8", n, k, m, true,
                       [&] { matmul_rvv_s8u8(n, k, m, a_s8, b, c); });
     if (n % 16 == 0 && m % 16 == 0 && k % 4 == 0) {
-        failures += check(buf, "matmul_vme_u8", n, k, m, false,
-                          [&] { matmul_vme_u8(n, k, m, a, b, c); });
-        failures += check(buf, "matmul_vme_s8u8", n, k, m, true,
-                          [&] { matmul_vme_s8u8(n, k, m, a_s8, b, c); });
+        failures += check(buf, "vme_matmul_u8", n, k, m, false,
+                          [&] { vme_matmul_u8(n, k, m, a, b, c); });
+        failures += check(buf, "vme_matmul_s8u8", n, k, m, true,
+                          [&] { vme_matmul_s8u8(n, k, m, a_s8, b, c); });
     }
     failures += check(buf, "matmul (u8)", n, k, m, false,
                       [&] { matmul(n, k, m, a, false, b, c); });
