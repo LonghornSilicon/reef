@@ -7,7 +7,7 @@
 /// core's LSU, as on M3.
 ///
 /// Super-coarse, deliberately simpler than the M3 RTL:
-/// - one pool of `vec_units` identical lanes; an instruction holds a lane for
+/// - one pool of `vec_lanes` identical lanes; an instruction holds a lane for
 ///   uops x vec_cycles_per_uop cycles, where uops = ceil(vl x SEW / VLEN);
 /// - no per-type functional units, decode width, vector ROB or chaining;
 /// - vset* takes `vset_latency` cycles and uses no lane;
@@ -41,12 +41,11 @@ class Vector : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class VectorParameterSet : public sparta::ParameterSet {
-  public:
+  struct VectorParameterSet : public sparta::ParameterSet {
     explicit VectorParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, vec_queue_entries, 8, "Vector command queue entries")
-    PARAMETER(uint32_t, vec_units, 2, "Vector execution lanes")
+    PARAMETER(uint32_t, vec_lanes, 2, "Vector execution lanes")
     PARAMETER(uint32_t, vlen_bits, 128, "VLEN in bits")
     PARAMETER(uint32_t, vec_latency, 4, "One-uop vector latency")
     PARAMETER(uint32_t, vec_cycles_per_uop, 1, "Cycles a lane is busy per uop")

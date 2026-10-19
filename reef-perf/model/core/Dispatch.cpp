@@ -139,7 +139,7 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   StallReason QueueFull = StallReason::NumReasons;
   switch (getExecTarget(*I)) {
   case ExecTarget::Scalar:
-    return true; // The scalar units have no queue.
+    return true; // The scalar functional units have no queue.
   case ExecTarget::LSU:
     QueueCredits = LsuCredits;
     QueueFull = StallReason::LsuFull;

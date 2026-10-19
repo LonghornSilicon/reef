@@ -38,8 +38,7 @@ class Fetch : public sparta::Unit, public InstBufferInterface {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class FetchParameterSet : public sparta::ParameterSet {
-  public:
+  struct FetchParameterSet : public sparta::ParameterSet {
     explicit FetchParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, fetch_width, 4,

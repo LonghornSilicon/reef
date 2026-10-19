@@ -1,7 +1,7 @@
 # reef_perf: coarse performance model of Reef
 
 `reef_perf` predicts how many clock cycles a RISC-V program takes on the Reef
-NPU core, and explains where the time went. Reef starts from the CoralNPU M3
+NPU, and explains where the time went. Reef starts from the CoralNPU M3
 release, so the first goal is to match the M3 RTL.
 
 **Status: super-coarse.** The model runs real programs end to end, but its
@@ -14,6 +14,8 @@ Background reading:
 - [docs/overview.md](docs/overview.md): what the model is and how the M3
   baseline works.
 - [docs/interfaces.md](docs/interfaces.md): the five modules and how they talk.
+- [docs/glossary.md](docs/glossary.md): what module, unit, pool, slot and
+  the other terms mean.
 - [docs/topdown.md](docs/topdown.md): how to find what a program is waiting
   for (top-down analysis).
 - [docs/deviations.md](docs/deviations.md): where the RTL differs from its docs.
@@ -76,7 +78,7 @@ reef-perf/
   tests/python/          pytest: unit/, integration/, experiments/
   tests/golden/          expected cycle counts (m3_results.json)
   scripts/               lint, C++ checks, dependency build
-  docs/                  overview, interfaces, topdown, roadmap, deviations
+  docs/                  overview, interfaces, glossary, topdown, roadmap, deviations
   ext/                   pinned submodules: Spike, Sparta, yaml-cpp
 ```
 
@@ -156,7 +158,7 @@ Every parameter is listed there, with the ticket that will correct it.
     ibuf_empty                 1003   14.3%
     raw_hazard                    0    0.0%
     ...
-  Pools: utilization (busy cycles / (units * cycles))
+  Pools: utilization (busy cycles / (resources * cycles))
     core.alu         x4  ops      22009  util  78.5%
 ```
 
@@ -286,6 +288,12 @@ with `NOLINT`; and the standard library is used instead of LLVM's ADT.
   implicit ones would be wrong, for example in a class that hands out
   pointers to its own members (`FuncSim`). Then delete just the copy pair,
   with a comment saying why; that also rules out moves.
+- Use the terms in [docs/glossary.md](docs/glossary.md) with the meanings
+  given there.
+- Use `struct` when every member is public and there is no invariant to
+  protect, and `class` otherwise (LLVM's rule), with sections ordered public,
+  protected, private. `Inst` is a struct: its one-writer-per-field rule is
+  documented in interfaces.md, not enforced by access.
 - Document public declarations briefly with `///` (`\p Name` for parameters,
   `\returns` for results). Use plain `//` comments elsewhere, and only where
   the code is not obvious.

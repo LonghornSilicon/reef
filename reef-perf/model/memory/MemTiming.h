@@ -69,7 +69,7 @@ private:
   uint32_t Latency;
   uint32_t BytesPerBeat;
   ResourcePool Data;        // One beat per cycle.
-  ResourcePool Outstanding; // Each slot held until its operation is done.
+  ResourcePool Outstanding; // Each entry held until its operation is done.
 };
 
 } // namespace reef_perf

@@ -15,7 +15,7 @@ caches, RISC-V). It doesn't assume you know Reef, CoralNPU, Spike or Sparta.
 
 A **performance model** is a program that predicts how many clock cycles a piece
 of hardware takes to run a piece of software, and explains where the time goes.
-It is much faster to change than RTL. To ask "what if the vector unit had 4
+It is much faster to change than RTL. To ask "what if the vector engine had 4
 multipliers instead of 2?", you edit one number in a config file and rerun,
 instead of redesigning hardware.
 
@@ -26,7 +26,7 @@ Ours will:
 - **Produce:**
   - the total cycle count;
   - instructions per cycle (IPC);
-  - how busy each hardware block was;
+  - how busy each hardware resource was;
   - a **stall breakdown**: for every cycle the core couldn't issue work, *why*
     (e.g. "waiting on the load/store unit", "branch redirect", "vector queue
     full").
@@ -36,7 +36,7 @@ M3 RTL is what we can run in simulation and compare against today.
 
 ### "Coarse" and "configurable"
 
-- **Coarse** means each hardware block is described by a handful of numbers
+- **Coarse** means each part of the hardware is described by a handful of numbers
   (how long an operation takes, how many can run at once, how deep a queue is)
   instead of by its exact logic. We accept some error in exchange for a model
   that's small, fast, and easy to change.
@@ -95,19 +95,19 @@ The pipeline has these stages:
 
 2. **Dispatch**, also called decode/issue.
    - Each cycle it looks at the oldest 4 instructions in the buffer and sends as
-     many as it can to the execution units, stopping at the first one that can't
+     many as it can to the functional units, stopping at the first one that can't
      go (because the core is in-order).
    - An instruction can't go if:
      - it needs a register value that isn't ready yet. A **scoreboard** tracks
        which registers are waiting on a result.
-     - its execution unit is busy or its queue is full.
+     - its functional unit is busy or its queue is full.
      - a special rule applies. There are several; for example, a branch must be
        the last instruction sent that cycle, and floating-point instructions must
        be sent alone. The full list is in section 4.2.
 
-3. **Execute.** The execution units are:
+3. **Execute.** The functional units are:
 
-   | Unit | Count | What it does | Speed |
+   | Functional unit | Count | What it does | Speed |
    | --- | --- | --- | --- |
    | ALU | 4 | add, shift, compare, bit-manip | 1 cycle |
    | BRU (branch unit) | 4 | branches and jumps | 1 cycle |
@@ -130,7 +130,7 @@ The pipeline has these stages:
    - Tightly-coupled memories (TCMs), the on-core instruction and data SRAMs,
      answer in about a cycle. External memory (over the AXI bus) is slower.
 
-### 2.2 The vector unit (RVV)
+### 2.2 The vector engine (RVV)
 
 A separate engine that implements the standard RISC-V Vector extension (RVV 1.0,
 integer and FP32). Each vector register is 128 bits (VLEN=128): for example
@@ -143,7 +143,7 @@ Some RVV terms used below:
 - **SEW** is the element size: 8, 16 or 32 bits.
 - **`vl`** is how many elements the instruction processes.
 
-Here's how a vector instruction flows through the unit:
+Here's how a vector instruction flows through the engine:
 
 1. The scalar core's dispatch stage puts vector instructions into an 8-entry
    **command queue**. The scalar core then carries on; it doesn't wait for vector
@@ -162,7 +162,8 @@ Here's how a vector instruction flows through the unit:
    | FP divider | 1 |
    | Permute / reduction | 1 |
 
-   Each unit has a small reservation station (a waiting area) in front of it.
+   Each functional unit has a small reservation station (a waiting area) in
+   front of it.
 
 4. An 8-entry **vector reorder buffer** retires uops in order.
 5. Vector loads and stores are handed to the **scalar LSU**, which processes them
@@ -204,7 +205,7 @@ moving the instruction through fetch, dispatch, execute and retire.
 
 This is simple and exact for Reef because the core is **in-order and never
 executes wrong-path instructions**. So we never have to undo anything Spike did.
-When the fetch unit guesses a branch wrong, the model just adds the lost cycles;
+When the frontend guesses a branch wrong, the model just adds the lost cycles;
 it doesn't have to simulate the wrong instructions.
 
 It also makes **data-dependent timing easy**. For example, the divider's
@@ -215,7 +216,8 @@ latency depends on the operand values, and we can read those values from Spike.
 Sparta is a C++ framework for performance models, from the `sparcians/map`
 project. It gives us:
 
-- **Units:** C++ classes, one per hardware block (Fetch, Dispatch, LSU, ...).
+- **Units:** C++ classes (Sparta units), one per part of the pipeline (Fetch,
+  Dispatch, LSU, ...), grouped into modules (glossary.md).
 - **Ports:** typed connections between units. Unit A sends an instruction to unit
   B with a delay of N cycles.
 - **Events:** "do this at cycle X". This is how multi-cycle operations are
@@ -399,7 +401,7 @@ reef-perf/
   tests/python/                 pytest: unit/, integration/, experiments/
   tests/golden/                 expected cycle counts
   scripts/                      build_deps.sh, lint.sh, check_cpp.sh, check_style.sh
-  docs/                         overview, interfaces, topdown, roadmap, deviation register
+  docs/                         overview, interfaces, glossary, topdown, roadmap, deviation register
   ext/                          spike, map (Sparta), yaml-cpp (git submodules)
 ```
 

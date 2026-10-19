@@ -13,6 +13,9 @@ page and both sides of the interface together.
 | Matrix engine | `top.matrix` | `matrix/` | TBD |
 | Interconnect / memory | `top.memory` | `memory/` | TBD |
 
+The terms module, unit, pool, port and interface are defined in
+[glossary.md](glossary.md).
+
 Shared types live in `common/` and belong to everyone: changing them needs
 review from every module they touch.
 
@@ -88,7 +91,7 @@ dependent instruction, and the Rob keeps waiting.
   `CompleteCycle = Start + L`. The `- 1` lets a dependent instruction
   dispatch in the cycle before the result exists, which stands in for
   operand forwarding.
-- Instructions reach an execution unit one cycle after dispatch (input ports
+- Instructions reach their exec target one cycle after dispatch (input ports
   have a delay of 1).
 
 ## Credits
@@ -188,8 +191,8 @@ interface unless noted.
   forward-not-taken); fetch does not go through memory (adds an `IFetch`
   requester); no redirect/flush signal to the core (interface change).
 - **Backend:** Reef's special dispatch rules (a branch ends the group, FP and
-  CSR dispatch alone, CSRs wait for an empty Rob); the LSU has one slot.
-- **Vector:** one pool of identical lanes; no per-type units, chaining or
+  CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
+- **Vector:** one pool of identical lanes; no per-type functional units, chaining or
   vector ROB.
 - **Matrix:** everything. The ISA encoding, an opaque-op extension in Spike,
   operands from vector registers (a vector → matrix interface) and a memory

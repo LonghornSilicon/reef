@@ -12,8 +12,8 @@ To (re)generate the golden file from the current code:
 
 Only keys present in the golden file are compared, so adding a new counter
 (for example a new stall reason) does not break the check. Pool utilization
-is not compared: it describes how work is spread over units, which modules are
-free to reorganize.
+is not compared: it describes how work is spread over resources, which modules
+are free to reorganize.
 """
 
 import json

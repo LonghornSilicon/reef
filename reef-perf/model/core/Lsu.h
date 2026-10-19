@@ -32,8 +32,7 @@ class Lsu : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class LsuParameterSet : public sparta::ParameterSet {
-  public:
+  struct LsuParameterSet : public sparta::ParameterSet {
     explicit LsuParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, lsu_queue_entries, 4, "LSU queue entries")
@@ -50,7 +49,7 @@ public:
   void setMemory(MemoryInterface *NewMem) { Mem = NewMem; }
 
   /// \returns {lsu}, for the end-of-run summary.
-  std::vector<const ResourcePool *> getPools() const { return {&Slot}; }
+  std::vector<const ResourcePool *> getPools() const { return {&Pipe}; }
 
 private:
   void receiveInst(const InstRef &I);
@@ -58,7 +57,7 @@ private:
 
   const uint32_t QueueEntries;
   MemoryInterface *Mem = nullptr;
-  ResourcePool Slot;
+  ResourcePool Pipe; // One memory instruction at a time.
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

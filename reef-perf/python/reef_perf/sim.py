@@ -78,7 +78,7 @@ class SimResult:
             None with fewer than two.
         dispatch: Dispatch counters: cycles_with_dispatch and one
             stall_<reason> entry per stall reason.
-        pools: Per execution resource: units, ops and busy_cycles.
+        pools: Per pool: count (resources), ops and busy_cycles.
         topdown: Where the dispatch slots went, as the simulator reports it;
             reef_perf.topdown turns it into a tree.
     """

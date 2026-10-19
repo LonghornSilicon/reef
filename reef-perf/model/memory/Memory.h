@@ -30,8 +30,7 @@ class Memory : public sparta::Unit, public MemoryInterface {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class MemoryParameterSet : public sparta::ParameterSet {
-  public:
+  struct MemoryParameterSet : public sparta::ParameterSet {
     explicit MemoryParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, itcm_latency, 2, "ITCM latency of a single-line access")

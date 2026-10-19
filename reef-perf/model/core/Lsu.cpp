@@ -11,7 +11,7 @@ using namespace reef_perf;
 
 Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
     : sparta::Unit(Node, name), QueueEntries(Params->lsu_queue_entries),
-      Slot("lsu", 1) {
+      Pipe("lsu", 1) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Lsu, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Lsu, sendInitialCredits));
@@ -27,11 +27,11 @@ void Lsu::receiveInst(const InstRef &I) {
   MemRequest Request;
   Request.Requester = RequesterKind::LSU;
   Request.Accesses = I->Mem;
-  Request.Earliest = Slot.getNextFree(Now);
+  Request.Earliest = Pipe.getNextFree(Now);
   MemResponse Response = Mem->access(Request);
 
-  Cycle Start = Slot.reserve(Response.Start, Response.Occupancy);
-  sparta_assert(Start == Response.Start, "LSU slot busy at the memory's start");
+  Cycle Start = Pipe.reserve(Response.Start, Response.Occupancy);
+  sparta_assert(Start == Response.Start, "LSU busy at the memory's start");
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Response.Latency - 1;
   I->CompleteCycle = Start + Response.Latency;
