@@ -99,21 +99,21 @@ These are problems with how we measure the RTL, not with the RTL itself.
 | M2 | CSR instructions, including `csrr mcycle`, wait until the retirement buffer is empty and dispatch alone from slot 0. So `mcycle` brackets drain the pipeline. They measure latency correctly, but they distort short throughput measurements. | `scalar/Decode.scala:519`, `:167-169` | code-confirmed | 1st |
 | M3 | External memory timing comes from the Verilator testbench's AXI/TLM model, not a real memory system. External-memory results correlate against that model only. | `tests/verilator_sim/` | hypothesis | 1st for LLM decode |
 | M4 | M3 has **no per-instruction cycle benchmark**. `tests/cocotb/isa_cycle_bench.cc` was added after M3. It's software only, so it could be backported, but it must build with the M3 toolchain. | `tests/cocotb/` at M3 | code-confirmed | 1st |
-| M5 | The M3 workload set is thin: `tests/cocotb/rvv/ml_ops` has only `rvv_matmul` (int8) and `rvv_float_matmul`. The Gemma kernels were added after M3, and some of them use BF16, which isn't in the M3 toolchain. | `tests/cocotb/rvv/ml_ops/` at M3 | code-confirmed | 1st |
+| M5 | The M3 kernel set is thin: `tests/cocotb/rvv/ml_ops` has only `rvv_matmul` (int8) and `rvv_float_matmul`. The Gemma kernels were added after M3, and some of them use BF16, which isn't in the M3 toolchain. | `tests/cocotb/rvv/ml_ops/` at M3 | code-confirmed | 1st |
 | M6 | Default ITCM/DTCM (8 KB/32 KB) is too small for most kernels, so correlation runs need highmem builds. Check whether highmem changes any timing. | `hdl/chisel/src/coralnpu/BUILD` | hypothesis | 2nd |
 | M7 | The CoralNPU M3 RTL is not part of the reef-perf build: correlation runs use a separate `coralnpu` checkout at tag `M3-2026-04-27`. Make sure it is at that tag, not main. | - | code-confirmed | setup |
 
 ## F: Spike (functional model) vs RTL
 
 reef_perf uses pristine Spike at `fd72ee2d` with ISA
-`rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b` (`src/frontend/FuncSim.h`). CoralNPU's own
+`rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b` (`model/frontend/FuncSim.h`). CoralNPU's own
 M3 regression runs that Spike commit with five patches
 (`coralnpu/third_party/spike/*.patch`); reef_perf applies none of them.
 
 | ID | Gap | Evidence | Status | Order |
 | --- | --- | --- | --- | --- |
-| F1 | Spike does not implement `mpause` (`0x08000073`), which ends programs on Reef. The driver stops when it reaches `mpause`, without executing it. CoralNPU's patch 0001 instead makes Spike call `exit(0)`, which would kill the simulator process. | `reef-perf/src/frontend/FuncSim.cpp` (`MpauseEncoding`); `coralnpu/third_party/spike/0001-Add-mpause.patch` | code-confirmed | none (handled) |
-| F2 | Spike lacks CoralNPU's custom CSRs (`0xFC0`-`0xFD4` KISA/KSCM, `0x7C0`-`0x7C7` MCONTEXT, `0x7E0`/`0x7E1`) and reports `mvendorid` = 0. Code that touches them traps in reef_perf, and the driver reports the trap. The current workloads don't use them. | `coralnpu/third_party/spike/0002-*.patch`, `0004-*.patch` | code-confirmed | 2nd |
+| F1 | Spike does not implement `mpause` (`0x08000073`), which ends programs on Reef. The driver stops when it reaches `mpause`, without executing it. CoralNPU's patch 0001 instead makes Spike call `exit(0)`, which would kill the simulator process. | `reef-perf/model/frontend/FuncSim.cpp` (`MpauseEncoding`); `coralnpu/third_party/spike/0001-Add-mpause.patch` | code-confirmed | none (handled) |
+| F2 | Spike lacks CoralNPU's custom CSRs (`0xFC0`-`0xFD4` KISA/KSCM, `0x7C0`-`0x7C7` MCONTEXT, `0x7E0`/`0x7E1`) and reports `mvendorid` = 0. Code that touches them traps in reef_perf, and the driver reports the trap. The current microbenchmarks don't use them. | `coralnpu/third_party/spike/0002-*.patch`, `0004-*.patch` | code-confirmed | 2nd |
 | F3 | Vector policy choices: Spike's tail/mask-agnostic fill values, fault-only-first and `vstart` behavior may differ from the RTL. These change data values, rarely the instruction stream, so they rarely affect timing. | - | hypothesis | 2nd |
 | F4 | Spike decodes the Kelvin-era `flushat`/`flushall` ops that the M3 decoder still recognizes as illegal instructions (they trap). | `scalar/Decode.scala:163` | hypothesis | 2nd |
 | F5 | CSR set, `misa` and trap behavior haven't been compared against the M3 RTL. B01's check (same instruction count between the ROI markers on Spike and the RTL) is the first test of this. | - | hypothesis | 2nd |

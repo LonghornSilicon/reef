@@ -1,0 +1,129 @@
+# Runs the reef-perf microbenchmark suite on every push to a PR that touches
+# reef-perf, and posts the correlation against the M3 RTL as a PR comment
+# (updated in place on later pushes). See
+# reef-perf/python/reef_perf/experiments/correlation/README.md.
+name: reef-perf correlation
+
+on:
+  pull_request:
+    paths:
+      - "reef-perf/**"
+      - ".github/workflows/reef-perf-correlation.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: reef-perf-correlation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  correlation:
+    # Matches the Docker image (Dockerfile).
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: reef-perf
+    env:
+      REEF_PERF_DEPS: /home/runner/reef-perf-deps
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              build-essential ninja-build pkg-config device-tree-compiler \
+              libboost-all-dev rapidjson-dev libsqlite3-dev libhdf5-dev \
+              zlib1g-dev liblzma-dev binutils-riscv64-linux-gnu cmake
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      # yaml-cpp, Sparta and Spike take ~30 minutes to build, so they are
+      # cached until a submodule or the build script changes.
+      - name: Hash dependency sources
+        id: deps
+        run: |
+          echo "key=$(git submodule status ext | sha256sum | cut -c1-16)" \
+              >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependencies
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.REEF_PERF_DEPS }}
+          key: reef-perf-deps-ubuntu-22.04-${{ steps.deps.outputs.key }}-${{ hashFiles('reef-perf/scripts/build_deps.sh') }}
+
+      - name: Build dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          bash scripts/build_deps.sh "$REEF_PERF_DEPS" "$(nproc)" \
+              yaml-cpp sparta spike
+
+      # Saved right away, so a later failure doesn't lose the build.
+      - name: Save dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.REEF_PERF_DEPS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      - name: Build the model
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_TESTING=OFF
+          cmake --build build --target reef_perf
+
+      # The base branch's golden file, so the report shows how this PR moved
+      # the model's timing.
+      - name: Fetch the base golden file
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          git show "$BASE_SHA:reef-perf/tests/golden/m3_results.json" \
+              > "$RUNNER_TEMP/base_golden.json" ||
+              echo '{}' > "$RUNNER_TEMP/base_golden.json"
+
+      - name: Run the correlation
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          uv run python -m reef_perf.experiments.correlation.main \
+              --baseline "$RUNNER_TEMP/base_golden.json" \
+              --title "reef-perf correlation at ${HEAD_SHA::7}"
+          cat results/correlation/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reef-perf-correlation
+          path: reef-perf/results/correlation/
+
+      # PRs from forks get a read-only token; they still have the job summary
+      # and the artifact.
+      - name: Post the report
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync(
+                'reef-perf/results/correlation/report.md', 'utf8');
+            const marker = body.split('\n')[0];
+            const {owner, repo} = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(
+                github.rest.issues.listComments, {owner, repo, issue_number});
+            const old = comments.find(
+                c => c.user.type === 'Bot' && c.body.startsWith(marker));
+            if (old) {
+              await github.rest.issues.updateComment(
+                  {owner, repo, comment_id: old.id, body});
+            } else {
+              await github.rest.issues.createComment(
+                  {owner, repo, issue_number, body});
+            }

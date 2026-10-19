@@ -1,7 +1,6 @@
 PROJECT_NAME           = reef_perf
 OUTPUT_DIRECTORY       = build/doxygen
-INPUT                  = src
-EXCLUDE                = src/reef_perf
+INPUT                  = model
 FILE_PATTERNS          = *.h
 RECURSIVE              = YES
 EXTRACT_ALL            = NO

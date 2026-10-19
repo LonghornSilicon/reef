@@ -22,7 +22,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/reef_perf"]
+packages = ["python/reef_perf"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -38,6 +38,8 @@ timeout = 1800
 line-length = 80
 indent-width = 4
 target-version = "py312"
+# First-party code lives in python/ (for import sorting).
+src = ["python"]
 # Inside Docker the repo's .git is not mounted, so Ruff cannot apply
 # .gitignore; exclude third-party and build directories explicitly.
 extend-exclude = ["ext", "build", "results"]
