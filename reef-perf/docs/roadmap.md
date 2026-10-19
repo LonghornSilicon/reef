@@ -97,7 +97,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 4. Run `build/bin/reef_trace build/microbenchmarks/gemv_int8.elf 60` and match the
    printed instructions to
    `microbenchmarks/gemv_int8.S`.
-5. Change one parameter with `-p` (e.g. `top.vector.params.vec_units 1`)
+5. Change one parameter with `-p` (e.g. `top.vector.params.vec_lanes 1`)
    and explain the change in cycles to a teammate.
 6. Run `uv run pytest` and make sure it passes.
 

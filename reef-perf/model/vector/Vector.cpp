@@ -22,7 +22,7 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       CyclesPerUop(Params->vec_cycles_per_uop),
       DivCyclesPerUop(Params->vec_div_cycles_per_uop),
       ToScalarLatency(Params->vec_to_scalar_latency),
-      VsetLatency(Params->vset_latency), Lanes("vector", Params->vec_units) {
+      VsetLatency(Params->vset_latency), Lanes("vector", Params->vec_lanes) {
   sparta_assert(VLENBits >= 8);
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));

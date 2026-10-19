@@ -11,7 +11,7 @@ using namespace reef_perf;
 Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
     : sparta::Unit(Node, name), QueueEntries(Params->mtx_queue_entries),
       Latency(Params->mtx_latency), Occupancy(Params->mtx_occupancy),
-      Engines("matrix", Params->mtx_units) {
+      Lanes("matrix", Params->mtx_lanes) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Matrix, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Matrix, sendInitialCredits));
@@ -23,7 +23,7 @@ void Matrix::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
 
-  Cycle Start = Engines.reserve(Now, Occupancy);
+  Cycle Start = Lanes.reserve(Now, Occupancy);
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Latency - 1;
   I->CompleteCycle = Start + Latency;

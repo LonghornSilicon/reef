@@ -33,8 +33,7 @@ class ScalarExec : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class ScalarExecParameterSet : public sparta::ParameterSet {
-  public:
+  struct ScalarExecParameterSet : public sparta::ParameterSet {
     explicit ScalarExecParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, alu_count, 4,

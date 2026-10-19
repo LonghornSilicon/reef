@@ -7,7 +7,7 @@
 /// to InstClass::MATRIX and the module sees no traffic; it is here so the
 /// core-matrix interface can be built and tested first.
 ///
-/// Stub behavior: `mtx_units` engines, each busy `mtx_occupancy` cycles per
+/// Stub behavior: `mtx_lanes` lanes, each busy `mtx_occupancy` cycles per
 /// instruction, with a flat `mtx_latency`. All values are placeholders.
 ///
 //===----------------------------------------------------------------------===//
@@ -33,15 +33,13 @@ class Matrix : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class MatrixParameterSet : public sparta::ParameterSet {
-  public:
+  struct MatrixParameterSet : public sparta::ParameterSet {
     explicit MatrixParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, mtx_queue_entries, 4, "Matrix command queue entries")
-    PARAMETER(uint32_t, mtx_units, 1, "Matrix engines")
+    PARAMETER(uint32_t, mtx_lanes, 1, "Matrix execution lanes")
     PARAMETER(uint32_t, mtx_latency, 8, "Matrix op latency")
-    PARAMETER(uint32_t, mtx_occupancy, 4,
-              "Cycles a matrix op blocks its engine")
+    PARAMETER(uint32_t, mtx_occupancy, 4, "Cycles a matrix op holds its lane")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -57,7 +55,7 @@ public:
   Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params);
 
   /// \returns {matrix}, for the end-of-run summary.
-  std::vector<const ResourcePool *> getPools() const { return {&Engines}; }
+  std::vector<const ResourcePool *> getPools() const { return {&Lanes}; }
 
 private:
   void receiveInst(const InstRef &I);
@@ -66,7 +64,7 @@ private:
   const uint32_t QueueEntries;
   const uint32_t Latency;
   const uint32_t Occupancy;
-  ResourcePool Engines;
+  ResourcePool Lanes;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

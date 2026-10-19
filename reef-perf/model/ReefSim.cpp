@@ -174,7 +174,7 @@ void ReefSim::printSummary(std::ostream &OS) const {
                Bound);
   }
 
-  OS << "\n  Pools: utilization (busy cycles / (units * cycles))\n";
+  OS << "\n  Pools: utilization (busy cycles / (resources * cycles))\n";
   for (const Module *M : getModules())
     for (const ResourcePool *Pool : M->getPools())
       OS << "    " << std::left << std::setw(16)
@@ -230,7 +230,7 @@ void ReefSim::writeJSON(std::ostream &OS) const {
   for (const Module *M : getModules()) {
     for (const ResourcePool *Pool : M->getPools()) {
       OS << (First ? "\n" : ",\n") << "    \"" << Pool->getName()
-         << R"(": {"units": )" << Pool->getCount()
+         << R"(": {"count": )" << Pool->getCount()
          << ", \"ops\": " << Pool->getOps()
          << ", \"busy_cycles\": " << Pool->getBusyCycles() << "}";
       First = false;

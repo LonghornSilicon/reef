@@ -2,6 +2,8 @@
 ///
 /// \file
 /// The model's top-level modules (frontend, core, vector, matrix, memory).
+/// A module is one of the five owner-assignable parts of the model; a unit
+/// is a Sparta unit, and a module has one or more (docs/glossary.md).
 /// A module owns the Sparta subtree top.MODULE and wires its own units; the
 /// simulation binds only the public ports each module lists, so a module can
 /// change its insides without touching the others. See docs/interfaces.md.

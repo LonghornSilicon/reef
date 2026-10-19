@@ -91,8 +91,7 @@ class Dispatch : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class DispatchParameterSet : public sparta::ParameterSet {
-  public:
+  struct DispatchParameterSet : public sparta::ParameterSet {
     explicit DispatchParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,

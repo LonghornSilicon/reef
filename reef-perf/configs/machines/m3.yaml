@@ -51,7 +51,7 @@ top:
   vector:
     params:
       vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
-      vec_units: 2            # B15: replace with per-type functional units
+      vec_lanes: 2            # B15: replace with per-type functional units
       vlen_bits: 128
       vec_latency: 4          # B15: measure per class
       vec_cycles_per_uop: 1   # B15
@@ -61,7 +61,7 @@ top:
   matrix:
     params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
       mtx_queue_entries: 4
-      mtx_units: 1
+      mtx_lanes: 1
       mtx_latency: 8
       mtx_occupancy: 4
   memory:

@@ -1,4 +1,4 @@
-//===- ResourcePool.cpp - A pool of identical units -----------------------===//
+//===- ResourcePool.cpp - A pool of identical resources -------------------===//
 
 #include "common/ResourcePool.h"
 
@@ -14,7 +14,7 @@ ResourcePool::ResourcePool(std::string Name, uint32_t Count)
     : Name(std::move(Name)), FreeAt(Count, 0) {
   if (Count == 0)
     throw std::invalid_argument("pool '" + this->Name +
-                                "' needs at least one unit");
+                                "' needs at least one resource");
 }
 
 Cycle ResourcePool::getNextFree(Cycle Earliest) const {
@@ -22,9 +22,9 @@ Cycle ResourcePool::getNextFree(Cycle Earliest) const {
 }
 
 Cycle ResourcePool::reserve(Cycle Earliest, uint64_t Occupancy) {
-  auto Unit = std::ranges::min_element(FreeAt);
-  Cycle Start = std::max(Earliest, *Unit);
-  *Unit = Start + Occupancy;
+  auto Free = std::ranges::min_element(FreeAt);
+  Cycle Start = std::max(Earliest, *Free);
+  *Free = Start + Occupancy;
   ++Ops;
   BusyCycles += Occupancy;
   return Start;

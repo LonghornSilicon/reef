@@ -47,8 +47,7 @@ struct MemResponse {
 /// books the memory's resources and returns the timing at once ("book a
 /// slot", like the execution pools). The memory owner may replace it with
 /// request/response ports later.
-class MemoryInterface {
-public:
+struct MemoryInterface {
   virtual ~MemoryInterface() = default; ///< Requesters never own memory.
 
   /// Times \p Request and books the resources it uses. \returns its timing.
@@ -82,8 +81,7 @@ inline const char *getFrontendStallName(FrontendStall Stall) {
 /// takes it. To match a one-cycle hand-off in each direction, an instruction
 /// becomes visible the cycle after it is fetched, and an entry the core
 /// frees can be refilled from the next cycle.
-class InstBufferInterface {
-public:
+struct InstBufferInterface {
   virtual ~InstBufferInterface() = default; ///< The core never owns it.
 
   /// \returns the oldest instruction the core may take at cycle \p Now, or

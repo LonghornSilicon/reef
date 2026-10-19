@@ -38,8 +38,7 @@ class Rob : public sparta::Unit {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
-  class RobParameterSet : public sparta::ParameterSet {
-  public:
+  struct RobParameterSet : public sparta::ParameterSet {
     explicit RobParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, rob_entries, 8, "Retirement buffer entries")
