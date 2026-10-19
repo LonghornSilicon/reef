@@ -4,21 +4,21 @@ Example:
     uv run python -m reef_perf.experiments.correlation.main
 
 Runs every microbenchmark on the M3 config and compares the model's
-region-of-interest cycles with the RTL's (microbenchmarks/rtl_cycles.yaml).
-Total cycles are compared with a baseline in the golden-file format
+region-of-interest cycles and instruction counts with the RTL's
+(microbenchmarks/rtl_m3.csv, measured with rtl_trace.py). Total cycles are
+compared with a baseline in the golden-file format
 (tests/golden/m3_results.json by default; the PR bot passes the base branch's
 copy), so a PR shows how it moved the model. Writes correlation.json and a
 Markdown report (the PR comment) under results/correlation/.
 """
 
 import argparse
+import csv
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
-import yaml
 
 from reef_perf.experiments.sweep.main import ELF_DIR
 from reef_perf.microbenchmarks import (
@@ -27,8 +27,9 @@ from reef_perf.microbenchmarks import (
 )
 from reef_perf.sim import DEFAULT_SIM_CONFIG, MODULE_ROOT, run_sim
 
-RTL_CYCLES = MODULE_ROOT / "microbenchmarks" / "rtl_cycles.yaml"
-"""Measured RTL region-of-interest cycles, one entry per microbenchmark."""
+RTL_RESULTS = MODULE_ROOT / "microbenchmarks" / "rtl_m3.csv"
+"""Region-of-interest measurements on the M3 RTL, one row per
+microbenchmark."""
 
 GOLDEN = MODULE_ROOT / "tests" / "golden" / "m3_results.json"
 """Default baseline: the golden timing file."""
@@ -41,6 +42,19 @@ REPORT_MARKER = "<!-- reef-perf-correlation -->"
 
 
 @dataclass(frozen=True)
+class RtlResult:
+    """One microbenchmark's region of interest on the RTL.
+
+    Attributes:
+        roi_cycles: mcycle at ROI_END minus mcycle at ROI_BEGIN.
+        roi_instructions: Instructions retired between the two reads.
+    """
+
+    roi_cycles: int
+    roi_instructions: int
+
+
+@dataclass(frozen=True)
 class Row:
     """One microbenchmark's correlation.
 
@@ -48,6 +62,8 @@ class Row:
         microbenchmark: Microbenchmark name.
         model_roi_cycles: Model cycles between the mcycle reads, if any.
         rtl_roi_cycles: RTL cycles between the same reads, if measured.
+        model_roi_instructions: Model instructions between the reads.
+        rtl_roi_instructions: RTL instructions between the reads.
         model_cycles: Model cycles for the whole program.
         baseline_cycles: Baseline whole-program cycles, if in the baseline.
         ipc: Model instructions per cycle.
@@ -56,6 +72,8 @@ class Row:
     microbenchmark: str
     model_roi_cycles: int | None
     rtl_roi_cycles: int | None
+    model_roi_instructions: int | None
+    rtl_roi_instructions: int | None
     model_cycles: int
     baseline_cycles: int | None
     ipc: float
@@ -69,29 +87,52 @@ class Row:
             self.model_roi_cycles - self.rtl_roi_cycles
         ) / self.rtl_roi_cycles
 
+    @property
+    def same_region(self) -> bool:
+        """Whether both sides retired the same instructions in the ROI.
 
-def load_rtl_cycles(path: Path = RTL_CYCLES) -> dict[str, int | None]:
-    """Read the measured RTL cycles.
+        If not, the cycle counts measure different work and the error is
+        meaningless. True when the RTL count is unknown.
+        """
+        return (
+            self.rtl_roi_instructions is None
+            or self.model_roi_instructions == self.rtl_roi_instructions
+        )
+
+
+def load_rtl_results(path: Path = RTL_RESULTS) -> dict[str, RtlResult]:
+    """Read the RTL measurements.
 
     Args:
-        path: YAML file mapping microbenchmark name to cycles or null.
+        path: CSV with the columns microbenchmark, rtl_roi_cycles,
+            rtl_retired_insts and notes; a row with empty counts is not
+            measured yet.
 
     Returns:
-        Cycles per microbenchmark; None where not measured.
+        The measured microbenchmarks.
 
     Raises:
         ValueError: If the file names an unknown microbenchmark.
     """
-    data = yaml.safe_load(Path(path).read_text()) or {}
-    unknown = sorted(set(data) - set(list_microbenchmarks()))
+    with Path(path).open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    unknown = sorted(
+        {row["microbenchmark"] for row in rows} - set(list_microbenchmarks())
+    )
     if unknown:
         raise ValueError(f"unknown microbenchmarks in {path}: {unknown}")
-    return {name: None if c is None else int(c) for name, c in data.items()}
+    return {
+        row["microbenchmark"]: RtlResult(
+            int(row["rtl_roi_cycles"]), int(row["rtl_retired_insts"])
+        )
+        for row in rows
+        if row["rtl_roi_cycles"]
+    }
 
 
 def correlate(
     sim_config: Path = DEFAULT_SIM_CONFIG,
-    rtl_cycles: dict[str, int | None] | None = None,
+    rtl: dict[str, RtlResult] | None = None,
     baseline: dict[str, dict] | None = None,
     jobs: int | None = None,
 ) -> list[Row]:
@@ -99,14 +140,14 @@ def correlate(
 
     Args:
         sim_config: Simulation config.
-        rtl_cycles: RTL ROI cycles; read from RTL_CYCLES when omitted.
+        rtl: RTL measurements; read from RTL_RESULTS when omitted.
         baseline: Golden-format results to compare total cycles against.
         jobs: Parallel simulator processes; one per CPU by default.
 
     Returns:
         One row per microbenchmark, sorted by name.
     """
-    rtl = load_rtl_cycles() if rtl_cycles is None else rtl_cycles
+    rtl = load_rtl_results() if rtl is None else rtl
     baseline = baseline or {}
     names = list_microbenchmarks()
     elfs = build_microbenchmarks(names, ELF_DIR)
@@ -114,17 +155,24 @@ def correlate(
         results = list(
             pool.map(lambda n: run_sim(elfs[n], sim_config=sim_config), names)
         )
-    return [
-        Row(
-            microbenchmark=name,
-            model_roi_cycles=result.roi_cycles,
-            rtl_roi_cycles=rtl.get(name),
-            model_cycles=result.cycles,
-            baseline_cycles=baseline.get(name, {}).get("cycles"),
-            ipc=result.ipc,
+    rows = []
+    for name, result in zip(names, results, strict=True):
+        measured = rtl.get(name)
+        rows.append(
+            Row(
+                microbenchmark=name,
+                model_roi_cycles=result.roi_cycles,
+                rtl_roi_cycles=measured.roi_cycles if measured else None,
+                model_roi_instructions=result.roi_instructions,
+                rtl_roi_instructions=(
+                    measured.roi_instructions if measured else None
+                ),
+                model_cycles=result.cycles,
+                baseline_cycles=baseline.get(name, {}).get("cycles"),
+                ipc=result.ipc,
+            )
         )
-        for name, result in zip(names, results, strict=True)
-    ]
+    return rows
 
 
 def format_delta(row: Row) -> str:
@@ -164,23 +212,32 @@ def render_markdown(
         REPORT_MARKER,
         f"## {title}",
         "",
-        "ROI = cycles between the microbenchmark's two `csrr mcycle` reads. "
+        "ROI = the loop between the microbenchmark's two `csrr mcycle` reads, "
+        "on the model and on the M3 RTL (`microbenchmarks/rtl_m3.csv`). "
         "Error = (model - RTL) / RTL. Δ = change in total model cycles against "
         "the baseline.",
         "",
-        "| Microbenchmark | Model ROI | RTL ROI | Error | Model cycles "
-        "| Δ cycles | IPC |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Microbenchmark | Model ROI | RTL ROI | Error | ROI insts "
+        "| Model cycles | Δ cycles | IPC |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         error = "-" if row.error is None else f"{100 * row.error:+.1f}%"
+        insts = show(row.model_roi_instructions)
+        if not row.same_region:
+            insts += f" (RTL {row.rtl_roi_instructions})"
         lines.append(
             f"| `{row.microbenchmark}` | {show(row.model_roi_cycles)} "
-            f"| {show(row.rtl_roi_cycles)} | {error} | {row.model_cycles} "
-            f"| {format_delta(row)} | {row.ipc:.3f} |"
+            f"| {show(row.rtl_roi_cycles)} | {error} | {insts} "
+            f"| {row.model_cycles} | {format_delta(row)} | {row.ipc:.3f} |"
         )
 
-    errors = [abs(row.error) for row in rows if row.error is not None]
+    errors = [
+        abs(row.error)
+        for row in rows
+        if row.error is not None and row.same_region
+    ]
+    mismatched = [row.microbenchmark for row in rows if not row.same_region]
     changed = sum(format_delta(row) not in ("0", "new") for row in rows)
     lines.append("")
     if errors:
@@ -190,9 +247,14 @@ def render_markdown(
             f"{len(rows)} microbenchmarks."
         )
     else:
+        lines.append("**No RTL measurements** in microbenchmarks/rtl_m3.csv.")
+    if mismatched:
+        lines.append("")
         lines.append(
-            "**No RTL measurements yet** (microbenchmarks/rtl_cycles.yaml; "
-            "roadmap ticket B01)."
+            "**ROI instruction counts differ from the RTL** on "
+            + ", ".join(f"`{name}`" for name in mismatched)
+            + ", so their cycle counts measure different work; they are left "
+            "out of the mean."
         )
     lines.append("")
     lines.append(
@@ -218,10 +280,10 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="simulation config (default: configs/machines/m3.yaml)",
     )
     parser.add_argument(
-        "--rtl-cycles",
+        "--rtl",
         type=Path,
-        default=RTL_CYCLES,
-        help="RTL ROI cycles (default: microbenchmarks/rtl_cycles.yaml)",
+        default=RTL_RESULTS,
+        help="RTL measurements (default: microbenchmarks/rtl_m3.csv)",
     )
     parser.add_argument(
         "--baseline",
@@ -256,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
         json.loads(args.baseline.read_text()) if args.baseline.is_file() else {}
     )
     rows = correlate(
-        args.sim_config, load_rtl_cycles(args.rtl_cycles), baseline, args.jobs
+        args.sim_config, load_rtl_results(args.rtl), baseline, args.jobs
     )
     report = render_markdown(rows, args.title)
     args.out.mkdir(parents=True, exist_ok=True)

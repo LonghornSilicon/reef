@@ -92,9 +92,10 @@ void ReefSim::printSummary(std::ostream &OS) const {
      << getIPC(Insts, Cycles) << "\n"
      << "  taken branches/jumps: "
      << FrontendModule.getUnit()->getNumRedirects() << "\n";
-  const std::vector<uint64_t> &Reads = CoreModule.getMcycleReads();
+  const std::vector<McycleRead> &Reads = CoreModule.getMcycleReads();
   if (Reads.size() >= 2)
-    OS << "  ROI cycles (mcycle) : " << Reads.back() - Reads.front() << "\n";
+    OS << "  ROI cycles (mcycle) : "
+       << Reads.back().IssueCycle - Reads.front().IssueCycle << "\n";
   if (Insts != TheFuncSim->getNumExecuted())
     OS << "  WARNING: retired " << Insts << " but Spike executed "
        << TheFuncSim->getNumExecuted() << " instructions (model deadlock?)\n";
@@ -140,15 +141,19 @@ void ReefSim::writeJSON(std::ostream &OS) const {
      << ",\n";
   // The microbenchmarks read mcycle at the start and end of their region of
   // interest; the difference is what the RTL measures.
-  const std::vector<uint64_t> &Reads = CoreModule.getMcycleReads();
+  // ROI instructions exclude the two reads, as the RTL trace parser does.
+  const std::vector<McycleRead> &Reads = CoreModule.getMcycleReads();
   OS << "  \"mcycle_reads\": [";
   for (size_t Idx = 0; Idx < Reads.size(); ++Idx)
-    OS << (Idx ? ", " : "") << Reads[Idx];
+    OS << (Idx ? ", " : "") << Reads[Idx].IssueCycle;
   OS << "],\n";
   if (Reads.size() >= 2)
-    OS << "  \"roi_cycles\": " << Reads.back() - Reads.front() << ",\n";
+    OS << "  \"roi_cycles\": "
+       << Reads.back().IssueCycle - Reads.front().IssueCycle << ",\n"
+       << "  \"roi_instructions\": " << Reads.back().Seq - Reads.front().Seq - 1
+       << ",\n";
   else
-    OS << "  \"roi_cycles\": null,\n";
+    OS << "  \"roi_cycles\": null,\n  \"roi_instructions\": null,\n";
   OS << "  \"dispatch\": {\n"
      << "    \"cycles_with_dispatch\": " << CoreModule.getCyclesWithDispatch();
   constexpr auto NumReasons = static_cast<size_t>(StallReason::NumReasons);

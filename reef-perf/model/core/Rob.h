@@ -25,6 +25,14 @@
 
 namespace reef_perf {
 
+/// A retired instruction that read mcycle. The microbenchmarks read it at the
+/// start and end of their region of interest, so differences between reads
+/// are directly comparable with the RTL's.
+struct McycleRead {
+  uint64_t IssueCycle; ///< The cycle it read mcycle.
+  uint64_t Seq;        ///< Its dynamic instruction number.
+};
+
 /// The retirement buffer. Tree location: top.core.rob.
 class Rob : public sparta::Unit {
 public:
@@ -52,11 +60,8 @@ public:
   /// ends.
   uint64_t getLastRetireCycle() const { return LastRetireCycle; }
 
-  /// \returns the issue cycle of every retired `csrr ..., mcycle`, in program
-  /// order. The microbenchmarks read mcycle at the start and end of their
-  /// region of interest, so the difference is directly comparable with the
-  /// RTL's.
-  const std::vector<uint64_t> &getMcycleReads() const { return McycleReads; }
+  /// \returns every retired read of mcycle, in program order.
+  const std::vector<McycleRead> &getMcycleReads() const { return McycleReads; }
 
 private:
   void receiveInst(const InstRef &I);
@@ -67,7 +72,7 @@ private:
   const uint32_t RetireWidth;
   std::deque<InstRef> Entries; // Oldest first.
   uint64_t LastRetireCycle = 0;
-  std::vector<uint64_t> McycleReads;
+  std::vector<McycleRead> McycleReads;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

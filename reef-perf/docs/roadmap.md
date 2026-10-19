@@ -105,49 +105,26 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 
 ---
 
-#### B01: Measure the microbenchmarks on the M3 RTL
+#### B01: Measure the microbenchmarks on the M3 RTL — done
 
-**Why.** Correlation needs ground truth. Every microbenchmark brackets its main loop
-with `csrr s10, mcycle` … `csrr s11, mcycle`. On the RTL, the loop's cycle count
-is `s11 − s10`.
+Orhan Unuvar ran every microbenchmark on `rvv_core_mini_verification_axi_sim
+--instr_trace` (CoralNPU tag `M3-2026-04-27`, `--backdoor_load`). Every run
+reached `mpause`, and the ROI instruction counts and PC sequences match Spike.
+The results are in `microbenchmarks/rtl_m3.csv`; `rtl_trace.py` in the
+correlation experiment extracts them from a trace log:
 
-**Steps**
-1. In the M3 checkout (`git checkout M3-2026-04-27`), build the verification
-   simulator. It prints every retired instruction together with the value it
-   wrote:
-   ```
-   bazel build //tests/verilator_sim:rvv_core_mini_verification_axi_sim
-   ```
-   The build is heavy. Use `--jobs=4` on an 8 GB machine.
-2. Run each microbenchmark (the ELFs are in `reef-perf/build/microbenchmarks/` after
-   an experiment has run once):
-   ```
-   bazel-bin/tests/verilator_sim/rvv_core_mini_verification_axi_sim \
-     --binary <path>/<name>.elf --backdoor_load --instr_trace > <name>.log
-   ```
-3. Write `python/reef_perf/experiments/correlation/rtl_trace.py`, a library
-   module (no `main`). It finds the two `csrr` writes to `s10` (x26) and `s11`
-   (x27) in a log and returns `s11 − s10` and the number of instructions
-   retired in between. Add a unit test for it in `tests/python/unit/` using a
-   small sample log.
-4. Record each `s11 − s10` in `microbenchmarks/rtl_cycles.yaml`, with the RTL
-   commit and any notes in a comment beside it.
-5. For each microbenchmark, check that the retired-instruction count equals
-   the number of instructions Spike executes between the markers
-   (`reef_trace`). If they differ, Spike and the RTL disagree functionally.
-   Report it; don't fix it here.
+```
+bazel build //tests/verilator_sim:rvv_core_mini_verification_axi_sim
+bazel-bin/tests/verilator_sim/rvv_core_mini_verification_axi_sim \
+  --binary <path>/<name>.elf --backdoor_load --instr_trace > <name>.log
+```
 
-**Notes**
-- If a microbenchmark doesn't reach `mpause` on the RTL, look at what it does
-  differently: memory map, `mstatus` setup, or an instruction the RTL doesn't
-  support. Record it in `notes`.
-- Deviation M1 in deviations.md says the verification build should have the
-  same timing as the normal build at M3. As a spot check, also run 2–3
-  microbenchmarks on `rvv_core_mini_axi_sim` (no `--instr_trace`) and compare total
-  cycles.
+The ELFs are in `reef-perf/build/microbenchmarks/` after an experiment has run
+once. The build is heavy; use `--jobs=4` on an 8 GB machine. Deviation M1
+records the check that the verification build has production timing.
 
-**Done when** `rtl_cycles.yaml` has a number for every microbenchmark, and the
-extraction module and its test are committed.
+When a microbenchmark is added or changed, measure it the same way and update
+its row.
 
 ---
 
@@ -169,13 +146,13 @@ disagree on what runs between the markers.
 
 `python/reef_perf/experiments/correlation/` runs every microbenchmark and
 prints, per microbenchmark, the model's ROI cycles, the RTL's (from
-`microbenchmarks/rtl_cycles.yaml`), the error, total cycles and the change
-against a baseline, with the mean absolute error at the bottom. A GitHub
+`microbenchmarks/rtl_m3.csv`), the error, both sides' ROI instruction counts,
+total cycles and the change against a baseline, with the mean absolute error at the bottom. A GitHub
 workflow runs it on every push to a PR that changes `reef-perf/` and posts the
 table as a PR comment, so every model PR shows its before/after automatically.
 
-Still open: the error column fills in as B01 lands RTL numbers; a top-stall
-column and a per-microbenchmark plot are welcome additions.
+Still open: a top-stall column and a per-microbenchmark plot are welcome
+additions.
 
 ---
 

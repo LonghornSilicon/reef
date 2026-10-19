@@ -68,7 +68,7 @@ reef-perf/
   tools/reef_trace/      prints Spike's instruction stream
   python/reef_perf/      runs the simulator, assembles microbenchmarks
     experiments/         sweep, correlation (the only standalone Python)
-  microbenchmarks/       assembly programs, plus RTL cycle counts (rtl_cycles.yaml)
+  microbenchmarks/       assembly programs, plus their M3 RTL results (rtl_m3.csv)
   configs/machines/      simulation configs: the machine being simulated (m3.yaml)
   tests/cpp/<module>/    Google Test
   tests/python/          pytest: unit/, integration/, experiments/
@@ -273,6 +273,10 @@ with `NOLINT`; and the standard library is used instead of LLVM's ADT.
 - Cover new C++ behavior with Google Test cases in `tests/cpp/<module>/`
   (`NameTest.cpp`), and new Python behavior with pytest cases in
   `tests/python/{unit,integration}/`.
+- Don't declare copy or move constructors and assignments unless the
+  implicit ones would be wrong, for example in a class that hands out
+  pointers to its own members (`FuncSim`). Then delete just the copy pair,
+  with a comment saying why; that also rules out moves.
 - Document public declarations briefly with `///` (`\p Name` for parameters,
   `\returns` for results). Use plain `//` comments elsewhere, and only where
   the code is not obvious.
