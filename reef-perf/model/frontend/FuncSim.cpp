@@ -71,26 +71,27 @@ static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
   return Header.e_entry;
 }
 
-/// Converts Spike's register-write log to ascending scoreboard ids. Spike keys
+/// Converts Spike's register-write log to registers, in ascending order. Spike
+/// keys
 /// each entry as (register << 4) | type: 0 integer, 1 FP, 2 vector, 3 vector
 /// hint, 4 CSR (riscv/decode_macros.h). x0, hints and CSRs are dropped.
-static std::vector<uint16_t> getWrittenRegs(const commit_log_reg_t &Log) {
+static std::vector<RegId> getWrittenRegs(const commit_log_reg_t &Log) {
   constexpr reg_t TypeX = 0;
   constexpr reg_t TypeF = 1;
   constexpr reg_t TypeV = 2;
-  std::vector<uint16_t> Ids;
+  std::vector<RegId> Regs;
   for (const auto &Entry : Log) {
     reg_t Type = Entry.first & 0xf;
     reg_t Reg = Entry.first >> 4;
     if (Type == TypeX && Reg != 0)
-      Ids.push_back(static_cast<uint16_t>(XBase + Reg));
+      Regs.push_back(RegId::x(Reg));
     else if (Type == TypeF)
-      Ids.push_back(static_cast<uint16_t>(FBase + Reg));
+      Regs.push_back(RegId::f(Reg));
     else if (Type == TypeV)
-      Ids.push_back(static_cast<uint16_t>(VBase + Reg));
+      Regs.push_back(RegId::v(Reg));
   }
-  std::ranges::sort(Ids); // The log is ordered by Spike's key, not by id.
-  return Ids;
+  std::ranges::sort(Regs); // The log is ordered by Spike's key.
+  return Regs;
 }
 
 FuncSim::FlatMemory::FlatMemory(const std::vector<MemoryRegion> &Regions,

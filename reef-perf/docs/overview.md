@@ -399,7 +399,7 @@ reef-perf/
   tests/python/                 pytest: unit/, integration/, experiments/
   tests/golden/                 expected cycle counts
   scripts/                      build_deps.sh, lint.sh, check_cpp.sh, check_style.sh
-  docs/                         overview, interfaces, roadmap, deviation register
+  docs/                         overview, interfaces, topdown, roadmap, deviation register
   ext/                          spike, map (Sparta), yaml-cpp (git submodules)
 ```
 

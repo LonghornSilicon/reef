@@ -20,10 +20,10 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
 void Matrix::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
 
 void Matrix::receiveInst(const InstRef &I) {
-  uint64_t Now = getClock()->currentCycle();
+  Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
 
-  uint64_t Start = Engines.reserve(Now, Occupancy);
+  Cycle Start = Engines.reserve(Now, Occupancy);
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Latency - 1;
   I->CompleteCycle = Start + Latency;

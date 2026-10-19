@@ -11,7 +11,7 @@
 
 using namespace reef_perf;
 
-using Regs = std::vector<uint16_t>;
+using Regs = std::vector<RegId>;
 
 /// Decodes \p Encoding / \p Disasm with LMUL x 8 = \p LMUL8.
 static Inst decode(uint32_t Encoding, const std::string &Disasm,
@@ -24,9 +24,9 @@ static Inst decode(uint32_t Encoding, const std::string &Disasm,
   return I;
 }
 
-static constexpr uint16_t x(uint16_t Reg) { return XBase + Reg; }
-static constexpr uint16_t f(uint16_t Reg) { return FBase + Reg; }
-static constexpr uint16_t v(uint16_t Reg) { return VBase + Reg; }
+static constexpr RegId x(unsigned Reg) { return RegId::x(Reg); }
+static constexpr RegId f(unsigned Reg) { return RegId::f(Reg); }
+static constexpr RegId v(unsigned Reg) { return RegId::v(Reg); }
 
 namespace {
 

@@ -10,6 +10,8 @@
 #ifndef REEF_PERF_COMMON_MEMORYMAP_H
 #define REEF_PERF_COMMON_MEMORYMAP_H
 
+#include "common/Types.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -24,12 +26,12 @@ enum class RegionKind : uint8_t {
 
 /// A contiguous range of physical memory.
 struct MemoryRegion {
-  uint32_t Start = 0;                     ///< First byte address.
+  Address Start = 0;                      ///< First byte address.
   uint32_t Length = 0;                    ///< Size in bytes.
   RegionKind Kind = RegionKind::External; ///< What it is; Spike ignores it.
 
   /// \returns true if Start <= \p Addr < Start + Length.
-  bool contains(uint32_t Addr) const {
+  bool contains(Address Addr) const {
     return Addr >= Start && Addr - Start < Length;
   }
 };

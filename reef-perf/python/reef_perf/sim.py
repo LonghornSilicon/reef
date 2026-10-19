@@ -79,6 +79,8 @@ class SimResult:
         dispatch: Dispatch counters: cycles_with_dispatch and one
             stall_<reason> entry per stall reason.
         pools: Per execution resource: units, ops and busy_cycles.
+        topdown: Where the dispatch slots went, as the simulator reports it;
+            reef_perf.topdown turns it into a tree.
     """
 
     program: str
@@ -92,6 +94,7 @@ class SimResult:
     roi_instructions: int | None
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
+    topdown: dict[str, Any]
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -124,6 +127,7 @@ class SimResult:
                 name: {k: int(v) for k, v in counters.items()}
                 for name, counters in data["pools"].items()
             },
+            topdown=dict(data["topdown"]),
         )
 
     def to_json(self) -> dict[str, Any]:

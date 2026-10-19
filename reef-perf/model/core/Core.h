@@ -63,13 +63,16 @@ public:
 
   /// \returns the cycle of the last retirement: total cycles once the run
   /// ends.
-  uint64_t getLastRetireCycle() const;
+  Cycle getLastRetireCycle() const;
 
   /// \returns the cycles in which at least one instruction dispatched.
   uint64_t getCyclesWithDispatch() const;
 
   /// \returns the cycles in which nothing dispatched, blamed on \p Reason.
   uint64_t getStallCycles(StallReason Reason) const;
+
+  /// \returns where the dispatch slots went (top-down analysis).
+  const TopDownSlots &getTopDownSlots() const;
 
   /// \returns every retired read of mcycle, in program order.
   const std::vector<McycleRead> &getMcycleReads() const;

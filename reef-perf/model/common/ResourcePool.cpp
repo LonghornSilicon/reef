@@ -17,13 +17,13 @@ ResourcePool::ResourcePool(std::string Name, uint32_t Count)
                                 "' needs at least one unit");
 }
 
-uint64_t ResourcePool::getNextFree(uint64_t Earliest) const {
+Cycle ResourcePool::getNextFree(Cycle Earliest) const {
   return std::max(Earliest, *std::ranges::min_element(FreeAt));
 }
 
-uint64_t ResourcePool::reserve(uint64_t Earliest, uint64_t Occupancy) {
+Cycle ResourcePool::reserve(Cycle Earliest, uint64_t Occupancy) {
   auto Unit = std::ranges::min_element(FreeAt);
-  uint64_t Start = std::max(Earliest, *Unit);
+  Cycle Start = std::max(Earliest, *Unit);
   *Unit = Start + Occupancy;
   ++Ops;
   BusyCycles += Occupancy;

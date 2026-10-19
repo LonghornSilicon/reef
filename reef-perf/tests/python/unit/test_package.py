@@ -19,10 +19,12 @@ def test_package_is_importable() -> None:
     "module",
     [
         "reef_perf.microbenchmarks",
+        "reef_perf.topdown",
         "reef_perf.experiments.sweep.main",
         "reef_perf.experiments.sweep.sweep",
         "reef_perf.experiments.sweep.plot",
         "reef_perf.experiments.correlation.main",
+        "reef_perf.experiments.topdown.main",
     ],
 )
 def test_module_imports(module: str) -> None:

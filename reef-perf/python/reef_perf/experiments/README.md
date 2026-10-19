@@ -19,4 +19,5 @@ belongs in the `reef_perf` package itself.
 | Experiment | What it does |
 | --- | --- |
 | [`sweep`](sweep/README.md) | Runs microbenchmarks under parameter variants and records cycles, IPC and stall breakdowns. |
+| [`topdown`](topdown/README.md) | Top-down analysis: where each microbenchmark's dispatch slots went ([docs/topdown.md](../../../docs/topdown.md)). |
 | [`correlation`](correlation/README.md) | Compares the model's ROI cycles with the M3 RTL; the PR bot posts its report. |

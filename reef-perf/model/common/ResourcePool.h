@@ -10,6 +10,8 @@
 #ifndef REEF_PERF_COMMON_RESOURCEPOOL_H
 #define REEF_PERF_COMMON_RESOURCEPOOL_H
 
+#include "common/Types.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -25,11 +27,11 @@ public:
 
   /// Books the earliest-free unit for \p Occupancy cycles, starting no
   /// earlier than \p Earliest. \returns the start cycle.
-  uint64_t reserve(uint64_t Earliest, uint64_t Occupancy);
+  Cycle reserve(Cycle Earliest, uint64_t Occupancy);
 
   /// \returns the cycle reserve() would start an operation that may begin at
   /// \p Earliest, without booking anything.
-  uint64_t getNextFree(uint64_t Earliest) const;
+  Cycle getNextFree(Cycle Earliest) const;
 
   /// \returns the pool's name.
   const std::string &getName() const { return Name; }
@@ -45,7 +47,7 @@ public:
 
 private:
   std::string Name;
-  std::vector<uint64_t> FreeAt; // Per unit: the first cycle it is free.
+  std::vector<Cycle> FreeAt; // Per unit: the first cycle it is free.
   uint64_t Ops = 0;
   uint64_t BusyCycles = 0;
 };

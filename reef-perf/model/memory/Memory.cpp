@@ -16,7 +16,7 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
           Params->axi_max_outstanding) {}
 
-RegionKind Memory::getRegionKind(uint32_t Addr) const {
+RegionKind Memory::getRegionKind(Address Addr) const {
   for (const MemoryRegion &Region : Regions)
     if (Region.contains(Addr))
       return Region.Kind;

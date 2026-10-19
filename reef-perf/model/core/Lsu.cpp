@@ -21,7 +21,7 @@ void Lsu::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
 
 void Lsu::receiveInst(const InstRef &I) {
   sparta_assert(Mem, "memory was not connected to the LSU");
-  uint64_t Now = getClock()->currentCycle();
+  Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
 
   MemRequest Request;
@@ -30,7 +30,7 @@ void Lsu::receiveInst(const InstRef &I) {
   Request.Earliest = Slot.getNextFree(Now);
   MemResponse Response = Mem->access(Request);
 
-  uint64_t Start = Slot.reserve(Response.Start, Response.Occupancy);
+  Cycle Start = Slot.reserve(Response.Start, Response.Occupancy);
   sparta_assert(Start == Response.Start, "LSU slot busy at the memory's start");
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Response.Latency - 1;

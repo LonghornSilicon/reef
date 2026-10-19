@@ -17,6 +17,7 @@ include(GoogleTest)
 set(REEF_PERF_TESTS
     common/InterfacesTest
     common/ResourcePoolTest
+    common/TypesTest
     frontend/InstDecodeTest
     memory/MemTimingTest
     vector/VectorTest

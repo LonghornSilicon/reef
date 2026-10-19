@@ -32,7 +32,7 @@ TcmModel::TcmModel(std::string Name, uint32_t Latency, uint32_t LineBytes,
       Port(std::move(Name), 1) {}
 
 MemResponse TcmModel::access(std::span<const MemAccess> Accesses,
-                             uint64_t Earliest) {
+                             Cycle Earliest) {
   MemResponse Response;
   Response.Occupancy =
       static_cast<uint64_t>(countDistinctBlocks(Accesses, LineBytes)) *
@@ -48,7 +48,7 @@ AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
       Outstanding("axi_outstanding", MaxOutstanding) {}
 
 MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
-                             uint64_t Earliest) {
+                             Cycle Earliest) {
   MemResponse Response;
   Response.Occupancy = countDistinctBlocks(Accesses, BytesPerBeat);
   Response.Latency = Latency + Response.Occupancy - 1;

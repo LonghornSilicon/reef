@@ -32,10 +32,10 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
 void Vector::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
 
 void Vector::receiveInst(const InstRef &I) {
-  uint64_t Now = getClock()->currentCycle();
+  Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
 
-  uint64_t Start = Now;
+  Cycle Start = Now;
   uint64_t InstLatency = VsetLatency;
   if (I->Class != InstClass::VSET) {
     bool Divide = I->Class == InstClass::V_DIV || I->Class == InstClass::V_FDIV;

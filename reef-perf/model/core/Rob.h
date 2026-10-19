@@ -29,8 +29,8 @@ namespace reef_perf {
 /// start and end of their region of interest, so differences between reads
 /// are directly comparable with the RTL's.
 struct McycleRead {
-  uint64_t IssueCycle; ///< The cycle it read mcycle.
-  uint64_t Seq;        ///< Its dynamic instruction number.
+  Cycle IssueCycle; ///< The cycle it read mcycle.
+  uint64_t Seq;     ///< Its dynamic instruction number.
 };
 
 /// The retirement buffer. Tree location: top.core.rob.
@@ -58,7 +58,12 @@ public:
 
   /// \returns the cycle of the last retirement: total cycles once the run
   /// ends.
-  uint64_t getLastRetireCycle() const { return LastRetireCycle; }
+  Cycle getLastRetireCycle() const { return LastRetireCycle; }
+
+  /// \returns the oldest instruction not yet retired, or nullptr.
+  InstRef getOldest() const {
+    return Entries.empty() ? nullptr : Entries.front();
+  }
 
   /// \returns every retired read of mcycle, in program order.
   const std::vector<McycleRead> &getMcycleReads() const { return McycleReads; }
@@ -71,7 +76,7 @@ private:
   const uint32_t RobEntries;
   const uint32_t RetireWidth;
   std::deque<InstRef> Entries; // Oldest first.
-  uint64_t LastRetireCycle = 0;
+  Cycle LastRetireCycle = 0;
   std::vector<McycleRead> McycleReads;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};

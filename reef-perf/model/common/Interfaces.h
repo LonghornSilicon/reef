@@ -10,7 +10,9 @@
 #define REEF_PERF_COMMON_INTERFACES_H
 
 #include "common/Inst.h"
+#include "common/Types.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 
@@ -30,12 +32,12 @@ struct MemRequest {
   /// one DTCM line.
   std::span<const MemAccess> Accesses;
   /// First cycle the operation may start (the requester's port is free).
-  uint64_t Earliest = 0;
+  Cycle Earliest = 0;
 };
 
 /// The memory module's answer to a MemRequest.
 struct MemResponse {
-  uint64_t Start = 0;     ///< Cycle the transfer starts (>= Earliest).
+  Cycle Start = 0;        ///< Cycle the transfer starts (>= Earliest).
   uint64_t Occupancy = 1; ///< Cycles the requester's port stays busy.
   /// Cycles from Start until the data can be used or the write is done.
   uint64_t Latency = 1;
@@ -53,6 +55,28 @@ public:
   virtual MemResponse access(const MemRequest &Request) = 0;
 };
 
+/// Why the frontend had no instruction for the core in a cycle, for top-down
+/// accounting (docs/topdown.md).
+enum class FrontendStall : uint8_t {
+  BranchResteer,  ///< Refetching after a taken branch, jump or trap.
+  FetchBandwidth, ///< Fetch hasn't caught up (width, interval, latency).
+  NumStalls       ///< Number of reasons (not a reason).
+};
+
+/// \returns the name of \p Stall in statistics and JSON, e.g.
+/// "branch_resteer".
+inline const char *getFrontendStallName(FrontendStall Stall) {
+  switch (Stall) {
+  case FrontendStall::BranchResteer:
+    return "branch_resteer";
+  case FrontendStall::FetchBandwidth:
+    return "fetch_bandwidth";
+  case FrontendStall::NumStalls:
+    break;
+  }
+  return "unknown";
+}
+
 /// The frontend's instruction buffer as the core sees it. Synchronous,
 /// like MemoryInterface: the core looks at the oldest instruction and
 /// takes it. To match a one-cycle hand-off in each direction, an instruction
@@ -64,14 +88,17 @@ public:
 
   /// \returns the oldest instruction the core may take at cycle \p Now, or
   /// nullptr if there is none yet.
-  virtual InstRef peek(uint64_t Now) const = 0;
+  virtual InstRef peek(Cycle Now) const = 0;
 
   /// Removes the instruction peek(\p Now) returned; the core took it.
-  virtual void pop(uint64_t Now) = 0;
+  virtual void pop(Cycle Now) = 0;
 
   /// \returns true once the program is fully fetched, as seen at cycle \p Now,
   /// and every instruction has been taken.
-  virtual bool isDrained(uint64_t Now) const = 0;
+  virtual bool isDrained(Cycle Now) const = 0;
+
+  /// \returns why peek(\p Now) found nothing.
+  virtual FrontendStall getStall(Cycle Now) const = 0;
 };
 
 /// The unit that executes an instruction, and so writes its issue,
@@ -82,6 +109,9 @@ enum class ExecTarget : uint8_t {
   Vector, ///< vector: vector arithmetic and vset*.
   Matrix  ///< matrix: matrix-engine ops.
 };
+
+/// Number of ExecTarget values.
+constexpr size_t NumExecTargets = 4;
 
 /// \returns the unit that executes \p I. Vector memory ops go to the LSU: on
 /// M3 one LSU serves both the scalar core and the RVV backend.

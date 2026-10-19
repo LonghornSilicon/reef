@@ -17,6 +17,8 @@
 ///
 /// Every cycle in which nothing dispatches is charged to exactly one stall
 /// reason, so the stall counters add up to cycles - cycles_with_dispatch.
+/// Separately, every dispatch slot (dispatch_width per cycle) is charged to
+/// one top-down category (TopDownSlots, docs/topdown.md).
 ///
 //===----------------------------------------------------------------------===//
 
@@ -55,6 +57,35 @@ enum class StallReason : uint8_t {
 /// \returns the name of \p Reason in statistics and JSON, e.g. "raw_hazard".
 const char *getStallReasonName(StallReason Reason);
 
+/// \returns the top-down name of the backend part \p Target stands for:
+/// "core" (scalar execution), "memory" (the LSU and memory), "vector" or
+/// "matrix".
+const char *getBoundName(ExecTarget Target);
+
+/// Where the dispatch slots went: each cycle has `dispatch_width` slots, and
+/// each slot is charged to exactly one counter here (docs/topdown.md).
+struct TopDownSlots {
+  /// Number of FrontendStall values.
+  static constexpr size_t NumFrontend =
+      static_cast<size_t>(FrontendStall::NumStalls);
+  /// Number of StallReason values.
+  static constexpr size_t NumReasons =
+      static_cast<size_t>(StallReason::NumReasons);
+
+  uint32_t Width = 0;    ///< Slots per cycle (dispatch_width).
+  uint64_t Retiring = 0; ///< Slots an instruction dispatched in.
+  /// Slots with nothing to dispatch, by FrontendStall.
+  std::array<uint64_t, NumFrontend> Frontend{};
+  /// Slots blocked behind an instruction, by the ExecTarget responsible and
+  /// the StallReason.
+  std::array<std::array<uint64_t, NumReasons>, NumExecTargets> Backend{};
+
+  /// \returns all slots counted so far.
+  uint64_t getTotal() const;
+};
+
+class Rob;
+
 /// The dispatch unit. Tree location: top.core.dispatch.
 class Dispatch : public sparta::Unit {
 public:
@@ -79,6 +110,13 @@ public:
   /// the unit.
   void setInstBuffer(InstBufferInterface *Buffer) { Frontend = Buffer; }
 
+  /// Connects the Rob \p R, so a full Rob can be blamed on what its oldest
+  /// instruction waits for.
+  void setRob(const Rob *R) { TheRob = R; }
+
+  /// \returns where the dispatch slots went.
+  const TopDownSlots &getTopDownSlots() const { return Slots; }
+
   /// \returns the cycles in which at least one instruction dispatched.
   uint64_t getCyclesWithDispatch() const { return CyclesWithDispatch.get(); }
 
@@ -96,16 +134,20 @@ private:
 
   void dispatchGroup();
   void scheduleDispatch();
-  /// \returns true if \p I can dispatch at \p Now; otherwise sets \p Why.
-  bool canDispatch(const InstRef &I, uint64_t Now, StallReason &Why) const;
+  /// \returns true if \p I can dispatch at \p Now; otherwise sets \p Why and
+  /// \p Blamed, the unit whose work holds \p I up.
+  bool canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
+                   ExecTarget &Blamed) const;
   /// Sends \p I to the unit that executes it and spends that unit's credit.
   void sendToTarget(const InstRef &I);
 
   const uint32_t DispatchWidth;
 
   InstBufferInterface *Frontend = nullptr;
+  const Rob *TheRob = nullptr;
+  TopDownSlots Slots;
   // Scoreboard: the in-flight instruction that last wrote each register.
-  std::array<InstRef, NumRegs> LastWriter{};
+  std::array<InstRef, RegId::NumDense> LastWriter{};
 
   uint32_t RobCredits = 0;
   uint32_t LsuCredits = 0;
