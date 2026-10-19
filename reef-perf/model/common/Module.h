@@ -36,11 +36,7 @@ public:
   /// Creates a module whose tree node is top.\p Name.
   Module(std::string Name, std::string Description)
       : Name(std::move(Name)), Description(std::move(Description)) {}
-  virtual ~Module() = default;                ///< Holds no tree state.
-  Module(const Module &) = delete;            ///< Not copyable.
-  Module &operator=(const Module &) = delete; ///< Not copyable.
-  Module(Module &&) = delete;                 ///< Not movable.
-  Module &operator=(Module &&) = delete;      ///< Not movable.
+  virtual ~Module() = default; ///< Holds no tree state.
 
   /// \returns the tree node name, e.g. "core".
   const std::string &getName() const { return Name; }

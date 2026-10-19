@@ -43,11 +43,7 @@ public:
   /// \throws std::runtime_error if the ELF cannot be loaded.
   ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
           const SpikeOptions &Options);
-  ~ReefSim() override;                          ///< Tears down the tree.
-  ReefSim(const ReefSim &) = delete;            ///< Not copyable.
-  ReefSim &operator=(const ReefSim &) = delete; ///< Not copyable.
-  ReefSim(ReefSim &&) = delete;                 ///< Not movable.
-  ReefSim &operator=(ReefSim &&) = delete;      ///< Not movable.
+  ~ReefSim() override; ///< Tears down the tree.
 
   /// Writes the human-readable end-of-run summary to \p OS.
   void printSummary(std::ostream &OS) const;

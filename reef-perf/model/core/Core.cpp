@@ -77,6 +77,6 @@ uint64_t Core::getStallCycles(StallReason Reason) const {
   return TheDispatch->getStallCycles(Reason);
 }
 
-const std::vector<uint64_t> &Core::getMcycleReads() const {
+const std::vector<McycleRead> &Core::getMcycleReads() const {
   return TheRob->getMcycleReads();
 }

@@ -1,12 +1,14 @@
 # Microbenchmarks
 
 Small assembly programs, each stressing one feature, plus `gemv_int8`, a
-kernel shaped like LLM decode. They link to the Reef M3 default memory map (code at `0x0`, data at `0x10000`) and end with
-`mpause`, so the same ELF runs on the simulator and on the M3 RTL simulator.
+kernel shaped like LLM decode. They link to the Reef M3 default memory map
+(code at `0x0`, data at `0x10000`) and end with `mpause`, so the same ELF runs
+on the simulator and on the M3 RTL simulator.
 Each loop is bracketed by `csrr mcycle` into `s10`/`s11`, so its RTL cycle
 count is `s11 - s10`; the model reports the same difference as `roi_cycles`.
-`rtl_cycles.yaml` holds the measured RTL numbers that the correlation
-experiment compares against.
+`rtl_m3.csv` holds each microbenchmark's ROI cycles and instruction count on
+the M3 RTL (roadmap ticket B01), which the correlation experiment compares
+against.
 
 | Microbenchmark | Stresses |
 | --- | --- |
@@ -18,8 +20,8 @@ experiment compares against.
 | `vec_add_m1`, `vec_add_m4`, `vec_memcpy` | Vector ALU and vector memory at different LMUL |
 | `gemv_int8` | int8 matrix-vector product (widening multiply + reduction) |
 
-To add one, drop a `<name>.S` file here that uses `common.inc`, and add it to
-`rtl_cycles.yaml`. The tests, experiments and golden file pick it up
+To add one, drop a `<name>.S` file here that uses `common.inc`, measure it on
+the RTL and add its row to `rtl_m3.csv`. The tests, experiments and golden file pick it up
 automatically (regenerate the golden file, see
 `tests/python/integration/test_golden.py`).
 

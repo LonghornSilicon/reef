@@ -6,9 +6,11 @@
 #include "sparta/utils/SpartaAssert.hpp"
 
 #include <cstdint>
-#include <string>
 
 using namespace reef_perf;
+
+/// CSR number of mcycle.
+static constexpr uint32_t McycleCsr = 0xB00;
 
 Rob::Rob(sparta::TreeNode *Node, const RobParameterSet *Params)
     : sparta::Unit(Node, name), RobEntries(Params->rob_entries),
@@ -35,9 +37,8 @@ void Rob::retireInsts() {
     const InstRef &Head = Entries.front();
     Head->RetireCycle = Now;
     LastRetireCycle = Now;
-    if (Head->Class == InstClass::CSR &&
-        Head->Disasm.find("mcycle") != std::string::npos)
-      McycleReads.push_back(Head->IssueCycle);
+    if (Head->Class == InstClass::CSR && (Head->Encoding >> 20) == McycleCsr)
+      McycleReads.push_back({Head->IssueCycle, Head->Seq});
     Entries.pop_front();
     ++Count;
   }

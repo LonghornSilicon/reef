@@ -49,12 +49,10 @@ public:
   /// Loads the 32-bit RISC-V ELF \p ElfPath into a machine configured by
   /// \p Options. \throws std::runtime_error if the ELF cannot be loaded.
   FuncSim(const std::string &ElfPath, const SpikeOptions &Options);
-  /// Not copyable or movable: Spike's processor points into Config and Mem.
+  /// Not copyable, and so not movable: Spike's processor points into Config
+  /// and Mem, which a copy or move would leave behind.
   FuncSim(const FuncSim &) = delete;
   FuncSim &operator=(const FuncSim &) = delete; ///< Not copyable.
-  FuncSim(FuncSim &&) = delete;                 ///< Not movable.
-  FuncSim &operator=(FuncSim &&) = delete;      ///< Not movable.
-  ~FuncSim() = default;                         ///< Releases Spike.
 
   /// Executes and decodes the next instruction. `mpause` is reported but not
   /// executed, and ends the program.

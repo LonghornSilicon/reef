@@ -6,7 +6,10 @@ RTL and with a baseline:
 - **ROI cycles.** Each microbenchmark reads `mcycle` before and after its loop
   (`ROI_BEGIN`/`ROI_END` in `microbenchmarks/common.inc`). The model reports
   the cycles between the two reads as `roi_cycles`; the RTL numbers are in
-  `microbenchmarks/rtl_cycles.yaml`. Error is (model − RTL) / RTL.
+  `microbenchmarks/rtl_m3.csv`. Error is (model - RTL) / RTL.
+- **ROI instructions.** Both sides also count the instructions retired
+  between the reads. If they differ, the two cycle counts measure different
+  work: the report flags the row and leaves it out of the mean error.
 - **Δ cycles.** The change in total model cycles against a baseline in the
   golden-file format, `tests/golden/m3_results.json` by default.
 
@@ -33,8 +36,10 @@ PRs from forks, whose token can't comment).
 The bot only reports; the golden test (`tests/python/integration/test_golden.py`)
 is what fails when timing changes without the golden file being updated.
 
-## Adding RTL numbers
+## RTL numbers
 
-Measure a microbenchmark on the M3 RTL simulator (roadmap ticket B01) and
-replace its `null` in `microbenchmarks/rtl_cycles.yaml` with `s11 - s10`,
-noting the RTL commit next to the value.
+`microbenchmarks/rtl_m3.csv` comes from `rvv_core_mini_verification_axi_sim
+--instr_trace` at CoralNPU tag `M3-2026-04-27` (roadmap ticket B01).
+`rtl_trace.py` reads a trace log and returns the ROI cycles
+(`s11 - s10`) and the instructions retired in between; see B01 in
+`docs/roadmap.md` for the commands.

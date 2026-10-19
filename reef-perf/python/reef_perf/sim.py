@@ -74,6 +74,8 @@ class SimResult:
         mcycle_reads: Issue cycle of every `csrr ..., mcycle`, in order.
         roi_cycles: Cycles between the first and last mcycle read (the
             microbenchmark's region of interest), or None with fewer than two.
+        roi_instructions: Instructions retired between those two reads, or
+            None with fewer than two.
         dispatch: Dispatch counters: cycles_with_dispatch and one
             stall_<reason> entry per stall reason.
         pools: Per execution resource: units, ops and busy_cycles.
@@ -87,6 +89,7 @@ class SimResult:
     taken_redirects: int
     mcycle_reads: list[int]
     roi_cycles: int | None
+    roi_instructions: int | None
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
 
@@ -110,6 +113,11 @@ class SimResult:
             mcycle_reads=[int(c) for c in data["mcycle_reads"]],
             roi_cycles=(
                 None if data["roi_cycles"] is None else int(data["roi_cycles"])
+            ),
+            roi_instructions=(
+                None
+                if data["roi_instructions"] is None
+                else int(data["roi_instructions"])
             ),
             dispatch={k: int(v) for k, v in data["dispatch"].items()},
             pools={

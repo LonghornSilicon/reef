@@ -14,6 +14,7 @@
 #include "common/Module.h"
 #include "common/ResourcePool.h"
 #include "core/Dispatch.h"
+#include "core/Rob.h"
 
 #include <cstdint>
 #include <string>
@@ -22,7 +23,6 @@
 namespace reef_perf {
 
 class Lsu;
-class Rob;
 class ScalarExec;
 
 /// The core module. Units: dispatch, scalar_exec, lsu, rob.
@@ -71,8 +71,8 @@ public:
   /// \returns the cycles in which nothing dispatched, blamed on \p Reason.
   uint64_t getStallCycles(StallReason Reason) const;
 
-  /// \returns the issue cycles of the retired `csrr ..., mcycle` reads.
-  const std::vector<uint64_t> &getMcycleReads() const;
+  /// \returns every retired read of mcycle, in program order.
+  const std::vector<McycleRead> &getMcycleReads() const;
 
 protected:
   /// \returns {"dispatch", "scalar_exec", "lsu", "rob"}.
