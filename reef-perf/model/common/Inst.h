@@ -11,6 +11,8 @@
 #ifndef REEF_PERF_COMMON_INST_H
 #define REEF_PERF_COMMON_INST_H
 
+#include "common/Types.h"
+
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -55,15 +57,9 @@ enum class InstClass : uint8_t {
 /// \returns the short lower-case name of \p Class, e.g. "alu" or "v_load".
 const char *getClassName(InstClass Class);
 
-// Scoreboard ids: one numbering across the three register files.
-constexpr uint16_t XBase = 0;    ///< Scoreboard id of x0.
-constexpr uint16_t FBase = 32;   ///< Scoreboard id of f0.
-constexpr uint16_t VBase = 64;   ///< Scoreboard id of v0.
-constexpr uint16_t NumRegs = 96; ///< Number of scoreboard ids.
-
 /// One memory access performed by an instruction.
 struct MemAccess {
-  uint32_t Addr = 0;    ///< Byte address.
+  Address Addr = 0;     ///< Byte address.
   uint8_t Size = 0;     ///< Size in bytes.
   bool IsStore = false; ///< True for a store.
 };
@@ -71,11 +67,11 @@ struct MemAccess {
 /// One dynamic instruction and its progress through the timing model.
 struct Inst {
   /// Marks a timing field that has not been set yet.
-  static constexpr uint64_t Never = std::numeric_limits<uint64_t>::max();
+  static constexpr Cycle Never = std::numeric_limits<Cycle>::max();
 
   uint64_t Seq = 0;           ///< 0-based dynamic instruction number.
-  uint32_t PC = 0;            ///< Address of the instruction.
-  uint32_t NextPC = 0;        ///< Address executed next (branch outcome).
+  Address PC = 0;             ///< Address of the instruction.
+  Address NextPC = 0;         ///< Address executed next (branch outcome).
   uint32_t Encoding = 0;      ///< Raw 32-bit instruction word.
   std::string Disasm;         ///< Spike's disassembly.
   std::string Mnemonic;       ///< First token of Disasm, e.g. "addi".
@@ -84,15 +80,15 @@ struct Inst {
   uint8_t SEWBytes = 1;       ///< Selected element width in bytes.
   uint8_t LMUL8 = 8;          ///< LMUL x 8 (LMUL=1 is 8, 1/2 is 4).
   InstClass Class = InstClass::UNKNOWN; ///< Coarse class.
-  std::vector<uint16_t> Srcs;           ///< Registers read (no x0).
-  std::vector<uint16_t> Dsts;           ///< Registers written (no x0).
+  std::vector<RegId> Srcs;              ///< Registers read (no x0).
+  std::vector<RegId> Dsts;              ///< Registers written (no x0).
 
-  uint64_t FetchCycle = 0;           ///< Cycle it was fetched.
-  uint64_t DispatchCycle = 0;        ///< Cycle it was dispatched.
-  uint64_t IssueCycle = 0;           ///< Cycle its execution started.
-  uint64_t ResultReadyCycle = Never; ///< First cycle a dependent may dispatch.
-  uint64_t CompleteCycle = Never;    ///< First cycle it may retire.
-  uint64_t RetireCycle = 0;          ///< Cycle it retired.
+  Cycle FetchCycle = 0;           ///< Cycle it was fetched.
+  Cycle DispatchCycle = 0;        ///< Cycle it was dispatched.
+  Cycle IssueCycle = 0;           ///< Cycle its execution started.
+  Cycle ResultReadyCycle = Never; ///< First cycle a dependent may dispatch.
+  Cycle CompleteCycle = Never;    ///< First cycle it may retire.
+  Cycle RetireCycle = 0;          ///< Cycle it retired.
 
   /// \returns true for a taken branch, a jump or a trap.
   bool isRedirect() const { return NextPC != PC + 4; }

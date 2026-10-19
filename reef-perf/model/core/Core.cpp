@@ -48,6 +48,7 @@ void Core::bind() {
   TheScalarExec = getChildUnit<ScalarExec>(ScalarExec::name);
   TheLsu = getChildUnit<Lsu>(Lsu::name);
   TheRob = getChildUnit<Rob>(Rob::name);
+  TheDispatch->setRob(TheRob);
 }
 
 void Core::setMemory(MemoryInterface *Mem) { TheLsu->setMemory(Mem); }
@@ -65,9 +66,7 @@ std::vector<const ResourcePool *> Core::getPools() const {
 
 uint64_t Core::getNumRetired() const { return TheRob->getNumRetired(); }
 
-uint64_t Core::getLastRetireCycle() const {
-  return TheRob->getLastRetireCycle();
-}
+Cycle Core::getLastRetireCycle() const { return TheRob->getLastRetireCycle(); }
 
 uint64_t Core::getCyclesWithDispatch() const {
   return TheDispatch->getCyclesWithDispatch();
@@ -75,6 +74,10 @@ uint64_t Core::getCyclesWithDispatch() const {
 
 uint64_t Core::getStallCycles(StallReason Reason) const {
   return TheDispatch->getStallCycles(Reason);
+}
+
+const TopDownSlots &Core::getTopDownSlots() const {
+  return TheDispatch->getTopDownSlots();
 }
 
 const std::vector<McycleRead> &Core::getMcycleReads() const {

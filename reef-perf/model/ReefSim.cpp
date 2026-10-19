@@ -28,6 +28,36 @@ static double getIPC(uint64_t Insts, uint64_t Cycles) {
                      : static_cast<double>(Insts) / static_cast<double>(Cycles);
 }
 
+/// Writes \p Slots as the "topdown" JSON object, followed by a comma.
+/// Backend reasons that never occurred are left out.
+static void writeTopDown(std::ostream &OS, const TopDownSlots &Slots) {
+  OS << "  \"topdown\": {\n"
+     << "    \"dispatch_width\": " << Slots.Width << ",\n"
+     << "    \"slots\": " << Slots.getTotal() << ",\n"
+     << "    \"retiring\": " << Slots.Retiring << ",\n"
+     << "    \"frontend_bound\": {";
+  for (size_t Idx = 0; Idx < TopDownSlots::NumFrontend; ++Idx)
+    OS << (Idx ? ", " : "") << '"'
+       << getFrontendStallName(static_cast<FrontendStall>(Idx))
+       << "\": " << Slots.Frontend[Idx];
+  OS << "},\n    \"backend_bound\": {";
+  for (size_t Target = 0; Target < NumExecTargets; ++Target) {
+    OS << (Target ? ",\n      " : "\n      ") << '"'
+       << getBoundName(static_cast<ExecTarget>(Target)) << "\": {";
+    bool First = true;
+    for (size_t Reason = 0; Reason < TopDownSlots::NumReasons; ++Reason) {
+      uint64_t N = Slots.Backend[Target][Reason];
+      if (N == 0)
+        continue;
+      OS << (First ? "" : ", ") << '"'
+         << getStallReasonName(static_cast<StallReason>(Reason)) << "\": " << N;
+      First = false;
+    }
+    OS << "}";
+  }
+  OS << "\n    }\n  },\n";
+}
+
 ReefSim::ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
                  const SpikeOptions &Options)
     : sparta::app::Simulation("reef_perf", &Scheduler),
@@ -115,6 +145,35 @@ void ReefSim::printSummary(std::ostream &OS) const {
        << getPercent(Stalled, Cycles) << "%\n";
   }
 
+  // Top-down, levels 1 and 2 (docs/topdown.md).
+  const TopDownSlots &Slots = CoreModule.getTopDownSlots();
+  uint64_t Total = Slots.getTotal();
+  auto PrintSlots = [&](const std::string &Label, uint64_t N) {
+    OS << "    " << std::left << std::setw(20) << Label << std::right
+       << std::setw(12) << N << "  " << std::setw(5) << getPercent(N, Total)
+       << "%\n";
+  };
+  OS << "\n  Top-down: dispatch slots (" << Slots.Width
+     << " per cycle; docs/topdown.md)\n";
+  PrintSlots("retiring", Slots.Retiring);
+  uint64_t FrontendBound = 0;
+  for (uint64_t N : Slots.Frontend)
+    FrontendBound += N;
+  PrintSlots("frontend_bound", FrontendBound);
+  for (size_t Idx = 0; Idx < TopDownSlots::NumFrontend; ++Idx)
+    PrintSlots(std::string("  ") +
+                   getFrontendStallName(static_cast<FrontendStall>(Idx)),
+               Slots.Frontend[Idx]);
+  PrintSlots("backend_bound", Total - Slots.Retiring - FrontendBound);
+  for (size_t Target = 0; Target < NumExecTargets; ++Target) {
+    uint64_t Bound = 0;
+    for (uint64_t N : Slots.Backend[Target])
+      Bound += N;
+    PrintSlots(std::string("  ") +
+                   getBoundName(static_cast<ExecTarget>(Target)),
+               Bound);
+  }
+
   OS << "\n  Pools: utilization (busy cycles / (units * cycles))\n";
   for (const Module *M : getModules())
     for (const ResourcePool *Pool : M->getPools())
@@ -164,7 +223,9 @@ void ReefSim::writeJSON(std::ostream &OS) const {
   }
   // Pool names are unique across modules (docs/interfaces.md), so the JSON
   // keeps its flat {"alu": ..., "vector": ...} layout.
-  OS << "\n  },\n  \"pools\": {";
+  OS << "\n  },\n";
+  writeTopDown(OS, CoreModule.getTopDownSlots());
+  OS << "  \"pools\": {";
   bool First = true;
   for (const Module *M : getModules()) {
     for (const ResourcePool *Pool : M->getPools()) {

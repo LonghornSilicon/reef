@@ -62,18 +62,17 @@ static uint32_t getBits(uint32_t Word, int Hi, int Lo) {
 }
 
 /// Appends register \p Reg of \p RegFile to \p Regs, skipping x0.
-static void addReg(std::vector<uint16_t> &Regs, File RegFile, uint32_t Reg) {
+static void addReg(std::vector<RegId> &Regs, File RegFile, uint32_t Reg) {
   if (RegFile == File::X && Reg != 0)
-    Regs.push_back(static_cast<uint16_t>(XBase + Reg));
+    Regs.push_back(RegId::x(Reg));
   else if (RegFile == File::F)
-    Regs.push_back(static_cast<uint16_t>(FBase + Reg));
+    Regs.push_back(RegId::f(Reg));
 }
 
 /// Appends \p Count consecutive vector registers starting at \p Base.
-static void addVRegs(std::vector<uint16_t> &Regs, uint32_t Base,
-                     uint32_t Count) {
-  for (uint32_t K = 0; K < Count && Base + K < 32; ++K)
-    Regs.push_back(static_cast<uint16_t>(VBase + Base + K));
+static void addVRegs(std::vector<RegId> &Regs, uint32_t Base, uint32_t Count) {
+  for (uint32_t K = 0; K < Count && Base + K < RegId::NumPerFile; ++K)
+    Regs.push_back(RegId::v(Base + K));
 }
 
 /// \returns the form of an OP-FP instruction (major opcode 0x53).

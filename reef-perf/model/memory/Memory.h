@@ -62,7 +62,7 @@ public:
   }
 
   /// \returns the kind of region holding \p Addr, or RegionKind::External.
-  RegionKind getRegionKind(uint32_t Addr) const;
+  RegionKind getRegionKind(Address Addr) const;
 
   /// Times \p Request and books the memory it uses. \returns its timing.
   MemResponse access(const MemRequest &Request) override;

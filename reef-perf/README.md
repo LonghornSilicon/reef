@@ -14,6 +14,8 @@ Background reading:
 - [docs/overview.md](docs/overview.md): what the model is and how the M3
   baseline works.
 - [docs/interfaces.md](docs/interfaces.md): the five modules and how they talk.
+- [docs/topdown.md](docs/topdown.md): how to find what a program is waiting
+  for (top-down analysis).
 - [docs/deviations.md](docs/deviations.md): where the RTL differs from its docs.
 
 ## How it works
@@ -74,7 +76,7 @@ reef-perf/
   tests/python/          pytest: unit/, integration/, experiments/
   tests/golden/          expected cycle counts (m3_results.json)
   scripts/               lint, C++ checks, dependency build
-  docs/                  overview, interfaces, roadmap, deviations
+  docs/                  overview, interfaces, topdown, roadmap, deviations
   ext/                   pinned submodules: Spike, Sparta, yaml-cpp
 ```
 
@@ -163,6 +165,10 @@ Every parameter is listed there, with the ticket that will correct it.
   RTL, this table tells you which part of the model to look at.
 - **ROI cycles.** Cycles between the program's first and last `csrr mcycle`:
   the microbenchmark's loop, directly comparable with the RTL.
+- **Top-down.** Where the dispatch slots (4 per cycle) went: retiring,
+  frontend bound or backend bound, and which module the backend waited for.
+  Start here when looking for a bottleneck; [docs/topdown.md](docs/topdown.md)
+  explains the method.
 - **Pools table.** How busy each resource was, by module.
 
 `--json out.json` writes the same numbers for scripts.
@@ -175,6 +181,9 @@ live in [`python/reef_perf/experiments/`](python/reef_perf/experiments/README.md
 - [`sweep`](python/reef_perf/experiments/sweep/README.md) runs the
   microbenchmarks under parameter variants and records cycles, IPC and stall
   breakdowns.
+- [`topdown`](python/reef_perf/experiments/topdown/README.md) breaks each
+  microbenchmark's dispatch slots into the top-down tree, as a table and a
+  chart.
 - [`correlation`](python/reef_perf/experiments/correlation/README.md) compares
   the model's ROI cycles with the M3 RTL. A GitHub workflow runs it on every
   push to a PR that changes `reef-perf/` and posts the table as a PR comment.

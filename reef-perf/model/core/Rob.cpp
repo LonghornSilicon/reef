@@ -30,7 +30,7 @@ void Rob::receiveInst(const InstRef &I) {
 }
 
 void Rob::retireInsts() {
-  uint64_t Now = getClock()->currentCycle();
+  Cycle Now = getClock()->currentCycle();
   uint32_t Count = 0;
   while (Count < RetireWidth && !Entries.empty() &&
          Entries.front()->CompleteCycle <= Now) {
@@ -51,7 +51,7 @@ void Rob::retireInsts() {
 
   // Sleep until the oldest instruction can complete. Poll every cycle while
   // it has not been timed yet, or when the retire width held it back.
-  uint64_t HeadDone = Entries.front()->CompleteCycle;
+  Cycle HeadDone = Entries.front()->CompleteCycle;
   if (HeadDone == Inst::Never || HeadDone <= Now)
     RetireEvent.schedule(1);
   else

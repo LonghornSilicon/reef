@@ -1,6 +1,7 @@
 //===- Dispatch.cpp - The dispatch unit -----------------------------------===//
 
 #include "core/Dispatch.h"
+#include "core/Rob.h"
 
 #include "sparta/utils/SpartaAssert.hpp"
 
@@ -33,9 +34,34 @@ const char *reef_perf::getStallReasonName(StallReason Reason) {
   return "unknown";
 }
 
+const char *reef_perf::getBoundName(ExecTarget Target) {
+  switch (Target) {
+  case ExecTarget::Scalar:
+    return "core";
+  case ExecTarget::LSU:
+    return "memory";
+  case ExecTarget::Vector:
+    return "vector";
+  case ExecTarget::Matrix:
+    return "matrix";
+  }
+  return "unknown";
+}
+
+uint64_t TopDownSlots::getTotal() const {
+  uint64_t Total = Retiring;
+  for (uint64_t N : Frontend)
+    Total += N;
+  for (const auto &ByReason : Backend)
+    for (uint64_t N : ByReason)
+      Total += N;
+  return Total;
+}
+
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
     : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width) {
   sparta_assert(DispatchWidth > 0);
+  Slots.Width = DispatchWidth;
 
   constexpr auto NumReasons = static_cast<size_t>(StallReason::NumReasons);
   for (size_t Idx = 0; Idx < NumReasons; ++Idx) {
@@ -83,24 +109,30 @@ void Dispatch::scheduleDispatch() {
     DispatchEvent.schedule(); // This cycle.
 }
 
-bool Dispatch::canDispatch(const InstRef &I, uint64_t Now,
-                           StallReason &Why) const {
-  for (uint16_t Reg : I->Srcs) {
-    const InstRef &Writer = LastWriter.at(Reg);
+bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
+                           ExecTarget &Blamed) const {
+  // A register hazard is blamed on the unit producing the register.
+  for (RegId Reg : I->Srcs) {
+    const InstRef &Writer = LastWriter.at(Reg.getDense());
     if (Writer && Writer->ResultReadyCycle > Now) {
       Why = StallReason::Raw;
+      Blamed = getExecTarget(*Writer);
       return false;
     }
   }
-  for (uint16_t Reg : I->Dsts) {
-    const InstRef &Writer = LastWriter.at(Reg);
+  for (RegId Reg : I->Dsts) {
+    const InstRef &Writer = LastWriter.at(Reg.getDense());
     if (Writer && Writer->ResultReadyCycle > Now) {
       Why = StallReason::Waw;
+      Blamed = getExecTarget(*Writer);
       return false;
     }
   }
+  // A full Rob is blamed on the unit its oldest instruction waits for.
   if (RobCredits == 0) {
     Why = StallReason::RobFull;
+    InstRef Oldest = TheRob ? TheRob->getOldest() : nullptr;
+    Blamed = Oldest ? getExecTarget(*Oldest) : ExecTarget::Scalar;
     return false;
   }
   uint32_t QueueCredits = 0;
@@ -123,6 +155,7 @@ bool Dispatch::canDispatch(const InstRef &I, uint64_t Now,
   }
   if (QueueCredits == 0) {
     Why = QueueFull;
+    Blamed = getExecTarget(*I);
     return false;
   }
   return true;
@@ -149,17 +182,18 @@ void Dispatch::sendToTarget(const InstRef &I) {
 }
 
 void Dispatch::dispatchGroup() {
-  uint64_t Now = getClock()->currentCycle();
+  Cycle Now = getClock()->currentCycle();
   uint32_t Count = 0;
   StallReason Why = StallReason::IbufEmpty;
+  ExecTarget Blamed = ExecTarget::Scalar;
 
   while (Count < DispatchWidth) {
     InstRef I = Frontend->peek(Now);
-    if (!I || !canDispatch(I, Now, Why))
+    if (!I || !canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
-    for (uint16_t Reg : I->Dsts)
-      LastWriter.at(Reg) = I;
+    for (RegId Reg : I->Dsts)
+      LastWriter.at(Reg.getDense()) = I;
     --RobCredits;
     sendToTarget(I);
     OutRobPort.send(I);
@@ -173,6 +207,15 @@ void Dispatch::dispatchGroup() {
   } else {
     ++(*StallCounters.at(static_cast<size_t>(Why)));
   }
+
+  // The slots left over this cycle go to whatever stopped the group.
+  Slots.Retiring += Count;
+  uint32_t Lost = DispatchWidth - Count;
+  if (Why == StallReason::IbufEmpty)
+    Slots.Frontend.at(static_cast<size_t>(Frontend->getStall(Now))) += Lost;
+  else
+    Slots.Backend.at(static_cast<size_t>(Blamed))
+        .at(static_cast<size_t>(Why)) += Lost;
 
   if (!Frontend->isDrained(Now))
     DispatchEvent.schedule(1);

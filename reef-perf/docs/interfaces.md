@@ -59,6 +59,11 @@ one **writer**:
 | `DispatchCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
 
+Fields and interfaces use the purpose-defined types in `common/Types.h`:
+`Cycle` for points in time (durations stay plain integers), `Address` for
+byte addresses and PCs, and `RegId` for registers (`Srcs`, `Dsts`): a register
+file and an index, with `getDense()` for arrays indexed by register.
+
 Within the frontend, `Mem` and `Dsts` come straight from Spike's commit log
 (exact); `Class` and `Srcs` are decoded from the encoding, because Spike does
 not log register reads.
@@ -110,6 +115,7 @@ synchronous interface like `MemoryInterface`:
 | `peek(Now)` | the oldest instruction the core may take this cycle, or none |
 | `pop(Now)` | the core took it |
 | `isDrained(Now)` | the program is fully fetched and every instruction taken |
+| `getStall(Now)` | why `peek(Now)` found nothing (`FrontendStall`), for top-down accounting ([topdown.md](topdown.md)) |
 
 An instruction becomes visible the cycle after it is fetched, and an entry the
 core frees can be refilled from the next cycle: the one-cycle hand-off in

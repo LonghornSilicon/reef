@@ -36,7 +36,7 @@ public:
 
   /// Times \p Accesses, starting no earlier than \p Earliest, and books the
   /// port. \returns the timing.
-  MemResponse access(std::span<const MemAccess> Accesses, uint64_t Earliest);
+  MemResponse access(std::span<const MemAccess> Accesses, Cycle Earliest);
 
   /// \returns the port, for the end-of-run summary.
   const ResourcePool &getPort() const { return Port; }
@@ -58,7 +58,7 @@ public:
 
   /// Times \p Accesses, starting no earlier than \p Earliest, and books the
   /// data channel and an outstanding slot. \returns the timing.
-  MemResponse access(std::span<const MemAccess> Accesses, uint64_t Earliest);
+  MemResponse access(std::span<const MemAccess> Accesses, Cycle Earliest);
 
   /// \returns {axi_data, axi_outstanding}, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const {

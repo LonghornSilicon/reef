@@ -66,19 +66,22 @@ public:
   uint64_t getNumRedirects() const { return NumRedirects.get(); }
 
   /// \returns the oldest buffered instruction fetched before \p Now.
-  InstRef peek(uint64_t Now) const override;
+  InstRef peek(Cycle Now) const override;
   /// Removes the oldest instruction; its entry refills from \p Now + 1.
-  void pop(uint64_t Now) override;
+  void pop(Cycle Now) override;
   /// \returns true once fetch finished before \p Now and the buffer is empty.
-  bool isDrained(uint64_t Now) const override;
+  bool isDrained(Cycle Now) const override;
+  /// \returns BranchResteer if the latest fetch group ended in a redirect,
+  /// and FetchBandwidth otherwise.
+  FrontendStall getStall(Cycle Now) const override;
 
 private:
   void fetchGroup();
   void scheduleFirstFetch();
-  void scheduleFetch(uint64_t Earliest);
+  void scheduleFetch(Cycle Earliest);
   /// \returns the entries fetch may fill at \p Now. Entries the core freed
   /// at \p Now only count from the next cycle.
-  uint32_t getFreeEntries(uint64_t Now) const;
+  uint32_t getFreeEntries(Cycle Now) const;
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
@@ -86,12 +89,13 @@ private:
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
-  std::deque<InstRef> Ibuf;    // Oldest first.
-  uint64_t FreedCycle = 0;     // Cycle of the latest pop()s ...
-  uint32_t FreedAtCycle = 0;   // ... and how many entries they freed.
-  uint64_t NextFetchCycle = 0; // Earliest start of the next group.
-  bool Done = false;           // The program is fully fetched ...
-  uint64_t DoneCycle = 0;      // ... as of this cycle.
+  std::deque<InstRef> Ibuf;  // Oldest first.
+  Cycle FreedCycle = 0;      // Cycle of the latest pop()s ...
+  uint32_t FreedAtCycle = 0; // ... and how many entries they freed.
+  Cycle NextFetchCycle = 0;  // Earliest start of the next group.
+  bool LastGroupRedirected = false;
+  bool Done = false;   // The program is fully fetched ...
+  Cycle DoneCycle = 0; // ... as of this cycle.
 
   sparta::UniqueEvent<> FetchEvent{&unit_event_set_, "ev_fetch",
                                    CREATE_SPARTA_HANDLER(Fetch, fetchGroup)};
