@@ -129,25 +129,25 @@ Not modeled yet: a redirect/flush signal from the core. Today the frontend
 charges a fixed `redirect_penalty` on every taken branch, because it already
 knows the outcome from Spike.
 
-### Backend → vector
+### Core → vector
 
 | Port | Type | Direction |
 | --- | --- | --- |
 | `Core::OutVector` → `Vector::InInsts` | `InstRef` | instructions routed to `VECTOR` |
-| `Vector::OutCredits` → `Backend::InVectorCredits` | `uint32_t` | free command-queue entries |
+| `Vector::OutCredits` → `Core::InVectorCredits` | `uint32_t` | free command-queue entries |
 
 Vector loads and stores do **not** cross this interface; they go to the
 core's LSU.
 
-### Backend → matrix
+### Core → matrix
 
 Same shape as vector, so the two engines stay interchangeable from the
 core's point of view:
 
 | Port | Type | Direction |
 | --- | --- | --- |
-| `Backend::OutMatrix` → `Matrix::InInsts` | `InstRef` | instructions routed to `MATRIX` |
-| `Matrix::OutCredits` → `Backend::InMatrixCredits` | `uint32_t` | free command-queue entries |
+| `Core::OutMatrix` → `Matrix::InInsts` | `InstRef` | instructions routed to `MATRIX` |
+| `Matrix::OutCredits` → `Core::InMatrixCredits` | `uint32_t` | free command-queue entries |
 
 ### Anything → memory
 
@@ -166,9 +166,32 @@ Requesters call `MemoryInterface::access(MemRequest)` and get a
 | `Occupancy` | cycles the requester's port stays busy |
 | `Latency` | cycles from `Start` until the data is usable or the write is done |
 
-The call is **synchronous**: memory books its own resources and answers at
-once ("booking" timing, like the execution pools). The memory owner may
-replace it with request/response ports later; that is an interface change.
+**Data never passes through this interface.** Spike executes every load
+and store when the instruction is fetched (execute-at-fetch), against its own
+copy of memory; the timing model only receives the addresses and sizes
+(`Inst::Mem`). The memory module decides *when*, never *what*.
+
+**`access()` answers at once ("booking").** It is a plain function call, not
+a message: memory works out when the transfer can start and how long it takes,
+reserves those future cycles on its ports (`ResourcePool`), and returns the
+result before the call ends. There is no request in flight and no event later.
+The execution pools in the core time instructions the same way. So the LSU
+knows an instruction's result-ready cycle the moment it calls.
+
+This is simple and fast, and enough while the LSU is the only requester. It
+can't express:
+
+- **arbitration:** two requesters in the same cycle are served in call order,
+  not by priority;
+- **backpressure:** memory can't refuse or delay a request after the call;
+- **out-of-order responses:** each answer is fixed when it is booked.
+
+Modeling any of these means replacing the call with a pair of Sparta ports: a
+request port, and a response port the memory sends on in a later cycle. That
+changes both the requesters and the memory module, so under rule 1 it is an
+interface change: one PR that edits this section and both sides together. The
+memory owner decides when it is needed, for example when the matrix engine or
+instruction fetch becomes a second requester.
 
 The memory module routes by the operation's first address, using the memory
 map in `common/MemoryMap.h`, the same list Spike is given:
@@ -190,7 +213,7 @@ interface unless noted.
 - **Frontend:** no branch predictor (M3 predicts backward-taken,
   forward-not-taken); fetch does not go through memory (adds an `IFetch`
   requester); no redirect/flush signal to the core (interface change).
-- **Backend:** Reef's special dispatch rules (a branch ends the group, FP and
+- **Core:** Reef's special dispatch rules (a branch ends the group, FP and
   CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
 - **Vector:** one pool of identical lanes; no per-type functional units, chaining or
   vector ROB.
@@ -200,7 +223,7 @@ interface unless noted.
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
   between requesters; the AXI latency and outstanding limit are assumptions.
-  No workload touches AXI memory yet, because Spike only backs the ITCM and
+  No microbenchmark touches AXI memory yet, because Spike only backs the ITCM and
   DTCM regions.
 
 ## Adding a unit to a module
