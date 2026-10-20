@@ -854,7 +854,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fadd",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -924,7 +924,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fmul",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -991,7 +991,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fmadd",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -1058,7 +1058,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fdiv",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -1124,7 +1124,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fsqrt",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -1192,7 +1192,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:feq",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,
@@ -1261,7 +1261,7 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b5_fpu:fcvt",
    "source_intent_if_different": {
-    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
     "events": {
      "F1": 0,
      "F2": 1,

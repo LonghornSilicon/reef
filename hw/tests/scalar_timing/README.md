@@ -34,9 +34,9 @@ sim-calibrated and the reason is in `notes/discrepancies.md` (D1-D8).
   ```bash
   git clone https://github.com/google-coral/coralnpu.git && git -C coralnpu checkout M3-2026-04-27
   ```
-- Bazelisk (it reads `.bazelversion`: Bazel 7.4.1), clang as the host compiler, `zip`, `liblz4-dev`, and Python 3
+- Bazelisk (it reads `.bazelversion`: Bazel 7.4.1), clang as the host compiler, `zip`, `unzip`, `liblz4-dev`, and Python 3
   (the helper scripts use the standard library only; the sim brings its own Python through Bazel).
-  On Ubuntu: `sudo apt install clang zip liblz4-dev`.
+  On Ubuntu: `sudo apt install clang zip unzip liblz4-dev` (`unzip` is only for `bench/d4_repro/regen_d4exp.sh`).
 - `zip` matters: without it every bench reports FAILED even when cocotb passed, because the test wrapper zips the
   JSON outputs.
 - Tested on Ubuntu 22.04 (WSL2). Expect ~15 min for the first build, ~15 s for a warm re-run.
@@ -98,7 +98,7 @@ the hardware FPU timing in sim, apply the same row-by-row `PipeRegs` change to `
 checkout (that is how `d4exp_*` were measured). To rebuild them on a **separate** CoralNPU checkout:
 ```bash
 git -C "$CORALNPU" worktree add --detach ../coralnpu-d4 M3-2026-04-27
-CORALNPU=$(dirname "$CORALNPU")/coralnpu-d4 bash bench/d4_repro/regen_d4exp.sh   # applies the patch, ~15 min cold
+CORALNPU=$(dirname "$CORALNPU")/coralnpu-d4 bash bench/d4_repro/regen_d4exp.sh   # applies the patch, ~15 min cold; VCDs in $WAVES/d4-experiment/
 git diff --stat -- results/json/                                                  # empty if they reproduce
 ```
 `bench/d4_repro/pipe_regs_check.sv` shows the difference between tools in two files.

@@ -223,7 +223,7 @@ def class_events(c):
 # results/json/d4exp_*.json from it (on a separate CoralNPU checkout, never the M3 one used for the suite).
 D4EXP_CLASSES = ("fadd", "fmul", "fmadd", "feq", "fcvt_w_s", "fdiv", "fsqrt")
 D4EXP_BASIS = ("RTL intent (3 fpnew pipe regs), measured on the D4 experiment build "
-               "(branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); "
+               "(M3 + bench/d4_repro/floatcore_piperegs_row_by_row.patch, rebuilt by bench/d4_repro/regen_d4exp.sh); "
                "sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and "
                "Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32")
 

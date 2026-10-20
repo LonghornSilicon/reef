@@ -16,7 +16,7 @@ this file is the procedure and the pass criteria.
 ## 1. Setup
 
 ```bash
-sudo apt install -y clang zip liblz4-dev          # zip is required: without it every bench reports FAILED
+sudo apt install -y clang zip unzip liblz4-dev    # zip is required: without it every bench reports FAILED
 # Bazelisk: https://github.com/bazelbuild/bazelisk (installs Bazel 7.4.1 from CoralNPU's .bazelversion)
 git clone https://github.com/google-coral/coralnpu.git && git -C coralnpu checkout M3-2026-04-27
 export CORALNPU=$PWD/coralnpu CC=/usr/bin/clang CXX=/usr/bin/clang++ WAVES=$PWD/scalar-timing-waves

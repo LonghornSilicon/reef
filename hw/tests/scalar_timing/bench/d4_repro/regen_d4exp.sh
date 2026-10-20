@@ -4,6 +4,9 @@
 #
 #   CORALNPU=<separate M3 checkout> WAVES=<folder outside the repo> bash bench/d4_repro/regen_d4exp.sh
 #
+# Its VCDs go to $WAVES/d4-experiment/, never $WAVES itself: the patched trace.vcd must not replace the M3 one
+# that bench/collect.py reads for the main (sim) numbers. Needs git, unzip and the suite's usual prerequisites.
+#
 # It applies floatcore_piperegs_row_by_row.patch to $CORALNPU (row-by-row PipeRegs in float/FloatCore.scala),
 # so use a SEPARATE checkout, not the one you run the main suite on. For example:
 #   git -C <your-m3-checkout> worktree add --detach ../coralnpu-d4 M3-2026-04-27
@@ -14,6 +17,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 SUITE="$(dirname "$(dirname "$HERE")")"
 : "${CORALNPU:?set CORALNPU to a separate CoralNPU checkout at tag M3-2026-04-27}"
 : "${WAVES:?set WAVES to a folder for the VCDs, outside the repo}"
+command -v unzip >/dev/null || { echo "regen_d4exp.sh needs unzip (sudo apt install unzip)" >&2; exit 1; }
+# Keep the patched-model VCDs apart from the main suite's (see the header).
+export WAVES="$WAVES/d4-experiment"
 PATCH="$HERE/floatcore_piperegs_row_by_row.patch"
 
 if git -C "$CORALNPU" apply --reverse --check "$PATCH" 2>/dev/null; then
