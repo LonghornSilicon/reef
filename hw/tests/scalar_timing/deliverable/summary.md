@@ -44,7 +44,7 @@ verify everything.**
 6. **ROB = 8 entries** (`human`): behind a 34-cycle div only 7 more instructions dispatch. 40 independent addi that could hide under the div cost +17 cycles.
 7. **Store data and load/jalr base use the registered scoreboard**: consumer at +2 instead of +1 (pointer chase = 5 cycles/load).
 8. **rd = x0 is not free**: 4 nops take 4 cycles; an instruction reading x0 can't share a group with an earlier rd=x0 one (incl. `fence`).
-9. **The Verilator model's FPU is faster than the hardware (D4)**: Verilator builds fpnew's `'{default: 'd3}` (a packed array) as 0 FP32 pipeline registers, so sim shows 1 FP op per 2 cycles. The synthesized Drop 0 netlists (DC, Yosys-slang) have the 3 stages: D+4, 1 per 5, which is what the diagram uses. A row-by-row `PipeRegs` fix (works in Verilator, slang and DC) is planned after Reef PR #15. Any Verilator cycle counts with scalar FP (e.g. reef-perf's `fp_chain`) are optimistic until then.
+9. **The Verilator model's FPU is faster than the hardware (D4)**: Verilator builds fpnew's `'{default: 'd3}` (a packed array) as 0 FP32 pipeline registers, so sim shows 1 FP op per 2 cycles. The synthesized Drop 0 netlists (DC, Yosys-slang) have the 3 stages: D+4, 1 per 5, which is what the diagram uses. A row-by-row `PipeRegs` fix (works in Verilator, slang and DC) is planned after Reef PR #15. Any cycle counts with scalar FP from the upstream CoralNPU Verilator sim (e.g. reef-perf's `fp_chain`) stay optimistic even after Reef's fix, because that sim doesn't use Reef's RTL; they need a build with the fix.
 
 ## Still SRC-only / not measured
 Fetch structure rows 1.1-1.4, 1.6, 1.9 (no direct check; 1.9 seen indirectly in 3.20); `jal`/`jalr` link write (benches use rd=x0);

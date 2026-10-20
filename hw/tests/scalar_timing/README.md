@@ -88,8 +88,9 @@ synthesized Drop 0 netlists have all 3 stages (DC and Yosys-slang). So in this s
 `fcvt` run at 1 per 2 cycles with write-back at D+1; the hardware does D+4 and 1 per 5. The B5 expectations are
 calibrated to the sim. The hardware numbers were measured on a rebuild with `PipeRegs` written row by row and are
 kept in `results/json/d4exp_*.json`, which `collect.py` reads into `timing.json` (`source_intent_if_different`).
-Once the `PipeRegs` fix lands in Reef, B5 should be re-run and its calibration dropped. `bench/d4_repro/` shows the
-difference between tools in two files.
+This suite runs on the upstream CoralNPU build, so a fix in Reef's vendored RTL does not change these numbers. To see
+the hardware FPU timing in sim, apply the same row-by-row `PipeRegs` change to `float/FloatCore.scala` in the CoralNPU
+checkout (that is how `d4exp_*` were measured). `bench/d4_repro/` shows the difference between tools in two files.
 
 ## Other notes
 

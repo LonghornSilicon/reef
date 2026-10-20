@@ -83,4 +83,5 @@ Post one summary with:
 5. Anything else that looked wrong, with the file, line and command that shows it.
 
 Known and expected: the FPU benches (B5) run at 1 FP op per 2 cycles in this sim; the hardware does 1 per 5 (D4 in
-`notes/discrepancies.md`). A fix for the `PipeRegs` line is planned in Reef, after which B5 changes.
+`notes/discrepancies.md`). A fix for the `PipeRegs` line is planned in Reef's RTL; it does not
+change this suite, which runs on the upstream CoralNPU build, so B5 keeps showing the sim numbers.
