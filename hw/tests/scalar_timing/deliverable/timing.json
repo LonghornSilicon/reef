@@ -714,9 +714,11 @@
    "throughput_kind": "independent stream, cycles per instruction",
    "throughput_source": "b4_lsu:sw4",
    "source_intent_if_different": null,
-   "verified": "human",
-   "human_signoff": "R1: 1 store per 2 cycles; storeComplete D+2 / retire D+3 itself is sim+wave (5.3)",
-   "partial_signoffs": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": [
+    "R1: 1 store per 2 cycles (3.19); the storeComplete D+2 / retire D+3 timing is sim+wave (5.3)"
+   ],
    "checklist_rows": [
     "Store",
     "3.19",

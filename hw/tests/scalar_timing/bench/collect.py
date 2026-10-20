@@ -126,11 +126,11 @@ SIGNOFF = {
     "div_small": ("R6", "WB + consumer at D+2+N, N=2 for dividend 1"),
     "div_large": ("R6", "WB + consumer at D+2+N, N=32 for dividend 2^30"),
     "lw": ("R1", "1 load per 4 cycles (R1); write-back port 5 + retire at D+4 (R8)"),
-    "sw": ("R1", "1 store per 2 cycles; storeComplete D+2 / retire D+3 itself is sim+wave (5.3)"),
 }
 # Parts of a class Alex checked when the class as a whole stays at its agent level.
 PARTIAL = {
     "alu": [("R8", "write-back port + retire at D+1 (5.2)"), ("R9", "same-cycle forwarding to an ALU consumer (3.14)")],
+    "sw": [("R1", "1 store per 2 cycles (3.19); the storeComplete D+2 / retire D+3 timing is sim+wave (5.3)")],
     "fadd": [("R5", "dispatched alone in lane 0 (3.6) and sim timing D+1; RTL-intent timing open (D4)")],
 }
 
