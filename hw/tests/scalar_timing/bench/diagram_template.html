@@ -1,0 +1,542 @@
+<title>Reef Scalar Timing</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a datasheet. Header + conventions, the pipeline block diagram, then the
+   per-instruction cycle chart (the core), its table view, and the corrections. */
+:root {
+  --bg: #f6f7f9;            /* page plane, slight blue bias */
+  --surface: #fcfcfb;       /* chart surface (validated palette surface) */
+  --ink: #10141a;
+  --ink-2: #4a5260;
+  --muted: #7d8591;
+  --grid: #e3e6eb;
+  --axis: #c5cad3;
+  --ring: rgba(16,20,26,0.10);
+  --front: #2a78d6;         /* stage: fetch / instruction buffer (palette slot 1) */
+  --disp: #eb6834;          /* stage: dispatch (slot 2) */
+  --exec: #1baf7a;          /* stage: execute (slot 3) */
+  --on-front: #ffffff;
+  --on-disp: #1a0f08;
+  --on-exec: #06170f;
+  --wait: #d9dde3;
+  --flag: #b4471b;          /* the one highlighted element: the FPU bug */
+  --flag-bg: #fdf0ea;
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --cell: 26px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0f12; --surface: #1a1a19; --ink: #eef1f5; --ink-2: #c0c6cf; --muted: #8d949f;
+    --grid: #2a2e35; --axis: #3d434c; --ring: rgba(255,255,255,0.10);
+    --front: #3987e5; --disp: #d95926; --exec: #199e70;
+    --on-front: #ffffff; --on-disp: #140a04; --on-exec: #04120b;
+    --wait: #353a42; --flag: #f0875c; --flag-bg: #2a1b14; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0f12; --surface: #1a1a19; --ink: #eef1f5; --ink-2: #c0c6cf; --muted: #8d949f;
+  --grid: #2a2e35; --axis: #3d434c; --ring: rgba(255,255,255,0.10);
+  --front: #3987e5; --disp: #d95926; --exec: #199e70;
+  --on-front: #ffffff; --on-disp: #140a04; --on-exec: #04120b;
+  --wait: #353a42; --flag: #f0875c; --flag-bg: #2a1b14; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1400px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 34px; font-weight: 700; line-height: 1.15; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 16px; min-width: 0; }
+.lede { color: var(--ink-2); }
+header { display: grid; gap: 14px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-2); }
+.facts b { color: var(--ink); font-weight: 600; }
+.conv { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: var(--grid);
+  border: 1px solid var(--grid); border-radius: 6px; overflow: hidden; }
+.conv div { background: var(--surface); padding: 10px 12px; font-size: 13px; display: grid; gap: 2px; min-width: 0; }
+.conv .k { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.note-flag { border-left: 3px solid var(--flag); background: var(--flag-bg); padding: 12px 14px; border-radius: 0 6px 6px 0; display: grid; gap: 6px; }
+.note-flag p { font-size: 14px; }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ctl > span { font-size: 12px; color: var(--muted); font-family: var(--f-mono); text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+.seg button, .chip { font: inherit; font-size: 13px; color: var(--ink-2); background: var(--surface); border: 0; padding: 6px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.chip { border: 1px solid var(--axis); border-radius: 999px; padding: 4px 11px; }
+.chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); background: var(--grid); }
+button:focus-visible, .row:focus-visible { outline: 2px solid var(--front); outline-offset: 2px; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-2); align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 12px; border-radius: 3px; display: inline-block; }
+
+/* level chips */
+.lv { font-family: var(--f-mono); font-size: 11px; padding: 1px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid var(--ink-2); color: var(--ink); }
+.lv-human { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.lv-sim { border-style: dashed; }
+.lv-src { border-style: dotted; color: var(--muted); border-color: var(--muted); }
+
+/* the cycle chart */
+.chartbox { background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; overflow-x: auto; position: relative; }
+.grid { display: grid; grid-template-columns: var(--labw, 250px) max-content; min-width: max-content; }
+.lab { position: sticky; left: 0; z-index: 2; background: var(--surface); border-right: 1px solid var(--grid);
+  padding: 3px 10px; display: grid; align-content: center; gap: 1px; min-width: 0; height: 38px; }
+.lab .nm { font-size: 13px; line-height: 1.3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+.lab .asm { font-family: var(--f-mono); font-size: 11px; line-height: 1.4; padding-bottom: 1px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grouphead { position: sticky; left: 0; z-index: 2; grid-column: 1 / -1; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); padding: 10px 10px 4px; background: var(--surface); border-top: 1px solid var(--grid); }
+.row { display: contents; cursor: pointer; }
+.row .trk { height: 38px; display: block; }
+.row[aria-pressed="true"] .lab, .row[aria-pressed="true"] .trk { background: color-mix(in srgb, var(--front) 9%, var(--surface)); }
+.row:hover .lab { color: var(--ink); }
+.axis { position: sticky; top: 0; z-index: 3; }
+.axis .lab { height: 30px; font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; line-height: 1.4;
+  padding: 7px 9px; border-radius: 6px; max-width: 300px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); }
+.tip b { font-family: var(--f-mono); font-weight: 500; }
+
+/* detail */
+.detail { background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; padding: 18px; display: grid; gap: 14px; }
+.dhead { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+.dgrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 760px) { .dgrid { grid-template-columns: minmax(0, 1fr); } }
+/* chart + details side by side on wide screens; the details panel stays in view while the chart scrolls */
+.chart-layout { display: grid; gap: 16px; align-items: start; min-width: 0; }
+@media (min-width: 1000px) {
+  .chart-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+  .chart-layout .detail { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px));
+    max-height: calc(100vh - 32px); overflow-y: auto; }
+  .chart-layout .dgrid { grid-template-columns: minmax(0, 1fr); }
+}
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 14px; }
+.kv dt { color: var(--muted); font-size: 13px; }
+.kv dd { margin: 0; min-width: 0; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.both { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.both > div { border: 1px solid var(--grid); border-radius: 6px; padding: 10px 12px; font-size: 13px; display: grid; gap: 4px; }
+.both > div.on { border-color: var(--ink-2); }
+
+/* pipeline figure */
+figure { margin: 0; display: grid; gap: 10px; }
+.figbox { background: var(--surface); border: 1px solid var(--grid); border-radius: 8px; overflow-x: auto; padding: 8px; }
+.figbox svg { display: block; min-width: 900px; width: 100%; height: auto; color: var(--ink); }
+figcaption { font-size: 13px; color: var(--ink-2); max-width: 80ch; }
+.verdict td:first-child { min-width: 200px; }
+.vd { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+footer { font-size: 13px; color: var(--ink-2); display: grid; gap: 8px; border-top: 1px solid var(--grid); padding-top: 18px; }
+@media (max-width: 600px) {
+  h1 { font-size: 27px; }
+  :root { --labw: 150px; }
+  .lab .asm { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Reef RTL · scalar core timing · M3 release</div>
+  <h1>Reef Scalar Timing</h1>
+  <p class="lede">Cycle-exact pipeline and per-instruction timing for the scalar core of <code>RvvCoreMiniAxi</code>, measured on the Verilator model with a microbenchmark per instruction class and a scripted waveform check. Each number carries how it was verified.</p>
+  <div class="facts">
+    <span>Source <b>google-coral/coralnpu M3-2026-04-27</b> (<code>72d700e</code>)</span>
+    <span>Benches <b>17/17 pass</b></span>
+    <span>Classes <b id="nclasses">31</b></span>
+    <span>Signed off by hand <b>R1–R9 + fetch 1.5</b></span>
+    <span>Generated <b id="gen"></b></span>
+  </div>
+  <div class="conv" aria-label="Conventions">
+    <div><span class="k">Cycle 0</span>the fetch request (F1)</div>
+    <div><span class="k">D</span>dispatch: the cycle it leaves the instruction buffer</div>
+    <div><span class="k">Retire</span>the cycle it leaves the 8-entry ROB</div>
+    <div><span class="k">Clock</span>1 cycle = 1.25 ns in sim</div>
+  </div>
+  <p style="font-size:13px;color:var(--muted)">Cycle 0 and “retire” match the draft diagrams' conventions (confirmed by Orhan, 2026-10-19).</p>
+</header>
+
+<div class="note-flag" role="note">
+  <h3>FPU numbers match the hardware, not the Verilator sim</h3>
+  <p>The team's Verilator model builds the scalar FP32 FMA with <b>no pipeline registers</b>: fpnew's settings line <code>PipeRegs: '{default: 'd3}</code> fills a packed array, and Verilator puts the 3 only in the last format's slot, so FP32 gets 0. The synthesized Drop 0 netlists do have the 3 stages (DC 269 flops, Yosys-slang 278; checked by Aaron), so this page shows the hardware timing: write at D+4, one FP op per 5 cycles, measured on a Verilator model with that line written row by row. Results are the same either way; only timing differs. Switch to <b>Verilator model</b> to see what the sim shows today (D+1, one per 2). A small fix PR for Reef is planned.</p>
+</div>
+
+<section aria-labelledby="pipe-h">
+  <h2 id="pipe-h">Pipeline</h2>
+  <figure>
+    <div class="figbox">
+    <svg viewBox="0 0 1200 610" role="img" aria-label="Scalar pipeline: fetch delivers one 16-byte line every 2 cycles into an 8-entry instruction buffer; dispatch issues up to 4 instructions in order to the execution units; results return through write ports; every instruction holds one of 8 ROB entries from dispatch to retire. A branch mispredict redirects fetch at D+1 and a full ROB stalls dispatch.">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+        <marker id="ahf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--flag)"/></marker>
+      </defs>
+      <g font-family="system-ui, -apple-system, Segoe UI, sans-serif" fill="currentColor">
+        <!-- Fetch -->
+        <rect x="20" y="200" width="160" height="130" rx="6" fill="var(--surface)" stroke="var(--front)" stroke-width="2"/>
+        <text x="100" y="226" text-anchor="middle" font-size="14" font-weight="700">Fetch</text>
+        <text x="34" y="252" font-size="12"><tspan font-weight="600">F1</tspan> request (pc register)</text>
+        <text x="34" y="272" font-size="12"><tspan font-weight="600">F2</tspan> ITCM data back</text>
+        <text x="34" y="300" font-size="11" fill="var(--ink-2)">no new request in F2</text>
+        <text x="34" y="316" font-size="11" fill="var(--ink-2)">UncachedFetch.scala:176</text>
+        <!-- IBuf -->
+        <rect x="230" y="215" width="130" height="100" rx="6" fill="var(--surface)" stroke="var(--front)" stroke-width="2"/>
+        <text x="295" y="242" text-anchor="middle" font-size="14" font-weight="700">Instr. buffer</text>
+        <text x="295" y="264" text-anchor="middle" font-size="12">8 entries</text>
+        <text x="295" y="284" text-anchor="middle" font-size="11" fill="var(--ink-2)">readable the cycle</text>
+        <text x="295" y="299" text-anchor="middle" font-size="11" fill="var(--ink-2)">after F2 (IBuf)</text>
+        <line x1="180" y1="265" x2="226" y2="265" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+        <text x="203" y="252" text-anchor="middle" font-size="11">16 B line</text>
+        <text x="203" y="286" text-anchor="middle" font-size="11">every 2 cyc</text>
+        <!-- Dispatch -->
+        <rect x="410" y="180" width="160" height="170" rx="6" fill="var(--surface)" stroke="var(--disp)" stroke-width="2"/>
+        <text x="490" y="206" text-anchor="middle" font-size="14" font-weight="700">Dispatch (D)</text>
+        <text x="424" y="232" font-size="12">4 lanes, in order</text>
+        <text x="424" y="252" font-size="12">no flip-flops</text>
+        <text x="424" y="276" font-size="11" fill="var(--ink-2)">branch ends the group</text>
+        <text x="424" y="292" font-size="11" fill="var(--ink-2)">FP / CSR: lane 0, alone</text>
+        <text x="424" y="308" font-size="11" fill="var(--ink-2)">ALU sees same-cycle WB;</text>
+        <text x="424" y="324" font-size="11" fill="var(--ink-2)">load base, store data +1</text>
+        <line x1="360" y1="265" x2="406" y2="265" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+        <text x="383" y="252" text-anchor="middle" font-size="11">up to 4</text>
+        <!-- Units -->
+        <g font-size="12">
+          <rect x="640" y="30"  width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="51" font-weight="700">ALU ×4</text><text x="654" y="68" font-size="11" fill="var(--ink-2)">result in D+1, any lane</text>
+          <rect x="640" y="88"  width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="109" font-weight="700">BRU ×4</text><text x="654" y="126" font-size="11" fill="var(--ink-2)">resolves D+1 · static BTFN prediction</text>
+          <rect x="640" y="146" width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="167" font-weight="700">CSR</text><text x="654" y="184" font-size="11" fill="var(--ink-2)">waits for an empty ROB · port 0</text>
+          <rect x="640" y="204" width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="225" font-weight="700">MLU</text><text x="654" y="242" font-size="11" fill="var(--ink-2)">2 stages · 1 mul per cycle · port 4</text>
+          <rect x="640" y="262" width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="283" font-weight="700">DVU</text><text x="654" y="300" font-size="11" fill="var(--ink-2)">lane 0 · 1 bit/cycle, WB D+2+N · port 4</text>
+          <rect x="640" y="320" width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--exec)" stroke-width="2"/>
+          <text x="654" y="341" font-weight="700">LSU</text><text x="654" y="358" font-size="11" fill="var(--ink-2)">4-entry queue → 1 slot · load 4 cyc, store 2</text>
+          <rect x="640" y="378" width="240" height="60" rx="6" fill="var(--flag-bg)" stroke="var(--flag)" stroke-width="2" stroke-dasharray="6 3"/>
+          <text x="654" y="399" font-weight="700">FPU</text><text x="654" y="416" font-size="11" fill="var(--ink-2)">1-entry queue → fpnew, 3 pipe regs</text>
+          <text x="654" y="431" font-size="11" fill="var(--flag)" font-weight="600">Verilator model: 0 regs (sim bug)</text>
+          <rect x="640" y="448" width="240" height="48" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="654" y="469" font-weight="700">RVV handoff</text><text x="654" y="486" font-size="11" fill="var(--ink-2)">RvvFrontEnd D+1 · in command queue D+2</text>
+        </g>
+        <!-- fan out from dispatch -->
+        <g stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.75">
+          <path d="M570 265 C 605 265, 605 54, 636 54" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 112, 636 112" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 170, 636 170" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 228, 636 228" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 286, 636 286" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 344, 636 344" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 408, 636 408" marker-end="url(#ah)"/>
+          <path d="M570 265 C 605 265, 605 472, 636 472" marker-end="url(#ah)"/>
+        </g>
+        <text x="598" y="508" text-anchor="middle" font-size="11" fill="var(--ink-2)">issue at D,</text>
+        <text x="598" y="522" text-anchor="middle" font-size="11" fill="var(--ink-2)">operands D+1</text>
+        <!-- RVV out -->
+        <line x1="880" y1="472" x2="946" y2="472" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+        <text x="952" y="468" font-size="12" font-weight="600">vector engine</text>
+        <text x="952" y="484" font-size="11" fill="var(--ink-2)">(Pranav's half)</text>
+        <!-- Write ports -->
+        <rect x="930" y="150" width="140" height="200" rx="6" fill="var(--surface)" stroke="currentColor" stroke-width="1.5"/>
+        <text x="1000" y="176" text-anchor="middle" font-size="14" font-weight="700">Write-back</text>
+        <text x="944" y="202" font-size="12">int 0–3: lanes</text>
+        <text x="944" y="222" font-size="12">int 4: shared</text>
+        <text x="944" y="238" font-size="11" fill="var(--ink-2)">MLU > DVU > RVV</text>
+        <text x="944" y="252" font-size="11" fill="var(--ink-2)">> FPU→int</text>
+        <text x="944" y="276" font-size="12">int 5: LSU</text>
+        <text x="944" y="300" font-size="12">float 0: FPU</text>
+        <text x="944" y="320" font-size="12">float 1: LSU</text>
+        <g stroke="currentColor" stroke-width="1.2" fill="none" opacity="0.75">
+          <path d="M880 54  C 905 54, 905 250, 926 250" marker-end="url(#ah)"/>
+          <path d="M880 228 C 905 228, 905 250, 926 250"/>
+          <path d="M880 286 C 905 286, 905 250, 926 250"/>
+          <path d="M880 344 C 905 344, 905 250, 926 250"/>
+          <path d="M880 408 C 905 408, 905 250, 926 250"/>
+          <path d="M880 170 C 905 170, 905 250, 926 250"/>
+        </g>
+        <!-- ROB -->
+        <rect x="1110" y="200" width="80" height="130" rx="6" fill="var(--surface)" stroke="currentColor" stroke-width="2"/>
+        <text x="1150" y="226" text-anchor="middle" font-size="14" font-weight="700">ROB</text>
+        <text x="1150" y="248" text-anchor="middle" font-size="12">8 entries</text>
+        <text x="1150" y="272" text-anchor="middle" font-size="11" fill="var(--ink-2)">retires in</text>
+        <text x="1150" y="287" text-anchor="middle" font-size="11" fill="var(--ink-2)">the WB cycle</text>
+        <text x="1150" y="311" text-anchor="middle" font-size="11" fill="var(--ink-2)">in order</text>
+        <line x1="1070" y1="250" x2="1106" y2="250" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+        <text x="1088" y="240" text-anchor="middle" font-size="11">done</text>
+        <!-- enqueue at D (dashed, along the bottom) -->
+        <path d="M490 350 L490 560 L1150 560 L1150 334" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+        <text x="820" y="552" text-anchor="middle" font-size="11">every instruction takes a ROB entry at D</text>
+        <!-- ROB full stall -->
+        <path d="M1170 334 L1170 590 L470 590 L470 354" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#ah)"/>
+        <text x="820" y="604" text-anchor="middle" font-size="11">ROB full: dispatch stalls (lane i needs more than i free)</text>
+        <!-- BRU redirect back to fetch -->
+        <path d="M640 112 L622 112 L622 14 L100 14 L100 196" fill="none" stroke="currentColor" stroke-width="1.3" marker-end="url(#ah)"/>
+        <text x="360" y="10" text-anchor="middle" font-size="11" dy="14">mispredict / jalr / fence.i: redirect at D+1, target dispatches at D+4</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>One instruction's path: fetch brings one 16-byte line (4 instructions) every 2 cycles, so the front end peaks at 2 IPC; dispatch sends up to 4 a cycle to the units; every instruction holds a ROB entry from D until it retires. The two feedback paths are the main stalls: a branch redirect costs 3 bubbles, and a full ROB stops dispatch.</figcaption>
+  </figure>
+</section>
+
+<section aria-labelledby="chart-h">
+  <h2 id="chart-h">Instruction timing</h2>
+  <p class="lede">One row per instruction class, from a single traced run in which each instruction sits between fences with an independent <code>addi</code> before and after it. Hover a cycle for the signals; select a row for the details. D varies a little between rows because some instructions wait for the one before them (lane 0 rules, CSR waiting for an empty ROB).</p>
+  <div class="controls">
+    <div class="ctl" role="group" aria-label="FPU timing"><span>FPU</span>
+      <div class="seg"><button type="button" id="fpu-fix" aria-pressed="true">Hardware</button><button type="button" id="fpu-rel" aria-pressed="false">Verilator model</button></div></div>
+    <div class="ctl" role="group" aria-label="Align rows"><span>Align</span>
+      <div class="seg"><button type="button" id="al-f1" aria-pressed="true">Fetch = 0</button><button type="button" id="al-d" aria-pressed="false">Dispatch = 0</button></div></div>
+    <div class="ctl" role="group" aria-label="Filter classes" id="filters"><span>Show</span></div>
+  </div>
+  <div class="legend" aria-label="Legend">
+    <span><i class="sw" style="background:var(--front)"></i>fetch F1, F2 and instruction buffer</span>
+    <span><i class="sw" style="background:var(--wait)"></i>waiting to dispatch</span>
+    <span><i class="sw" style="background:var(--disp)"></i>dispatch D</span>
+    <span><i class="sw" style="background:var(--exec)"></i>in a unit</span>
+    <span><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="currentColor"/></svg>write-back</span>
+    <span><svg width="14" height="14" aria-hidden="true"><path d="M7 1.5 L12.5 7 L7 12.5 L1.5 7 z" fill="var(--surface)" stroke="currentColor" stroke-width="1.6"/></svg>retire</span>
+    <span><svg width="14" height="14" aria-hidden="true"><path d="M2 3 L12 3 L7 10 z" fill="currentColor"/></svg>a dependent instruction can dispatch</span>
+  </div>
+  <div class="chart-layout">
+    <div class="chartbox" id="chartbox"><div class="grid" id="chart"></div></div>
+    <div class="detail" id="detail" aria-live="polite"></div>
+  </div>
+</section>
+
+<section aria-labelledby="tab-h">
+  <h2 id="tab-h">Latency and throughput</h2>
+  <p class="lede">The same data as a table. Latency is when a dependent instruction can dispatch (D+n). Throughput is the measured cost per instruction in the bench named; the kind of stream is in the details.</p>
+  <div class="tw"><table id="tab"><thead><tr><th>Instruction</th><th>Example</th><th class="num">Dependent at</th><th class="num">Throughput</th><th>Writes</th><th>Level</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section aria-labelledby="ver-h">
+  <h2 id="ver-h">Against the draft diagrams</h2>
+  <p class="lede">Where Orhan's drafts hold and where the core differs. Full evidence (bench, waveform, file:line) is in the deliverable summary.</p>
+  <div class="tw"><table class="verdict"><thead><tr><th>Draft claim</th><th>Verdict</th><th>What the core does</th><th>Level</th></tr></thead><tbody>
+    <tr><td>Fetch: no new request in F2</td><td class="vd">confirmed</td><td>One 16-byte line per 2 cycles; the front end peaks at 2 IPC, not 4. Leftover instructions when a line lands cost a fetch cycle.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Branches “predict taken”</td><td class="vd">corrected</td><td>Static BTFN: backward conditional branches and <code>jal</code> are predicted taken, forward ones not taken, <code>jalr</code> never. A backward loop costs nothing extra.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Mispredict: target at D+4</td><td class="vd">confirmed</td><td>Redirect and flush at D+1, target dispatches at D+4 (3 bubbles). Every <code>jalr</code> pays it.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>(not drawn)</td><td class="vd">new</td><td>A conditional branch ends its dispatch group: nothing in a later lane dispatches with it.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>CSR / FP: lane 0 only</td><td class="vd">corrected</td><td>Lane 0 and dispatched alone, including <code>flw</code>/<code>fsw</code>. CSRs also wait for an empty ROB, so <code>csrr mcycle</code> acts as a fence.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>DVU: 32 − clz iterations</td><td class="vd">corrected</td><td>Write-back at D+2+N with N = 32 − (clz − 1) of the dividend (N = 2 for 0 or 1, 32 for ÷0); next div at D+3+N.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Load: queue D+1 … port 5 at D+4</td><td class="vd">confirmed</td><td>Bus request D+2, data D+3, write-back D+4. The single LSU slot takes one load per 4 cycles and one store per 2.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Store: write D+2, complete D+3</td><td class="vd">corrected</td><td>Store complete at D+2, ROB retire at D+3.</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>(not drawn)</td><td class="vd">new</td><td>8-entry ROB: dispatch stops when it is full (lane i needs more than i free entries); behind a long <code>div</code> only 7 more instructions dispatch.</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>FPU: queue D+1, fpnew D+2–D+4, write D+4</td><td class="vd">confirmed</td><td>Exactly right: the DC and Yosys netlists have fpnew's 3 registers. Only the Verilator model gets 0 for FP32, so the sim shows write at D+1 and one FP op per 2 cycles.</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>Fences end the group and wait for the LSU</td><td class="vd">corrected</td><td>Only <code>fence.i</code> does. Plain <code>fence</code> neither waits nor ends the group.</td><td><span class="lv lv-sim">sim</span></td></tr>
+    <tr><td>MLU D+1 / D+2 → port 4</td><td class="vd">confirmed</td><td>Port 4 is shared; MLU wins over DVU, RVV, FPU→int and debug.</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>RVV handoff: D+1 to the command queue</td><td class="vd">confirmed</td><td><code>RvvFrontEnd</code> holds it at D+1 and raises command valid that cycle, so it sits in the command queue from D+2. Pranav's vector diagram starts at the instruction buffer and overlaps here; <code>vset*</code> is on his side.</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+  </tbody></table></div>
+</section>
+
+<footer>
+  <div><span class="lv lv-human">human</span> Alex checked it in the waveform (review packet R1–R9, fetch 1.5) · <span class="lv lv-sim">sim+wave</span> bench cycle counts plus a scripted waveform check · <span class="lv lv-sim">sim</span> cycle counts only · <span class="lv lv-src">src</span> read from source only</div>
+  <p>Not measured, source only: fetch internals 1.1–1.4 and 1.6, the <code>jal</code>/<code>jalr</code> link write, <code>minstret</code>, <code>ecall</code>/<code>mret</code>, LSU timing to ITCM or the external bus. Hardware FPU numbers come from the same benches on M3 with only the <code>PipeRegs</code> line written row by row. Samuel is re-running everything independently.</p>
+</footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DATA = __DATA__;
+
+const CATS = [["all","All"],["int","Integer"],["br","Branch"],["md","Mul / div"],["mem","Memory"],["fp","Float"],["sys","System"],["vec","Vector"]];
+const CATNAME = Object.fromEntries(CATS);
+const ORDER = ["int","br","md","mem","fp","sys","vec"];
+const LVCLASS = { "human": "lv-human", "sim+wave": "lv-sim", "sim": "lv-sim", "src": "lv-src" };
+const FRONT = new Set(["F1","F2","IBuf","D","WB","port","retire"]);
+
+let state = { fpu: "fix", align: "f1", cat: "all", sel: "lw" };
+try { const s = JSON.parse(localStorage.getItem("reef-timing") || "{}"); Object.assign(state, s); } catch (e) {}
+function save() { try { localStorage.setItem("reef-timing", JSON.stringify(state)); } catch (e) {} }
+
+function view(c) {          // the timing to show for a class under the current FPU mode
+  if (state.fpu === "fix" && c.intent) return { ...c, ...c.intent, fixed: true };
+  return { ...c, fixed: false };
+}
+function unitEvents(v) { return Object.entries(v.events).filter(([k, x]) => !FRONT.has(k) && typeof x === "number"); }
+function lastCycle(v) {
+  const e = v.events, xs = [e.D, e.WB ?? -1, e.retire ?? -1, ...unitEvents(v).map(([, x]) => x)];
+  if (v.lat != null) xs.push(e.D + v.lat);
+  return Math.max(...xs);
+}
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const lvChip = l => `<span class="lv ${LVCLASS[l] || "lv-sim"}">${esc(l)}</span>`;
+const rel = (x, d) => x === d ? "D" : (x > d ? `D+${x - d}` : `D−${d - x}`);
+
+function eventsAt(v, cyc) {
+  const e = v.events, out = [];
+  if (cyc === e.F1) out.push("F1: fetch request");
+  if (cyc === e.F2) out.push("F2: instruction data returns");
+  if (cyc === e.IBuf && e.IBuf !== e.D) out.push("IBuf: readable by dispatch");
+  if (cyc > e.IBuf && cyc < e.D) out.push("waiting to dispatch");
+  if (cyc === e.D) out.push("D: dispatched");
+  for (const [k, x] of unitEvents(v)) if (x === cyc) out.push(k);
+  if (e.WB === cyc) out.push(`write-back${e.port ? " (" + e.port + ")" : ""}`);
+  if (e.retire === cyc) out.push("retire (leaves the ROB)");
+  if (v.lat != null && e.D + v.lat === cyc) out.push("a dependent instruction can dispatch");
+  return out;
+}
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) { const n = document.createElementNS(SVGNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent && parent.appendChild(n); return n; }
+
+function render() {
+  const W = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cell")) || 26;
+  const rows = DATA.classes.filter(c => state.cat === "all" || c.cat === state.cat).map(c => ({ c, v: view(c) }));
+  const off = r => state.align === "d" ? r.v.events.D : 0;
+  const lo = Math.min(...rows.map(r => r.v.events.F1 - off(r)));
+  const hi = Math.max(...rows.map(r => lastCycle(r.v) - off(r))) + 1;
+  const ncol = hi - lo + 1, width = ncol * W;
+  const chart = document.getElementById("chart");
+  chart.innerHTML = "";
+  // axis
+  const ax = document.createElement("div"); ax.className = "row axis";
+  ax.innerHTML = `<div class="lab">${state.align === "d" ? "cycles from dispatch" : "cycles from fetch"}</div>`;
+  const as = el("svg", { class: "trk", width, height: 30, viewBox: `0 0 ${width} 30`, "aria-hidden": "true" });
+  for (let i = 0; i < ncol; i++) {
+    const cyc = lo + i, t = el("text", { x: i * W + W / 2, y: 19, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)", "font-family": "IBM Plex Mono, monospace" }, as);
+    t.textContent = state.align === "d" ? (cyc === 0 ? "D" : (cyc > 0 ? "+" + cyc : "−" + (-cyc))) : cyc;
+  }
+  el("line", { x1: 0, y1: 29.5, x2: width, y2: 29.5, stroke: "var(--axis)" }, as);
+  ax.appendChild(as); chart.appendChild(ax);
+
+  for (const cat of ORDER) {
+    const group = rows.filter(r => r.c.cat === cat);
+    if (!group.length) continue;
+    const gh = document.createElement("div"); gh.className = "grouphead"; gh.textContent = CATNAME[cat]; chart.appendChild(gh);
+    for (const { c, v } of group) {
+      const o = off({ v }), x = cyc => (cyc - o - lo) * W, e = v.events;
+      const row = document.createElement("div");
+      row.className = "row"; row.tabIndex = 0; row.setAttribute("role", "button"); row.dataset.id = c.id;
+      row.setAttribute("aria-pressed", String(state.sel === c.id));
+      row.setAttribute("aria-label", `${c.label}: dispatch ${rel(e.D, e.D)}, ${e.WB != null ? "write-back " + rel(e.WB, e.D) + ", " : ""}retire ${rel(e.retire, e.D)}`);
+      row.innerHTML = `<div class="lab"><div class="nm">${esc(c.label)} ${v.fixed ? '<span class="lv" style="border-color:var(--flag);color:var(--flag)">hw</span>' : ""}</div><div class="asm" title="${esc(c.asm)}">${esc(c.asm)}</div></div>`;
+      const s = el("svg", { class: "trk", width, height: 38, viewBox: `0 0 ${width} 38` });
+      for (let i = 0; i <= ncol; i++) el("line", { x1: i * W + .5, y1: 0, x2: i * W + .5, y2: 38, stroke: "var(--grid)", "stroke-width": 1 }, s);
+      const cell = (cyc, fill, label, ink) => {
+        el("rect", { x: x(cyc) + 1, y: 10, width: W - 2, height: 18, rx: 3, fill }, s);
+        if (label) { const t = el("text", { x: x(cyc) + W / 2, y: 23, "text-anchor": "middle", "font-size": 10, "font-weight": 600, fill: ink, "font-family": "system-ui, sans-serif" }, s); t.textContent = label; }
+      };
+      cell(e.F1, "var(--front)", "F1", "var(--on-front)");
+      cell(e.F2, "var(--front)", "F2", "var(--on-front)");
+      if (e.IBuf < e.D) cell(e.IBuf, "var(--front)", "IB", "var(--on-front)");
+      for (let k = e.IBuf + 1; k < e.D; k++) cell(k, "var(--wait)", "", "");
+      cell(e.D, "var(--disp)", "D", "var(--on-disp)");
+      const ue = unitEvents(v).map(([, q]) => q);
+      const end = Math.max(e.WB ?? -1, ...ue, -1);
+      if (end > e.D) {
+        el("rect", { x: x(e.D + 1) + 1, y: 10, width: (end - e.D) * W - 2, height: 18, rx: 3, fill: "var(--exec)" }, s);
+        if (end - e.D >= 3) { const t = el("text", { x: x(e.D + 1) + 6, y: 23, "font-size": 10, "font-weight": 600, fill: "var(--on-exec)", "font-family": "system-ui, sans-serif" }, s); t.textContent = c.unit; }
+      }
+      if (v.lat != null) { const cx = x(e.D + v.lat) + W / 2; el("path", { d: `M${cx - 4} 2 L${cx + 4} 2 L${cx} 8 z`, fill: "var(--ink)" }, s); }
+      if (e.WB != null) el("circle", { cx: x(e.WB) + W / 2 - 5, cy: 19, r: 4, fill: "var(--ink)", stroke: "var(--surface)", "stroke-width": 2 }, s);
+      if (e.retire != null) { const cx = x(e.retire) + W / 2 + 5; el("path", { d: `M${cx} 13 L${cx + 6} 19 L${cx} 25 L${cx - 6} 19 z`, fill: "var(--surface)", stroke: "var(--ink)", "stroke-width": 1.6 }, s); }
+      s.addEventListener("pointermove", ev => {
+        const r = s.getBoundingClientRect(), cyc = Math.floor((ev.clientX - r.left) / W) + lo + o;
+        const items = eventsAt(v, cyc);
+        if (!items.length) { hideTip(); return; }
+        showTip(ev, `<b>${esc(c.label)} · cycle ${cyc} (${rel(cyc, e.D)})</b><br>${items.map(esc).join("<br>")}`);
+      });
+      s.addEventListener("pointerleave", hideTip);
+      row.appendChild(s);
+      const pick = () => {
+        state.sel = c.id; save(); render();
+        const r = document.querySelector(`.row[data-id="${c.id}"]`);
+        if (r) r.focus({ preventScroll: true });
+        // stacked layout (narrow screens): bring the details into view
+        if (!matchMedia("(min-width: 1000px)").matches) document.getElementById("detail").scrollIntoView({ block: "nearest" });
+      };
+      row.addEventListener("click", pick);
+      row.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pick(); } });
+      chart.appendChild(row);
+    }
+  }
+  renderDetail(); renderTable(); syncButtons();
+}
+
+const tip = document.getElementById("tip");
+function showTip(ev, html) { tip.innerHTML = html; tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let lx = ev.clientX + 14, ly = ev.clientY + 14;
+  if (lx + w > innerWidth - 8) lx = ev.clientX - w - 14;
+  if (ly + h > innerHeight - 8) ly = ev.clientY - h - 14;
+  tip.style.left = Math.max(8, lx) + "px"; tip.style.top = Math.max(8, ly) + "px"; }
+function hideTip() { tip.hidden = true; }
+
+function timingLine(v) {
+  const e = v.events;
+  return [ `dispatch at cycle ${e.D}`, e.WB != null ? `write-back ${rel(e.WB, e.D)}` : null,
+    e.retire != null ? `retire ${rel(e.retire, e.D)}` : null, v.lat != null ? `dependent at D+${v.lat}` : null,
+    v.thr != null ? `${v.thr} cycles each` : null ].filter(Boolean).join(" · ");
+}
+
+function renderDetail() {
+  const c = DATA.classes.find(k => k.id === state.sel) || DATA.classes[0], v = view(c), e = v.events;
+  const evs = [["F1", e.F1], ["F2", e.F2], ["IBuf", e.IBuf], ["D", e.D], ...unitEvents(v), ["WB", e.WB], ["retire", e.retire]]
+    .filter(([, q]) => q != null).sort((a, b) => a[1] - b[1]);
+  const abs = v.fixed ? null : c.abs;
+  const both = c.intent ? `<div class="both">
+      <div class="${v.fixed ? "on" : ""}"><b>Hardware</b><span>${esc(timingLine({ ...c, ...c.intent }))}</span><span style="color:var(--muted)">measured with PipeRegs written row by row; matches the DC and Yosys netlists (3 stages)</span></div>
+      <div class="${v.fixed ? "" : "on"}"><b>Verilator model</b><span>${esc(timingLine(c))}</span><span style="color:var(--muted)">0 FP32 pipeline registers in Verilator</span></div></div>` : "";
+  const sign = c.signoff ? `<dt>Signed off</dt><dd>${esc(c.signoff)}</dd>` : "";
+  const part = c.partial ? `<dt>Checked by hand</dt><dd>${c.partial.map(esc).join("<br>")}</dd>` : "";
+  document.getElementById("detail").innerHTML = `
+    <div class="dhead"><h3>${esc(c.label)}</h3><code>${esc(c.asm)}</code>${lvChip(v.fixed ? "sim+wave" : c.level)}${v.fixed ? '<span style="font-size:13px;color:var(--muted)">hardware timing: sim+wave on a rebuilt model; register count checked in both netlists</span>' : ""}</div>
+    ${both}
+    <div class="dgrid">
+      <div class="tw"><table><thead><tr><th class="num">Cycle</th><th class="num">From D</th><th>Event</th>${abs ? '<th class="num">trace.vcd (ns)</th>' : ""}</tr></thead><tbody>
+        ${evs.map(([k, q]) => `<tr><td class="num">${q}</td><td class="num">${rel(q, e.D)}</td><td>${esc(k === "WB" && e.port ? "WB · " + e.port : k)}</td>${abs ? `<td class="num">${abs[k] != null ? abs[k] : ""}</td>` : ""}</tr>`).join("")}
+      </tbody></table></div>
+      <dl class="kv">
+        <dt>Dependent</dt><dd>${v.lat != null ? `can dispatch at D+${v.lat}` : "no register result"}</dd>
+        <dt>Throughput</dt><dd>${v.thr != null ? `${v.thr} cycles (${esc(c.thrKind || "")}; ${esc(c.thrSrc || "")})` : "not measured"}</dd>
+        <dt>Lanes</dt><dd>${esc(c.lanes)}</dd>
+        ${sign}${part}
+        <dt>Notes</dt><dd>${esc(c.notes || "")}</dd>
+        <dt>Checklist</dt><dd>${c.rows.map(esc).join(", ")}</dd>
+      </dl>
+    </div>`;
+}
+
+function renderTable() {
+  const tb = document.querySelector("#tab tbody");
+  tb.innerHTML = DATA.classes.map(c => { const v = view(c), e = v.events;
+    return `<tr><td>${esc(c.label)}${v.fixed ? ' <span class="lv" style="border-color:var(--flag);color:var(--flag)">hw</span>' : ""}</td><td><code>${esc(c.asm)}</code></td>
+      <td class="num">${v.lat != null ? "D+" + v.lat : "–"}</td><td class="num">${v.thr != null ? v.thr : "–"}</td>
+      <td>${esc(e.port || "–")}</td><td>${lvChip(v.fixed ? "sim+wave" : c.level)}</td></tr>`; }).join("");
+}
+
+function syncButtons() {
+  const set = (id, on) => document.getElementById(id).setAttribute("aria-pressed", String(on));
+  set("fpu-fix", state.fpu === "fix"); set("fpu-rel", state.fpu === "rel");
+  set("al-f1", state.align === "f1"); set("al-d", state.align === "d");
+  document.querySelectorAll("#filters .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.cat === state.cat)));
+}
+
+const fl = document.getElementById("filters");
+for (const [k, n] of CATS) { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.cat = k; b.textContent = n;
+  b.addEventListener("click", () => { state.cat = k; save(); render(); }); fl.appendChild(b); }
+document.getElementById("fpu-fix").onclick = () => { state.fpu = "fix"; save(); render(); };
+document.getElementById("fpu-rel").onclick = () => { state.fpu = "rel"; save(); render(); };
+document.getElementById("al-f1").onclick = () => { state.align = "f1"; save(); render(); };
+document.getElementById("al-d").onclick = () => { state.align = "d"; save(); render(); };
+document.getElementById("nclasses").textContent = DATA.classes.length;
+document.getElementById("gen").textContent = DATA.generated;
+render();
+</script>

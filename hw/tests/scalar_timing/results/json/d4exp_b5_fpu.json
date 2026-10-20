@@ -1,0 +1,380 @@
+{
+  "bench": "b5_fpu",
+  "cases": {
+    "empty": 2,
+    "fadd_u4": 41,
+    "fadd_u8": 81,
+    "fadd_dep_u4": 41,
+    "fadd_dep_u8": 81,
+    "fmul_u4": 41,
+    "fmul_u8": 81,
+    "fmadd_u4": 41,
+    "fmadd_u8": 81,
+    "fdiv_u4": 73,
+    "fdiv_u8": 145,
+    "fsqrt_u4": 177,
+    "fsqrt_u8": 353,
+    "feq_u4": 42,
+    "feq_u8": 82,
+    "fcvt_u4": 42,
+    "fcvt_u8": 82,
+    "fmvxw_u4": 18,
+    "fmvxw_u8": 34,
+    "fmvwx_u4": 17,
+    "fmvwx_u8": 33,
+    "flw_u4": 34,
+    "flw_u8": 66,
+    "fsw_u4": 19,
+    "fsw_u8": 35,
+    "fadd_a3_u4": 21,
+    "fadd_a3_u8": 41,
+    "fcvt_use_u4": 26,
+    "fcvt_use_u8": 50,
+    "fmvwx_fadd_u4": 29,
+    "fmvwx_fadd_u8": 57,
+    "flw_use_u4": 27,
+    "flw_use_u8": 51
+  },
+  "raw": [
+    [
+      2,
+      41,
+      81,
+      41,
+      81,
+      41,
+      81,
+      41,
+      81,
+      73,
+      145,
+      177,
+      353,
+      42,
+      82,
+      42,
+      82,
+      18,
+      34,
+      17,
+      33,
+      34,
+      66,
+      19,
+      35,
+      21,
+      41,
+      26,
+      50,
+      29,
+      57,
+      27,
+      51
+    ],
+    [
+      2,
+      41,
+      81,
+      41,
+      81,
+      41,
+      81,
+      41,
+      81,
+      73,
+      145,
+      177,
+      353,
+      42,
+      82,
+      42,
+      82,
+      18,
+      34,
+      17,
+      33,
+      34,
+      66,
+      19,
+      35,
+      21,
+      41,
+      26,
+      50,
+      29,
+      57,
+      27,
+      51
+    ]
+  ],
+  "names": [
+    "empty",
+    "fadd_u4",
+    "fadd_u8",
+    "fadd_dep_u4",
+    "fadd_dep_u8",
+    "fmul_u4",
+    "fmul_u8",
+    "fmadd_u4",
+    "fmadd_u8",
+    "fdiv_u4",
+    "fdiv_u8",
+    "fsqrt_u4",
+    "fsqrt_u8",
+    "feq_u4",
+    "feq_u8",
+    "fcvt_u4",
+    "fcvt_u8",
+    "fmvxw_u4",
+    "fmvxw_u8",
+    "fmvwx_u4",
+    "fmvwx_u8",
+    "flw_u4",
+    "flw_u8",
+    "fsw_u4",
+    "fsw_u8",
+    "fadd_a3_u4",
+    "fadd_a3_u8",
+    "fcvt_use_u4",
+    "fcvt_use_u8",
+    "fmvwx_fadd_u4",
+    "fmvwx_fadd_u8",
+    "flw_use_u4",
+    "flw_use_u8"
+  ],
+  "rows": [
+    {
+      "id": "fadd",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU",
+        "3.6"
+      ],
+      "note": "queue depth 1, ready only when empty; fpnew 3 pipe regs -> write D+4, next FP op D+5 (FloatCore.scala:222-225,356)"
+    },
+    {
+      "id": "fadd_dep",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "3.16"
+      ],
+      "note": "dependent fadd: no f-scoreboard bypass, D+5 (FRegfile.scala:36-42)"
+    },
+    {
+      "id": "fmul",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU"
+      ],
+      "note": "same pipe"
+    },
+    {
+      "id": "fmadd",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU"
+      ],
+      "note": "same pipe"
+    },
+    {
+      "id": "fdiv",
+      "measured": 9.0,
+      "expected": 6.0,
+      "expected_from_source": null,
+      "sim_calibrated": true,
+      "calibration_reason": "no source prediction; regression value from the 2026-10-17 sim run (iterative TH32 DIVSQRT: write at D+5)",
+      "ok": false,
+      "source_prediction_matched": null,
+      "checklist_rows": [
+        "FPU div/sqrt"
+      ],
+      "note": "iterative DIVSQRT: measure"
+    },
+    {
+      "id": "fsqrt",
+      "measured": 22.0,
+      "expected": 19.0,
+      "expected_from_source": null,
+      "sim_calibrated": true,
+      "calibration_reason": "no source prediction; regression value from the 2026-10-17 sim run (iterative: write at D+18)",
+      "ok": false,
+      "source_prediction_matched": null,
+      "checklist_rows": [
+        "FPU div/sqrt"
+      ],
+      "note": "iterative DIVSQRT: measure"
+    },
+    {
+      "id": "feq",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU->int"
+      ],
+      "note": "fpnew + Queue(2) to port 4 (FloatCore.scala:352); structural limit still the queue"
+    },
+    {
+      "id": "fcvt",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU->int"
+      ],
+      "note": "fcvt.w.s"
+    },
+    {
+      "id": "fmvxw",
+      "measured": 2.0,
+      "expected": 2.0,
+      "expected_from_source": 2.0,
+      "sim_calibrated": false,
+      "calibration_reason": "",
+      "ok": true,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "fmv"
+      ],
+      "note": "bypasses fpnew, dequeued at D+1 (inst.ready := fmv) -> next FP op D+2"
+    },
+    {
+      "id": "fmvwx",
+      "measured": 2.0,
+      "expected": 2.0,
+      "expected_from_source": 2.0,
+      "sim_calibrated": false,
+      "calibration_reason": "",
+      "ok": true,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "fmv"
+      ],
+      "note": "same"
+    },
+    {
+      "id": "flw",
+      "measured": 4.0,
+      "expected": 4.0,
+      "expected_from_source": 4.0,
+      "sim_calibrated": false,
+      "calibration_reason": "",
+      "ok": true,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "flw/fsw",
+        "3.19"
+      ],
+      "note": "LSU-bound, 4"
+    },
+    {
+      "id": "fsw",
+      "measured": 2.0,
+      "expected": 2.0,
+      "expected_from_source": 2.0,
+      "sim_calibrated": false,
+      "calibration_reason": "",
+      "ok": true,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "flw/fsw",
+        "3.19"
+      ],
+      "note": "LSU-bound, 2"
+    },
+    {
+      "id": "fadd_a3",
+      "measured": 5.0,
+      "expected": 2.0,
+      "expected_from_source": 5.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "3.6"
+      ],
+      "note": "fadd + 3 addi per unit: FPU-bound (fadd dispatches alone; addi hide in the shadow)"
+    },
+    {
+      "id": "fcvt_use",
+      "measured": 6.0,
+      "expected": 3.0,
+      "expected_from_source": 6.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "FPU->int"
+      ],
+      "note": "fcvt.w.s -> addi: int WB at D+5 via Queue(2), addi D+5, next fcvt D+6"
+    },
+    {
+      "id": "fmvwx_fadd",
+      "measured": 7.0,
+      "expected": 4.0,
+      "expected_from_source": 7.0,
+      "sim_calibrated": true,
+      "calibration_reason": "D4: in the Verilator model fpnew's FP32 slice elaborates with NumPipeRegs = 0 (FmtPipeRegs = {0,0,0,0,3}; the '{default: 3} in FloatCore.scala:113 only reached the last format slot), so add/mul/fma/cmp/cvt finish in D+1 and the next FP op dispatches at D+2. Source intent (3 pipe regs) predicts 5. Verified in b5_fpu/trace waves.",
+      "ok": false,
+      "source_prediction_matched": true,
+      "checklist_rows": [
+        "fmv"
+      ],
+      "note": "fmv.w.x (f write D+1) -> fadd at D+2 -> next fmv at D+7"
+    },
+    {
+      "id": "flw_use",
+      "measured": 6.0,
+      "expected": 6.0,
+      "expected_from_source": null,
+      "sim_calibrated": true,
+      "calibration_reason": "no source prediction; regression value from the 2026-10-17 sim run (flw f-port 1 at D+4, f consumer at D+5, next flw behind it)",
+      "ok": true,
+      "source_prediction_matched": null,
+      "checklist_rows": [
+        "flw/fsw"
+      ],
+      "note": "flw -> fmv.x.w: f-port 1 write, measure"
+    }
+  ],
+  "deterministic": true,
+  "faulted": false,
+  "wall_cycles": 6827,
+  "misa": "0x40201120",
+  "misa_extensions": "FIMV",
+  "all_ok": false
+}

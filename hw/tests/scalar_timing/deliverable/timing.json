@@ -1,0 +1,1692 @@
+{
+ "schema": "per class: events relative to that instruction's F1 = cycle 0 (one cycle = 1.25 ns in sim). Source: TRACE bench, one traced run, scripted VCD scan (bench/trace_scan.py). throughput_cycles from the cycle-count benches. events_abs_ns = time of the rising edge that ENDS that cycle in trace.vcd (the value is visible in GTKWave in the 1.25 ns before it).",
+ "source_commit": "google-coral/coralnpu M3-2026-04-27 (72d700e)",
+ "verification_levels": "human = Alex signed off; sim+wave = agent's scripted VCD check; sim = cycle counts only; src = source only. A class is 'human' only where its review-packet item (deliverable/review_packet.md) is ticked agree; 'human_signoff' says which item and what Alex checked, 'partial_signoffs' lists checked parts of a class that otherwise stays at its agent level. Agreed items: R1, R2, R3, R4, R5, R6, R7, R8, R9.",
+ "front_end": {
+  "fetch_line_period_cycles": 2,
+  "fetch_ipc_peak": 2.0,
+  "verified": "human",
+  "note": "checklist 1.5: Alex read the fetch_ipc waveform (2026-10-13). F1 = ibus request, F2 = data return, IBuf = first cycle readable by dispatch. In a free-flowing stream D = IBuf = F1+2."
+ },
+ "retire_signal": "core.score.retirement_buffer.io_debug_inst_k_valid/bits_pc (= instBuffer deq, RetirementBuffer.scala:440-447); io_nRetired counts them",
+ "classes": [
+  {
+   "class": "ALU",
+   "trace_id": "alu",
+   "example_asm": "add t0, a2, a3",
+   "lane_rules": "any lane, up to 4 per cycle (fetch caps a stream at 2/cycle); same-cycle forwarding to ALU consumers",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Alu.valid/addr/op": 3,
+    "WB": 3,
+    "port": "scalar port 1",
+    "retire": 3
+   },
+   "events_abs_ns": {
+    "F1": 1231.25,
+    "F2": 1232.5,
+    "IBuf": 1233.75,
+    "D": 1233.75,
+    "alu_1.valid (op/addr regs, result comb)": 1235.0,
+    "WB": 1235.0,
+    "retire": 1235.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 0.5,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b1_branch:a4",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": [
+    "R8: write-back port + retire at D+1 (5.2)",
+    "R9: same-cycle forwarding to an ALU consumer (3.14)"
+   ],
+   "checklist_rows": [
+    "ALU",
+    "3.14",
+    "3.1"
+   ],
+   "notes": "throughput = independent stream (fetch bound 0.5 cyc/inst); dependent chain = 1.0 (b9)"
+  },
+  {
+   "class": "ALU (Zbb)",
+   "trace_id": "zbb",
+   "example_asm": "clz t0, a2",
+   "lane_rules": "same as ALU",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Alu.valid/addr/op": 3,
+    "WB": 3,
+    "port": "scalar port 1",
+    "retire": 3
+   },
+   "events_abs_ns": {
+    "F1": 1286.25,
+    "F2": 1287.5,
+    "IBuf": 1288.75,
+    "D": 1288.75,
+    "alu_1.valid (op/addr regs, result comb)": 1290.0,
+    "WB": 1290.0,
+    "retire": 1290.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "dependent chain, cycles per instruction (independent stream not measured; same ALU path as base)",
+   "throughput_source": "b9_alu_zbb:clz",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "ALU",
+    "0.2"
+   ],
+   "notes": "throughput = dependent chain (1.0); all 18 Zbb ops 1.0 (b9_alu_zbb)"
+  },
+  {
+   "class": "ALU (lui)",
+   "trace_id": "lui",
+   "example_asm": "lui t0, 1",
+   "lane_rules": "same as ALU",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Alu.valid/addr/op": 3,
+    "WB": 3,
+    "port": "scalar port 1",
+    "retire": 3
+   },
+   "events_abs_ns": {
+    "F1": 1341.25,
+    "F2": 1342.5,
+    "IBuf": 1343.75,
+    "D": 1343.75,
+    "alu_1.valid (op/addr regs, result comb)": 1345.0,
+    "WB": 1345.0,
+    "retire": 1345.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "WAW chain on one rd, cycles per instruction",
+   "throughput_source": "b9_alu_base:lui",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "ALU"
+   ],
+   "notes": "throughput = WAW chain on one rd (1.0)"
+  },
+  {
+   "class": "ALU (auipc)",
+   "trace_id": "auipc",
+   "example_asm": "auipc t0, 0",
+   "lane_rules": "same as ALU",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Alu.valid/addr/op": 3,
+    "WB": 3,
+    "port": "scalar port 1",
+    "retire": 3
+   },
+   "events_abs_ns": {
+    "F1": 1396.25,
+    "F2": 1397.5,
+    "IBuf": 1398.75,
+    "D": 1398.75,
+    "alu_1.valid (op/addr regs, result comb)": 1400.0,
+    "WB": 1400.0,
+    "retire": 1400.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "WAW chain on one rd, cycles per instruction",
+   "throughput_source": "b9_alu_base:auipc",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "ALU"
+   ],
+   "notes": "throughput = WAW chain on one rd (1.0)"
+  },
+  {
+   "class": "BRU not-taken forward",
+   "trace_id": "br_nt_fwd",
+   "example_asm": "bne zero, zero, 1f (not taken, forward)",
+   "lane_rules": "any lane; a conditional branch ends its dispatch group (nothing after it in that cycle)",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Bru.stateReg (resolve)": 3,
+    "WB": null,
+    "port": null,
+    "retire": 3
+   },
+   "events_abs_ns": {
+    "F1": 1451.25,
+    "F2": 1452.5,
+    "IBuf": 1453.75,
+    "D": 1453.75,
+    "bru_1.stateReg_valid (resolve)": 1455.0,
+    "bru_1.io_taken_valid (redirect)": null,
+    "instructionBuffer.io_flush": null,
+    "retire": 1455.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b1_branch:bnt",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R4: conditional branch ends its dispatch group (3.4)",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "3.4",
+    "1.7",
+    "BRU"
+   ],
+   "notes": "consumer = fall-through instruction (same line), still D+1: group end"
+  },
+  {
+   "class": "BRU taken backward (predicted)",
+   "trace_id": "br_t_bwd",
+   "example_asm": "bnez t3, 1b (taken, backward: predicted)",
+   "lane_rules": "any lane; predicted taken at predecode (BTFN), no BRU redirect",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Bru.stateReg (resolve)": 4,
+    "WB": null,
+    "port": null,
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 1510.0,
+    "F2": 1511.25,
+    "IBuf": 1512.5,
+    "D": 1513.75,
+    "bru_0.stateReg_valid (resolve)": 1515.0,
+    "bru_0.io_taken_valid (redirect)": null,
+    "instructionBuffer.io_flush": null,
+    "retire": 1515.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "2-instruction loop, cycles per iteration",
+   "throughput_source": "b1_branch:loop2",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R3: BTFN: backward taken predicted, target D+1, no redirect (1.7)",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "1.7",
+    "BRU correct"
+   ],
+   "notes": "throughput = 2-instr loop, cycles/iteration; D=3 here because bnez waits on the addi before it"
+  },
+  {
+   "class": "BRU mispredict, forward taken",
+   "trace_id": "br_mp_fwd",
+   "example_asm": "beq zero, zero, 1f (taken, forward: mispredict)",
+   "lane_rules": "any lane; BTFN predicts not-taken, BRU redirects at D+1, target dispatches D+4",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Bru.stateReg (resolve)": 3,
+    "Bru.io.taken (redirect)": 3,
+    "InstructionBuffer flush": 3,
+    "WB": null,
+    "port": null,
+    "retire": 6
+   },
+   "events_abs_ns": {
+    "F1": 1570.0,
+    "F2": 1571.25,
+    "IBuf": 1572.5,
+    "D": 1572.5,
+    "bru_1.stateReg_valid (resolve)": 1573.75,
+    "bru_1.io_taken_valid (redirect)": 1573.75,
+    "instructionBuffer.io_flush": 1573.75,
+    "retire": 1577.5
+   },
+   "latency_to_dependent_dispatch": 4,
+   "throughput_cycles": 4.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b1_branch:ft",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R2: mispredict: redirect + flush D+1, target dispatched D+4",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "1.7",
+    "BRU mispredict",
+    "2.3"
+   ],
+   "notes": "3 bubble cycles"
+  },
+  {
+   "class": "BRU mispredict, backward not-taken",
+   "trace_id": "br_mp_bwd",
+   "example_asm": "bne zero, zero, 1b (not taken, backward: mispredict)",
+   "lane_rules": "any lane; BTFN predicts taken, BRU redirects to pc+4 at D+1, D+4",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Bru.stateReg (resolve)": 3,
+    "Bru.io.taken (redirect)": 3,
+    "InstructionBuffer flush": 3,
+    "WB": null,
+    "port": null,
+    "retire": 6
+   },
+   "events_abs_ns": {
+    "F1": 1628.75,
+    "F2": 1630.0,
+    "IBuf": 1631.25,
+    "D": 1631.25,
+    "bru_1.stateReg_valid (resolve)": 1632.5,
+    "bru_1.io_taken_valid (redirect)": 1632.5,
+    "instructionBuffer.io_flush": 1632.5,
+    "retire": 1636.25
+   },
+   "latency_to_dependent_dispatch": 4,
+   "throughput_cycles": 4.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b1_branch:bnt_bwd",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R3: BTFN: backward not-taken redirects at D+1, fall-through D+4 (1.7)",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "1.7",
+    "BRU mispredict"
+   ],
+   "notes": "3 bubble cycles"
+  },
+  {
+   "class": "BRU jal",
+   "trace_id": "jal",
+   "example_asm": "jal zero, 1f",
+   "lane_rules": "any lane; ends the group; always predicted",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Bru.stateReg (resolve)": 3,
+    "WB": null,
+    "port": null,
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 1688.75,
+    "F2": 1690.0,
+    "IBuf": 1691.25,
+    "D": 1691.25,
+    "bru_1.stateReg_valid (resolve)": 1692.5,
+    "bru_1.io_taken_valid (redirect)": null,
+    "instructionBuffer.io_flush": null,
+    "retire": 1693.75
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b1_branch:jal",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "3.5",
+    "1.8",
+    "BRU link write"
+   ],
+   "notes": "target dispatches D+2 (one fetch slot); no BRU redirect"
+  },
+  {
+   "class": "BRU jalr",
+   "trace_id": "jalr",
+   "example_asm": "jalr zero, 16(t1) (rs1 from auipc 2 instr earlier)",
+   "lane_rules": "any lane; ends the group; never predicted -> always redirect; rs1 via registered scoreboard (+2 after producer)",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 4,
+    "Bru.stateReg (resolve)": 5,
+    "Bru.io.taken (redirect)": 5,
+    "InstructionBuffer flush": 5,
+    "WB": null,
+    "port": null,
+    "retire": 8
+   },
+   "events_abs_ns": {
+    "F1": 1745.0,
+    "F2": 1746.25,
+    "IBuf": 1747.5,
+    "D": 1750.0,
+    "bru_0.stateReg_valid (resolve)": 1751.25,
+    "bru_0.io_taken_valid (redirect)": 1751.25,
+    "instructionBuffer.io_flush": 1751.25,
+    "retire": 1755.0
+   },
+   "latency_to_dependent_dispatch": 4,
+   "throughput_cycles": 6.0,
+   "throughput_kind": "auipc + jalr unit, cycles per unit",
+   "throughput_source": "b1_branch:jalr",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "1.7",
+    "3.3",
+    "3.5"
+   ],
+   "notes": "throughput = auipc+jalr unit; jalr D=4 because auipc (D=2) -> jalr rs1 is regd (+2); target D+4"
+  },
+  {
+   "class": "CSR",
+   "trace_id": "csr",
+   "example_asm": "csrr t0, mscratch",
+   "lane_rules": "lane 0, dispatched alone; waits for ROB empty and FPU ready",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 4,
+    "Csr.req": 5,
+    "Csr.io.rd (port 0)": 5,
+    "WB": 5,
+    "port": "scalar port 0",
+    "retire": 5
+   },
+   "events_abs_ns": {
+    "F1": 1868.75,
+    "F2": 1870.0,
+    "IBuf": 1871.25,
+    "D": 1873.75,
+    "csr.req_valid (Csr.req reg)": 1875.0,
+    "csr.io_rd_valid": 1875.0,
+    "WB": 1875.0,
+    "retire": 1875.0
+   },
+   "latency_to_dependent_dispatch": 1,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b6_csr:csrr_mscratch",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "3.6",
+    "3.11",
+    "CSR"
+   ],
+   "notes": "D=4: waits for the preceding addi to retire (ROB empty)"
+  },
+  {
+   "class": "MUL",
+   "trace_id": "mul",
+   "example_asm": "mul t0, a2, a3",
+   "lane_rules": "any lane, one MLU dispatch per cycle (lowest lane wins)",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Mlu.stage2Input": 3,
+    "Mlu.stage3Input": 4,
+    "Mlu.io.rd (port 4 request)": 4,
+    "WB": 4,
+    "port": "scalar port 4",
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 1926.25,
+    "F2": 1927.5,
+    "IBuf": 1928.75,
+    "D": 1928.75,
+    "mlu.stage2Input_q.io_deq_valid": 1930.0,
+    "mlu.stage3Input_q.io_deq_valid": 1931.25,
+    "mlu.io_rd_valid": 1931.25,
+    "WB": 1931.25,
+    "retire": 1931.25
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b2_mul:mul_ind4",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "MLU",
+    "3.8",
+    "3.15"
+   ],
+   "notes": "port 4, MLU has priority over DVU"
+  },
+  {
+   "class": "DIV (dividend 1, N=2)",
+   "trace_id": "div_small",
+   "example_asm": "div t0, a4, a3 (a4 = 1, N = 2)",
+   "lane_rules": "lane 0 only; later lanes may dispatch with it; next DIV at D+3+N",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Dvu.active": 4,
+    "Dvu.compute": 5,
+    "Dvu.io.rd (count(5))": 7,
+    "WB": 7,
+    "port": "scalar port 4",
+    "retire": 7
+   },
+   "events_abs_ns": {
+    "F1": 1982.5,
+    "F2": 1983.75,
+    "IBuf": 1985.0,
+    "D": 1986.25,
+    "dvu.active": 1987.5,
+    "dvu.compute": 1988.75,
+    "dvu.io_rd_valid (count(5))": 1991.25,
+    "WB": 1991.25,
+    "retire": 1991.25
+   },
+   "latency_to_dependent_dispatch": 4,
+   "throughput_cycles": 5.0,
+   "throughput_kind": "independent divs, cycles per div (= 3 + N)",
+   "throughput_source": "b3_div:div_a1",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R6: WB + consumer at D+2+N, N=2 for dividend 1",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "DVU",
+    "3.7"
+   ],
+   "notes": "N = 32 - Clz1(|a|); D=3: div waited for lane 0 behind the pre addi (3.7)"
+  },
+  {
+   "class": "DIV (dividend 2^30, N=32)",
+   "trace_id": "div_large",
+   "example_asm": "div t0, a5, a3 (a5 = 2^30, N = 32)",
+   "lane_rules": "same as DIV",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Dvu.active": 4,
+    "Dvu.compute": 5,
+    "Dvu.io.rd (count(5))": 37,
+    "WB": 37,
+    "port": "scalar port 4",
+    "retire": 37
+   },
+   "events_abs_ns": {
+    "F1": 2042.5,
+    "F2": 2043.75,
+    "IBuf": 2045.0,
+    "D": 2046.25,
+    "dvu.active": 2047.5,
+    "dvu.compute": 2048.75,
+    "dvu.io_rd_valid (count(5))": 2088.75,
+    "WB": 2088.75,
+    "retire": 2088.75
+   },
+   "latency_to_dependent_dispatch": 34,
+   "throughput_cycles": 35.0,
+   "throughput_kind": "independent divs, cycles per div (= 3 + N)",
+   "throughput_source": "b3_div:div_a2p30",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R6: WB + consumer at D+2+N, N=32 for dividend 2^30",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "DVU",
+    "3.7"
+   ],
+   "notes": "WB D+2+N"
+  },
+  {
+   "class": "DIV by zero",
+   "trace_id": "div_by0",
+   "example_asm": "div t0, a5, zero",
+   "lane_rules": "same as DIV",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Dvu.active": 4,
+    "Dvu.compute": 5,
+    "Dvu.io.rd (count(5))": 37,
+    "WB": 37,
+    "port": "scalar port 4",
+    "retire": 37
+   },
+   "events_abs_ns": {
+    "F1": 2140.0,
+    "F2": 2141.25,
+    "IBuf": 2142.5,
+    "D": 2143.75,
+    "dvu.active": 2145.0,
+    "dvu.compute": 2146.25,
+    "dvu.io_rd_valid (count(5))": 2186.25,
+    "WB": 2186.25,
+    "retire": 2186.25
+   },
+   "latency_to_dependent_dispatch": 34,
+   "throughput_cycles": 35.0,
+   "throughput_kind": "independent divs, cycles per div (= 3 + N)",
+   "throughput_source": "b3_div:div_by0",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "DVU"
+   ],
+   "notes": "divide by zero forces full latency (N=32)"
+  },
+  {
+   "class": "LW",
+   "trace_id": "lw",
+   "example_asm": "lw t0, 4(s0)",
+   "lane_rules": "any lane, up to LSU opQueue free space; LSU single slot",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Lsu.opQueue": 3,
+    "Lsu.slot -> dbus request": 4,
+    "Lsu.readFired": 5,
+    "Lsu.io.rd (port 5)": 6,
+    "WB": 6,
+    "port": "scalar port 5",
+    "retire": 6
+   },
+   "events_abs_ns": {
+    "F1": 2237.5,
+    "F2": 2238.75,
+    "IBuf": 2240.0,
+    "D": 2240.0,
+    "lsu.opQueue.io_nEnqueued>0": 2241.25,
+    "lsu.nextSlot_active": 2240.0,
+    "lsu.io_dbus_valid (bus request)": 2242.5,
+    "lsu.readFired_valid": 2243.75,
+    "lsu.io_rd_valid": 2245.0,
+    "WB": 2245.0,
+    "retire": 2245.0
+   },
+   "latency_to_dependent_dispatch": 4,
+   "throughput_cycles": 4.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b4_lsu:lw4",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R1: 1 load per 4 cycles (R1); write-back port 5 + retire at D+4 (R8)",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "Load",
+    "3.19",
+    "3.9"
+   ],
+   "notes": "1 load per 4 cycles (bus req, data, writeback, idle/dequeue)"
+  },
+  {
+   "class": "SW",
+   "trace_id": "sw",
+   "example_asm": "sw a2, 8(s0)",
+   "lane_rules": "any lane, up to opQueue free space; store data via registered scoreboard",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "Lsu.opQueue": 3,
+    "Lsu.slot -> dbus request": 4,
+    "Lsu.io.storeComplete": 4,
+    "WB": 4,
+    "port": "storeComplete (ROB, after Pipe)",
+    "retire": 5
+   },
+   "events_abs_ns": {
+    "F1": 2296.25,
+    "F2": 2297.5,
+    "IBuf": 2298.75,
+    "D": 2298.75,
+    "lsu.opQueue.io_nEnqueued>0": 2300.0,
+    "lsu.nextSlot_active": 2298.75,
+    "lsu.io_dbus_valid (bus request)": 2301.25,
+    "lsu.io_storeComplete_valid": 2301.25,
+    "WB": 2301.25,
+    "retire": 2302.5
+   },
+   "latency_to_dependent_dispatch": null,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b4_lsu:sw4",
+   "source_intent_if_different": null,
+   "verified": "human",
+   "human_signoff": "R1: 1 store per 2 cycles; storeComplete D+2 / retire D+3 itself is sim+wave (5.3)",
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "Store",
+    "3.19",
+    "5.3"
+   ],
+   "notes": "1 store per 2 cycles; retire D+3 (storeComplete Pipe)"
+  },
+  {
+   "class": "FLW",
+   "trace_id": "flw",
+   "example_asm": "flw ft0, 0(s0)",
+   "lane_rules": "lane 0, dispatched alone (float); LSU path",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Lsu.opQueue": 4,
+    "Lsu.slot -> dbus request": 5,
+    "Lsu.readFired": 6,
+    "Lsu.io.rd_flt (f-port 1)": 7,
+    "WB": 7,
+    "port": "float port 1",
+    "retire": 7
+   },
+   "events_abs_ns": {
+    "F1": 2353.75,
+    "F2": 2355.0,
+    "IBuf": 2356.25,
+    "D": 2357.5,
+    "lsu.opQueue.io_nEnqueued>0": 2358.75,
+    "lsu.nextSlot_active": 2357.5,
+    "lsu.io_dbus_valid (bus request)": 2360.0,
+    "lsu.readFired_valid": 2361.25,
+    "lsu.io_rd_flt_valid": 2362.5,
+    "WB": 2362.5,
+    "retire": 2362.5
+   },
+   "latency_to_dependent_dispatch": 5,
+   "throughput_cycles": 4.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:flw",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "flw/fsw",
+    "3.6"
+   ],
+   "notes": "f-port 1 at D+4; f consumer at D+5 (no f bypass)"
+  },
+  {
+   "class": "FSW",
+   "trace_id": "fsw",
+   "example_asm": "fsw fa0, 12(s0)",
+   "lane_rules": "lane 0, dispatched alone (float); LSU path",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Lsu.opQueue": 4,
+    "Lsu.slot -> dbus request": 5,
+    "Lsu.io.storeComplete": 5,
+    "WB": 5,
+    "port": "storeComplete (ROB, after Pipe)",
+    "retire": 6
+   },
+   "events_abs_ns": {
+    "F1": 2416.25,
+    "F2": 2417.5,
+    "IBuf": 2418.75,
+    "D": 2420.0,
+    "lsu.opQueue.io_nEnqueued>0": 2421.25,
+    "lsu.nextSlot_active": 2420.0,
+    "lsu.io_dbus_valid (bus request)": 2422.5,
+    "lsu.io_storeComplete_valid": 2422.5,
+    "WB": 2422.5,
+    "retire": 2423.75
+   },
+   "latency_to_dependent_dispatch": null,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fsw",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "flw/fsw",
+    "3.6"
+   ],
+   "notes": ""
+  },
+  {
+   "class": "FADD",
+   "trace_id": "fadd",
+   "example_asm": "fadd.s ft0, fa0, fa1",
+   "lane_rules": "lane 0, dispatched alone; one FP op in flight (instQueue depth 1)",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 4,
+    "FloatCore write (f-port 0)": 4,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 4,
+    "port": "float port 0",
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 2475.0,
+    "F2": 2476.25,
+    "IBuf": 2477.5,
+    "D": 2478.75,
+    "floatCore.instQueue.io_count=1": 2480.0,
+    "fpnew in_valid&in_ready (accepted)": 2480.0,
+    "fpnew out_valid_o": 2480.0,
+    "floatCore.io_write_ports_0_valid": 2480.0,
+    "floatCore.instQueue.io_count=0 again": 2481.25,
+    "WB": 2480.0,
+    "retire": 2480.0
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fadd",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 7,
+     "FloatCore write (f-port 0)": 7,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 8,
+     "WB": 7,
+     "port": "float port 0",
+     "retire": 7
+    },
+    "WB": "D+4",
+    "next_fp_dispatch": "D+5",
+    "latency_to_dependent_dispatch": 5,
+    "throughput_cycles": 5.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": [
+    "R5: dispatched alone in lane 0 (3.6) and sim timing D+1; RTL-intent timing open (D4)"
+   ],
+   "checklist_rows": [
+    "FPU",
+    "3.6",
+    "3.16"
+   ],
+   "notes": "SIM: write D+1, next FP op D+2. Source intent (3 fpnew pipe regs): write D+4, next D+5 (D4)"
+  },
+  {
+   "class": "FMUL",
+   "trace_id": "fmul",
+   "example_asm": "fmul.s ft0, fa0, fa1",
+   "lane_rules": "as FADD",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 4,
+    "FloatCore write (f-port 0)": 4,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 4,
+    "port": "float port 0",
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 2533.75,
+    "F2": 2535.0,
+    "IBuf": 2536.25,
+    "D": 2537.5,
+    "floatCore.instQueue.io_count=1": 2538.75,
+    "fpnew in_valid&in_ready (accepted)": 2538.75,
+    "fpnew out_valid_o": 2538.75,
+    "floatCore.io_write_ports_0_valid": 2538.75,
+    "floatCore.instQueue.io_count=0 again": 2540.0,
+    "WB": 2538.75,
+    "retire": 2538.75
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fmul",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 7,
+     "FloatCore write (f-port 0)": 7,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 8,
+     "WB": 7,
+     "port": "float port 0",
+     "retire": 7
+    },
+    "WB": "D+4",
+    "next_fp_dispatch": "D+5",
+    "latency_to_dependent_dispatch": 5,
+    "throughput_cycles": 5.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU",
+    "3.6"
+   ],
+   "notes": "as FADD (D4)"
+  },
+  {
+   "class": "FMADD",
+   "trace_id": "fmadd",
+   "example_asm": "fmadd.s ft0, fa0, fa1, fa2",
+   "lane_rules": "as FADD",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 4,
+    "FloatCore write (f-port 0)": 4,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 4,
+    "port": "float port 0",
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 2592.5,
+    "F2": 2593.75,
+    "IBuf": 2595.0,
+    "D": 2596.25,
+    "floatCore.instQueue.io_count=1": 2597.5,
+    "fpnew in_valid&in_ready (accepted)": 2597.5,
+    "fpnew out_valid_o": 2597.5,
+    "floatCore.io_write_ports_0_valid": 2597.5,
+    "floatCore.instQueue.io_count=0 again": 2598.75,
+    "WB": 2597.5,
+    "retire": 2597.5
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fmadd",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 7,
+     "FloatCore write (f-port 0)": 7,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 8,
+     "WB": 7,
+     "port": "float port 0",
+     "retire": 7
+    },
+    "WB": "D+4",
+    "next_fp_dispatch": "D+5",
+    "latency_to_dependent_dispatch": 5,
+    "throughput_cycles": 5.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU",
+    "3.6"
+   ],
+   "notes": "as FADD (D4)"
+  },
+  {
+   "class": "FDIV",
+   "trace_id": "fdiv",
+   "example_asm": "fdiv.s ft0, fa0, fa1",
+   "lane_rules": "as FADD; iterative DIVSQRT (TH32), blocks the FPU",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 8,
+    "FloatCore write (f-port 0)": 8,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 9,
+    "WB": 8,
+    "port": "float port 0",
+    "retire": 8
+   },
+   "events_abs_ns": {
+    "F1": 2651.25,
+    "F2": 2652.5,
+    "IBuf": 2653.75,
+    "D": 2655.0,
+    "floatCore.instQueue.io_count=1": 2656.25,
+    "fpnew in_valid&in_ready (accepted)": 2656.25,
+    "fpnew out_valid_o": 2661.25,
+    "floatCore.io_write_ports_0_valid": 2661.25,
+    "floatCore.instQueue.io_count=0 again": 2662.5,
+    "WB": 2661.25,
+    "retire": 2661.25
+   },
+   "latency_to_dependent_dispatch": 6,
+   "throughput_cycles": 6.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fdiv",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 11,
+     "FloatCore write (f-port 0)": 11,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 12,
+     "WB": 11,
+     "port": "float port 0",
+     "retire": 11
+    },
+    "WB": "D+8",
+    "next_fp_dispatch": "D+9",
+    "latency_to_dependent_dispatch": 9,
+    "throughput_cycles": 9.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU div/sqrt"
+   ],
+   "notes": "write D+5 in sim"
+  },
+  {
+   "class": "FSQRT",
+   "trace_id": "fsqrt",
+   "example_asm": "fsqrt.s ft0, fa1",
+   "lane_rules": "as FDIV",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 21,
+    "FloatCore write (f-port 0)": 21,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 22,
+    "WB": 21,
+    "port": "float port 0",
+    "retire": 21
+   },
+   "events_abs_ns": {
+    "F1": 2715.0,
+    "F2": 2716.25,
+    "IBuf": 2717.5,
+    "D": 2718.75,
+    "floatCore.instQueue.io_count=1": 2720.0,
+    "fpnew in_valid&in_ready (accepted)": 2720.0,
+    "fpnew out_valid_o": 2741.25,
+    "floatCore.io_write_ports_0_valid": 2741.25,
+    "floatCore.instQueue.io_count=0 again": 2742.5,
+    "WB": 2741.25,
+    "retire": 2741.25
+   },
+   "latency_to_dependent_dispatch": 19,
+   "throughput_cycles": 19.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fsqrt",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 24,
+     "FloatCore write (f-port 0)": 24,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 25,
+     "WB": 24,
+     "port": "float port 0",
+     "retire": 24
+    },
+    "WB": "D+21",
+    "next_fp_dispatch": "D+22",
+    "latency_to_dependent_dispatch": 22,
+    "throughput_cycles": 22.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU div/sqrt"
+   ],
+   "notes": "write D+18 in sim"
+  },
+  {
+   "class": "FP->int (feq)",
+   "trace_id": "feq",
+   "example_asm": "feq.s t0, fa0, fa1",
+   "lane_rules": "as FADD; result through Queue(2) then port-4 arbiter",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 4,
+    "FloatCore.scalar_rd_pipe enq": 4,
+    "FloatCore.scalar_rd (port 4 request)": 5,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 5,
+    "port": "scalar port 4",
+    "retire": 5
+   },
+   "events_abs_ns": {
+    "F1": 2795.0,
+    "F2": 2796.25,
+    "IBuf": 2797.5,
+    "D": 2798.75,
+    "floatCore.instQueue.io_count=1": 2800.0,
+    "fpnew in_valid&in_ready (accepted)": 2800.0,
+    "fpnew out_valid_o": 2800.0,
+    "scalar_rd_pipe_q.io_enq_valid": 2800.0,
+    "floatCore.io_scalar_rd_valid": 2801.25,
+    "floatCore.instQueue.io_count=0 again": 2801.25,
+    "WB": 2801.25,
+    "retire": 2801.25
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:feq",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 7,
+     "FloatCore.scalar_rd_pipe enq": 7,
+     "FloatCore.scalar_rd (port 4 request)": 8,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 8,
+     "WB": 8,
+     "port": "scalar port 4",
+     "retire": 8
+    },
+    "WB": "D+5",
+    "next_fp_dispatch": "D+5",
+    "latency_to_dependent_dispatch": 5,
+    "throughput_cycles": 5.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU->int"
+   ],
+   "notes": "int port 4 at D+2 in sim (D+5 with 3 pipe regs)"
+  },
+  {
+   "class": "FP->int (fcvt.w.s)",
+   "trace_id": "fcvt_w_s",
+   "example_asm": "fcvt.w.s t0, fa0",
+   "lane_rules": "as feq",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "fpnew accept": 4,
+    "fpnew out_valid": 4,
+    "FloatCore.scalar_rd_pipe enq": 4,
+    "FloatCore.scalar_rd (port 4 request)": 5,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 5,
+    "port": "scalar port 4",
+    "retire": 5
+   },
+   "events_abs_ns": {
+    "F1": 2852.5,
+    "F2": 2853.75,
+    "IBuf": 2855.0,
+    "D": 2856.25,
+    "floatCore.instQueue.io_count=1": 2857.5,
+    "fpnew in_valid&in_ready (accepted)": 2857.5,
+    "fpnew out_valid_o": 2857.5,
+    "scalar_rd_pipe_q.io_enq_valid": 2857.5,
+    "floatCore.io_scalar_rd_valid": 2858.75,
+    "floatCore.instQueue.io_count=0 again": 2858.75,
+    "WB": 2858.75,
+    "retire": 2858.75
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fcvt",
+   "source_intent_if_different": {
+    "basis": "RTL intent (3 fpnew pipe regs), measured on the D4 experiment build (branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); sim+wave on that build, not on the M3 model. This is the hardware timing: the Drop 0 DC and Yosys-slang netlists have the 3 FMA stages (Aaron, 2026-10-19); only Verilator builds 0 for FP32",
+    "events": {
+     "F1": 0,
+     "F2": 1,
+     "IBuf": 2,
+     "D": 3,
+     "FloatCore.instQueue": 4,
+     "fpnew accept": 4,
+     "fpnew out_valid": 7,
+     "FloatCore.scalar_rd_pipe enq": 7,
+     "FloatCore.scalar_rd (port 4 request)": 8,
+     "FloatCore.instQueue empty (next FP op may dispatch)": 8,
+     "WB": 8,
+     "port": "scalar port 4",
+     "retire": 8
+    },
+    "WB": "D+5",
+    "next_fp_dispatch": "D+5",
+    "latency_to_dependent_dispatch": 5,
+    "throughput_cycles": 5.0
+   },
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "FPU->int"
+   ],
+   "notes": "as feq"
+  },
+  {
+   "class": "fmv.x.w",
+   "trace_id": "fmv_x_w",
+   "example_asm": "fmv.x.w t0, fa0",
+   "lane_rules": "lane 0 alone; bypasses fpnew, dequeued D+1",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "FloatCore.scalar_rd_pipe enq": 4,
+    "FloatCore.scalar_rd (port 4 request)": 5,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 5,
+    "port": "scalar port 4",
+    "retire": 5
+   },
+   "events_abs_ns": {
+    "F1": 2910.0,
+    "F2": 2911.25,
+    "IBuf": 2912.5,
+    "D": 2913.75,
+    "floatCore.instQueue.io_count=1": 2915.0,
+    "fpnew in_valid&in_ready (accepted)": null,
+    "fpnew out_valid_o": null,
+    "scalar_rd_pipe_q.io_enq_valid": 2915.0,
+    "floatCore.io_scalar_rd_valid": 2916.25,
+    "floatCore.instQueue.io_count=0 again": 2916.25,
+    "WB": 2916.25,
+    "retire": 2916.25
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fmvxw",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "fmv"
+   ],
+   "notes": "int port 4 at D+2 (via Queue(2)); unaffected by D4"
+  },
+  {
+   "class": "fmv.w.x",
+   "trace_id": "fmv_w_x",
+   "example_asm": "fmv.w.x ft0, a2",
+   "lane_rules": "lane 0 alone; bypasses fpnew",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "FloatCore.instQueue": 4,
+    "FloatCore write (f-port 0)": 4,
+    "FloatCore.instQueue empty (next FP op may dispatch)": 5,
+    "WB": 4,
+    "port": "float port 0",
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 2967.5,
+    "F2": 2968.75,
+    "IBuf": 2970.0,
+    "D": 2971.25,
+    "floatCore.instQueue.io_count=1": 2972.5,
+    "fpnew in_valid&in_ready (accepted)": null,
+    "fpnew out_valid_o": null,
+    "floatCore.io_write_ports_0_valid": 2972.5,
+    "floatCore.instQueue.io_count=0 again": 2973.75,
+    "WB": 2972.5,
+    "retire": 2972.5
+   },
+   "latency_to_dependent_dispatch": 2,
+   "throughput_cycles": 2.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b5_fpu:fmvwx",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "fmv"
+   ],
+   "notes": "f-port 0 at D+1; unaffected by D4"
+  },
+  {
+   "class": "fence",
+   "trace_id": "fence",
+   "example_asm": "fence",
+   "lane_rules": "lane 0 only, NOT alone and NOT a group end; does not wait for the LSU (not in isFency)",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "WB": null,
+    "port": null,
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 3026.25,
+    "F2": 3027.5,
+    "IBuf": 3028.75,
+    "D": 3030.0,
+    "retire": 3031.25
+   },
+   "latency_to_dependent_dispatch": null,
+   "throughput_cycles": 1.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b10_system:fence",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "3.5",
+    "3.12",
+    "3.17"
+   ],
+   "notes": "rd=x0 still splits an x0-reading next instruction into the next cycle (3.17b)"
+  },
+  {
+   "class": "fence.i",
+   "trace_id": "fence_i",
+   "example_asm": "fence.i",
+   "lane_rules": "lane 0 alone, ends the group, waits for LSU idle; LSU flush redirects fetch",
+   "dispatch_lane_in_trace": 0,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 3,
+    "Lsu.flushCmd -> io.flush": 4,
+    "Fetch iflush": 4,
+    "InstructionBuffer flush": 4,
+    "WB": null,
+    "port": null,
+    "retire": 4
+   },
+   "events_abs_ns": {
+    "F1": 3083.75,
+    "F2": 3085.0,
+    "IBuf": 3086.25,
+    "D": 3087.5,
+    "lsu.opQueue.io_nEnqueued>0": null,
+    "lsu.io_flush_valid": 3088.75,
+    "fetch.ctrl.io_iflush_valid": 3088.75,
+    "instructionBuffer.io_flush": 3088.75,
+    "retire": 3088.75
+   },
+   "latency_to_dependent_dispatch": null,
+   "throughput_cycles": 4.0,
+   "throughput_kind": "independent stream, cycles per instruction",
+   "throughput_source": "b10_system:fencei",
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "3.5",
+    "3.12",
+    "2.3"
+   ],
+   "notes": "next instruction dispatches D+4"
+  },
+  {
+   "class": "RVV handoff (vadd.vv)",
+   "trace_id": "rvv",
+   "example_asm": "vadd.vv v1, v2, v3",
+   "lane_rules": "any lane, up to RVV queue capacity (RVV ops touching f-regs: lane 0 alone)",
+   "dispatch_lane_in_trace": 1,
+   "events": {
+    "F1": 0,
+    "F2": 1,
+    "IBuf": 2,
+    "D": 2,
+    "RvvFrontEnd.inst_valid_i": 2,
+    "RvvFrontEnd.inst_q": 3,
+    "RvvFrontEnd.cmd_valid_o (to CQ)": 3,
+    "WB": null,
+    "port": null,
+    "retire": 10
+   },
+   "events_abs_ns": {
+    "F1": 3145.0,
+    "F2": 3146.25,
+    "IBuf": 3147.5,
+    "D": 3147.5,
+    "RvvFrontEnd.inst_valid_i": 3147.5,
+    "RvvFrontEnd.valid_inst_q (inst_q)": 3148.75,
+    "RvvFrontEnd.cmd_valid_o (to CQ)": 3148.75,
+    "retire": 3157.5
+   },
+   "latency_to_dependent_dispatch": null,
+   "throughput_cycles": null,
+   "throughput_kind": null,
+   "throughput_source": null,
+   "source_intent_if_different": null,
+   "verified": "sim+wave",
+   "human_signoff": null,
+   "partial_signoffs": null,
+   "checklist_rows": [
+    "RVV handoff"
+   ],
+   "notes": "scope ends at RvvFrontEnd enqueue (Pranav owns the rest); ROB retire at D+8 observed, not analysed"
+  }
+ ],
+ "structures": [
+  {
+   "name": "FetchControl.pc",
+   "rtl_path": "core.score.fetch.ctrl.pc_valid/pc_bits",
+   "file_line": "scalar/UncachedFetch.scala:176",
+   "stage_boundary": "F1: next fetch address (register read in F1)"
+  },
+  {
+   "name": "FetchControl.blockNewFetch (comb)",
+   "rtl_path": "core.score.fetch.ctrl.blockNewFetch",
+   "file_line": "scalar/UncachedFetch.scala:192-198",
+   "stage_boundary": "F1 request gate: no request in F2, needs nSpace >= nValid+4"
+  },
+  {
+   "name": "Fetcher.ibusCmd",
+   "rtl_path": "core.score.fetch.fetcher.ibusCmd_valid/bits",
+   "file_line": "scalar/UncachedFetch.scala:61",
+   "stage_boundary": "F1 -> F2 (request issued; data returns next cycle)"
+  },
+  {
+   "name": "SRAM.readIssued (+ address reg inside Sram_Nx128)",
+   "rtl_path": "-",
+   "file_line": "SRAM.scala:44-48",
+   "stage_boundary": "F1 -> F2 (ITCM read)"
+  },
+  {
+   "name": "CoreAxi.inItcmReg",
+   "rtl_path": "-",
+   "file_line": "CoreAxi.scala:182",
+   "stage_boundary": "F1 -> F2 (ibus rdata mux select)"
+  },
+  {
+   "name": "InstructionBuffer (8 x {pc, inst, brchFwd})",
+   "rtl_path": "core.score.fetch.instructionBuffer.circularBuffer.*",
+   "file_line": "../common/InstructionBuffer.scala:51, scalar/UncachedFetch.scala:235",
+   "stage_boundary": "F2 -> D (written end of F2, readable next cycle = IBuf)"
+  },
+  {
+   "name": "Dispatch (DispatchV2): no flip-flops",
+   "rtl_path": "core.score.dispatch.io_inst_*",
+   "file_line": "scalar/Decode.scala:301-735",
+   "stage_boundary": "D (combinational decode + interlocks; io.inst(i).ready = dispatched, :734)"
+  },
+  {
+   "name": "Regfile.readDataBits / readDataReady",
+   "rtl_path": "core.score.regfile.readDataBits_*/readDataReady_*",
+   "file_line": "scalar/Regfile.scala:117-118",
+   "stage_boundary": "D -> EX (operand registers for all units)"
+  },
+  {
+   "name": "Regfile.scoreboard (regd) + comb view",
+   "rtl_path": "core.score.regfile.scoreboard",
+   "file_line": "scalar/Regfile.scala:93-112",
+   "stage_boundary": "D (RAW/WAW; comb = same-cycle bypass, regd = registered)"
+  },
+  {
+   "name": "Regfile.regfile (x1-x31)",
+   "rtl_path": "core.score.regfile.regfile_*",
+   "file_line": "scalar/Regfile.scala:88",
+   "stage_boundary": "WB (6 write ports: 0-3 lanes, 4 arbiter, 5 LSU)"
+  },
+  {
+   "name": "Alu.valid/addr/op (x4)",
+   "rtl_path": "core.score.alu_N.valid/addr/op",
+   "file_line": "scalar/Alu.scala:79-81",
+   "stage_boundary": "D -> EX (result combinational, written D+1)"
+  },
+  {
+   "name": "Bru.stateReg (x4)",
+   "rtl_path": "core.score.bru_N.stateReg_*",
+   "file_line": "scalar/Bru.scala:114",
+   "stage_boundary": "D -> resolve (D+1: io.taken = redirect)"
+  },
+  {
+   "name": "Csr.req",
+   "rtl_path": "core.score.csr.req_valid/req_bits_*",
+   "file_line": "scalar/Csr.scala:241",
+   "stage_boundary": "D -> CSR RMW (D+1, port 0)"
+  },
+  {
+   "name": "Mlu.stage2Input (Queue 1, pipe)",
+   "rtl_path": "core.score.mlu.stage2Input_q.*",
+   "file_line": "scalar/Mlu.scala:76",
+   "stage_boundary": "D -> multiply (D+1)"
+  },
+  {
+   "name": "Mlu.stage3Input (Queue 1, pipe)",
+   "rtl_path": "core.score.mlu.stage3Input_q.*",
+   "file_line": "scalar/Mlu.scala:101",
+   "stage_boundary": "multiply -> port 4 (D+2)"
+  },
+  {
+   "name": "Dvu.active/compute/count/addr1/addr2/divide/remain/denom",
+   "rtl_path": "core.score.dvu.*",
+   "file_line": "scalar/Dvu.scala:71-86",
+   "stage_boundary": "D -> normalize (D+1) -> 1 bit/cycle -> port 4 (D+2+N)"
+  },
+  {
+   "name": "Port-4 arbiter {MLU > DVU > RVV async > FPU scalar rd > debug}",
+   "rtl_path": "core.score.arb.*",
+   "file_line": "scalar/SCore.scala:259,404-414",
+   "stage_boundary": "WB arbitration (dvu.rd.ready = !mlu.rd.valid)"
+  },
+  {
+   "name": "Lsu.opQueue (CircularBufferMulti, 4 entries)",
+   "rtl_path": "core.score.lsu.opQueue.*",
+   "file_line": "scalar/Lsu.scala:835",
+   "stage_boundary": "D -> LSU (D+1)"
+  },
+  {
+   "name": "Lsu.slot (single active op)",
+   "rtl_path": "core.score.lsu.slot_*",
+   "file_line": "scalar/Lsu.scala:880",
+   "stage_boundary": "opQueue -> bus (one op at a time; dequeue only when idle :1056,1071)"
+  },
+  {
+   "name": "Lsu.readFired",
+   "rtl_path": "core.score.lsu.readFired_valid/bits_*",
+   "file_line": "scalar/Lsu.scala:879",
+   "stage_boundary": "bus request -> read data (load D+3)"
+  },
+  {
+   "name": "Lsu.flushCmd",
+   "rtl_path": "core.score.lsu.flushCmd_*",
+   "file_line": "scalar/Lsu.scala:842",
+   "stage_boundary": "fence.i / flush pending"
+  },
+  {
+   "name": "FloatCore.instQueue (Queue 1; ready only when empty)",
+   "rtl_path": "core.score.floatCore.instQueue.*",
+   "file_line": "float/FloatCore.scala:222-225",
+   "stage_boundary": "D -> fpnew (D+1)"
+  },
+  {
+   "name": "fpnew FMA pipe regs (FP32 slice)",
+   "rtl_path": "core.score.floatCore.floatCoreWrapper.core.gen_operation_groups[0]...i_fma",
+   "file_line": "float/FloatCore.scala:112-119",
+   "stage_boundary": "source intent 3 regs; elaborated 0 in the Verilator model (D4)"
+  },
+  {
+   "name": "FloatCore.fpuActive",
+   "rtl_path": "core.score.floatCore.fpuActive",
+   "file_line": "float/FloatCore.scala:328",
+   "stage_boundary": "multi-cycle DIV/SQRT accepted"
+  },
+  {
+   "name": "FloatCore.scalar_rd_pipe (Queue 2)",
+   "rtl_path": "core.score.floatCore.scalar_rd_pipe_q.*",
+   "file_line": "float/FloatCore.scala:352",
+   "stage_boundary": "FP -> int rd (+1 cycle, then port 4)"
+  },
+  {
+   "name": "FRegfile.fregfile + scoreboard (no same-cycle bypass)",
+   "rtl_path": "core.score.fRegfile.*",
+   "file_line": "scalar/FRegfile.scala:35-42",
+   "stage_boundary": "FP WB (port 0 FPU, port 1 LSU)"
+  },
+  {
+   "name": "RetirementBuffer.instBuffer (8 entries, mini)",
+   "rtl_path": "core.score.retirement_buffer.instBuffer.*",
+   "file_line": "RetirementBuffer.scala:78",
+   "stage_boundary": "enqueued at D, dequeued at retire"
+  },
+  {
+   "name": "RetirementBuffer.resultBuffer",
+   "rtl_path": "core.score.retirement_buffer.resultBuffer_*",
+   "file_line": "RetirementBuffer.scala:233",
+   "stage_boundary": "WB seen ('data done') -> retire same cycle"
+  },
+  {
+   "name": "RetirementBuffer.storeComplete Pipe",
+   "rtl_path": "core.score.retirement_buffer.storeComplete_pipe_*",
+   "file_line": "RetirementBuffer.scala:71",
+   "stage_boundary": "store complete (D+2) -> retire (D+3)"
+  },
+  {
+   "name": "SCore.rvvFrsReg",
+   "rtl_path": "-",
+   "file_line": "scalar/SCore.scala:446-451",
+   "stage_boundary": "D -> RVV (f-reg operand for RVV ops)"
+  },
+  {
+   "name": "RvvFrontEnd.inst_q / valid_inst_q",
+   "rtl_path": "core.rvvCore.rvvCoreWrapper.core.frontend.inst_q / valid_inst_q",
+   "file_line": "../../../verilog/rvv/design/RvvFrontEnd.sv:75-77",
+   "stage_boundary": "D -> RVV command queue (D+1, cmd_valid_o) [boundary with Pranav]"
+  }
+ ]
+}

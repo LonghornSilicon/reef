@@ -1,0 +1,11 @@
+[timestart] 900000
+@28
+RvvCoreMiniAxi.core.score.fetch.clock
+RvvCoreMiniAxi.core.score.lsu.io_dbus_valid
+RvvCoreMiniAxi.core.score.lsu.io_dbus_write
+RvvCoreMiniAxi.core.score.lsu.readFired_valid
+RvvCoreMiniAxi.core.score.lsu.io_rd_valid
+RvvCoreMiniAxi.core.score.lsu.io_active
+@22
+RvvCoreMiniAxi.core.score.lsu.io_queueCapacity[2:0]
+RvvCoreMiniAxi.core.score.lsu.opQueue.io_enqValid[2:0]
