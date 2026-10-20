@@ -1,0 +1,16 @@
+workload,rtl_roi_cycles,rtl_retired_insts,model_roi_cycles,error_pct
+addr_forward,32005,18000,16000,-50
+alu_chain,18004,18000,16000,-11
+alu_indep,12003,18000,7000,-42
+branch_group,10005,18000,7000,-30
+branch_tight,10005,10000,10000,-0
+div_chain,18003,1800,25600,42
+fp_chain,8505,5000,12000,41
+fp_mix,12003,18000,12000,-0
+gemv_int8,13932,3376,8744,-37
+load_chain,10002,6000,4001,-60
+load_stream,8204,2856,2072,-75
+mul_chain,8005,5000,8000,-0
+vec_add_m1,None,0,56400,
+vec_add_m4,61544,14260,29520,-52
+vec_memcpy,18467,2310,5490,-70
