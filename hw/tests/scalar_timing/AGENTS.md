@@ -32,7 +32,8 @@ The first build takes about 15 minutes and needs several GB of RAM. If a test is
 bash bench/sync.sh && (cd "$CORALNPU" && bazel test --nocache_test_results //tests/cocotb/scalar_timing:all)
 ```
 
-**Pass:** the summary says `Executed 17 out of 17 tests: 17 tests pass.`
+**Pass:** the summary says `Executed 17 out of 17 tests: 17 tests pass.` (The `trace` target asserts no cycles; step 3
+checks its numbers.)
 On a failure, report the target name and the `measured / expected` table from
 `$CORALNPU/bazel-testlogs/tests/cocotb/scalar_timing/<target>/test.log`.
 

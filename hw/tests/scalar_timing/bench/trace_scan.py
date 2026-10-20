@@ -7,7 +7,7 @@
   trace_scan.py trace [--out timing_events.json]
       Per-class event cycles from the TRACE bench, relative to F1 = 0.
 
-VCDs come from bench/waves.sh (~/LHS/scalar-timing-waves/<bench>.vcd), ELFs
+VCDs come from bench/waves.sh ($WAVES/<bench>.vcd), ELFs
 from the build tree. Host-side; needs the coralnpu toolchain's llvm-nm.
 """
 import argparse
@@ -20,8 +20,16 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vcdscan import Vcd  # noqa: E402
 
-CORAL = os.environ.get("CORALNPU", os.path.expanduser("~/LHS/coralnpu"))
-WAVES = os.environ.get("WAVES", os.path.expanduser("~/LHS/scalar-timing-waves"))
+CORAL = os.environ.get("CORALNPU", "")  # CoralNPU checkout at tag M3-2026-04-27
+WAVES = os.environ.get("WAVES", "")     # folder bench/waves.sh wrote the VCDs to
+
+
+def require_env():
+    """Exit with a clear message unless CORALNPU and WAVES are set (called by the scripts that read the sim)."""
+    missing = [n for n, v in (("CORALNPU", CORAL), ("WAVES", WAVES)) if not v]
+    if missing:
+        sys.exit("set " + " and ".join(missing) + ": CORALNPU = a CoralNPU checkout at tag M3-2026-04-27, "
+                 "WAVES = the folder bench/waves.sh writes VCDs to (see README.md)")
 
 
 def elf_path(bench):
@@ -317,7 +325,8 @@ def unit_events(t, kind, d, lane):
 def cmd_trace(args):
     syms = symbols("trace")
     t = Trace(load("trace"))
-    out = {"vcd": os.path.join(WAVES, "trace.vcd"), "clock_period_ns": round(t.v.period_ns(), 4),
+    out = {"vcd": "trace.vcd",  # file name only: the folder is machine-specific ($WAVES)
+           "clock_period_ns": round(t.v.period_ns(), 4),
            "classes": {}}
     for name, asm, kind, res in CLASSES:
         pc = syms[f"tr_{name}"]
@@ -373,6 +382,7 @@ def cmd_trace(args):
 
 
 def main():
+    require_env()
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("dump")

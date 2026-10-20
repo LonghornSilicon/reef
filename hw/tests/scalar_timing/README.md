@@ -4,7 +4,9 @@ Microbenchmarks that measure the cycle timing of the **scalar core** of `RvvCore
 **M3 release** (`google-coral/coralnpu` tag `M3-2026-04-27`, commit `72d700e`): fetch, dispatch, every
 execution unit, write-back and retire, for 31 instruction classes. They run as cocotb tests on the
 upstream Verilator model. A traced run plus a VCD scan produces `deliverable/timing.json`, the source of the
-timing diagram: https://claude.ai/artifact/UTUJoms6cTLKvuNNvrUVNs
+timing diagram, `deliverable/diagram.html` (a self-contained page built from that file by `bench/make_diagram.py`;
+download it and open it in a browser). A hosted copy is at https://claude.ai/artifact/UTUJoms6cTLKvuNNvrUVNs, but the
+file in this folder is the one versioned with `timing.json`.
 
 Each bench has expected cycle counts derived from the RTL source (file:line in `bench/scalar_timing_test.py`,
 `SPRINT_SPECS`). Where the sim disagreed with the source, the sim wins: the expectation is marked
@@ -18,9 +20,9 @@ sim-calibrated and the reason is in `notes/discrepancies.md` (D1-D8).
 | `bench/sync.sh` | Copies the benches into `$CORALNPU/tests/cocotb/scalar_timing/` (the only place it writes in the CoralNPU tree) |
 | `bench/waves.sh` | Runs traced versions and copies each VCD to `$WAVES` |
 | `bench/collect.py` | Collects the bench JSON, scans the trace VCD, writes `results/` and `deliverable/timing.json` |
-| `bench/make_review_packet.py`, `bench/make_diagram.py` | Regenerate the review packet and the diagram page |
+| `bench/make_review_packet.py`, `bench/make_diagram.py` | Regenerate the review packet and `deliverable/diagram.html` |
 | `bench/vcdpeek.py` | Prints parameters or per-cycle signal values from a VCD in the terminal |
-| `bench/d4_repro/pipe_regs_check.sv` | Two-file check of the fpnew `PipeRegs` issue (D4) |
+| `bench/d4_repro/` | D4: `pipe_regs_check.sv` (two-file tool comparison), `floatcore_piperegs_row_by_row.patch` and `regen_d4exp.sh` (rebuild the hardware FPU numbers) |
 | `deliverable/` | `timing.json` (diagram source), `summary.md` (verdicts against the draft diagrams), `review_packet.md` (R1-R9, with the hand sign-offs) |
 | `checklist.md` | Every claim checked, with source file:line, evidence and verification level |
 | `notes/` | `discrepancies.md` (where source and sim disagreed, and why) and GTKWave layouts for R1-R9 |
@@ -54,18 +56,21 @@ report cached passes without running anything.
 **What a pass means.** Each target compares measured cycles against its expectation. Most expectations come from the
 source; the sim-calibrated ones are marked in the JSON and in `results/*.md` with the discrepancy that explains them.
 So 17/17 shows the numbers reproduce; the `source-only` column in each `results/*.md` is the cross-check against the RTL.
+The `trace` target has no cycle checks of its own: its numbers are checked by the `deliverable/timing.json` diff below.
 
 ## Numbers, waveforms and the deliverables
 
 ```bash
-export WAVES=/path/for/vcds            # default ~/LHS/scalar-timing-waves; VCDs are 25-55 MB, never commit them
+export WAVES=/path/for/vcds            # required, outside the repo: VCDs are 25-55 MB, never commit them
 bash bench/waves.sh trace              # traced run of the TRACE bench -> $WAVES/trace.vcd
 python3 bench/collect.py               # results/*.md, results/json/, deliverable/timing.json
+bash bench/waves.sh dep_chain_lw b7_rob  # the review packet also needs these two VCDs
 python3 bench/make_review_packet.py    # deliverable/review_packet.md + notes/r*.gtkw (keeps existing sign-offs)
-python3 bench/make_diagram.py --out /tmp/reef-scalar-timing.html
+python3 bench/make_diagram.py         # deliverable/diagram.html (reproducible: stamped with the timing.json hash)
 ```
 
-If the run reproduces, `git diff deliverable/timing.json` is empty. Per-bench logs are in
+If the run reproduces, `git diff deliverable/timing.json` is empty: that diff is the check on every TRACE cycle number.
+`collect.py` warns if a bench JSON is missing, a bench isn't `all_ok`, or there is no `trace.vcd` to scan. Per-bench logs are in
 `$CORALNPU/bazel-testlogs/tests/cocotb/scalar_timing/scalar_timing_cocotb_<bench>/test.log` (search for `measured /`).
 
 Waveforms for any bench: `bash bench/waves.sh <bench> [<bench> ...]`, then
@@ -90,7 +95,13 @@ calibrated to the sim. The hardware numbers were measured on a rebuild with `Pip
 kept in `results/json/d4exp_*.json`, which `collect.py` reads into `timing.json` (`source_intent_if_different`).
 This suite runs on the upstream CoralNPU build, so a fix in Reef's vendored RTL does not change these numbers. To see
 the hardware FPU timing in sim, apply the same row-by-row `PipeRegs` change to `float/FloatCore.scala` in the CoralNPU
-checkout (that is how `d4exp_*` were measured). `bench/d4_repro/` shows the difference between tools in two files.
+checkout (that is how `d4exp_*` were measured). To rebuild them on a **separate** CoralNPU checkout:
+```bash
+git -C "$CORALNPU" worktree add --detach ../coralnpu-d4 M3-2026-04-27
+CORALNPU=$(dirname "$CORALNPU")/coralnpu-d4 bash bench/d4_repro/regen_d4exp.sh   # applies the patch, ~15 min cold
+git diff --stat -- results/json/                                                  # empty if they reproduce
+```
+`bench/d4_repro/pipe_regs_check.sv` shows the difference between tools in two files.
 
 ## Other notes
 

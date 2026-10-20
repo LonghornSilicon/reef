@@ -219,7 +219,8 @@ def class_events(c):
 
 # D4 experiment (2026-10-19): the same benches on a scratch build whose FloatCore writes fpnew PipeRegs row by row,
 # so all formats get the 3 regs the RTL asks for (the stock '{default: 'd3} gives FP32 0 in Verilator).
-# Branch d4-piperegs-experiment in ~/LHS/coralnpu-d4, not M3. Results saved as results/json/d4exp_*.json.
+# The change is bench/d4_repro/floatcore_piperegs_row_by_row.patch; bench/d4_repro/regen_d4exp.sh rebuilds
+# results/json/d4exp_*.json from it (on a separate CoralNPU checkout, never the M3 one used for the suite).
 D4EXP_CLASSES = ("fadd", "fmul", "fmadd", "feq", "fcvt_w_s", "fdiv", "fsqrt")
 D4EXP_BASIS = ("RTL intent (3 fpnew pipe regs), measured on the D4 experiment build "
                "(branch d4-piperegs-experiment = M3 + row-by-row PipeRegs in float/FloatCore.scala:113); "
@@ -341,14 +342,35 @@ def write_results_md(benches):
             f.write("\n".join(L) + "\n")
 
 
+EXPECTED_BENCHES = ["fetch_ipc", "dep_chain_alu", "dep_chain_sw", "dep_chain_lw", "b1_branch", "b2_mul", "b3_div",
+                    "b4_lsu", "b4_lsu_misaligned", "b5_fpu", "b6_csr", "b7_rob", "b8_x0", "b9_alu_base",
+                    "b9_alu_zbb", "b10_system", "trace"]
+
+
+def warn(msg):
+    print(f"WARNING: {msg}", file=sys.stderr, flush=True)
+
+
 def main():
+    trace_scan.require_env()
     benches = collect_jsons()
+    for b in EXPECTED_BENCHES:
+        if b not in benches:
+            warn(f"no JSON for {b} under {LOGS} (did its test run? `zip` installed?); its rows are missing")
+        elif not benches[b].get("all_ok", False):
+            warn(f"{b}: all_ok is false, so some measured values didn't match their expectations; see results/{b}.md")
     write_results_md(benches)
     print(f"collected {len(benches)} bench JSONs -> {JDIR}")
     tev_path = os.path.join(JDIR, "trace_events.json")
-    if os.path.exists(os.path.join(trace_scan.WAVES, "trace.vcd")):
+    vcd = os.path.join(trace_scan.WAVES, "trace.vcd")
+    if os.path.exists(vcd):
         sys.argv = ["trace_scan.py", "trace", "--out", tev_path]
         trace_scan.main()
+    elif os.path.exists(tev_path):
+        warn(f"no {vcd}: reusing {tev_path} from an earlier run, so timing.json may not match this run. "
+             "Run `bash bench/waves.sh trace` first.")
+    else:
+        sys.exit(f"no {vcd} and no earlier {tev_path}: run `bash bench/waves.sh trace` first")
     with open(tev_path) as f:
         tev = json.load(f)
     tj = build(benches, tev, load_d4exp())

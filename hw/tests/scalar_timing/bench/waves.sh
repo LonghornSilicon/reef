@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Run the traced (waves) version of one or more benches and copy each VCD out
-# of the Bazel tree to $WAVES (default ~/LHS/scalar-timing-waves/<bench>.vcd).
+# of the Bazel tree to $WAVES/<bench>.vcd. Needs CORALNPU (M3 checkout) and WAVES (a folder outside the repo).
 #   bash bench/waves.sh trace b1_branch
 # Uses the local test strategy so dump.vcd is left in bazel-bin's runfiles
 # (the sandbox would delete it). VCDs never go into the shared folder.
 set -euo pipefail
-CORAL="${CORALNPU:-$HOME/LHS/coralnpu}"
-WAVES="${WAVES:-$HOME/LHS/scalar-timing-waves}"
+CORAL="${CORALNPU:?set CORALNPU to a CoralNPU checkout at tag M3-2026-04-27}"
+WAVES="${WAVES:?set WAVES to a folder for the VCDs, outside the repo}"
 [ $# -ge 1 ] || { echo "usage: $0 <bench> [bench...]" >&2; exit 2; }
 bash "$(dirname "$0")/sync.sh" >/dev/null
 mkdir -p "$WAVES"
 cd "$CORAL"
-export CC=/usr/bin/clang CXX=/usr/bin/clang++
+export CC="${CC:-/usr/bin/clang}" CXX="${CXX:-/usr/bin/clang++}"
 targets=()
 for b in "$@"; do targets+=("//tests/cocotb/scalar_timing:scalar_timing_waves_cocotb_$b"); done
 # A bench whose expectations fail still writes a complete VCD; keep going.

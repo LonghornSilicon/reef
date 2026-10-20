@@ -1,0 +1,13 @@
+diff --git a/hdl/chisel/src/coralnpu/float/FloatCore.scala b/hdl/chisel/src/coralnpu/float/FloatCore.scala
+index ed6f207b..df77eb4c 100644
+--- a/hdl/chisel/src/coralnpu/float/FloatCore.scala
++++ b/hdl/chisel/src/coralnpu/float/FloatCore.scala
+@@ -110,7 +110,7 @@ object GenerateCoreShimSource {
+         }
+ 
+         coreInstantiation += """  localparam fpnew_pkg::fpu_implementation_t impl = '{
+-        |  PipeRegs:   '{default: 'd3},
++        |  PipeRegs:   '{'{default: 'd3}, '{default: 'd3}, '{default: 'd3}, '{default: 'd3}},
+         |  UnitTypes:  '{'{default: fpnew_pkg::PARALLEL}, // ADDMUL
+         |                '{default: fpnew_pkg::MERGED},   // DIVSQRT
+         |                '{default: fpnew_pkg::PARALLEL}, // NONCOMP

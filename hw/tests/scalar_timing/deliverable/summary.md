@@ -8,7 +8,7 @@ File:line paths are relative to `hdl/chisel/src/coralnpu/`. D = dispatch cycle. 
 and the review packet **R1-R9**, all agreed 2026-10-18/19 (`review_packet.md` has his notes): BTFN prediction,
 CSR/FP dispatched alone in lane 0, branch mispredict D+4, DVU latency, load and store throughput, the 8-entry ROB
 stall, retire timing of an ALU op and a load, and same-cycle forwarding. R5 was agreed for the **sim** FPU behaviour
-only; the FPU timing itself stays open (D4). Every other row was verified by the agent: `sim+wave` = cycle-count
+only; the FPU timing is the hardware's (D4: the netlists have the 3 FMA stages the sim lacks). Every other row was verified by the agent: `sim+wave` = cycle-count
 bench plus a scripted VCD scan, `sim` = cycle counts only, `src` = read from source only. **Samuel will re-run and
 verify everything.**
 

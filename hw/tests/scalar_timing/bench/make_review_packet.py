@@ -44,7 +44,8 @@ def widths(vcd):
 
 def gtkw(name, vcd, t0_ns, sigs):
     w = widths(vcd)
-    L = [f'[dumpfile] "{vcd}"', f"[timestart] {int(t0_ns * 1000)}"]
+    # File name only: the VCD folder ($WAVES) is machine-specific; pass the VCD on the gtkwave command line.
+    L = [f'[dumpfile] "{os.path.basename(vcd)}"', f"[timestart] {int(t0_ns * 1000)}"]
     for s in [S + "clock"] + sigs:
         if s not in w:
             raise KeyError(s)
@@ -80,6 +81,10 @@ def disasm(bench, func, around=None, n=8):
 
 
 def main():
+    ts.require_env()
+    need = [b for b in ("trace", "dep_chain_lw", "b7_rob") if not os.path.exists(os.path.join(WAVES, f"{b}.vcd"))]
+    if need:
+        sys.exit(f"missing VCDs in {WAVES}: {', '.join(n + '.vcd' for n in need)}. Run: bash bench/waves.sh {' '.join(need)}")
     tev = json.load(open(os.path.join(J, "trace_events.json")))
     B = {b: json.load(open(os.path.join(J, b + ".json"))) for b in
          ("b1_branch", "b3_div", "b4_lsu", "b5_fpu", "b6_csr", "b7_rob", "b9_alu_base", "trace", "dep_chain_alu")}
@@ -126,7 +131,7 @@ def main():
         claim="With independent loads (stores) back to back, the single LSU slot completes one load every 4 cycles and one store every 2 cycles.",
         prediction="Loads: bus request, data back (`readFired`), write-back (`io_rd_valid`), one empty cycle, repeat: period 4 cycles = 5.0 ns. Stores: `io_dbus_valid & io_dbus_write` every 2nd cycle (2.5 ns). Bench: lw4 = 16.0 cycles per 4 loads, sw4 = 8.0 per 4 stores.",
         rerun="bash bench/waves.sh dep_chain_lw dep_chain_sw",
-        wave=f"`~/LHS/scalar-timing-waves/dep_chain_lw.vcd`, layout `{g1}`, window **900-925 ns**. Same layout on `dep_chain_sw.vcd`, window **450-463 ns** (change [dumpfile] or open the VCD and load the layout).",
+        wave=f"`$WAVES/dep_chain_lw.vcd`, layout `{g1}`, window **900-925 ns**. Same layout on `dep_chain_sw.vcd`, window **450-463 ns** (change [dumpfile] or open the VCD and load the layout).",
         look="Loads: `io_dbus_valid` pulses once every 4 rising edges; between pulses you see `readFired_valid`, then `io_rd_valid`, then a blank cycle. `io_queueCapacity` (= 4 minus the ops waiting in the opQueue; the slot is not counted, Lsu.scala:837, CircularBufferMulti.scala:72) is 4 before the stream, 3 while the first load waits a cycle, then flat at 1: the ROB is full (`retirement_buffer.io_nSpace` = 0, lane 0 valid but not ready), each load write-back retires the load and its producer addi, and the next addi+lw pair takes those 2 entries. 8 ROB entries / 2 per unit = 4 loads in flight, 1 in the slot and 3 queued. The later d=1/2/3 stretches level off at 2/3/3 for the same reason (F1, discrepancies.md D3). Stores: `io_dbus_valid` with `io_dbus_write` high on every 2nd edge.",
         disasm=disasm("b4_lsu", "r_lw4_u8", n=6),
         byhand=f"`python3 -c \"import json;c=json.load(open('results/json/b4_lsu.json'))['cases'];print((c['lw4_u16']-c['lw4_u8'])/8/4,(c['sw4_u16']-c['sw4_u8'])/8/4)\"` -> {rv('b4_lsu','lw4')/4} {rv('b4_lsu','sw4')/4}",
@@ -142,7 +147,7 @@ def main():
         claim="A mispredicted branch resolves in D+1 (redirect + buffer flush), the target is fetched D+2 (F1) / D+3 (F2) and dispatches at D+4: 3 bubble cycles.",
         prediction="`beq zero,zero,1f` (forward taken, BTFN predicts not taken). D -> redirect D+1 -> target dispatch D+4. Bench: 4.0 cycles per mispredicted branch.",
         rerun="bash bench/waves.sh trace",
-        wave=f"`~/LHS/scalar-timing-waves/trace.vcd`, layout `{g2}`, window **{w[0]:.2f}-{w[1]:.2f} ns**. The branch is at pc {c['pc']} (lane {c['lane']}).",
+        wave=f"`$WAVES/trace.vcd`, layout `{g2}`, window **{w[0]:.2f}-{w[1]:.2f} ns**. The branch is at pc {c['pc']} (lane {c['lane']}).",
         look="Lane 1 `ready` with `bits_addr` = the branch pc (D). Next cycle: `bru_1.io_taken_valid` = 1 and `io_flush` = 1. `io_ibus_valid` then requests the target line, data comes back, and the target pc shows up dispatched (lane 0 `ready`) 4 cycles after D. Scanner events:\n" + tev_lines("br_mp_fwd"),
         disasm=disasm("trace", "r_br_mp_fwd", around=int(c["pc"], 16), n=5),
         byhand=f"`python3 -c \"import json;c=json.load(open('results/json/b1_branch.json'))['cases'];print((c['ft_u16']-c['ft_u8'])/8)\"` -> {rv('b1_branch','ft')}",
@@ -216,7 +221,7 @@ def main():
         claim="Lane i dispatches only if the ROB has more than i free entries. Behind a long div, at most 7 more instructions dispatch; the 8th waits until the div retires.",
         prediction=f"T(K addi behind a 2^30 div) - T(0): 0 for K <= 7, then grows. Measured: K=7 {rv('b7_rob','k7')}, K=8 {rv('b7_rob','k8')}, K=12 {rv('b7_rob','k12')}, K=40 {rv('b7_rob','k40')}.",
         rerun="bash bench/waves.sh b7_rob",
-        wave=f"`~/LHS/scalar-timing-waves/b7_rob.vcd`, layout `{g7}`, window **1688-1737 ns** (region k12; div at 0x660).",
+        wave=f"`$WAVES/b7_rob.vcd`, layout `{g7}`, window **1688-1737 ns** (region k12; div at 0x660).",
         look="div + 3 addi dispatch, then 4 addi; `io_nSpace` drops to 0. Lane 0 shows 0x680 `valid` but not `ready` for 31 cycles. When `dvu.io_rd_valid` pulses (~1732.5 ns), `io_nRetired` = 8 in that cycle, `io_nSpace` = 8 the next, and 0x680-0x68c dispatch together.",
         disasm=disasm("b7_rob", "r_k12v", n=14),
         byhand=f"`python3 -c \"import json;c=json.load(open('results/json/b7_rob.json'))['cases'];print([c[f'k{{k}}']-c['k0'] for k in (6,7,8,12,40)])\"`",
@@ -254,7 +259,7 @@ def main():
 
     L = ["# Review packet: claims for Alex to verify by hand", "",
          "Generated by `bench/make_review_packet.py` from the 2026-10-17 run. Every window and cycle number comes from the "
-         "traced VCDs (`~/LHS/scalar-timing-waves/`) and `results/json/`. Budget: about 1 hour.", "",
+         "traced VCDs (`$WAVES/`) and `results/json/`. Budget: about 1 hour.", "",
          "**How to use:** run the README one-liner first (it also tests the README). For each claim, run its re-run "
          "command, open the VCD in GTKWave with the layout (`DISPLAY=:0 gtkwave <vcd> -a <layout> &` in WSL; layouts "
          "carry the VCD path and start time), check the listed edges, and tick a box. Times are rising-edge times in ns "

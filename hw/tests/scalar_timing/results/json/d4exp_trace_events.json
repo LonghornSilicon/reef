@@ -1,5 +1,5 @@
 {
- "vcd": "scalar-timing-waves/d4-experiment/trace.vcd (D4 experiment build, M3 + row-by-row PipeRegs)",
+ "vcd": "trace.vcd",
  "clock_period_ns": 1.25,
  "classes": {
   "alu": {

@@ -1,4 +1,4 @@
-# Scalar-timing microbenchmarks. Canonical copy lives in reef-scalar-timing/bench;
+# Scalar-timing microbenchmarks (hw/tests/scalar_timing/bench in LonghornSilicon/reef);
 # bench/sync.sh copies it to tests/cocotb/scalar_timing/ in the build tree.
 load("//rules:coco_tb.bzl", "cocotb_test_suite", "verilator_cocotb_model")
 load("//rules:coralnpu_v2.bzl", "coralnpu_v2_binary")

@@ -50,13 +50,28 @@ async def fetch_ipc(dut):
     sizes = [16, 64, 256]
     res, wall = await run_bench(dut, "fetch_ipc", "results", (3, 4))
     assert (res > 0).all(), f"unwritten results: {res}"
+    deterministic = bool((res == res[0]).all())
     rows = []
     for rep, (empty, *cols) in enumerate(res.tolist()):
         for n, raw in zip(sizes, cols):
             body = raw - empty
             rows.append(dict(rep=rep, n=n, raw=raw, empty=empty, body=body,
                              ipc=round(n / body, 3) if body > 0 else None))
-    dump("fetch_ipc", dict(raw=res.tolist(), rows=rows, wall_cycles=wall))
+    # Source (UncachedFetch.scala:192-198, checklist 1.5): one 16-byte line (4 instr) per 2 cycles -> IPC 2.0.
+    # The slope between n=64 and n=256 cancels the fixed overhead and must be 2.0; each size alone sits a
+    # little above 2.0 (the overhead shrinks with n: 2.065 at 64, 2.016 at 256), so it gets a looser bound.
+    _, _, raw64, raw256 = res[0].tolist()
+    slope_ipc = round((256 - 64) / (raw256 - raw64), 3) if raw256 > raw64 else None
+    slope_ok = slope_ipc is not None and abs(slope_ipc - 2.0) <= 0.01
+    size_ok = all(abs(r["ipc"] - 2.0) <= 0.1 for r in rows if r["n"] in (64, 256) and r["ipc"] is not None)
+    print(f"\nfetch_ipc: slope IPC (n=64..256) {slope_ipc} / 2.000 {'ok' if slope_ok else 'MISMATCH'}; "
+          f"per-size IPC n=64/256 within 2.0 +/- 0.1: {'ok' if size_ok else 'MISMATCH'}", flush=True)
+    dump("fetch_ipc", dict(raw=res.tolist(), rows=rows, wall_cycles=wall, slope_ipc=slope_ipc,
+                           slope_ok=slope_ok, size_ok=size_ok, deterministic=deterministic,
+                           all_ok=deterministic and slope_ok and size_ok))
+    assert deterministic, "reps differ"
+    assert slope_ok, f"fetch IPC {slope_ipc}, expected 2.0 (one 16-byte line per 2 cycles)"
+    assert size_ok, f"per-size IPC outside 2.0 +/- 0.1: {[(r['n'], r['ipc']) for r in rows]}"
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +107,7 @@ def expected_per_unit(kind, d, mode):
 
 
 # Where the source-only model above disagrees with the sim, the sim wins
-# (CLAUDE.md rule 5, notes/discrepancies.md D1-D3). The values below are
+# (notes/discrepancies.md D1-D3). The values below are
 # SIM-CALIBRATED, not derived from source; the reason is the mechanism seen in
 # the waveform. The first-principles value is still reported in every row.
 _LSU_LW = ("LSU load service time: one load per 4 cycles in steady state "
@@ -411,7 +426,7 @@ SPRINT_SPECS = {
     "b9_alu_base": _alu(_ALU_BASE),
     "b9_alu_zbb": _alu(_ALU_ZBB),
     "b10_system": _B10,
-    "trace": [],
+    "trace": [],  # no cycle checks here: the trace numbers are checked by the deliverable/timing.json diff (README)
 }
 
 # Sim-calibrated expectations (2026-10-17 run). Two kinds:

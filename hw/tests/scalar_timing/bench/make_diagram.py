@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the timing-diagram page from deliverable/timing.json.
 
-    python3 bench/make_diagram.py --out <path>/reef-scalar-timing.html
+    python3 bench/make_diagram.py            # -> deliverable/diagram.html
 
 The page (bench/diagram_template.html) is a self-contained HTML artifact: pipeline
 block diagram, per-class cycle chart, latency/throughput table, draft verdicts.
@@ -9,7 +9,7 @@ FPU classes carry both timings: the M3 model as released and the FPU-fix rebuild
 (timing.json `source_intent_if_different`, from bench/collect.py).
 """
 import argparse
-import datetime
+import hashlib
 import json
 import os
 import sys
@@ -41,10 +41,12 @@ def abs_by_event(c):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", default=os.path.join(SHARED, "deliverable", "diagram.html"),
+                    help="default: deliverable/diagram.html (committed; open it in a browser)")
     a = ap.parse_args()
-    with open(os.path.join(SHARED, "deliverable", "timing.json")) as f:
-        tj = json.load(f)
+    with open(os.path.join(SHARED, "deliverable", "timing.json"), "rb") as f:
+        raw = f.read()
+    tj = json.loads(raw)
     with open(os.path.join(HERE, "diagram_template.html")) as f:
         tpl = f.read()
     classes = []
@@ -67,7 +69,9 @@ def main():
             "thrKind": c.get("throughput_kind"), "thrSrc": c.get("throughput_source"),
             "intent": intent,
         })
-    data = {"generated": datetime.date.today().isoformat(), "source": tj["source_commit"], "classes": classes}
+    # Stamp the page with the data it was built from, not a date, so regenerating it is reproducible.
+    stamp = "timing.json " + hashlib.sha256(raw).hexdigest()[:10]
+    data = {"generated": stamp, "source": tj["source_commit"], "classes": classes}
     html = tpl.replace("__DATA__", json.dumps(data, separators=(",", ":")).replace("</", "<\\/"))
     with open(a.out, "w") as f:
         f.write(html)
