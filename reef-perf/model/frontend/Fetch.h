@@ -15,7 +15,10 @@
 /// - with `predictor: none` every redirect costs `redirect_penalty` extra
 ///   cycles. With `predictor: static_btfn` (M3 predecode,
 ///   UncachedFetch.scala:87-100) a correctly predicted taken jump costs
-///   `taken_bubble` and a mispredict costs `mispredict_penalty`.
+///   `taken_bubble` and a mispredict costs `mispredict_penalty`;
+/// - with `aligned_blocks` a group never crosses an aligned
+///   `fetch_block_bytes` boundary, so a group that starts mid-block holds
+///   only the rest of that block (UncachedFetch.scala:56,107-131).
 ///
 //===----------------------------------------------------------------------===//
 
@@ -62,6 +65,10 @@ public:
     PARAMETER(uint32_t, mispredict_penalty, 1,
               "Extra cycles after a mispredicted branch/jump or a trap "
               "(static_btfn)")
+    PARAMETER(bool, aligned_blocks, false,
+              "Fetch groups never cross an aligned fetch_block_bytes boundary")
+    PARAMETER(uint32_t, fetch_block_bytes, 16,
+              "Bytes per aligned fetch block (used with aligned_blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
   };
 
@@ -98,6 +105,9 @@ private:
   /// \returns the extra cycles before the next group if \p I ends the
   /// current one, or nullopt if the group continues. Updates the counters.
   std::optional<uint32_t> getGroupEndPenalty(const Inst &I);
+  /// \returns the instruction held back by the last group, if any, else the
+  /// next one from FuncSim; nullptr once the program has ended.
+  InstRef nextInst();
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
@@ -105,10 +115,13 @@ private:
   const bool StaticBtfn;
   const uint32_t TakenBubble;
   const uint32_t MispredictPenalty;
+  const bool AlignedBlocks;
+  const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
   std::deque<InstRef> Ibuf;  // Oldest first.
+  InstRef Pending;           // Fetched from FuncSim; starts the next group.
   Cycle FreedCycle = 0;      // Cycle of the latest pop()s ...
   uint32_t FreedAtCycle = 0; // ... and how many entries they freed.
   Cycle NextFetchCycle = 0;  // Earliest start of the next group.

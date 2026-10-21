@@ -26,6 +26,8 @@ top:
       predictor: static_btfn  # UncachedFetch.scala:87-100: jal + backward branches predicted taken; no BTB/RAS (D6)
       taken_bubble: 0         # UncachedFetch.scala:177-185: next fetch goes straight to the predicted target
       mispredict_penalty: 2   # Bru.scala:202-212; measured on microbenchmarks/frontend/ (U1)
+      aligned_blocks: true    # UncachedFetch.scala:56,107-131: one aligned 16-byte line per fetch; slots before the PC dropped
+      fetch_block_bytes: 16   # BUILD:572-578 --fetchDataBits=128
       ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
   core:
     dispatch:
