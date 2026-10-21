@@ -35,6 +35,7 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       FetchInterval(Params->fetch_interval),
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
+      FetchBlockBytes(Params->fetch_block_bytes),
       IbufEntries(Params->ibuf_entries) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
   // The first group is fetched in cycle 1.
@@ -121,6 +122,8 @@ void Fetch::fetchGroup() {
     ++NumFetched;
     bool Taken = I->isRedirect();
     bool PredictedTaken = isPredictedTaken(*I);
+    bool BoundaryCross = FetchBlockBytes > 0 &&
+                         I->NextPC / FetchBlockBytes != I->PC / FetchBlockBytes;
     if (Taken)
       ++NumRedirects;
     if (Taken != PredictedTaken) { // Wrong guess: the BRU redirects fetch.
@@ -131,6 +134,8 @@ void Fetch::fetchGroup() {
       Redirect = true;
       break; // The rest of this group would be on the wrong path.
     }
+    if (BoundaryCross)
+      break; // The next instruction is in another block: the next fetch.
   }
   if (Fetched > 0) {
     ++NumGroups;
