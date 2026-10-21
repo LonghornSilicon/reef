@@ -400,7 +400,7 @@ group and the target fetch can start mid-block, so it costs fetch bandwidth.
 | Behavior | M3 RTL | reef-perf (`model/frontend/Fetch.cpp`) |
 | --- | --- | --- |
 | Fetch rate | one 4-instruction fetch every 2 cycles | `fetch_interval: 2` (B04) |
-| Alignment | 16-byte blocks; partial block after a mid-block target | none |
+| Alignment | 16-byte blocks; partial block after a mid-block target | `aligned_blocks: true` (B06) |
 | Prediction | static (above) | `predictor: static_btfn` (B05): predicted-taken jumps free, mispredicts 2 cycles (measured) |
 | Redirect | from the BRU, one cycle after the branch dispatches | penalty counted from the branch's fetch cycle; no core-to-frontend signal |
 | Instruction buffer | 8 entries in the fetch unit | `ibuf_entries: 8` in the frontend |
