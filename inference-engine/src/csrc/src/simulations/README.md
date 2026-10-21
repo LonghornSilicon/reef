@@ -8,16 +8,21 @@ serial/flash attention, `expf` softmax) are in git history before the PR
 
 ## Files
 
+Each kernel file is one operator of the inference engine
+(`src/csrc/include/inference_engine/operator/`), with a sim test and an ELF
+of its own. Embedding stays on the host.
+
+    linear.cc          linear: VME and RVV matmul, matmul() dispatcher, linear()
+    attention.cc       attention: block-flash attention on the VME
+    activation.cc      activation: GeLU, LUT softmax and its exp table
+    mlp.cc             mlp: c_fc -> GeLU -> c_proj streamed over the inner width
+    block.cc           no engine operator yet: LayerNorm, residual add
     kernels.h          every kernel's contract
     helpers.h          quantization, RVV and VME instruction wrappers
-    matmul.cc          VME and RVV matmul, and the matmul() dispatcher
-    attention.cc       block-flash attention on the VME, LUT exp table
-    pointwise.cc       GeLU, LayerNorm, residual add
     test_kernels.cc    host unit tests (RVV and VME emulated in C)
     bench_main.cc      the sim ELF harness; BUILD builds it in coralnpu
     bench.py           sim test harness and NumPy references
-    test_attention.py  sim test: matmul tiles, k sweep, attention streams
-    test_pointwise.py  sim test: GeLU, LayerNorm, residual add
+    test_<op>.py       sim tests: linear, attention, pointwise, mlp
     sim.py             runs all of the above
     analysis/          results log, roofline model and its configs
 
@@ -28,8 +33,8 @@ simulator; the first run builds the coralnpu image and RTL model, which
 takes hours on Apple Silicon.
 
     python sim.py unit                  host unit tests (clang++ only)
-    python sim.py build                 build both ELFs into bin/
-    python sim.py test                  run both sim tests on bin/
+    python sim.py build                 build the four ELFs into bin/
+    python sim.py test                  run the four sim tests on bin/
     python sim.py test attention        run one sim test
 
 Each sim test checks every kernel call against NumPy, prints its cycle
@@ -50,5 +55,6 @@ offsets into the arena, floats are their IEEE-754 bits). After the halt,
 `bench_cycles` holds the kernel's cycle count and the outputs are in the
 arena. Op numbers and argument order are in bench_main.cc, and the sim
 tests show the exact call sequence. For example, one attention head is
-vme_attention_block once per K/V block, then attention_flash_finish, with
-the running state left in the arena between runs.
+vme_attention_block once per K/V block, then attention_flash_finish, and
+one MLP is mlp_block once per inner-width chunk, then mlp_finish, with the
+running state left in the arena between runs.

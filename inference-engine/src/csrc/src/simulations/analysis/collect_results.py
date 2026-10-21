@@ -32,6 +32,7 @@ HARDWARE = json.loads((HERE / "hardware.json").read_text())
 METRICS = {
     "vme_matmul": ("job", "vme_matmul_u8_16x512x16"),
     "rvv_matmul": ("job", "matmul_rvv_1x512x32"),
+    "linear": ("job", "linear_16x512x16"),
     "vme_step": ("micro", "vme_cycles_per_matmul_step"),
     "attn_prefill": ("stream", "vme_prefill"),
     "attn_decode": ("stream", "vme_decode"),
@@ -39,9 +40,12 @@ METRICS = {
     "attn_d32_decode": ("stream", "vme_d32_decode"),
     "attn_d32_local": ("stream", "vme_d32_local"),
     "lut_table": ("job", "softmax_lut_table"),
+    "softmax_row": ("job", "softmax_lut_row"),
     "gelu": ("job", "gelu"),
     "layernorm": ("job", "layernorm"),
     "residual": ("job", "residual_add"),
+    "mlp_prefill": ("stream", "mlp_prefill"),
+    "mlp_d512_decode": ("stream", "mlp_d512_decode"),
 }
 CHANGE_THRESHOLD = 0.01  # moves smaller than 1% are noise in the log
 

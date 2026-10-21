@@ -15,8 +15,10 @@ KERNEL_HDRS = ["helpers.h", "kernels.h"]
 
 # One ELF per kernel family keeps each inside the 8 KB ITCM.
 BENCHES = {
-    "bench_attention": (0, ["matmul.cc", "attention.cc"]),
-    "bench_pointwise": (1, ["pointwise.cc"]),
+    "bench_linear": (0, ["linear.cc"]),
+    "bench_attention": (1, ["linear.cc", "attention.cc"]),
+    "bench_pointwise": (2, ["activation.cc", "block.cc"]),
+    "bench_mlp": (3, ["linear.cc", "activation.cc", "mlp.cc"]),
 }
 
 [
@@ -35,8 +37,10 @@ BENCHES = {
 
 # test -> bench ELF it loads (test_<test>.py)
 TESTS = {
+    "linear": "bench_linear",
     "attention": "bench_attention",
     "pointwise": "bench_pointwise",
+    "mlp": "bench_mlp",
 }
 
 [

@@ -35,10 +35,12 @@ CORALNPU_SRC = Path(
 
 # sim test -> the ELF it loads (BUILD BENCHES / TESTS)
 TESTS = {
+    "linear": "bench_linear",
     "attention": "bench_attention",
     "pointwise": "bench_pointwise",
+    "mlp": "bench_mlp",
 }
-KERNELS = ["matmul.cc", "attention.cc", "pointwise.cc"]
+KERNELS = ["linear.cc", "attention.cc", "activation.cc", "mlp.cc", "block.cc"]
 UNIT_FLAGS = ["-std=c++17", "-O2", "-DVME_EMULATE", "-DRVV_EMULATE"]
 
 # Bash that puts this folder into coralnpu as the Bazel package

@@ -57,13 +57,19 @@ OPS = {
     "matmul_rvv": 3,
     "matmul_rvv_s8u8": 4,
     "matmul": 5,
+    "linear": 6,
     "attention_flash_finish": 13,
     "vme_attention_block": 14,
     "gelu": 21,
     "layernorm": 22,
     "residual_add": 23,
+    "softmax_lut": 24,
     "softmax_lut_table": 25,
+    "mlp_block": 40,
+    "mlp_finish": 41,
 }
+NULL = 0xFFFFFFFF  # bench_main.cc kNull: no buffer (e.g. no bias)
+W_ZERO = 128  # weight zero point
 
 
 def f32_bits(value: float) -> int:
@@ -146,6 +152,34 @@ def attention_u8_ref(
     return Q["v_scale"] * out / Q["attn_out_scale"]
 
 
+def linear_acc_ref(
+    x: np.ndarray, wt: np.ndarray, bias: np.ndarray | None
+) -> np.ndarray:
+    """Exact int64 accumulator of linear_acc: x . (wt - W_ZERO) + bias."""
+    acc = x.astype(np.int64) @ (wt.astype(np.int64) - W_ZERO)
+    return acc if bias is None else acc + bias.astype(np.int64)
+
+
+def gelu_table_ref(in_scale: float, out_scale: float) -> np.ndarray:
+    """gelu_table's 256 entries: table[x + 128] = GeLU(x) in int8."""
+    x = np.arange(-128, 128, dtype=np.float64)
+    r = x * in_scale
+    y = 0.5 * r * (1 + np.tanh(np.sqrt(2 / np.pi) * (r + 0.044715 * r**3)))
+    return to_int8(y / out_scale).astype(np.int8)
+
+
+def mlp_acc_ref(data: dict, fc_scale: float) -> np.ndarray:
+    """The unchunked c_fc -> GeLU -> c_proj accumulator, without c_proj bias.
+
+    The GeLU input is rounded in float32 like the kernel, so the result
+    must match its int32 sums exactly.
+    """
+    fc = linear_acc_ref(data["in_x"], data["in_fc_wt"], data["in_fc_bias"])
+    pre = to_int8(np.float32(fc_scale) * fc.astype(np.float32))
+    h = data["in_gelu_table"][pre.astype(np.int64) + 128]
+    return linear_acc_ref(h, data["in_proj_wt"], None)
+
+
 def gelu_ref(x: np.ndarray) -> np.ndarray:
     """GPT-2's tanh GeLU, input and output in int8 LSBs."""
     r = x.astype(np.float64) * Q["gelu_in_scale"]
@@ -168,6 +202,26 @@ def layernorm_ref(
 def check(job: dict, data: dict) -> tuple[float, float]:
     """Return (max abs error in output LSBs, tolerance) for one call."""
     op = job["op"]
+    if op == "linear":
+        acc = linear_acc_ref(data["in_x"], data["in_wt"], data.get("in_bias"))
+        expected = np.clip(acc * job["acc_scale"] / job["out_scale"], -128, 127)
+        return float(np.abs(data["out_y"] - expected).max()), 0.5 + 1e-3
+    if op == "mlp_finish":
+        acc = mlp_acc_ref(data, job["fc_scale"])
+        job["acc_mismatches"] = int((data["out_acc"] != acc).sum())
+        real = (acc + data["in_proj_bias"]) * job["acc_scale"]
+        expected = np.clip(real / job["out_scale"], -128, 127)
+        err = float(np.abs(data["out_y"] - expected).max())
+        # an accumulator off by anything is a kernel bug, not rounding
+        return (err if job["acc_mismatches"] == 0 else math.inf), 0.5 + 1e-3
+    if op == "softmax_lut":
+        lo, hi = job["lo"], job["hi"]
+        s = SCORE_SCALE * data["in_scores"][lo : hi + 1].astype(np.float64)
+        p = np.exp(s - s.max())
+        expected = 255 * p / p.sum()
+        return float(
+            np.abs(data["out_probs"][lo : hi + 1] - expected).max()
+        ), 1.0
     if "matmul" in op:
         a = data["in_a"].astype(np.int64)
         expected = a @ data["in_b"].astype(np.int64)
@@ -483,4 +537,148 @@ async def run_chunked(
             "ops": 0,
         },
         save={"q": q, "kt": kt, "v": v},
+    )
+
+
+async def run_linear(
+    bench: Bench,
+    name: str,
+    rows: int,
+    d_in: int,
+    d_out: int,
+    phase: str,
+    bias: bool = True,
+) -> None:
+    """One linear call: int8 x, uint8 weight.T around W_ZERO, int32 bias."""
+    rng = np.random.default_rng(rows * 7919 + d_in * 31 + d_out)
+    x = rng.integers(-128, 128, (rows, d_in)).astype(np.int8)
+    wt = rng.integers(0, 256, (d_in, d_out)).astype(np.uint8)
+    b = rng.integers(-10000, 10000, d_out).astype(np.int32)
+    acc_scale, out_scale = 0.05 * 0.01, 0.5
+    arena = Arena()
+    ox, ow, ob, os_, oy = (
+        arena.take(s)
+        for s in (x.nbytes, wt.nbytes, b.nbytes, rows * d_out * 4, rows * d_out)
+    )
+    await bench.call(
+        name,
+        "linear",
+        [
+            rows,
+            d_in,
+            d_out,
+            ox,
+            ow,
+            W_ZERO,
+            ob if bias else NULL,
+            acc_scale,
+            out_scale,
+            os_,
+            oy,
+        ],
+        {"x": (ox, x), "wt": (ow, wt), **({"bias": (ob, b)} if bias else {})},
+        {"y": (oy, np.int8, (rows, d_out))},
+        {
+            "kernel": "linear",
+            "shape": [rows, d_in, d_out],
+            "phase": phase,
+            "acc_scale": acc_scale,
+            "out_scale": out_scale,
+            "ops": 2 * rows * d_in * d_out,
+        },
+    )
+
+
+async def run_mlp(
+    bench: Bench,
+    name: str,
+    rows: int,
+    d: int,
+    inner: int,
+    chunk: int,
+    phase: str,
+) -> None:
+    """Stream the inner width through DTCM in `chunk` pieces, then finish.
+
+    x, the GeLU table and the running sums go in once; each mlp_block call
+    gets that chunk's c_fc.T columns, c_fc bias and c_proj.T rows.
+    """
+    rng = np.random.default_rng(rows * 7 + d * 13 + inner)
+    x = rng.integers(-128, 128, (rows, d)).astype(np.int8)
+    fc_wt = rng.integers(0, 256, (d, inner)).astype(np.uint8)
+    proj_wt = rng.integers(0, 256, (inner, d)).astype(np.uint8)
+    fc_bias = rng.integers(-1000, 1000, inner).astype(np.int32)
+    proj_bias = rng.integers(-1000, 1000, d).astype(np.int32)
+    table = gelu_table_ref(Q["gelu_in_scale"], Q["gelu_out_scale"])
+    # accumulator -> GeLU input LSBs; keeps GeLU's input in range for these
+    # random weights (about d * 128 * 74 per sum)
+    fc_scale = 1.0 / (16 * d)
+    acc_scale, out_scale = 0.05 * 0.01, 0.5
+    arena = Arena()
+    ox, ot, oa = arena.take(x.nbytes), arena.take(256), arena.take(rows * d * 4)
+    ofw, ofb, opw = (arena.take(s) for s in (d * chunk, chunk * 4, chunk * d))
+    os_ = arena.take(rows * max(chunk, d) * 4 + rows * chunk)
+    opb, oy = arena.take(d * 4), arena.take(rows * d)
+    setup = {
+        "x": (ox, x),
+        "gelu_table": (ot, table),
+        "acc": (oa, np.zeros(rows * d, np.int32)),
+    }
+    for c0 in range(0, inner, chunk):
+        await bench.call(
+            f"{name}_block{c0 // chunk}",
+            "mlp_block",
+            [
+                rows,
+                d,
+                chunk,
+                ox,
+                ofw,
+                W_ZERO,
+                ofb,
+                fc_scale,
+                ot,
+                opw,
+                W_ZERO,
+                os_,
+                oa,
+            ],
+            {
+                **(setup if c0 == 0 else {}),
+                "fc_wt": (ofw, np.ascontiguousarray(fc_wt[:, c0 : c0 + chunk])),
+                "fc_bias": (ofb, fc_bias[c0 : c0 + chunk]),
+                "proj_wt": (opw, proj_wt[c0 : c0 + chunk]),
+            },
+            {},
+            {
+                "kernel": "mlp_block",
+                "shape": [rows, d, chunk],
+                "phase": phase,
+                "stream": name,
+                "ops": 4 * rows * d * chunk,
+            },
+        )
+    await bench.call(
+        f"{name}_finish",
+        "mlp_finish",
+        [rows, d, oa, opb, acc_scale, out_scale, oy],
+        {"proj_bias": (opb, proj_bias)},
+        {"y": (oy, np.int8, (rows, d)), "acc": (oa, np.int32, (rows, d))},
+        {
+            "kernel": "mlp_finish",
+            "shape": [rows, d, inner],
+            "phase": phase,
+            "stream": name,
+            "fc_scale": fc_scale,
+            "acc_scale": acc_scale,
+            "out_scale": out_scale,
+            "ops": 0,
+        },
+        save={
+            "x": x,
+            "fc_wt": fc_wt,
+            "fc_bias": fc_bias,
+            "proj_wt": proj_wt,
+            "gelu_table": table,
+        },
     )

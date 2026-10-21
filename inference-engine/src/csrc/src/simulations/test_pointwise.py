@@ -1,13 +1,15 @@
-"""Pointwise kernels: GeLU, LayerNorm and residual add.
+"""The activation operator (GeLU, softmax), plus LayerNorm and residual add.
 
+LayerNorm and residual add have no engine operator yet.
 ELF: bin/bench_pointwise.elf. Run: python sim.py test pointwise
 """
 
 import cocotb
 import numpy as np
-from bench import NEO_D_MODEL, Arena, Bench, Q
+from bench import NEO_D_MODEL, SCORE_SCALE, Arena, Bench, Q
 from cocotb.handle import SimHandleBase
 
+SOFTMAX_ROW = 1024
 GELU_N = 4096
 LAYERNORM_ROWS, LAYERNORM_D = 4, 768
 RESIDUAL_N = 4096
@@ -15,9 +17,53 @@ RESIDUAL_N = 4096
 
 @cocotb.test()
 async def test(dut: SimHandleBase) -> None:
-    """GeLU, LayerNorm and residual add at their tile sizes."""
+    """Softmax, GeLU, LayerNorm and residual add at their tile sizes."""
     bench = await Bench.load(dut, "bench_pointwise")
     rng = np.random.default_rng(5)
+
+    # softmax over a decode row and a 64-key prefill row (its table built
+    # untimed in bench_main), then the once-per-layer table build itself
+    row = SOFTMAX_ROW
+    scores = rng.integers(-40000, 40000, row).astype(np.int32)
+    for suffix, lo, hi, phase in [
+        ("row", 0, row - 1, "decode"),
+        ("64", 0, 63, "prefill"),
+    ]:
+        arena = Arena()
+        os_, op, ot = (
+            arena.take(scores.nbytes),
+            arena.take(row),
+            arena.take(1024),
+        )
+        await bench.call(
+            f"softmax_lut_{suffix}",
+            "softmax_lut",
+            [lo, hi, os_, op, SCORE_SCALE, ot],
+            {"scores": (os_, scores)},
+            {"probs": (op, np.uint8, (row,))},
+            {
+                "kernel": "softmax_lut",
+                "shape": [hi - lo + 1],
+                "phase": phase,
+                "lo": lo,
+                "hi": hi,
+                "ops": 6 * (hi - lo + 1),
+            },
+        )
+    ot = Arena().take(1024)
+    await bench.call(
+        "softmax_lut_table",
+        "softmax_lut_table",
+        [SCORE_SCALE, ot],
+        {},
+        {"table": (ot, np.uint16, (512,))},
+        {
+            "kernel": "softmax_lut_table",
+            "shape": [512],
+            "phase": "both",
+            "ops": 0,
+        },
+    )
 
     n = GELU_N
     x = rng.integers(-128, 128, n).astype(np.int8)

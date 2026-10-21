@@ -4,6 +4,7 @@
 // indexing; cycle counts come from the sim tests (test_*.py).
 //
 //   python sim.py unit
+#include "helpers.h"
 #include "kernels.h"
 
 #include <stddef.h>
@@ -452,13 +453,242 @@ int test_residual() {
     return pass ? 0 : 1;
 }
 
+// ---------------------------------------------------------------------------
+// Linear: linear_acc exactly against integer math, linear within half an
+// int8 step of a double-precision requantization
+// ---------------------------------------------------------------------------
+
+constexpr size_t kMaxLinear = 64 * 64;
+constexpr int32_t kWZero = 128;
+
+int8_t random_s8(uint32_t* state) {
+    return static_cast<int8_t>(static_cast<int32_t>(next_random(state) % 256) -
+                               128);
+}
+
+// x . (wt - w_zero) + bias in int64, so the reference can't overflow
+void linear_reference(size_t rows, size_t in, size_t out, const int8_t* x,
+                      const uint8_t* wt, const int32_t* bias, int64_t* acc) {
+    for (size_t r = 0; r < rows; ++r) {
+        for (size_t j = 0; j < out; ++j) {
+            int64_t sum = bias != nullptr ? bias[j] : 0;
+            for (size_t c = 0; c < in; ++c) {
+                sum += static_cast<int64_t>(x[(r * in) + c]) *
+                       (static_cast<int64_t>(wt[(c * out) + j]) - kWZero);
+            }
+            acc[(r * out) + j] = sum;
+        }
+    }
+}
+
+int check_linear(size_t rows, size_t in, size_t out, bool with_bias) {
+    static int8_t x[kMaxLinear];
+    static uint8_t wt[kMaxLinear];
+    static int32_t bias[64];
+    static int32_t scratch[kMaxLinear];
+    static int8_t y[kMaxLinear];
+    static int64_t ref[kMaxLinear];
+    auto state = static_cast<uint32_t>((rows * 31) + (in * 7) + out);
+    for (size_t i = 0; i < rows * in; ++i) {
+        x[i] = random_s8(&state);
+    }
+    for (size_t i = 0; i < in * out; ++i) {
+        wt[i] = static_cast<uint8_t>(next_random(&state));
+    }
+    for (size_t j = 0; j < out; ++j) {
+        bias[j] = static_cast<int32_t>(next_random(&state) % 20001) - 10000;
+    }
+    const int32_t* b = with_bias ? &bias[0] : nullptr;
+    constexpr float kAccScale = 0.05F * 0.01F; // x_scale * w_scale
+    constexpr float kOutScale = 0.5F;
+    linear_reference(rows, in, out, &x[0], &wt[0], b, &ref[0]);
+    linear(rows, in, out, &x[0], &wt[0], kWZero, b, kAccScale, kOutScale,
+           &scratch[0], &y[0]);
+    size_t bad_acc = 0;
+    double worst = 0;
+    for (size_t i = 0; i < rows * out; ++i) {
+        bad_acc += scratch[i] != ref[i] ? 1 : 0;
+        const double exact =
+            clamp_int8(static_cast<double>(kAccScale) *
+                       static_cast<double>(ref[i]) / kOutScale);
+        const double err = abs_double(y[i] - exact);
+        worst = err > worst ? err : worst;
+    }
+    const bool pass = bad_acc == 0 && worst <= 0.5 + 1e-3;
+    printf("linear %3zux%3zux%3zu%-6s %s (acc %zu wrong, max err %.3f LSB)\n",
+           rows, in, out, with_bias ? " +bias" : "", pass ? "pass" : "FAIL",
+           bad_acc, worst);
+    return pass ? 0 : 1;
+}
+
+int test_linear() {
+    int failures = 0;
+    failures += check_linear(16, 64, 32, true);  // matrix engine
+    failures += check_linear(1, 64, 48, true);   // decode: vector unit
+    failures += check_linear(3, 13, 5, false);   // odd shape, no bias
+    failures += check_linear(32, 16, 64, false); // matrix engine, no bias
+    return failures;
+}
+
+// ---------------------------------------------------------------------------
+// MLP: mlp_block over every chunk then mlp_finish, against the unchunked
+// c_fc -> GeLU -> c_proj in integers (exact sums), then double requantize
+// ---------------------------------------------------------------------------
+
+constexpr size_t kMaxRows = 16;
+constexpr size_t kMaxD = 32;
+constexpr size_t kMaxInner = 64;
+
+int check_mlp(const char* name, size_t rows, size_t d, size_t inner,
+              size_t chunk) {
+    static int8_t x[kMaxRows * kMaxD];
+    static uint8_t fc_wt[kMaxD * kMaxInner];
+    static uint8_t proj_wt[kMaxInner * kMaxD];
+    static int32_t fc_bias[kMaxInner];
+    static int32_t proj_bias[kMaxD];
+    static int8_t table[256];
+    static int64_t fc_ref[kMaxRows * kMaxInner];
+    static int8_t h_ref[kMaxRows * kMaxInner];
+    static int64_t proj_ref[kMaxRows * kMaxD];
+    static uint8_t fc_chunk[kMaxD * kMaxInner];
+    static int32_t scratch[(kMaxRows * kMaxInner) + (kMaxRows * kMaxInner / 4)];
+    static int32_t acc[kMaxRows * kMaxD];
+    static int8_t y[kMaxRows * kMaxD];
+    auto state = static_cast<uint32_t>((rows * 131) + (d * 17) + inner);
+    for (size_t i = 0; i < rows * d; ++i) {
+        x[i] = random_s8(&state);
+    }
+    for (size_t i = 0; i < d * inner; ++i) {
+        fc_wt[i] = static_cast<uint8_t>(next_random(&state));
+        proj_wt[i] = static_cast<uint8_t>(next_random(&state));
+    }
+    for (size_t j = 0; j < inner; ++j) {
+        fc_bias[j] = static_cast<int32_t>(next_random(&state) % 2001) - 1000;
+    }
+    for (size_t j = 0; j < d; ++j) {
+        proj_bias[j] = static_cast<int32_t>(next_random(&state) % 2001) - 1000;
+    }
+    constexpr float kFcScale = 1.0F / 512.0F; // accumulator -> GeLU input
+    constexpr float kAccScale = 0.05F * 0.01F;
+    constexpr float kOutScale = 0.5F;
+    gelu_table(kGeluInScale, kGeluOutScale, &table[0]);
+
+    // reference: unchunked, in integers, with the kernel's own rounding
+    linear_reference(rows, d, inner, &x[0], &fc_wt[0], &fc_bias[0], &fc_ref[0]);
+    for (size_t i = 0; i < rows * inner; ++i) {
+        const int8_t pre =
+            quant::to_int8(kFcScale * static_cast<float>(fc_ref[i]), 1.0F);
+        h_ref[i] = table[pre + 128];
+    }
+    linear_reference(rows, inner, d, &h_ref[0], &proj_wt[0], nullptr,
+                     &proj_ref[0]);
+
+    for (size_t i = 0; i < rows * d; ++i) {
+        acc[i] = 0;
+    }
+    for (size_t c0 = 0; c0 < inner; c0 += chunk) {
+        // c_fc.T columns c0.. as their own [d x chunk] block, as the host
+        // streams them; c_proj.T rows c0.. are already contiguous
+        for (size_t r = 0; r < d; ++r) {
+            for (size_t j = 0; j < chunk; ++j) {
+                fc_chunk[(r * chunk) + j] = fc_wt[(r * inner) + c0 + j];
+            }
+        }
+        mlp_block(rows, d, chunk, &x[0], &fc_chunk[0], kWZero, &fc_bias[c0],
+                  kFcScale, &table[0], &proj_wt[c0 * d], kWZero, &scratch[0],
+                  &acc[0]);
+    }
+    mlp_finish(rows, d, &acc[0], &proj_bias[0], kAccScale, kOutScale, &y[0]);
+
+    size_t bad_acc = 0;
+    double worst = 0;
+    for (size_t i = 0; i < rows * d; ++i) {
+        bad_acc += acc[i] != proj_ref[i] ? 1 : 0;
+        const double sum = static_cast<double>(proj_ref[i] + proj_bias[i % d]);
+        const double exact =
+            clamp_int8(static_cast<double>(kAccScale) * sum / kOutScale);
+        const double err = abs_double(y[i] - exact);
+        worst = err > worst ? err : worst;
+    }
+    const bool pass = bad_acc == 0 && worst <= 0.5 + 1e-3;
+    printf("mlp %-22s %s (acc %zu wrong, max err %.3f LSB)\n", name,
+           pass ? "pass" : "FAIL", bad_acc, worst);
+    return pass ? 0 : 1;
+}
+
+int test_mlp() {
+    int failures = 0;
+    failures += check_mlp("prefill 16x32x64/16", 16, 32, 64, 16);
+    failures += check_mlp("decode 1x32x64/16", 1, 32, 64, 16);
+    failures += check_mlp("odd 3x20x24/8", 3, 20, 24, 8);
+    return failures;
+}
+
+// ---------------------------------------------------------------------------
+// Softmax: softmax_lut within one 1/255 step of a double softmax
+// ---------------------------------------------------------------------------
+
+constexpr size_t kMaxRow = 1024;
+
+// Fills scores[lo..hi] with accumulators in [-spread, spread].
+void fill_scores(int32_t* scores, size_t lo, size_t hi, int32_t spread) {
+    uint32_t state = 7;
+    for (size_t j = lo; j <= hi; ++j) {
+        const auto r = static_cast<int32_t>(next_random(&state) % 65536);
+        scores[j] = ((r - 32768) * spread) / 32768;
+    }
+}
+
+int check_softmax(const char* name, size_t lo, size_t hi, int32_t spread) {
+    static int32_t scores[kMaxRow];
+    static uint8_t probs[kMaxRow];
+    static uint16_t table[kSoftmaxLutEntries];
+    fill_scores(&scores[0], lo, hi, spread);
+    softmax_lut_table(kScoreScale, &table[0]);
+    softmax_lut(&scores[0], lo, hi, &table[0], &probs[0]);
+    double m = kScoreScale * static_cast<double>(scores[lo]);
+    for (size_t j = lo; j <= hi; ++j) {
+        const double s = kScoreScale * static_cast<double>(scores[j]);
+        m = s > m ? s : m;
+    }
+    double sum = 0;
+    for (size_t j = lo; j <= hi; ++j) {
+        sum += exp((kScoreScale * static_cast<double>(scores[j])) - m);
+    }
+    double worst = 0;
+    for (size_t j = lo; j <= hi; ++j) {
+        const double exact =
+            255.0 * exp((kScoreScale * static_cast<double>(scores[j])) - m) /
+            sum;
+        const double err = abs_double(probs[j] - exact);
+        worst = err > worst ? err : worst;
+    }
+    const bool pass = worst <= 1.0;
+    printf("softmax %-19s %s (max err %.3f LSB)\n", name,
+           pass ? "pass" : "FAIL", worst);
+    return pass ? 0 : 1;
+}
+
+int test_softmax() {
+    int failures = 0;
+    failures += check_softmax("full row", 0, kMaxRow - 1, 40000);
+    failures += check_softmax("window slice", 300, 427, 40000);
+    failures += check_softmax("one key", 5, 5, 40000);
+    failures += check_softmax("flat scores", 0, 63, 0);
+    failures += check_softmax("peaked", 0, 255, 400000);
+    return failures;
+}
+
 } // namespace
 
 int main() {
     int failures = 0;
     failures += test_matmul();
+    failures += test_linear();
     failures += test_attention();
     failures += test_exp_lut();
+    failures += test_softmax();
+    failures += test_mlp();
     failures += test_gelu();
     failures += test_layernorm();
     failures += test_residual();

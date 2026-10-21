@@ -1,22 +1,9 @@
 // Attention for Coral NPU: block-flash attention on the matrix engine
 // (scores and P . V through matmul(), exp from the softmax_lut_table
-// tables, the online-softmax rescale once per block), its finish step, and
-// the exp table build. See kernels.h.
+// tables, the online-softmax rescale once per block) and its finish step:
+// the attention operator (operator/attention.hpp). See kernels.h.
 #include "helpers.h"
 #include "kernels.h"
-
-extern "C" void softmax_lut_table(float score_scale, uint16_t* table) {
-    for (size_t i = 0; i < 256; ++i) {
-        const auto gap = static_cast<float>(i);
-        // exp(-x) is in (0, 1], so adding 0.5 and truncating rounds
-        // NOLINTBEGIN(bugprone-incorrect-roundings)
-        table[i] = static_cast<uint16_t>(
-            (32768.0F * expf(-score_scale * 256.0F * gap)) + 0.5F);
-        table[256 + i] =
-            static_cast<uint16_t>((32768.0F * expf(-score_scale * gap)) + 0.5F);
-        // NOLINTEND(bugprone-incorrect-roundings)
-    }
-}
 
 namespace {
 

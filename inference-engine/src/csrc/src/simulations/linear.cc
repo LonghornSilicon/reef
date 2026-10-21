@@ -1,5 +1,6 @@
-// Matmul for Coral NPU: the matrix engine (VME), the vector unit (RVV),
-// and the matmul() dispatcher that picks between them. See kernels.h.
+// The linear operator (operator/linear.hpp) for Coral NPU: matmul on the
+// matrix engine (VME) and the vector unit (RVV), the matmul() dispatcher
+// that picks between them, and linear() on top. See kernels.h.
 //
 // VME: each 16x16 block of C lives in matrix tile mt0 while we walk along k.
 // One matmul_step = 16 x 16 x 4 = 1,024 multiply-adds.
@@ -97,5 +98,34 @@ extern "C" void matmul(size_t n, size_t k, size_t m, const uint8_t* a,
         matmul_rvv_s8u8(n, k, m, a_s8, b, c);
     } else {
         matmul_rvv(n, k, m, a, b, reinterpret_cast<uint32_t*>(c));
+    }
+}
+
+extern "C" void linear_acc(size_t rows, size_t in, size_t out, const int8_t* x,
+                           const uint8_t* wt, int32_t w_zero,
+                           const int32_t* bias, int32_t* acc) {
+    matmul(rows, in, out, reinterpret_cast<const uint8_t*>(x), true, wt, acc);
+    // x . (w - w_zero) = x . w - w_zero * sum(x row)
+    for (size_t r = 0; r < rows; ++r) {
+        int32_t x_sum = 0;
+        for (size_t c = 0; c < in; ++c) {
+            x_sum += x[(r * in) + c];
+        }
+        const int32_t lift = w_zero * x_sum;
+        int32_t* row = acc + (r * out);
+        for (size_t j = 0; j < out; ++j) {
+            row[j] += (bias != nullptr ? bias[j] : 0) - lift;
+        }
+    }
+}
+
+extern "C" void linear(size_t rows, size_t in, size_t out, const int8_t* x,
+                       const uint8_t* wt, int32_t w_zero, const int32_t* bias,
+                       float acc_scale, float out_scale, int32_t* scratch,
+                       int8_t* y) {
+    linear_acc(rows, in, out, x, wt, w_zero, bias, scratch);
+    for (size_t i = 0; i < rows * out; ++i) {
+        y[i] = quant::to_int8(acc_scale * static_cast<float>(scratch[i]),
+                              out_scale);
     }
 }
