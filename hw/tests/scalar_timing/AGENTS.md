@@ -57,7 +57,7 @@ explain that Dn. **Report** any row that differs from the source without such a 
 
 ## 5. Spot-check the waveform claims
 
-Generate the VCDs, then check each claim with `vcdpeek` (one row per cycle; 1 cycle = 1.25 ns):
+Generate the VCDs, then check each claim with `vcdpeek` (one row per cycle; the sim clock is 1.25 ns, so the windows below are in sim ns):
 
 ```bash
 bash bench/waves.sh dep_chain_lw b7_rob

@@ -76,7 +76,12 @@ If the run reproduces, `git diff deliverable/timing.json` is empty: that diff is
 Waveforms for any bench: `bash bench/waves.sh <bench> [<bench> ...]`, then
 `gtkwave $WAVES/<bench>.vcd -a notes/<layout>.gtkw`, or in a terminal:
 `python3 bench/vcdpeek.py cycles $WAVES/trace.vcd <start_ns> <end_ns> core.score.dispatch.io_inst_0_ready ...`.
-One cycle is 1.25 ns; signal paths are below `RvvCoreMiniAxi.`, e.g. `core.score.lsu.io_dbus_valid`.
+Waveform times are in sim ns (1 cycle = 1.25 ns); signal paths are below `RvvCoreMiniAxi.`, e.g. `core.score.lsu.io_dbus_valid`.
+
+**Clock.** Every result is in cycles. Reef's target clock is 50 MHz (1 cycle = 20 ns, `hw/configs/sdc/reef_top.sdc`); the
+benches run at CoralNPU's default sim clock of 1.25 ns (`COCOTB_CLOCK_NS`). The period doesn't change any cycle count:
+the whole suite gives byte-identical results with `--test_env=COCOTB_CLOCK_NS=20` (checked 2026-10-20), so the
+nanosecond times in the waveforms and the review packet stay in the 1.25 ns timebase.
 
 ## Verification levels
 

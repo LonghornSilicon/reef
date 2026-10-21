@@ -1,6 +1,6 @@
 # RvvCoreMiniAxi (M3) scalar core: timing summary for Peter / Orhan
 
-Source: `google-coral/coralnpu` tag `M3-2026-04-27` (72d700e), Verilator model, 800 MHz sim clock (1 cycle = 1.25 ns).
+Source: `google-coral/coralnpu` tag `M3-2026-04-27` (72d700e), Verilator model. All numbers are in cycles; at Reef's 50 MHz target 1 cycle = 20 ns. The sim clock is CoralNPU's default 1.25 ns (800 MHz), which changes no cycle count: the whole suite gives identical results at 20 ns (checked 2026-10-20).
 File:line paths are relative to `hdl/chisel/src/coralnpu/`. D = dispatch cycle. Full data: `deliverable/timing.json`
 (31 instruction classes, 31 pipeline structures), per-bench tables in `results/`, mismatches in `notes/discrepancies.md`.
 

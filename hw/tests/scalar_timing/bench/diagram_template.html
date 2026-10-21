@@ -141,6 +141,10 @@ figure { margin: 0; display: grid; gap: 10px; }
 .figbox svg { display: block; min-width: 900px; width: 100%; height: auto; color: var(--ink); }
 figcaption { font-size: 13px; color: var(--ink-2); max-width: 80ch; }
 .verdict td:first-child { min-width: 200px; }
+.stalls td:first-child { min-width: 190px; }
+.stalls td:nth-child(3) { min-width: 220px; }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 80ch; }
+ol.steps li { padding-left: 4px; }
 .vd { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
 footer { font-size: 13px; color: var(--ink-2); display: grid; gap: 8px; border-top: 1px solid var(--grid); padding-top: 18px; }
 @media (max-width: 600px) {
@@ -167,7 +171,7 @@ footer { font-size: 13px; color: var(--ink-2); display: grid; gap: 8px; border-t
     <div><span class="k">Cycle 0</span>the fetch request (F1)</div>
     <div><span class="k">D</span>dispatch: the cycle it leaves the instruction buffer</div>
     <div><span class="k">Retire</span>the cycle it leaves the 8-entry ROB</div>
-    <div><span class="k">Clock</span>1 cycle = 1.25 ns in sim</div>
+    <div><span class="k">Clock</span>1 cycle = 20 ns at Reef's 50 MHz target. The sim ticks at 1.25 ns, which changes no cycle count (checked)</div>
   </div>
   <p style="font-size:13px;color:var(--muted)">Cycle 0 and “retire” match the draft diagrams' conventions (confirmed by Orhan, 2026-10-19).</p>
 </header>
@@ -294,6 +298,122 @@ footer { font-size: 13px; color: var(--ink-2); display: grid; gap: 8px; border-t
   </figure>
 </section>
 
+<section aria-labelledby="flow-h">
+  <h2 id="flow-h">Dataflow and stalls</h2>
+  <p class="lede">How an instruction moves through the stages, what has to be true before it can dispatch, and what pushes back. Dispatch is the one place instructions wait: once an instruction leaves the buffer, its unit takes it.</p>
+
+  <h3>One load, cycle by cycle</h3>
+  <p class="lede"><code>lw t0, 4(s0)</code> from the trace, cycles counted from its fetch request:</p>
+  <ol class="steps">
+    <li><b>Cycle 0, F1:</b> fetch sends the request for the 16-byte line holding the load (4 instructions).</li>
+    <li><b>Cycle 1, F2:</b> the line comes back from ITCM and is written into the 8-entry instruction buffer. Fetch sends no new request this cycle, which is why the front end tops out at 2 instructions per cycle.</li>
+    <li><b>Cycle 2, D:</b> the load is at the head of the buffer and every dispatch check passes (table below). It dispatches: it takes a ROB entry, marks <code>t0</code> busy in the scoreboard, and the register file captures its base register <code>s0</code>.</li>
+    <li><b>Cycle 3 (D+1):</b> the load enters the LSU's 4-entry queue.</li>
+    <li><b>Cycle 4 (D+2):</b> the slot sends the request on the data bus.</li>
+    <li><b>Cycle 5 (D+3):</b> the data comes back (<code>readFired</code>).</li>
+    <li><b>Cycle 6 (D+4):</b> write-back on port 5. The same signals update four things at once: the register file stores <code>t0</code>, the scoreboard clears it, the read-port bypass hands the value to any instruction reading <code>t0</code> this very cycle, and the ROB marks the load done. It retires in the same cycle.</li>
+    <li><b>Cycle 7:</b> the LSU slot sits idle for one cycle to take the next queued op, so back-to-back loads run at one per 4 cycles.</li>
+  </ol>
+  <p style="font-size:14px;color:var(--ink-2)">Two exceptions to "results are usable in the write-back cycle": load base addresses, store data and <code>jalr</code> targets read the <em>registered</em> scoreboard, so they wait one cycle more (+2 instead of +1 after an ALU producer). Float registers have no bypass at all, so an FP consumer dispatches the cycle after the write.</p>
+
+  <figure>
+    <div class="figbox">
+    <svg viewBox="0 0 1100 470" role="img" aria-label="What holds dispatch back: an empty instruction buffer starves it; the scoreboard holds a lane whose source register is not written yet; the ROB holds lane i unless more than i entries are free; the LSU queue, FPU queue, divider and RVV command queue hold their instructions while full or busy; the multiplier takes one per cycle; the shared write port 4 delays some results, which delays their consumers.">
+      <defs>
+        <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-family="system-ui, -apple-system, Segoe UI, sans-serif" fill="currentColor">
+        <rect x="430" y="170" width="240" height="130" rx="6" fill="var(--surface)" stroke="var(--disp)" stroke-width="2.5"/>
+        <text x="550" y="198" text-anchor="middle" font-size="15" font-weight="700">Dispatch (D)</text>
+        <text x="550" y="222" text-anchor="middle" font-size="12">4 lanes, strictly in order</text>
+        <text x="550" y="246" text-anchor="middle" font-size="11" fill="var(--ink-2)">a lane goes only if all its checks pass</text>
+        <text x="550" y="262" text-anchor="middle" font-size="11" fill="var(--ink-2)">and every lane before it went;</text>
+        <text x="550" y="278" text-anchor="middle" font-size="11" fill="var(--ink-2)">one failed lane holds all later ones</text>
+
+        <rect x="30" y="185" width="240" height="100" rx="6" fill="var(--surface)" stroke="var(--front)" stroke-width="2"/>
+        <text x="150" y="211" text-anchor="middle" font-size="13" font-weight="700">Fetch + instruction buffer</text>
+        <text x="150" y="233" text-anchor="middle" font-size="11" fill="var(--ink-2)">1 line (4 instr) every 2 cycles</text>
+        <text x="150" y="249" text-anchor="middle" font-size="11" fill="var(--ink-2)">leftovers when a line lands cost</text>
+        <text x="150" y="265" text-anchor="middle" font-size="11" fill="var(--ink-2)">a fetch cycle (2, 3, 2, 3 pattern)</text>
+        <line x1="270" y1="235" x2="426" y2="235" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+        <text x="348" y="226" text-anchor="middle" font-size="11">up to 4 / cycle</text>
+        <text x="348" y="252" text-anchor="middle" font-size="11" fill="var(--ink-2)">empty: nothing to send</text>
+
+        <g font-size="12">
+          <rect x="300" y="20" width="200" height="74" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="400" y="44" text-anchor="middle" font-weight="700">Scoreboard</text>
+          <text x="400" y="62" text-anchor="middle" font-size="11" fill="var(--ink-2)">32 busy bits, one per register</text>
+          <text x="400" y="78" text-anchor="middle" font-size="11" fill="var(--ink-2)">RAW / WAW (x0 counts too)</text>
+          <rect x="600" y="20" width="200" height="74" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="700" y="44" text-anchor="middle" font-weight="700">ROB, 8 entries</text>
+          <text x="700" y="62" text-anchor="middle" font-size="11" fill="var(--ink-2)">lane i needs more than i free;</text>
+          <text x="700" y="78" text-anchor="middle" font-size="11" fill="var(--ink-2)">frees only in order, at retire</text>
+          <rect x="860" y="110" width="220" height="64" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="970" y="134" text-anchor="middle" font-weight="700">LSU queue, 4 entries</text>
+          <text x="970" y="152" text-anchor="middle" font-size="11" fill="var(--ink-2)">one slot drains it: load 4, store 2 cyc</text>
+          <rect x="860" y="190" width="220" height="64" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="970" y="214" text-anchor="middle" font-weight="700">FPU queue, 1 entry</text>
+          <text x="970" y="232" text-anchor="middle" font-size="11" fill="var(--ink-2)">busy until the result: 5 / 9 / 22 cyc</text>
+          <rect x="860" y="270" width="220" height="64" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="970" y="294" text-anchor="middle" font-weight="700">Divider (DVU)</text>
+          <text x="970" y="312" text-anchor="middle" font-size="11" fill="var(--ink-2)">next div at D+3+N (N = 2 to 32)</text>
+          <rect x="860" y="350" width="220" height="64" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="970" y="374" text-anchor="middle" font-weight="700">RVV command queue</text>
+          <text x="970" y="392" text-anchor="middle" font-size="11" fill="var(--ink-2)">full: vector ops wait (Pranav)</text>
+          <rect x="300" y="380" width="200" height="70" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2"/>
+          <text x="400" y="404" text-anchor="middle" font-weight="700">Multiplier (MLU)</text>
+          <text x="400" y="422" text-anchor="middle" font-size="11" fill="var(--ink-2)">1 per cycle, lowest lane wins</text>
+          <rect x="580" y="380" width="240" height="70" rx="6" fill="var(--surface)" stroke="var(--axis)" stroke-width="2" stroke-dasharray="5 3"/>
+          <text x="700" y="404" text-anchor="middle" font-weight="700">Write port 4 (shared)</text>
+          <text x="700" y="422" text-anchor="middle" font-size="11" fill="var(--ink-2)">MLU > DVU > RVV > FPU→int</text>
+          <text x="700" y="438" text-anchor="middle" font-size="11" fill="var(--ink-2)">a loser writes back later</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.4" fill="none">
+          <line x1="420" y1="94" x2="490" y2="166" marker-end="url(#ah2)"/>
+          <line x1="680" y1="94" x2="610" y2="166" marker-end="url(#ah2)"/>
+          <line x1="860" y1="142" x2="674" y2="192" marker-end="url(#ah2)"/>
+          <line x1="860" y1="222" x2="674" y2="222" marker-end="url(#ah2)"/>
+          <line x1="860" y1="302" x2="674" y2="252" marker-end="url(#ah2)"/>
+          <line x1="860" y1="382" x2="674" y2="282" marker-end="url(#ah2)"/>
+          <line x1="420" y1="380" x2="490" y2="304" marker-end="url(#ah2)"/>
+          <line x1="700" y1="380" x2="620" y2="304" stroke-dasharray="5 4" marker-end="url(#ah2)"/>
+        </g>
+        <g font-size="11">
+          <text x="444" y="128" text-anchor="end">source busy</text>
+          <text x="654" y="128">full</text>
+          <text x="770" y="160">full</text>
+          <text x="770" y="215">busy</text>
+          <text x="770" y="268">busy</text>
+          <text x="790" y="324">full</text>
+          <text x="446" y="350" text-anchor="end">2nd mul waits</text>
+          <text x="672" y="358" fill="var(--ink-2)">late result</text>
+        </g>
+      </g>
+    </svg>
+    </div>
+    <figcaption>Everything that can keep an instruction in the buffer. Solid arrows stop dispatch directly; the dashed one is indirect: losing write port 4 delays a result, which keeps its destination register busy in the scoreboard longer, so its consumer dispatches later. Because dispatch is in order, any check that fails for one lane also holds every lane after it.</figcaption>
+  </figure>
+
+  <h3>What stops dispatch, and for how long</h3>
+  <div class="tw"><table class="stalls"><thead><tr><th>Cause</th><th>What waits</th><th>For how long</th><th>Signal in the VCD</th><th>Row</th><th>Level</th></tr></thead><tbody>
+    <tr><td>Instruction buffer empty</td><td>everything</td><td>fetch delivers 1 line per 2 cycles; a group that leaves instructions behind when a line lands costs a fetch cycle</td><td><code>fetch.io_ibus_valid</code></td><td>1.5, 1.9, 3.20</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>An earlier lane can't go</td><td>every later lane that cycle</td><td>until that lane goes</td><td><code>dispatch.io_inst_N_ready</code></td><td>3.1</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>Conditional branch, <code>jal</code>/<code>jalr</code>, fences, <code>ecall</code>/<code>mret</code></td><td>later lanes, until the next cycle</td><td>1 cycle (the group ends)</td><td><code>dispatch.io_inst_N_ready</code></td><td>3.4, 3.5</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>CSR, every FP op (incl. <code>flw</code>/<code>fsw</code>), fences</td><td>must be in lane 0 and go alone</td><td>≥ 1 cycle each; waits to reach lane 0</td><td><code>dispatch.io_inst_0_ready</code></td><td>3.6</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Source register not written yet (RAW), or same destination in flight (WAW, x0 included)</td><td>that lane and later</td><td>until the producer writes back; ALU consumers can go that cycle, load base / store data / <code>jalr</code> one cycle later</td><td><code>regfile.scoreboard</code></td><td>3.2, 3.3, 3.17</td><td><span class="lv lv-sim">sim</span></td></tr>
+    <tr><td>ROB space: lane i needs more than i free</td><td>lane i and later</td><td>until the oldest entry retires (in order); behind a 34-cycle <code>div</code> only 7 more dispatch</td><td><code>retirement_buffer.io_nSpace</code></td><td>3.10</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>CSR access</td><td>the CSR and everything behind it</td><td>until the ROB is empty and the FPU is idle</td><td><code>retirement_buffer.io_nSpace</code></td><td>3.11</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>LSU queue full (4 entries)</td><td>memory ops beyond the free space</td><td>the slot frees one entry per 4 cycles (loads) or 2 (stores)</td><td><code>lsu.io_queueCapacity</code></td><td>3.9, 3.19</td><td><span class="lv lv-sim">sim</span></td></tr>
+    <tr><td>FPU queue busy (1 entry)</td><td>the next FP op and everything behind it</td><td>until the current result: <code>fadd</code>/<code>fmul</code> 5, <code>fdiv</code> 9, <code>fsqrt</code> 22 cycles</td><td><code>floatCore.instQueue.io_count</code></td><td>3.6, FPU</td><td><span class="lv lv-sim">sim+wave</span></td></tr>
+    <tr><td>Divider busy</td><td>the next <code>div</code>/<code>rem</code></td><td>until D+3+N, N = 32 − (clz − 1) of the dividend</td><td><code>dvu.active</code></td><td>DVU</td><td><span class="lv lv-human">human</span></td></tr>
+    <tr><td>Multiplier takes one per cycle</td><td>a second <code>mul</code> in the same group</td><td>1 cycle</td><td><code>dispatch.io_inst_N_ready</code></td><td>3.8</td><td><span class="lv lv-sim">sim</span></td></tr>
+    <tr><td><code>fence.i</code></td><td>itself, then everything after it</td><td>waits for the LSU to go idle, flushes and refetches: the next instruction dispatches at D+4</td><td><code>lsu.io_flush_valid</code></td><td>3.12</td><td><span class="lv lv-sim">sim</span></td></tr>
+    <tr><td>RVV command queue full</td><td>vector ops beyond its capacity</td><td>until the vector engine takes commands</td><td>(source: <code>Decode.scala:446-452</code>)</td><td>RVV</td><td><span class="lv lv-src">src</span></td></tr>
+    <tr><td>Redirect: mispredicted branch, <code>jalr</code></td><td>everything fetched after it is flushed</td><td>the target dispatches at D+4 (3 lost cycles); a predicted <code>jal</code> costs one fetch slot (D+2)</td><td><code>bru_N.io_taken_valid</code></td><td>1.7, 1.8, BRU</td><td><span class="lv lv-sim">sim</span></td></tr>
+  </tbody></table></div>
+  <p style="font-size:13px;color:var(--muted)">Signal paths are below <code>RvvCoreMiniAxi.core.score.</code>; N is the lane (0-3). Where a row combines several checklist rows, it shows the weakest of their levels (the mispredict D+4 and the 4-cycle load are themselves <code>human</code>). Times are in cycles; at Reef's 50 MHz clock one cycle is 20 ns.</p>
+</section>
+
 <section aria-labelledby="chart-h">
   <h2 id="chart-h">Instruction timing</h2>
   <p class="lede">One row per instruction class, from a single traced run in which each instruction sits between fences with an independent <code>addi</code> before and after it. Hover a cycle for the signals; select a row for the details. D varies a little between rows because some instructions wait for the one before them (lane 0 rules, CSR waiting for an empty ROB).</p>
@@ -322,7 +442,7 @@ footer { font-size: 13px; color: var(--ink-2); display: grid; gap: 8px; border-t
 <section aria-labelledby="tab-h">
   <h2 id="tab-h">Latency and throughput</h2>
   <p class="lede">The same data as a table. Latency is when a dependent instruction can dispatch (D+n). Throughput is the measured cost per instruction in the bench named; the kind of stream is in the details.</p>
-  <div class="tw"><table id="tab"><thead><tr><th>Instruction</th><th>Example</th><th class="num">Dependent at</th><th class="num">Throughput</th><th>Writes</th><th>Level</th></tr></thead><tbody></tbody></table></div>
+  <div class="tw"><table id="tab"><thead><tr><th>Instruction</th><th>Example</th><th class="num">Dependent at</th><th class="num">Throughput (cycles)</th><th class="num">At 50 MHz</th><th>Writes</th><th>Level</th></tr></thead><tbody></tbody></table></div>
 </section>
 
 <section aria-labelledby="ver-h">
@@ -500,12 +620,12 @@ function renderDetail() {
     <div class="dhead"><h3>${esc(c.label)}</h3><code>${esc(c.asm)}</code>${lvChip(v.fixed ? "sim+wave" : c.level)}${v.fixed ? '<span style="font-size:13px;color:var(--muted)">hardware timing: sim+wave on a rebuilt model; register count checked in both netlists</span>' : ""}</div>
     ${both}
     <div class="dgrid">
-      <div class="tw"><table><thead><tr><th class="num">Cycle</th><th class="num">From D</th><th>Event</th>${abs ? '<th class="num">trace.vcd (ns)</th>' : ""}</tr></thead><tbody>
+      <div class="tw"><table><thead><tr><th class="num">Cycle</th><th class="num">From D</th><th>Event</th>${abs ? '<th class="num">trace.vcd, sim ns</th>' : ""}</tr></thead><tbody>
         ${evs.map(([k, q]) => `<tr><td class="num">${q}</td><td class="num">${rel(q, e.D)}</td><td>${esc(k === "WB" && e.port ? "WB · " + e.port : k)}</td>${abs ? `<td class="num">${abs[k] != null ? abs[k] : ""}</td>` : ""}</tr>`).join("")}
       </tbody></table></div>
       <dl class="kv">
         <dt>Dependent</dt><dd>${v.lat != null ? `can dispatch at D+${v.lat}` : "no register result"}</dd>
-        <dt>Throughput</dt><dd>${v.thr != null ? `${v.thr} cycles (${esc(c.thrKind || "")}; ${esc(c.thrSrc || "")})` : "not measured"}</dd>
+        <dt>Throughput</dt><dd>${v.thr != null ? `${v.thr} cycles = ${(v.thr * 20).toFixed(0)} ns at 50 MHz (${esc(c.thrKind || "")}; ${esc(c.thrSrc || "")})` : "not measured"}</dd>
         <dt>Lanes</dt><dd>${esc(c.lanes)}</dd>
         ${sign}${part}
         <dt>Notes</dt><dd>${esc(c.notes || "")}</dd>
@@ -518,7 +638,7 @@ function renderTable() {
   const tb = document.querySelector("#tab tbody");
   tb.innerHTML = DATA.classes.map(c => { const v = view(c), e = v.events;
     return `<tr><td>${esc(c.label)}${v.fixed ? ' <span class="lv" style="border-color:var(--flag);color:var(--flag)">hw</span>' : ""}</td><td><code>${esc(c.asm)}</code></td>
-      <td class="num">${v.lat != null ? "D+" + v.lat : "–"}</td><td class="num">${v.thr != null ? v.thr : "–"}</td>
+      <td class="num">${v.lat != null ? "D+" + v.lat : "–"}</td><td class="num">${v.thr != null ? v.thr : "–"}</td><td class="num">${v.thr != null ? (v.thr * 20).toFixed(0) + " ns" : "–"}</td>
       <td>${esc(e.port || "–")}</td><td>${lvChip(v.fixed ? "sim+wave" : c.level)}</td></tr>`; }).join("");
 }
 
