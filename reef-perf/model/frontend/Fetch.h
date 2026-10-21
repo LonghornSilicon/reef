@@ -11,8 +11,11 @@
 /// - up to `fetch_width` instructions every `fetch_interval` cycles, while
 ///   the `ibuf_entries`-entry buffer has room;
 /// - a group ends at any instruction that redirects the PC (taken branch,
-///   jump, trap), and the next group starts `redirect_penalty` cycles later;
-///   there is no branch predictor, so every redirect costs the same.
+///   jump, trap) or that the predictor predicts taken;
+/// - with `predictor: none` every redirect costs `redirect_penalty` extra
+///   cycles. With `predictor: static_btfn` (M3 predecode,
+///   UncachedFetch.scala:87-100) a correctly predicted taken jump costs
+///   `taken_bubble` and a mispredict costs `mispredict_penalty`.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -30,6 +33,8 @@
 
 #include <cstdint>
 #include <deque>
+#include <optional>
+#include <string>
 
 namespace reef_perf {
 
@@ -47,7 +52,16 @@ public:
               "Cycles between the starts of two fetch groups")
     PARAMETER(uint32_t, redirect_penalty, 1,
               "Extra cycles lost after any taken branch/jump before fetching "
-              "again")
+              "again (predictor none)")
+    PARAMETER(std::string, predictor, "none",
+              "Branch predictor: none (every redirect costs redirect_penalty) "
+              "or static_btfn (jal and backward branches predicted taken)")
+    PARAMETER(uint32_t, taken_bubble, 0,
+              "Extra cycles after a correctly predicted taken branch/jump "
+              "(static_btfn)")
+    PARAMETER(uint32_t, mispredict_penalty, 1,
+              "Extra cycles after a mispredicted branch/jump or a trap "
+              "(static_btfn)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
   };
 
@@ -70,8 +84,8 @@ public:
   void pop(Cycle Now) override;
   /// \returns true once fetch finished before \p Now and the buffer is empty.
   bool isDrained(Cycle Now) const override;
-  /// \returns BranchResteer if the latest fetch group ended in a redirect,
-  /// and FetchBandwidth otherwise.
+  /// \returns BranchResteer if the latest fetch group ended in a redirect or
+  /// a mispredict, and FetchBandwidth otherwise.
   FrontendStall getStall(Cycle Now) const override;
 
 private:
@@ -81,10 +95,16 @@ private:
   /// \returns the entries fetch may fill at \p Now. Entries the core freed
   /// at \p Now only count from the next cycle.
   uint32_t getFreeEntries(Cycle Now) const;
+  /// \returns the extra cycles before the next group if \p I ends the
+  /// current one, or nullopt if the group continues. Updates the counters.
+  std::optional<uint32_t> getGroupEndPenalty(const Inst &I);
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
   const uint32_t RedirectPenalty;
+  const bool StaticBtfn;
+  const uint32_t TakenBubble;
+  const uint32_t MispredictPenalty;
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
@@ -105,10 +125,20 @@ private:
   sparta::Counter NumGroups{&unit_stat_set_, "num_groups",
                             "Fetch groups added to the instruction buffer",
                             sparta::Counter::COUNT_NORMAL};
-  sparta::Counter NumRedirects{
-      &unit_stat_set_, "num_redirects",
-      "Taken branches/jumps (each costs redirect_penalty)",
+  sparta::Counter NumRedirects{&unit_stat_set_, "num_redirects",
+                               "Taken branches, jumps and traps",
+                               sparta::Counter::COUNT_NORMAL};
+  sparta::Counter NumPredictedTaken{
+      &unit_stat_set_, "num_predicted_taken",
+      "Branches/jumps the static predictor predicted taken",
       sparta::Counter::COUNT_NORMAL};
+  sparta::Counter NumMispredicts{
+      &unit_stat_set_, "num_mispredicts",
+      "Mispredicted branches/jumps and traps (each costs mispredict_penalty)",
+      sparta::Counter::COUNT_NORMAL};
+  sparta::Counter NumJalr{&unit_stat_set_, "num_jalr",
+                          "jalr instructions (never predicted)",
+                          sparta::Counter::COUNT_NORMAL};
   sparta::Counter CyclesNoCredit{
       &unit_stat_set_, "cycles_no_credit",
       "Fetch cycles lost because the instruction buffer was full",
