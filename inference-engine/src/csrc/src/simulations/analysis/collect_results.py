@@ -8,7 +8,8 @@ host write cost and the test's own error check), derives the VME cycles per
 matmul_step from the k sweep, and writes out/results.json, which
 roofline.py reads. --log appends one row of the headline metrics (METRICS)
 to the performance log in analysis/RESULTS.md, with the current commit, the
-note, and the change against the previous row.
+note, and the change against the previous row; the change note that says
+how and why is written by hand under the log.
 """
 
 import argparse
@@ -131,10 +132,13 @@ def log_row(values: dict[str, float | None], note: str) -> None:
     def cells(line: str) -> list[str]:
         return [c.strip() for c in line.strip().strip("|").split("|")]
 
-    # the log table is the last thing in RESULTS.md: header, rule, rows
+    # the log table: header, rule, then rows up to the first non-table line
     start = max(i for i, line in enumerate(lines) if line.startswith("| date"))
+    end = start + 2
+    while end < len(lines) and lines[end].startswith("|"):
+        end += 1
     header = cells(lines[start])
-    rows = lines[start + 2 :]
+    rows = lines[start + 2 : end]
     previous = dict(zip(header, cells(rows[-1]), strict=False)) if rows else {}
     changes = []
     for column, value in values.items():
@@ -163,9 +167,10 @@ def log_row(values: dict[str, float | None], note: str) -> None:
     missing = [c for c in header if c not in row]
     if missing:
         raise SystemExit(f"RESULTS.md log columns not in METRICS: {missing}")
-    lines.append("| " + " | ".join(row[c] for c in header) + " |")
+    lines.insert(end, "| " + " | ".join(row[c] for c in header) + " |")
     LOG.write_text("\n".join(lines) + "\n")
     print(f"\nlogged to {LOG.name}: {row['vs previous']}")
+    print(f"now add a change note for {commit} under the log in {LOG.name}")
 
 
 def main() -> int:

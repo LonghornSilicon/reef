@@ -105,16 +105,24 @@ extern "C" void linear_acc(size_t rows, size_t in, size_t out, const int8_t* x,
                            const uint8_t* wt, int32_t w_zero,
                            const int32_t* bias, int32_t* acc) {
     matmul(rows, in, out, reinterpret_cast<const uint8_t*>(x), true, wt, acc);
-    // x . (w - w_zero) = x . w - w_zero * sum(x row)
+    // x . (w - w_zero) = x . w - w_zero * sum(x row), plus the bias
+    size_t vl = 0;
     for (size_t r = 0; r < rows; ++r) {
+        const int8_t* x_row = x + (r * in);
         int32_t x_sum = 0;
-        for (size_t c = 0; c < in; ++c) {
-            x_sum += x[(r * in) + c];
+        for (size_t c = 0; c < in; c += vl) {
+            vl = rvv::set_vl(in - c);
+            x_sum += rvv::sum(rvv::widen(rvv::load_i8(x_row + c, vl), vl), vl);
         }
-        const int32_t lift = w_zero * x_sum;
         int32_t* row = acc + (r * out);
-        for (size_t j = 0; j < out; ++j) {
-            row[j] += (bias != nullptr ? bias[j] : 0) - lift;
+        for (size_t j = 0; j < out; j += vl) {
+            vl = rvv::set_vl(out - j);
+            rvv::vi32 v =
+                rvv::add_x(rvv::load_i32(row + j, vl), -(w_zero * x_sum), vl);
+            if (bias != nullptr) {
+                v = rvv::add(v, rvv::load_i32(bias + j, vl), vl);
+            }
+            rvv::store_s(row + j, v, vl);
         }
     }
 }
@@ -124,8 +132,12 @@ extern "C" void linear(size_t rows, size_t in, size_t out, const int8_t* x,
                        float acc_scale, float out_scale, int32_t* scratch,
                        int8_t* y) {
     linear_acc(rows, in, out, x, wt, w_zero, bias, scratch);
-    for (size_t i = 0; i < rows * out; ++i) {
-        y[i] = quant::to_int8(acc_scale * static_cast<float>(scratch[i]),
-                              out_scale);
+    const quant::Requant to_out = quant::requant_params(acc_scale / out_scale);
+    size_t vl = 0;
+    for (size_t i = 0; i < rows * out; i += vl) {
+        vl = rvv::set_vl((rows * out) - i);
+        rvv::store_i8(y + i,
+                      rvv::requant(rvv::load_i32(scratch + i, vl), to_out, vl),
+                      vl);
     }
 }

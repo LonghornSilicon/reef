@@ -15,6 +15,14 @@
 // with a zero point, stored transposed ([in x out], the operator's
 // weight.T) so they are the matmul's B operand; the host transposes them
 // once at load. Biases are int32 in accumulator units (x_scale * w_scale).
+//
+// Every integer loop runs on the vector unit (16 lanes), and every
+// requantization is fixed point (quant::requantize in helpers.h), so a
+// result written as int8(v * f) below is within 0.5 + 2^-shift steps of
+// exact. Scales are positive and below 1 where they multiply an int32
+// accumulator (e.g. acc_scale / out_scale); LayerNorm also needs
+// beta_scale / out_scale * 2^shift * 128 < 2^30, which holds for its
+// shift <= 22.
 #pragma once
 
 #include <stddef.h>

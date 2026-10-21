@@ -17,8 +17,11 @@ extern "C" void gelu_table(float in_scale, float out_scale, int8_t* table) {
 
 extern "C" void gelu(size_t n, const int8_t* x, const int8_t* table,
                      int8_t* y) {
-    for (size_t i = 0; i < n; ++i) {
-        y[i] = table[x[i] + 128];
+    size_t vl = 0;
+    for (size_t i = 0; i < n; i += vl) {
+        vl = rvv::set_vl(n - i);
+        rvv::store_i8(y + i, rvv::lookup_i8(table, rvv::load_i8(x + i, vl), vl),
+                      vl);
     }
 }
 
@@ -37,23 +40,34 @@ extern "C" void softmax_lut_table(float score_scale, uint16_t* table) {
 
 extern "C" void softmax_lut(const int32_t* scores, size_t lo, size_t hi,
                             const uint16_t* table, uint8_t* probs) {
-    int32_t m = scores[lo];
-    for (size_t j = lo + 1; j <= hi; ++j) {
-        m = scores[j] > m ? scores[j] : m;
+    const int32_t* s = scores + lo;
+    const size_t n = hi - lo + 1;
+    size_t vl = 0;
+    int32_t m = s[0];
+    for (size_t j = 0; j < n; j += vl) {
+        vl = rvv::set_vl(n - j);
+        m = rvv::reduce_max(rvv::load_i32(s + j, vl), m, vl);
     }
 
     // l >= 32768 (the max scores 1.0), and fits 32 bits for rows under 2^17
     uint32_t l = 0;
-    for (size_t j = lo; j <= hi; ++j) {
-        l += exp_lut(static_cast<uint32_t>(m - scores[j]), table);
+    for (size_t j = 0; j < n; j += vl) {
+        vl = rvv::set_vl(n - j);
+        l += rvv::sum_u(
+            rvv::exp_lut(rvv::gap(rvv::load_i32(s + j, vl), m, vl), table, vl),
+            vl);
     }
 
     // p = 255 e / l as e * (255 * 2^24 / l) / 2^24; e <= l keeps the
     // product under 2^32. l > 0 since the max's exp_lut(0) is 32768.
     // NOLINTNEXTLINE(clang-analyzer-core.DivideZero)
     const uint32_t r = (255U << 24U) / l;
-    for (size_t j = lo; j <= hi; ++j) {
-        const uint32_t e = exp_lut(static_cast<uint32_t>(m - scores[j]), table);
-        probs[j] = static_cast<uint8_t>(((e * r) + (1U << 23U)) >> 24U);
+    for (size_t j = 0; j < n; j += vl) {
+        vl = rvv::set_vl(n - j);
+        const rvv::vu32 e =
+            rvv::exp_lut(rvv::gap(rvv::load_i32(s + j, vl), m, vl), table, vl);
+        const rvv::vu32 p = rvv::shift_right(
+            rvv::add_xu(rvv::mul_xu(e, r, vl), 1U << 23U, vl), 24, vl);
+        rvv::store_u8(probs + lo + j, rvv::narrow_u8(p, vl), vl);
     }
 }

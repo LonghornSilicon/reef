@@ -171,14 +171,35 @@ def gelu_table_ref(in_scale: float, out_scale: float) -> np.ndarray:
     return to_int8(y / out_scale).astype(np.int8)
 
 
+# fixed-point requantization: half a step plus at most 2^-shift (shift >= 8
+# for the scales here)
+REQUANT_TOLERANCE = 0.5 + 2**-8
+
+
+def requant_ref(v: np.ndarray, f: float) -> np.ndarray:
+    """quant::requantize (helpers.h) bit for bit: Q31 multiply, shift."""
+    bits = int(np.float32(f).view(np.uint32))
+    multiplier = ((bits & 0x7FFFFF) | 0x800000) << 7
+    shift = 126 - ((bits >> 23) & 0xFF)
+    if shift > 31:
+        multiplier, shift = multiplier >> (shift - 31), 31
+    v = v.astype(np.int64)
+    if shift < 0:  # vsll: wraps in 32 bits like the hardware
+        v = ((v << -shift) + 2**31) % 2**32 - 2**31
+    v = (v * multiplier + (1 << 30)) >> 31  # vsmul, round to nearest up
+    if shift > 0:
+        v = (v + (1 << (shift - 1))) >> shift  # vnclip
+    return np.clip(v, -128, 127)
+
+
 def mlp_acc_ref(data: dict, fc_scale: float) -> np.ndarray:
     """The unchunked c_fc -> GeLU -> c_proj accumulator, without c_proj bias.
 
-    The GeLU input is rounded in float32 like the kernel, so the result
+    The GeLU input is requantized exactly like the kernel, so the result
     must match its int32 sums exactly.
     """
     fc = linear_acc_ref(data["in_x"], data["in_fc_wt"], data["in_fc_bias"])
-    pre = to_int8(np.float32(fc_scale) * fc.astype(np.float32))
+    pre = requant_ref(fc, fc_scale)
     h = data["in_gelu_table"][pre.astype(np.int64) + 128]
     return linear_acc_ref(h, data["in_proj_wt"], None)
 
@@ -208,7 +229,7 @@ def check(job: dict, data: dict) -> tuple[float, float]:
     if op == "linear":
         acc = linear_acc_ref(data["in_x"], data["in_wt"], data.get("in_bias"))
         expected = np.clip(acc * job["acc_scale"] / job["out_scale"], -128, 127)
-        return float(np.abs(data["out_y"] - expected).max()), 0.5 + 1e-3
+        return float(np.abs(data["out_y"] - expected).max()), REQUANT_TOLERANCE
     if op == "mlp_finish":
         acc = mlp_acc_ref(data, job["fc_scale"])
         job["acc_mismatches"] = int((data["out_acc"] != acc).sum())
@@ -216,7 +237,9 @@ def check(job: dict, data: dict) -> tuple[float, float]:
         expected = np.clip(real / job["out_scale"], -128, 127)
         err = float(np.abs(data["out_y"] - expected).max())
         # an accumulator off by anything is a kernel bug, not rounding
-        return (err if job["acc_mismatches"] == 0 else math.inf), 0.5 + 1e-3
+        return (
+            err if job["acc_mismatches"] == 0 else math.inf
+        ), REQUANT_TOLERANCE
     if op == "embedding_lookup":
         # every position whose id is in this slice gets that table row; the
         # count it reports must be how many there were
@@ -283,7 +306,7 @@ def check(job: dict, data: dict) -> tuple[float, float]:
     if op == "residual_add":
         real = data["in_a"] * Q["act_scale"] + data["in_b"] * Q["act_scale"]
         expected = np.clip(real / Q["residual_out_scale"], -128, 127)
-        return float(np.abs(data["out_out"] - expected).max()), 0.5
+        return float(np.abs(data["out_out"] - expected).max()), 0.5 + 1e-4
     raise KeyError(op)
 
 

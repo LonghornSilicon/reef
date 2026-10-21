@@ -17,8 +17,10 @@ extern "C" size_t embedding_lookup(size_t length, size_t width,
         const int8_t* row =
             table + (static_cast<size_t>(id - vocab_start) * width);
         int8_t* out = y + (position * width);
-        for (size_t c = 0; c < width; ++c) {
-            out[c] = row[c];
+        size_t vl = 0;
+        for (size_t c = 0; c < width; c += vl) {
+            vl = rvv::set_vl(width - c);
+            rvv::store_i8(out + c, rvv::load_i8(row + c, vl), vl);
         }
         ++filled;
     }
@@ -31,10 +33,22 @@ extern "C" void add_position_embeddings(size_t length, size_t width,
                                         float position_scale,
                                         size_t position_offset, float out_scale,
                                         int8_t* y) {
+    // token * ft + position * fp with both factors as q-bit fixed point,
+    // like residual_add
     const int8_t* positions = position_table + (position_offset * width);
-    for (size_t i = 0; i < length * width; ++i) {
-        const float value = (token_scale * static_cast<float>(tokens[i])) +
-                            (position_scale * static_cast<float>(positions[i]));
-        y[i] = quant::to_int8(value, out_scale);
+    const float ft = token_scale / out_scale;
+    const float fp = position_scale / out_scale;
+    const int32_t q = quant::fraction_bits(ft + fp);
+    const int32_t ft_q = quant::to_fixed(ft, q);
+    const int32_t fp_q = quant::to_fixed(fp, q);
+    const size_t n = length * width;
+    size_t vl = 0;
+    for (size_t i = 0; i < n; i += vl) {
+        vl = rvv::set_vl(n - i);
+        rvv::vi32 t =
+            rvv::mul_x(rvv::widen(rvv::load_i8(tokens + i, vl), vl), ft_q, vl);
+        t = rvv::mac_x(t, fp_q, rvv::widen(rvv::load_i8(positions + i, vl), vl),
+                       vl);
+        rvv::store_i8(y + i, rvv::round_shift_to_int8(t, q, vl), vl);
     }
 }

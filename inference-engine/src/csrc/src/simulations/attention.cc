@@ -19,16 +19,19 @@ constexpr size_t kMaxRows = 64; // nq limit; see the header
 float row_probs(const int32_t* s_row, size_t kv_len, size_t first, size_t last,
                 int32_t lift, float score_scale, const uint16_t* exp_table,
                 float l, float* m, uint8_t* p_row, int32_t* p_sum) {
-    for (size_t j = 0; j < kv_len; ++j) {
-        p_row[j] = 0;
+    size_t vl = 0;
+    for (size_t j = 0; j < kv_len; j += vl) {
+        vl = rvv::set_vl(kv_len - j);
+        rvv::store_u8(p_row + j, rvv::zeros_u8(vl), vl);
     }
     *p_sum = 0;
     if (first >= last) {
         return 1.0F; // this block is masked out for this row
     }
     int32_t s_max = s_row[first];
-    for (size_t j = first + 1; j < last; ++j) {
-        s_max = s_row[j] > s_max ? s_row[j] : s_max;
+    for (size_t j = first; j < last; j += vl) {
+        vl = rvv::set_vl(last - j);
+        s_max = rvv::reduce_max(rvv::load_i32(s_row + j, vl), s_max, vl);
     }
     const int32_t block_max = s_max - lift;
     float correction = 0.0F;
@@ -42,12 +45,19 @@ float row_probs(const int32_t* s_row, size_t kv_len, size_t first, size_t last,
                      (1.0F / 32768.0F);
     }
     *m = score_scale * static_cast<float>(m_new);
-    for (size_t j = first; j < last; ++j) {
-        const uint32_t e = exp_lut(
-            static_cast<uint32_t>(m_new - (s_row[j] - lift)), exp_table);
-        p_row[j] = static_cast<uint8_t>(((255U * e) + (1U << 14U)) >> 15U);
-        *p_sum += p_row[j];
+    // p = round(255 * exp_lut(m_new - (s - lift))), 16 keys at a time
+    uint32_t total = 0;
+    for (size_t j = first; j < last; j += vl) {
+        vl = rvv::set_vl(last - j);
+        const rvv::vu32 e = rvv::exp_lut(
+            rvv::gap(rvv::load_i32(s_row + j, vl), m_new + lift, vl), exp_table,
+            vl);
+        const rvv::vu32 p = rvv::shift_right(
+            rvv::add_xu(rvv::mul_xu(e, 255U, vl), 1U << 14U, vl), 15, vl);
+        total += rvv::sum_u(p, vl);
+        rvv::store_u8(p_row + j, rvv::narrow_u8(p, vl), vl);
     }
+    *p_sum = static_cast<int32_t>(total);
     return correction;
 }
 
@@ -81,8 +91,11 @@ extern "C" void vme_attention_block(size_t nq, size_t d, size_t query_start,
             last = pos + 1 - kv_start < kv_len ? pos + 1 - kv_start : kv_len;
         }
         int32_t q_sum = 0;
-        for (size_t c = 0; c < d; ++c) {
-            q_sum += q[(row * d) + c];
+        size_t vl = 0;
+        for (size_t c = 0; c < d; c += vl) {
+            vl = rvv::set_vl(d - c);
+            q_sum += rvv::sum(
+                rvv::widen(rvv::load_i8(q + (row * d) + c, vl), vl), vl);
         }
         correction[row] =
             row_probs(scores + (row * kv_len), kv_len, first, last,

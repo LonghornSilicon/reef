@@ -18,7 +18,7 @@ BENCHES = {
     "bench_linear": (0, ["linear.cc"]),
     "bench_attention": (1, ["linear.cc", "attention.cc"]),
     "bench_pointwise": (2, ["activation.cc", "block.cc"]),
-    "bench_mlp": (3, ["linear.cc", "activation.cc", "mlp.cc"]),
+    "bench_mlp": (3, ["linear.cc", "mlp.cc"]),
     "bench_embedding": (4, ["embedding.cc"]),
 }
 

@@ -12,29 +12,42 @@ extern "C" void mlp_block(size_t rows, size_t d, size_t chunk, const int8_t* x,
     int32_t* s = scratch; // c_fc, then the c_proj partial sums
     auto* h =
         reinterpret_cast<int8_t*>(scratch + (rows * (chunk > d ? chunk : d)));
+    size_t vl = 0;
 
     // 1. c_fc for this chunk, requantized to GeLU's input, then GeLU
     linear_acc(rows, d, chunk, x, fc_wt, fc_zero, fc_bias, s);
-    for (size_t i = 0; i < rows * chunk; ++i) {
-        h[i] = quant::to_int8(fc_scale * static_cast<float>(s[i]), 1.0F);
+    const quant::Requant to_gelu = quant::requant_params(fc_scale);
+    for (size_t i = 0; i < rows * chunk; i += vl) {
+        vl = rvv::set_vl((rows * chunk) - i);
+        const rvv::vi8 pre =
+            rvv::requant(rvv::load_i32(s + i, vl), to_gelu, vl);
+        rvv::store_i8(h + i, rvv::lookup_i8(gelu_table, pre, vl), vl);
     }
-    gelu(rows * chunk, h, gelu_table, h);
 
     // 2. this chunk's share of c_proj, added into the running sums
     linear_acc(rows, chunk, d, h, proj_wt, proj_zero, nullptr, s);
-    for (size_t i = 0; i < rows * d; ++i) {
-        acc[i] += s[i];
+    for (size_t i = 0; i < rows * d; i += vl) {
+        vl = rvv::set_vl((rows * d) - i);
+        rvv::store_s(
+            acc + i,
+            rvv::add(rvv::load_i32(acc + i, vl), rvv::load_i32(s + i, vl), vl),
+            vl);
     }
 }
 
 extern "C" void mlp_finish(size_t rows, size_t d, const int32_t* acc,
                            const int32_t* proj_bias, float acc_scale,
                            float out_scale, int8_t* y) {
+    const quant::Requant to_out = quant::requant_params(acc_scale / out_scale);
+    size_t vl = 0;
     for (size_t r = 0; r < rows; ++r) {
-        for (size_t c = 0; c < d; ++c) {
-            const int32_t sum = acc[(r * d) + c] + proj_bias[c];
-            y[(r * d) + c] =
-                quant::to_int8(acc_scale * static_cast<float>(sum), out_scale);
+        for (size_t c = 0; c < d; c += vl) {
+            vl = rvv::set_vl(d - c);
+            const size_t at = (r * d) + c;
+            const rvv::vi32 sum =
+                rvv::add(rvv::load_i32(acc + at, vl),
+                         rvv::load_i32(proj_bias + c, vl), vl);
+            rvv::store_i8(y + at, rvv::requant(sum, to_out, vl), vl);
         }
     }
 }

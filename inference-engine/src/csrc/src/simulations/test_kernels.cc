@@ -459,6 +459,9 @@ int test_residual() {
 // ---------------------------------------------------------------------------
 
 constexpr size_t kMaxLinear = 64 * 64;
+// fixed-point requantization: half a step plus at most 2^-shift (shift >= 8
+// for the scales here)
+constexpr double kRequantTolerance = 0.5 + (1.0 / 256.0);
 constexpr int32_t kWZero = 128;
 
 int8_t random_s8(uint32_t* state) {
@@ -514,7 +517,7 @@ int check_linear(size_t rows, size_t in, size_t out, bool with_bias) {
         const double err = abs_double(y[i] - exact);
         worst = err > worst ? err : worst;
     }
-    const bool pass = bad_acc == 0 && worst <= 0.5 + 1e-3;
+    const bool pass = bad_acc == 0 && worst <= kRequantTolerance;
     printf("linear %3zux%3zux%3zu%-6s %s (acc %zu wrong, max err %.3f LSB)\n",
            rows, in, out, with_bias ? " +bias" : "", pass ? "pass" : "FAIL",
            bad_acc, worst);
@@ -576,8 +579,8 @@ int check_mlp(const char* name, size_t rows, size_t d, size_t inner,
     // reference: unchunked, in integers, with the kernel's own rounding
     linear_reference(rows, d, inner, &x[0], &fc_wt[0], &fc_bias[0], &fc_ref[0]);
     for (size_t i = 0; i < rows * inner; ++i) {
-        const int8_t pre =
-            quant::to_int8(kFcScale * static_cast<float>(fc_ref[i]), 1.0F);
+        const int8_t pre = quant::requantize(static_cast<int32_t>(fc_ref[i]),
+                                             quant::requant_params(kFcScale));
         h_ref[i] = table[pre + 128];
     }
     linear_reference(rows, inner, d, &h_ref[0], &proj_wt[0], nullptr,
@@ -610,7 +613,7 @@ int check_mlp(const char* name, size_t rows, size_t d, size_t inner,
         const double err = abs_double(y[i] - exact);
         worst = err > worst ? err : worst;
     }
-    const bool pass = bad_acc == 0 && worst <= 0.5 + 1e-3;
+    const bool pass = bad_acc == 0 && worst <= kRequantTolerance;
     printf("mlp %-22s %s (acc %zu wrong, max err %.3f LSB)\n", name,
            pass ? "pass" : "FAIL", bad_acc, worst);
     return pass ? 0 : 1;

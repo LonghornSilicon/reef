@@ -28,6 +28,83 @@ QUANT_INLINE int8_t to_int8(float value, float out_scale) {
     return static_cast<int8_t>(rounded);
 }
 
+// ---- Fixed-point requantization: y = round(v * f) in integers only ----
+// The vector unit is integer-only (Zve32x), so every requantization runs in
+// fixed point, the way Coral's own int8 kernels do it: f = m * 2^-shift
+// with m in [0.5, 1) as a Q31 multiplier, a rounding Q31 multiply (vsmul),
+// then a rounding, saturating narrow by shift (vnclip), both
+// round-to-nearest-up. The error is under 0.5 + 2^-shift output steps.
+struct Requant {
+    int32_t multiplier; // m as Q31
+    int32_t shift;      // right shift; negative means shift v left first
+};
+
+// f's float bits give m and the exponent exactly: m = mantissa / 2^24.
+QUANT_INLINE Requant requant_params(float f) {
+    uint32_t bits = 0;
+    __builtin_memcpy(&bits, &f, sizeof(bits));
+    const uint32_t exponent = (bits >> 23U) & 0xFFU;
+    if (f <= 0.0F || exponent == 0) {
+        return {0, 0}; // zero (or denormal): every output rounds to 0
+    }
+    auto multiplier =
+        static_cast<int32_t>(((bits & 0x7FFFFFU) | 0x800000U) << 7U);
+    int32_t shift = 126 - static_cast<int32_t>(exponent);
+    if (shift > 31) { // vnclip shifts by at most 31
+        multiplier = shift - 31 > 31 ? 0 : multiplier >> (shift - 31);
+        shift = 31;
+    }
+    return {multiplier, shift};
+}
+
+// vsmul: round(a * b / 2^31), saturated
+QUANT_INLINE int32_t q31_mul(int32_t a, int32_t b) {
+    const int64_t product = (static_cast<int64_t>(a) * b) + (1LL << 30);
+    const int64_t r = product >> 31;
+    return r > INT32_MAX ? INT32_MAX : static_cast<int32_t>(r);
+}
+
+// vnclip to int16 then int8: round(x / 2^shift), saturated to int8
+QUANT_INLINE int8_t round_shift_to_int8(int32_t x, int32_t shift) {
+    const int64_t half = shift > 0 ? (1LL << (shift - 1)) : 0;
+    const int64_t r = (static_cast<int64_t>(x) + half) >> shift;
+    if (r > 127) {
+        return 127;
+    }
+    if (r < -128) {
+        return -128;
+    }
+    return static_cast<int8_t>(r);
+}
+
+// The scalar model of rvv::requant, bit for bit.
+QUANT_INLINE int8_t requantize(int32_t v, Requant r) {
+    if (r.shift < 0) {
+        v = static_cast<int32_t>(static_cast<uint32_t>(v) << -r.shift);
+    }
+    return round_shift_to_int8(q31_mul(v, r.multiplier),
+                               r.shift > 0 ? r.shift : 0);
+}
+
+// Fraction bits q for a sum of int8 terms a_i * f_i done as integers
+// (sum a_i * round(f_i * 2^q), then round_shift_to_int8 by q): the largest
+// q <= 30 with 128 * sum(f_i) * 2^q < 2^30, so the sum can't overflow.
+QUANT_INLINE int32_t fraction_bits(float factor_sum) {
+    int32_t q = 0;
+    while (q < 30 && 128.0F * factor_sum * static_cast<float>(1U << (q + 1)) <
+                         1073741824.0F) {
+        ++q;
+    }
+    return q;
+}
+
+// round(f * 2^q) for f >= 0
+QUANT_INLINE int32_t to_fixed(float f, int32_t q) {
+    // f >= 0, so adding 0.5 and truncating rounds
+    // NOLINTNEXTLINE(bugprone-incorrect-roundings)
+    return static_cast<int32_t>((f * static_cast<float>(1U << q)) + 0.5F);
+}
+
 } // namespace quant
 
 // ---- RVV: readable wrappers for the RVV intrinsics the kernels use ----
@@ -71,6 +148,120 @@ RVV_INLINE void store(uint32_t* p, vu32 v, size_t vl) {
 }
 RVV_INLINE void store_s(int32_t* p, vi32 v, size_t vl) {
     __riscv_vse32_v_i32m4(p, v, vl);
+}
+
+// ---- Elementwise kernels (int8 rows, e8m1 / e16m2 / e32m4: 16 lanes) ----
+using vi8 = vint8m1_t; // a row of int8 activations
+
+constexpr unsigned int kRnu = 0; // vxrm: round-to-nearest-up
+
+RVV_INLINE vi8 load_i8(const int8_t* p, size_t vl) {
+    return __riscv_vle8_v_i8m1(p, vl);
+}
+RVV_INLINE void store_i8(int8_t* p, vi8 v, size_t vl) {
+    __riscv_vse8_v_i8m1(p, v, vl);
+}
+RVV_INLINE void store_u8(uint8_t* p, vu8 v, size_t vl) {
+    __riscv_vse8_v_u8m1(p, v, vl);
+}
+RVV_INLINE vu8 zeros_u8(size_t vl) { return __riscv_vmv_v_x_u8m1(0, vl); }
+RVV_INLINE vi32 load_i32(const int32_t* p, size_t vl) {
+    return __riscv_vle32_v_i32m4(p, vl);
+}
+RVV_INLINE vi32 widen(vi8 v, size_t vl) {
+    return __riscv_vsext_vf4_i32m4(v, vl);
+}
+RVV_INLINE vi32 add(vi32 a, vi32 b, size_t vl) {
+    return __riscv_vadd_vv_i32m4(a, b, vl);
+}
+RVV_INLINE vi32 add_x(vi32 a, int32_t x, size_t vl) {
+    return __riscv_vadd_vx_i32m4(a, x, vl);
+}
+RVV_INLINE vi32 mul(vi32 a, vi32 b, size_t vl) {
+    return __riscv_vmul_vv_i32m4(a, b, vl);
+}
+RVV_INLINE vi32 mul_x(vi32 a, int32_t x, size_t vl) {
+    return __riscv_vmul_vx_i32m4(a, x, vl);
+}
+// acc + x * v
+RVV_INLINE vi32 mac_x(vi32 acc, int32_t x, vi32 v, size_t vl) {
+    return __riscv_vmacc_vx_i32m4(acc, x, v, vl);
+}
+RVV_INLINE int32_t sum(vi32 v, size_t vl) {
+    return __riscv_vmv_x_s_i32m1_i32(
+        __riscv_vredsum_vs_i32m4_i32m1(v, __riscv_vmv_v_x_i32m1(0, 1), vl));
+}
+RVV_INLINE int32_t reduce_max(vi32 v, int32_t init, size_t vl) {
+    return __riscv_vmv_x_s_i32m1_i32(
+        __riscv_vredmax_vs_i32m4_i32m1(v, __riscv_vmv_v_x_i32m1(init, 1), vl));
+}
+// sum of squares of an int8 row: widening square, widening sum
+RVV_INLINE int32_t sum_squares(vi8 v, size_t vl) {
+    return __riscv_vmv_x_s_i32m1_i32(__riscv_vwredsum_vs_i16m2_i32m1(
+        __riscv_vwmul_vv_i16m2(v, v, vl), __riscv_vmv_v_x_i32m1(0, 1), vl));
+}
+// quant::q31_mul per lane (vsmul)
+RVV_INLINE vi32 q31_mul(vi32 v, int32_t m, size_t vl) {
+    return __riscv_vsmul_vx_i32m4(v, m, kRnu, vl);
+}
+// quant::round_shift_to_int8 per lane (vnclip twice), 0 <= shift <= 31
+RVV_INLINE vi8 round_shift_to_int8(vi32 v, int32_t shift, size_t vl) {
+    const vint16m2_t half =
+        __riscv_vnclip_wx_i16m2(v, static_cast<size_t>(shift), kRnu, vl);
+    return __riscv_vnclip_wx_i8m1(half, 0, kRnu, vl);
+}
+// quant::requantize per lane
+RVV_INLINE vi8 requant(vi32 v, quant::Requant r, size_t vl) {
+    if (r.shift < 0) {
+        v = __riscv_vsll_vx_i32m4(v, static_cast<size_t>(-r.shift), vl);
+    }
+    return round_shift_to_int8(q31_mul(v, r.multiplier, vl),
+                               r.shift > 0 ? r.shift : 0, vl);
+}
+// table[x + 128] per lane: a gather with x ^ 0x80 as the byte offset
+RVV_INLINE vi8 lookup_i8(const int8_t* table, vi8 x, size_t vl) {
+    const vu8 index =
+        __riscv_vxor_vx_u8m1(__riscv_vreinterpret_v_i8m1_u8m1(x), 0x80, vl);
+    return __riscv_vluxei8_v_i8m1(table, index, vl);
+}
+
+// ---- Unsigned lanes for the softmax exp tables ----
+// top - s per lane, as the unsigned score gap exp_lut takes
+RVV_INLINE vu32 gap(vi32 s, int32_t top, size_t vl) {
+    return __riscv_vreinterpret_v_i32m4_u32m4(
+        __riscv_vrsub_vx_i32m4(s, top, vl));
+}
+// exp_lut (kernels.h) per lane: two gathers from the Q15 tables
+RVV_INLINE vu32 exp_lut(vu32 d, const uint16_t* table, size_t vl) {
+    const vbool8_t too_far = __riscv_vmsgeu_vx_u32m4_b8(d, 65536U, vl);
+    d = __riscv_vminu_vx_u32m4(d, 65535U, vl);
+    const vu32 coarse_at =
+        __riscv_vsll_vx_u32m4(__riscv_vsrl_vx_u32m4(d, 8, vl), 1, vl);
+    const vu32 fine_at = __riscv_vadd_vx_u32m4(
+        __riscv_vsll_vx_u32m4(__riscv_vand_vx_u32m4(d, 255U, vl), 1, vl), 512U,
+        vl);
+    const vu16 coarse = __riscv_vluxei32_v_u16m2(table, coarse_at, vl);
+    const vu16 fine = __riscv_vluxei32_v_u16m2(table, fine_at, vl);
+    vu32 e = __riscv_vwmulu_vv_u32m4(coarse, fine, vl);
+    e = __riscv_vsrl_vx_u32m4(__riscv_vadd_vx_u32m4(e, 1U << 14U, vl), 15, vl);
+    return __riscv_vmerge_vxm_u32m4(e, 0, too_far, vl);
+}
+RVV_INLINE vu32 mul_xu(vu32 v, uint32_t x, size_t vl) {
+    return __riscv_vmul_vx_u32m4(v, x, vl);
+}
+RVV_INLINE vu32 add_xu(vu32 v, uint32_t x, size_t vl) {
+    return __riscv_vadd_vx_u32m4(v, x, vl);
+}
+RVV_INLINE vu32 shift_right(vu32 v, size_t shift, size_t vl) {
+    return __riscv_vsrl_vx_u32m4(v, shift, vl);
+}
+RVV_INLINE uint32_t sum_u(vu32 v, size_t vl) {
+    return __riscv_vmv_x_s_u32m1_u32(
+        __riscv_vredsum_vs_u32m4_u32m1(v, __riscv_vmv_v_x_u32m1(0, 1), vl));
+}
+// values already in [0, 255] to uint8
+RVV_INLINE vu8 narrow_u8(vu32 v, size_t vl) {
+    return __riscv_vnsrl_wx_u8m1(__riscv_vnsrl_wx_u16m2(v, 0, vl), 0, vl);
 }
 
 } // namespace rvv
@@ -129,6 +320,173 @@ RVV_INLINE void store_s(int32_t* p, vi32 v, size_t vl) {
     for (size_t i = 0; i < vl; i++) {
         p[i] = v.e[i];
     }
+}
+
+// ---- Elementwise kernels ----
+using vi8 = Lanes<int8_t>;
+using vu8 = Lanes<uint8_t>;
+
+RVV_INLINE vi8 load_i8(const int8_t* p, size_t vl) {
+    vi8 v{};
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] = p[i];
+    }
+    return v;
+}
+RVV_INLINE void store_i8(int8_t* p, vi8 v, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        p[i] = v.e[i];
+    }
+}
+RVV_INLINE void store_u8(uint8_t* p, vu8 v, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        p[i] = v.e[i];
+    }
+}
+RVV_INLINE vu8 zeros_u8(size_t /*vl*/) { return {}; }
+RVV_INLINE vi32 load_i32(const int32_t* p, size_t vl) {
+    vi32 v{};
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] = p[i];
+    }
+    return v;
+}
+RVV_INLINE vi32 widen(vi8 v, size_t vl) {
+    vi32 w{};
+    for (size_t i = 0; i < vl; i++) {
+        w.e[i] = v.e[i];
+    }
+    return w;
+}
+RVV_INLINE vi32 add(vi32 a, vi32 b, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        a.e[i] += b.e[i];
+    }
+    return a;
+}
+RVV_INLINE vi32 add_x(vi32 a, int32_t x, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        a.e[i] += x;
+    }
+    return a;
+}
+RVV_INLINE vi32 mul(vi32 a, vi32 b, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        a.e[i] *= b.e[i];
+    }
+    return a;
+}
+RVV_INLINE vi32 mul_x(vi32 a, int32_t x, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        a.e[i] *= x;
+    }
+    return a;
+}
+RVV_INLINE vi32 mac_x(vi32 acc, int32_t x, vi32 v, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        acc.e[i] += x * v.e[i];
+    }
+    return acc;
+}
+RVV_INLINE int32_t sum(vi32 v, size_t vl) {
+    int32_t s = 0;
+    for (size_t i = 0; i < vl; i++) {
+        s += v.e[i];
+    }
+    return s;
+}
+RVV_INLINE int32_t reduce_max(vi32 v, int32_t init, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        init = v.e[i] > init ? v.e[i] : init;
+    }
+    return init;
+}
+RVV_INLINE int32_t sum_squares(vi8 v, size_t vl) {
+    int32_t s = 0;
+    for (size_t i = 0; i < vl; i++) {
+        s += v.e[i] * v.e[i];
+    }
+    return s;
+}
+RVV_INLINE vi32 q31_mul(vi32 v, int32_t m, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] = quant::q31_mul(v.e[i], m);
+    }
+    return v;
+}
+RVV_INLINE vi8 round_shift_to_int8(vi32 v, int32_t shift, size_t vl) {
+    vi8 y{};
+    for (size_t i = 0; i < vl; i++) {
+        y.e[i] = quant::round_shift_to_int8(v.e[i], shift);
+    }
+    return y;
+}
+RVV_INLINE vi8 requant(vi32 v, quant::Requant r, size_t vl) {
+    vi8 y{};
+    for (size_t i = 0; i < vl; i++) {
+        y.e[i] = quant::requantize(v.e[i], r);
+    }
+    return y;
+}
+RVV_INLINE vi8 lookup_i8(const int8_t* table, vi8 x, size_t vl) {
+    vi8 y{};
+    for (size_t i = 0; i < vl; i++) {
+        y.e[i] = table[x.e[i] + 128];
+    }
+    return y;
+}
+
+// ---- Unsigned lanes for the softmax exp tables ----
+RVV_INLINE vu32 gap(vi32 s, int32_t top, size_t vl) {
+    vu32 d{};
+    for (size_t i = 0; i < vl; i++) {
+        d.e[i] = static_cast<uint32_t>(top) - static_cast<uint32_t>(s.e[i]);
+    }
+    return d;
+}
+RVV_INLINE vu32 exp_lut(vu32 d, const uint16_t* table, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        if (d.e[i] >= 65536U) {
+            d.e[i] = 0;
+            continue;
+        }
+        const uint32_t coarse = table[d.e[i] >> 8U];
+        const uint32_t fine = table[256U + (d.e[i] & 255U)];
+        d.e[i] = ((coarse * fine) + (1U << 14U)) >> 15U;
+    }
+    return d;
+}
+RVV_INLINE vu32 mul_xu(vu32 v, uint32_t x, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] *= x;
+    }
+    return v;
+}
+RVV_INLINE vu32 add_xu(vu32 v, uint32_t x, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] += x;
+    }
+    return v;
+}
+RVV_INLINE vu32 shift_right(vu32 v, size_t shift, size_t vl) {
+    for (size_t i = 0; i < vl; i++) {
+        v.e[i] >>= shift;
+    }
+    return v;
+}
+RVV_INLINE uint32_t sum_u(vu32 v, size_t vl) {
+    uint32_t s = 0;
+    for (size_t i = 0; i < vl; i++) {
+        s += v.e[i];
+    }
+    return s;
+}
+RVV_INLINE vu8 narrow_u8(vu32 v, size_t vl) {
+    vu8 y{};
+    for (size_t i = 0; i < vl; i++) {
+        y.e[i] = static_cast<uint8_t>(v.e[i]);
+    }
+    return y;
 }
 
 } // namespace rvv
