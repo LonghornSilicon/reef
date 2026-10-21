@@ -62,7 +62,7 @@ microbenchmarks. On the three frontend-bound microbenchmarks the error goes from
 
 Paths are relative to `hdl/chisel/src/coralnpu/` in the M3 checkout.
 
-| Behaviour | M3 RTL | reef-perf today | Effect on the model | Ticket |
+| Behavior | M3 RTL | reef-perf today | Effect on the model | Ticket |
 | --- | --- | --- | --- | --- |
 | Fetch rate | One 16-byte fetch in flight; no new request while response data is valid, so at most 4 instructions per 2 cycles (`scalar/UncachedFetch.scala:194-195`, D7) | Up to 4 instructions every cycle (`fetch_interval: 1`) | Too fast on straight-line code | **B04, this PR** |
 | Taken-branch cost | Static prediction in predecode: `jal` and backward conditional branches predicted taken, target computed from the instruction bits, next fetch goes straight to it (`UncachedFetch.scala:87-100,133-134,177-185`). No extra cycle when correct | Flat `redirect_penalty` (1) on every taken branch or jump, no prediction | After B04: too slow on every loop | B05 |

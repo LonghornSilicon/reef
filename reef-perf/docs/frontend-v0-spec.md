@@ -397,12 +397,12 @@ group and the target fetch can start mid-block, so it costs fetch bandwidth.
 
 ## 7. How reef-perf's frontend differs today
 
-| Behaviour | M3 RTL | reef-perf (`model/frontend/Fetch.cpp`) |
+| Behavior | M3 RTL | reef-perf (`model/frontend/Fetch.cpp`) |
 | --- | --- | --- |
 | Fetch rate | one 4-instruction fetch every 2 cycles | `fetch_interval: 2` (B04) |
 | Alignment | 16-byte blocks; partial block after a mid-block target | none |
-| Prediction | static (above) | none; `redirect_penalty` on every taken branch, known from Spike |
-| Redirect | from the BRU, after execute | none (no core-to-frontend signal) |
+| Prediction | static (above) | `predictor: static_btfn` (B05): predicted-taken jumps free, mispredicts 2 cycles (measured) |
+| Redirect | from the BRU, one cycle after the branch dispatches | penalty counted from the branch's fetch cycle; no core-to-frontend signal |
 | Instruction buffer | 8 entries in the fetch unit | `ibuf_entries: 8` in the frontend |
 
 The tickets that close these gaps are B04 (fetch rate), B05 (prediction), B06
