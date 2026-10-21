@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 using namespace reef_perf;
 
@@ -29,8 +30,13 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       StaticBtfn(Params->predictor.getValue() == "static_btfn"),
       TakenBubble(Params->taken_bubble),
       MispredictPenalty(Params->mispredict_penalty),
+      AlignedBlocks(Params->aligned_blocks),
+      FetchBlockBytes(Params->fetch_block_bytes),
       IbufEntries(Params->ibuf_entries) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
+  sparta_assert(FetchBlockBytes >= 4 &&
+                    (FetchBlockBytes & (FetchBlockBytes - 1)) == 0,
+                "frontend.fetch_block_bytes must be a power of two >= 4");
   sparta_assert(StaticBtfn || Params->predictor.getValue() == "none",
                 "frontend.predictor must be none or static_btfn");
   // The first group is fetched in cycle 1.
@@ -93,6 +99,12 @@ std::optional<uint32_t> Fetch::getGroupEndPenalty(const Inst &I) {
   return std::nullopt;
 }
 
+InstRef Fetch::nextInst() {
+  if (Pending)
+    return std::exchange(Pending, nullptr);
+  return TheFuncSim->next(); // Execute-at-fetch.
+}
+
 void Fetch::scheduleFetch(Cycle Earliest) {
   if (Done)
     return;
@@ -117,10 +129,15 @@ void Fetch::fetchGroup() {
   uint32_t Fetched = 0;
   std::optional<uint32_t> Penalty;
   while (Fetched < FetchWidth && getFreeEntries(Now) > 0) {
-    InstRef I = TheFuncSim->next(); // Execute-at-fetch.
+    InstRef I = nextInst();
     if (!I) {
       Done = true;
       DoneCycle = Now;
+      break;
+    }
+    if (AlignedBlocks && Fetched > 0 &&
+        I->PC / FetchBlockBytes != Ibuf.back()->PC / FetchBlockBytes) {
+      Pending = I; // The next block starts the next group.
       break;
     }
     I->FetchCycle = Now;

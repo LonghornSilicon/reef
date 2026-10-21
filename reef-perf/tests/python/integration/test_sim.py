@@ -11,6 +11,7 @@ FETCH_INTERVAL = "top.frontend.params.fetch_interval"
 PREDICTOR = "top.frontend.params.predictor"
 TAKEN_BUBBLE = "top.frontend.params.taken_bubble"
 REDIRECT_PENALTY = "top.frontend.params.redirect_penalty"
+ALIGNED_BLOCKS = "top.frontend.params.aligned_blocks"
 
 
 @pytest.mark.integration
@@ -56,6 +57,20 @@ def test_static_prediction_makes_loop_branches_free(
     btfn = run_sim(elf, params={**common, PREDICTOR: "static_btfn"})
     assert btfn.instructions == none.instructions
     assert btfn.cycles < none.cycles
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_aligned_blocks_slow_down_misaligned_loop(
+    cpp_build_dir: Path, microbenchmark_elfs: dict[str, Path]
+) -> None:
+    """alu_indep's loop starts at slot 3, so aligned blocks cost a fetch."""
+    del cpp_build_dir
+    elf = microbenchmark_elfs["alu_indep"]
+    free = run_sim(elf, params={ALIGNED_BLOCKS: "false"})
+    aligned = run_sim(elf, params={ALIGNED_BLOCKS: "true"})
+    assert aligned.instructions == free.instructions
+    assert aligned.cycles > free.cycles
 
 
 @pytest.mark.integration
