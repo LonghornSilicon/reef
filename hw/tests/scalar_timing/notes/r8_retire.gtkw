@@ -1,0 +1,18 @@
+[dumpfile] "trace.vcd"
+[timestart] 1228750
+@28
+RvvCoreMiniAxi.core.score.clock
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_1_valid
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_1_ready
+@22
+RvvCoreMiniAxi.core.score.dispatch.io_inst_1_bits_addr[31:0]
+@28
+RvvCoreMiniAxi.core.score.retirement_buffer.io_writeDataScalar_1_valid
+@28
+RvvCoreMiniAxi.core.score.retirement_buffer.io_writeDataScalar_5_valid
+@22
+RvvCoreMiniAxi.core.score.retirement_buffer.io_nRetired[3:0]
+@22
+RvvCoreMiniAxi.core.score.retirement_buffer.io_debug_inst_0_bits_pc[31:0]

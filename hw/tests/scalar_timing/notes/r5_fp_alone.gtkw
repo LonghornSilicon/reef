@@ -1,0 +1,20 @@
+[dumpfile] "trace.vcd"
+[timestart] 2472500
+@28
+RvvCoreMiniAxi.core.score.clock
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_valid
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_ready
+@22
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_bits_addr[31:0]
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_1_valid
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_1_ready
+@28
+RvvCoreMiniAxi.core.score.floatCore.instQueue.io_count
+@28
+RvvCoreMiniAxi.core.score.floatCore.floatCoreWrapper.out_valid_o
+@28
+RvvCoreMiniAxi.core.score.floatCore.io_write_ports_0_valid

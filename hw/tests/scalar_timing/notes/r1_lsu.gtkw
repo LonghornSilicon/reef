@@ -1,0 +1,18 @@
+[dumpfile] "dep_chain_lw.vcd"
+[timestart] 900000
+@28
+RvvCoreMiniAxi.core.score.clock
+@28
+RvvCoreMiniAxi.core.score.lsu.io_dbus_valid
+@28
+RvvCoreMiniAxi.core.score.lsu.io_dbus_write
+@28
+RvvCoreMiniAxi.core.score.lsu.readFired_valid
+@28
+RvvCoreMiniAxi.core.score.lsu.io_rd_valid
+@22
+RvvCoreMiniAxi.core.score.lsu.io_queueCapacity[2:0]
+@22
+RvvCoreMiniAxi.core.score.retirement_buffer.io_nSpace[31:0]
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_ready

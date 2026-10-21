@@ -1,0 +1,22 @@
+[timestart] 425000
+@28
+RvvCoreMiniAxi.core.score.fetch.clock
+RvvCoreMiniAxi.core.score.fetch.fetcher.io_ibus_valid
+@22
+RvvCoreMiniAxi.core.score.fetch.fetcher.io_ibus_addr[31:0]
+@28
+RvvCoreMiniAxi.core.score.fetch.fetcher.ibusCmd_valid
+RvvCoreMiniAxi.core.score.fetch.ctrl.blockNewFetch
+RvvCoreMiniAxi.core.score.fetch.ctrl.writeToBuffer
+@22
+RvvCoreMiniAxi.core.score.fetch.instructionBuffer.io_nEnqueued[3:0]
+RvvCoreMiniAxi.core.score.fetch.instructionBuffer.io_nSpace[3:0]
+@28
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_0_valid
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_0_ready
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_1_valid
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_1_ready
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_2_valid
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_2_ready
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_3_valid
+RvvCoreMiniAxi.core.score.fetch.io_inst_lanes_3_ready

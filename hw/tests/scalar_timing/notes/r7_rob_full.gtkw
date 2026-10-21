@@ -1,0 +1,16 @@
+[dumpfile] "b7_rob.vcd"
+[timestart] 1688000
+@28
+RvvCoreMiniAxi.core.score.clock
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_valid
+@28
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_ready
+@22
+RvvCoreMiniAxi.core.score.dispatch.io_inst_0_bits_addr[31:0]
+@22
+RvvCoreMiniAxi.core.score.retirement_buffer.io_nSpace[31:0]
+@22
+RvvCoreMiniAxi.core.score.retirement_buffer.io_nRetired[3:0]
+@28
+RvvCoreMiniAxi.core.score.dvu.io_rd_valid
