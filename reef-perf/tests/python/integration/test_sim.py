@@ -8,6 +8,9 @@ import pytest
 from reef_perf.sim import SimulationError, run_sim
 
 FETCH_INTERVAL = "top.frontend.params.fetch_interval"
+PREDICTOR = "top.frontend.params.predictor"
+TAKEN_BUBBLE = "top.frontend.params.taken_bubble"
+REDIRECT_PENALTY = "top.frontend.params.redirect_penalty"
 
 
 @pytest.mark.integration
@@ -38,6 +41,21 @@ def test_parameter_override_changes_timing(
     slow = run_sim(elf, params={FETCH_INTERVAL: 2})
     assert slow.instructions == fast.instructions
     assert slow.cycles > fast.cycles
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_static_prediction_makes_loop_branches_free(
+    cpp_build_dir: Path, microbenchmark_elfs: dict[str, Path]
+) -> None:
+    """With static_btfn a correctly predicted loop branch costs no extra."""
+    del cpp_build_dir
+    elf = microbenchmark_elfs["branch_tight"]
+    common = {FETCH_INTERVAL: 2, TAKEN_BUBBLE: 0, REDIRECT_PENALTY: 1}
+    none = run_sim(elf, params={**common, PREDICTOR: "none"})
+    btfn = run_sim(elf, params={**common, PREDICTOR: "static_btfn"})
+    assert btfn.instructions == none.instructions
+    assert btfn.cycles < none.cycles
 
 
 @pytest.mark.integration

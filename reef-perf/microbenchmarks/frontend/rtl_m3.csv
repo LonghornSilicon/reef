@@ -1,0 +1,6 @@
+microbenchmark,rtl_roi_cycles,rtl_retired_insts,notes
+branch_bwd_not_taken,6005,3001,mispredict: backward not taken
+branch_fwd_not_taken,2006,3001,control for branch_bwd_not_taken
+branch_fwd_taken,6005,3001,mispredict: forward taken
+jal_fwd,4002,3001,control for branch_fwd_taken and jalr_chain
+jalr_chain,6007,3003,mispredict: jalr
