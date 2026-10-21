@@ -34,7 +34,7 @@ def test_parameter_override_changes_timing(
     """A -p override reaches the model: halving fetch rate costs cycles."""
     del cpp_build_dir
     elf = microbenchmark_elfs["alu_indep"]
-    fast = run_sim(elf)
+    fast = run_sim(elf, params={FETCH_INTERVAL: 1})
     slow = run_sim(elf, params={FETCH_INTERVAL: 2})
     assert slow.instructions == fast.instructions
     assert slow.cycles > fast.cycles
