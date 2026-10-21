@@ -8,6 +8,6 @@ cmake-build-*/
 dist/
 results/
 .DS_Store
-# kernel sims: raw outputs go to out/; keep the summaries the report cites
+# kernel sims: ELFs and generated outputs
+src/csrc/src/simulations/bin/
 src/csrc/src/simulations/out/
-!src/csrc/src/simulations/analysis/results/

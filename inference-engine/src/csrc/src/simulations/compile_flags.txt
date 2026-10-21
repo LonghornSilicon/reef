@@ -5,5 +5,4 @@
 -mabi=ilp32f
 -ffreestanding
 -nostdinc++
--Ikernels
--Iincludes
+-I.

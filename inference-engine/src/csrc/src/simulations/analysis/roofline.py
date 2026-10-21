@@ -1,8 +1,8 @@
 """Roofline and end-to-end estimate for GPT-2 small on Reef, from results.json.
 
-    uv run --group sim python src/csrc/src/simulations/analysis/roofline.py
-    uv run --group sim python src/csrc/src/simulations/analysis/roofline.py \
-        --model src/csrc/src/simulations/analysis/config/gpt_neo_28m.json
+    uv run --group sim python analysis/roofline.py   (from simulations/)
+    uv run --group sim python analysis/roofline.py \
+        --model analysis/gpt_neo_28m.json
 
 --model overlays another model's dims, layer pattern (global / local
 attention) and sequences on model.json, and reads the sim jobs it names
@@ -18,18 +18,17 @@ Per operator of one GPT-2 block, for prefill (each config length) and decode
                         and reads its outputs, since there is no DMA
   * kernel_cycles       measured sim cycles per tile x number of tiles
   * host_cycles         host_bytes / measured host->DTCM rate
-Writes analysis/roofline.json, analysis/roofline_{prefill,decode}.png and
-prints the block and all-layer totals in ms at the configured clock.
+Reads out/results.json (collect_results.py). Writes out/roofline.json,
+out/roofline_{prefill,decode}.png and out/vocab_sweep.csv and prints the
+block and all-layer totals in ms at the configured clock.
 
 Tiling schedule (the cheapest the current interface allows): matmuls are
 A-stationary (one A tile of 16 x 512 stays in DTCM while every B tile
 streams past; K is split in 512-wide chunks whose int32 partial sums the
 host adds); attention streams 64-key K/V blocks through vme_attention_block
 for 16-query blocks (both its matmuls on the matrix engine; decode's single
-query on the vector unit). The scalar attention_flash_chunk estimate is
-kept alongside for comparison but not counted in the totals (measured at
-d_head = 64, so it only applies to GPT-2). Local-attention layers stream
-only the KV blocks their window reaches.
+query on the vector unit). Local-attention layers stream only the KV
+blocks their window reaches.
 """
 
 import argparse
@@ -45,9 +44,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
+OUT = HERE.parent / "out"
 
-CONFIG = json.loads((HERE / "config" / "model.json").read_text())
-HARDWARE = json.loads((HERE / "config" / "hardware.json").read_text())
+CONFIG = json.loads((HERE / "model.json").read_text())
+HARDWARE = json.loads((HERE / "hardware.json").read_text())
 M = CONFIG["model"]
 D, DFF, H, DH = M["d_model"], M["d_ff"], M["n_head"], M["d_head"]
 # sim job names this model's estimate reads; --model can point elsewhere
@@ -102,12 +102,6 @@ class Measured:
             return math.nan
         return self.jobs[name]["cycles"]
 
-    def sum_cycles(self, prefix: str) -> float:
-        """Total cycles over jobs whose name starts with prefix."""
-        return self.mean_cycles(prefix) * sum(
-            n.startswith(prefix) for n in self.jobs
-        )
-
     def mean_cycles(self, prefix: str) -> float:
         """Mean cycles over jobs whose name starts with prefix."""
         found = [
@@ -161,8 +155,8 @@ def attention_blocks(
     nq: int, ctx: int, window: int
 ) -> tuple[int, int, int, int, int]:
     """(query block, query blocks, KV block, visible pairs, block pairs)."""
-    block = CONFIG["tiles"]["attention_flash_chunk"]["kv_block"]
-    qb = CONFIG["tiles"]["attention_flash_chunk"]["nq"] if nq > 1 else 1
+    block = CONFIG["tiles"]["attention"]["kv_block"]
+    qb = CONFIG["tiles"]["attention"]["nq"] if nq > 1 else 1
     pairs = 0  # (query block, kv block) pairs that see at least one key
     for q0 in range(0, nq, qb):
         first_pos = ctx - nq + q0
@@ -211,34 +205,6 @@ def attention_op(meas: Measured, nq: int, ctx: int, window: int) -> dict:
         "dtcm_bytes": H * pairs * (mm_bytes + state),
         "host_bytes": attention_host_bytes(nq, ctx, window),
         "tiles": H * pairs,
-    }
-
-
-def attention_scalar_op(meas: Measured, nq: int, ctx: int, window: int) -> dict:
-    """Scalar attention_flash_chunk, kept for comparison (not in totals).
-
-    Cost per visible (query, key) pair comes from the measured stream: masked
-    keys cost nothing, so diagonal blocks are charged only for what they do.
-    """
-    _, q_blocks, _, visible, pairs = attention_blocks(nq, ctx, window)
-    stream = "chunk_prefill" if nq > 1 else "chunk_decode"
-    finish = meas.cycles(f"{stream}_finish")
-    fin = meas.jobs.get(f"{stream}_finish", {})
-    per_pair = math.nan
-    if fin:
-        seen = sum(fin["query_start"] + i + 1 for i in range(fin["shape"][0]))
-        per_pair = meas.sum_cycles(f"{stream}_block") / seen
-    return {
-        "op": "attention (scalar)",
-        "engine": "scalar",
-        "ops": H * 4 * visible * DH,
-        "kernel_cycles": H * (visible * per_pair + q_blocks * finish),
-        # per visible pair: a d-byte kt column, a d-byte v row and a float
-        # acc row read and written (8d)
-        "dtcm_bytes": H * visible * (DH + DH + 8 * DH),
-        "host_bytes": attention_host_bytes(nq, ctx, window),
-        "tiles": H * pairs,
-        "cycles_per_visible_pair": per_pair,
     }
 
 
@@ -454,9 +420,8 @@ def vocab_sweep(
 ) -> list[dict]:
     """LM-head cost and full-model time per token at each sweep vocab size.
 
-    Writes analysis/vocab_sweep.csv and prints the table. The 12 blocks
-    don't depend on vocab; only the LM head (and the host embedding table,
-    timed separately in results.json) does.
+    Writes out/vocab_sweep.csv and prints the table. The blocks don't
+    depend on vocab; only the LM head (and the host embedding table) does.
     """
     rows = []
     for vocab in CONFIG["sweeps"]["vocab_sizes"]:
@@ -477,7 +442,7 @@ def vocab_sweep(
             row[f"{phase}_ms"] = 1e3 * (blocks + head_cycles) / clock_hz
             row[f"{phase}_head_share"] = head_cycles / (blocks + head_cycles)
         rows.append(row)
-    with open(HERE / f"vocab_sweep{SUFFIX}.csv", "w", newline="") as f:
+    with open(OUT / f"vocab_sweep{SUFFIX}.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
@@ -499,13 +464,14 @@ def main() -> int:
     parser.add_argument("--model", type=Path, help="model overlay JSON")
     if (model := parser.parse_args().model) is not None:
         use_model(model)
-    results = json.loads((HERE / "results" / "results.json").read_text())
+    results = json.loads((OUT / "results.json").read_text())
     meas = Measured(results)
     micro = results["microbench"]
     clock_hz = HARDWARE["clock_mhz"]["value"] * 1e6
-    host_measured = "host_to_dtcm_bytes_per_cycle" in micro
+    host = HARDWARE["host_to_dtcm_bytes_per_cycle"]
+    host_measured = host["confirmed"]
     rtl_bound = HARDWARE["axi_slave_data_bits"]["value"] / 8
-    host_bw = micro.get("host_to_dtcm_bytes_per_cycle", rtl_bound)
+    host_bw = host["value"] if host_measured else rtl_bound
     source = "measured" if host_measured else "RTL bound, unconfirmed"
     ceilings = {
         "vme_ops_per_cycle": 2 * micro.get("vme_peak_macs_per_cycle", math.nan),
@@ -536,10 +502,9 @@ def main() -> int:
     for phase, (nq, context) in phases.items():
         # one operator table per distinct window (global, local)
         by_window = {w: block_ops(meas, nq, context, w) for w in set(windows)}
-        scalar_attention = attention_scalar_op(meas, nq, context, M["n_ctx"])
         head = head_ops(meas, M["vocab"])
         layer_ops = [o for ops in by_window.values() for o in ops]
-        add_costs([*layer_ops, scalar_attention, *head], host_bw)
+        add_costs([*layer_ops, *head], host_bw)
         layer_cycles = {
             w: sum(o["total_cycles"] for o in ops)
             for w, ops in by_window.items()
@@ -557,7 +522,6 @@ def main() -> int:
                 if len(by_window) > 1
                 else {}
             ),
-            "attention_scalar_for_comparison": scalar_attention,
             "block_cycles": block,
             "block_ms": 1e3 * block / clock_hz,
             "model_ms": 1e3 * M["layers"] * block / clock_hz,
@@ -584,14 +548,14 @@ def main() -> int:
             f"{label}: one {M['name']} block ({p['nq']} "
             f"token{'s' if p['nq'] > 1 else ''}, context {p['context']})",
             ceilings,
-            HERE / f"roofline_{label.lower()}{SUFFIX}.png",
+            OUT / f"roofline_{label.lower()}{SUFFIX}.png",
             rvv=label == "Decode",
         )
     out["vocab_sweep"] = vocab_sweep(meas, out, host_bw, clock_hz, longest)
     out["missing"] = sorted(set(meas.missing))
     if out["missing"]:
         print("missing measurements (estimates are NaN):", out["missing"])
-    (HERE / f"roofline{SUFFIX}.json").write_text(
+    (OUT / f"roofline{SUFFIX}.json").write_text(
         json.dumps(out, indent=2) + "\n"
     )
     return 0
