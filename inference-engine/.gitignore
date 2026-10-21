@@ -8,3 +8,6 @@ cmake-build-*/
 dist/
 results/
 .DS_Store
+# kernel sims: ELFs and generated outputs
+src/csrc/src/simulations/bin/
+src/csrc/src/simulations/out/

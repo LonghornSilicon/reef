@@ -17,6 +17,10 @@ dev = [
     "pytest-timeout>=2.4.0",
     "ruff==0.16.5",
 ]
+sim = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/inference_engine"]

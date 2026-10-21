@@ -37,6 +37,13 @@ ctest --test-dir build --output-on-failure
 
 The build produces the C++ library and `tensor_cli` executable. Google Test is fetched during the first CMake configuration.
 
+## Coral NPU kernels
+
+Int8 transformer kernels for the Coral NPU, tested on the host and on
+Coral's VME RTL model. Commands are in `src/csrc/src/simulations/README.md`.
+Cycle counts and the performance log are in
+`src/csrc/src/simulations/analysis/RESULTS.md`.
+
 ## Contributing
 
 When adding a component, put public C++ declarations in

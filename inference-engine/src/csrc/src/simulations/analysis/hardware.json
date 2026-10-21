@@ -1,0 +1,69 @@
+{
+  "_comment": "Reef hardware facts. Every entry carries value, units, source and confirmed. value null = still unknown; collect_results.py writes per-run measurements to out/results.json; values here are fixed facts or one-off measurements.",
+  "clock_mhz": {
+    "value": 50, "units": "MHz",
+    "source": "physical design team: SRAM timing closes at 50 MHz",
+    "confirmed": false
+  },
+  "dtcm_bytes": {
+    "value": 32768, "units": "B",
+    "source": "physical design team (2048 x 128-bit); coralnpu README",
+    "confirmed": true
+  },
+  "dtcm_banks": {
+    "value": 4, "units": "banks of 8 KB, selected by addr[10:9] (contiguous, not interleaved)",
+    "source": "physical design team",
+    "confirmed": true
+  },
+  "itcm_bytes": {
+    "value": 8192, "units": "B",
+    "source": "physical design team; coralnpu README",
+    "confirmed": true
+  },
+  "dbus_bytes_per_cycle": {
+    "value": 16, "units": "B/cycle",
+    "source": "physical design team: 128-bit LSU<->DTCM, 1 access/cycle, pipelined, read data next cycle, writes same cycle, no backpressure, core wins arbiter",
+    "confirmed": true
+  },
+  "host_dma": {
+    "value": false, "units": "bool",
+    "source": "physical design team: no DMA on this chip version; host writes DTCM through axi_slave in cycles the core leaves free",
+    "confirmed": true
+  },
+  "ebus_latency": {
+    "value": null, "units": "cycles",
+    "source": "physical design team: variable, tens of cycles (ebus -> AXI -> crossbar -> device)",
+    "confirmed": false
+  },
+  "axi_slave_data_bits": {
+    "value": 128, "units": "bit",
+    "source": "coralnpu RTL: VmeCoreMiniAxi gen flag --lsuDataBits=128 (hdl/chisel/src/coralnpu/flags.bzl:20); axi_slave width = axi2DataBits = lsuDataBits (CoreAxi.scala:31, Parameters.scala:187)",
+    "confirmed": true
+  },
+  "host_to_dtcm_bytes_per_cycle": {
+    "value": 15.745, "units": "B/cycle",
+    "source": "measured on the RTL sim by the ubench ELF (reef 376cd28, since removed; see RESULTS.md): AXI write sweep 256..16384 B. RTL upper bound 16 B/cycle (128-bit axi_slave, one beat per cycle)",
+    "confirmed": true
+  },
+  "load_use_scalar": {
+    "value": 5.0, "units": "cycles",
+    "source": "measured on the RTL sim by the ubench ELF (reef 376cd28, since removed; see RESULTS.md): dependent lw chain",
+    "confirmed": true
+  },
+  "load_use_vector": {
+    "value": 10.0, "units": "cycles",
+    "source": "measured on the RTL sim by the ubench ELF (reef 376cd28, since removed; see RESULTS.md): dependent vle32 + vmv.x.s chain",
+    "confirmed": true
+  },
+  "vme_cycles_per_matmul_step": {
+    "value": null, "units": "cycles per 16x16x4 step",
+    "source": "measured each run: slope of the sweep_vme_k* jobs in test_attention.py (collect_results.py microbench); 84 at reef 376cd28",
+    "confirmed": true
+  },
+  "sim": {
+    "value": "google-coral/coralnpu, cocotb + Verilator, hdl_toplevel VmeCoreMiniAxi, behavioral SRAM model", "units": "",
+    "commit": "382b5c12",
+    "source": "coralnpu main: the experimental RTL with a working matrix unit. Its Verilator flow has only the behavioral SRAM model (no sram22 macro option)",
+    "confirmed": true
+  }
+}
