@@ -64,7 +64,7 @@ The docs shipped with M3 describe something different from what the M3 RTL does.
 | D2 | `doc/microarch/dispatch.md`: after a branch, only ALU/BRU ops may dispatch. | Any conditional branch **ends the dispatch group**. No later lane dispatches that cycle, so there's at most one conditional branch per cycle. | `scalar/Decode.scala:322-327` | code-confirmed | 1st |
 | D3 | `dispatch.md` lists the slot-0-only instructions as CSR ops, `ebreak`, `ecall`, `mret`, `fence`, `fence.i` and `wfi`. | The list also includes **every F-extension instruction** (including `flw`/`fsw`), every RVV instruction that reads or writes an f-register (`.vf` forms, `vfmv.f.s`), and `mpause`, `flushat` and `flushall`. All of them dispatch alone from slot 0. | `scalar/Decode.scala:163-169` | code-confirmed | 1st |
 | D4 | `dispatch.md`: all units read operands the cycle after dispatch. No forwarding restrictions are mentioned. | The base register of a load/store, the source of a `jalr`, and the data register of a scalar store are checked against the *registered* scoreboard (`regd`), not the forwarded one (`comb`). A value produced the cycle before can't be used as an address. | `scalar/Decode.scala:347-356` | code-confirmed | 1st |
-| D5 | `dispatch.md`: "Memory today is limited to dispatching one instruction per cycle." | Several LSU ops can dispatch per cycle, up to the free space in a 4-entry queue. Execution is serialised through **one 16-byte slot**. | `scalar/Decode.scala:459-463`, `scalar/Lsu.scala:835,880` | code-confirmed | 1st |
+| D5 | `dispatch.md`: "Memory today is limited to dispatching one instruction per cycle." | Several LSU ops can dispatch per cycle, up to the free space in a 4-entry queue. Execution is serialized through **one 16-byte slot**. | `scalar/Decode.scala:459-463`, `scalar/Lsu.scala:835,880` | code-confirmed | 1st |
 | D6 | `doc/overview.md`: backward branches predicted taken, forward not taken; **one penalty cycle** on a mismatch. | Predecode also predicts `jal` as taken, and never predicts `jalr` (it always redirects from the BRU). The size of the penalty is unmeasured (see U1). | `scalar/UncachedFetch.scala:87-93` | hypothesis | 1st |
 | D7 | `doc/microarch/microarch.md`: dispatch of up to 4 instructions per cycle from the instruction buffer. No fetch-bandwidth limit is mentioned. | The fetcher issues **at most one 128-bit fetch every other cycle**: new fetches are blocked while response data is valid. That caps sustained fetch at ~2 instructions per cycle, so scalar IPC is capped at ~2 despite 4-wide dispatch. Only one fetch is in flight. | `scalar/UncachedFetch.scala:44-71,194-195` | code-confirmed | 1st |
 | D8 | `doc/microarch/microarch.md`, `mlu.md`: MLU latency is 2. | The MLU is an arbiter, then compute, then writeback, with a 1-entry queue between each stage. Effective latency is 2 or 3 cycles. Only one MLU exists. | `scalar/Mlu.scala:67-101` | hypothesis | 2nd |
@@ -95,31 +95,31 @@ These are problems with how we measure the RTL, not with the RTL itself.
 
 | ID | Issue | Evidence | Status | Order |
 | --- | --- | --- | --- | --- |
-| M1 | Production builds run the retirement buffer in `mini` mode, so `--instr_trace` prints no instruction bits. At M3, the retirement-ready condition (`dataReady`) is **the same in both modes**; the extra verification state only feeds the debug output. Verification-build traces should therefore have production timing. Confirm this with one measurement before relying on it. | `RetirementBuffer.scala:284-328`, `scalar/SCore.scala:64` | code-confirmed | 2nd |
+| M1 | Production builds run the retirement buffer in `mini` mode, so `--instr_trace` prints no instruction bits. At M3, the retirement-ready condition (`dataReady`) is **the same in both modes**; the extra verification state only feeds the debug output. Verification-build traces should therefore have production timing. **Measured in B01:** `alu_chain`, `div_chain` and `gemv_int8` halt within 3 cycles of each other on `rvv_core_mini_verification_axi_sim --instr_trace` and `rvv_core_mini_axi_sim`, which is no more than either build's run-to-run jitter (the harness releases reset from a host thread). The `mcycle` ROI values are identical on every run. | `RetirementBuffer.scala:284-328`, `scalar/SCore.scala:64`; halt time printed from a local, uncommitted `halted_cb` patch to `tests/verilator_sim/coralnpu/core_mini_axi_sim.cc` | measured | 2nd |
 | M2 | CSR instructions, including `csrr mcycle`, wait until the retirement buffer is empty and dispatch alone from slot 0. So `mcycle` brackets drain the pipeline. They measure latency correctly, but they distort short throughput measurements. | `scalar/Decode.scala:519`, `:167-169` | code-confirmed | 1st |
 | M3 | External memory timing comes from the Verilator testbench's AXI/TLM model, not a real memory system. External-memory results correlate against that model only. | `tests/verilator_sim/` | hypothesis | 1st for LLM decode |
 | M4 | M3 has **no per-instruction cycle benchmark**. `tests/cocotb/isa_cycle_bench.cc` was added after M3. It's software only, so it could be backported, but it must build with the M3 toolchain. | `tests/cocotb/` at M3 | code-confirmed | 1st |
-| M5 | The M3 workload set is thin: `tests/cocotb/rvv/ml_ops` has only `rvv_matmul` (int8) and `rvv_float_matmul`. The Gemma kernels were added after M3, and some of them use BF16, which isn't in the M3 toolchain. | `tests/cocotb/rvv/ml_ops/` at M3 | code-confirmed | 1st |
+| M5 | The M3 kernel set is thin: `tests/cocotb/rvv/ml_ops` has only `rvv_matmul` (int8) and `rvv_float_matmul`. The Gemma kernels were added after M3, and some of them use BF16, which isn't in the M3 toolchain. | `tests/cocotb/rvv/ml_ops/` at M3 | code-confirmed | 1st |
 | M6 | Default ITCM/DTCM (8 KB/32 KB) is too small for most kernels, so correlation runs need highmem builds. Check whether highmem changes any timing. | `hdl/chisel/src/coralnpu/BUILD` | hypothesis | 2nd |
 | M7 | The CoralNPU M3 RTL is not part of the reef-perf build: correlation runs use a separate `coralnpu` checkout at tag `M3-2026-04-27`. Make sure it is at that tag, not main. | - | code-confirmed | setup |
 
 ## F: Spike (functional model) vs RTL
 
 reef_perf uses pristine Spike at `fd72ee2d` with ISA
-`rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b` (`spike_driver.hpp`). CoralNPU's own
+`rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b` (`model/frontend/FuncSim.h`). CoralNPU's own
 M3 regression runs that Spike commit with five patches
 (`coralnpu/third_party/spike/*.patch`); reef_perf applies none of them.
 
 | ID | Gap | Evidence | Status | Order |
 | --- | --- | --- | --- | --- |
-| F1 | Spike does not implement `mpause` (`0x08000073`), which ends programs on Reef. The driver stops when it reaches `mpause`, without executing it. CoralNPU's patch 0001 instead makes Spike call `exit(0)`, which would kill the simulator process. | `reef-perf/src/csrc/src/spike_driver.cpp` (`kMpauseEncoding`); `coralnpu/third_party/spike/0001-Add-mpause.patch` | code-confirmed | none (handled) |
-| F2 | Spike lacks CoralNPU's custom CSRs (`0xFC0`-`0xFD4` KISA/KSCM, `0x7C0`-`0x7C7` MCONTEXT, `0x7E0`/`0x7E1`) and reports `mvendorid` = 0. Code that touches them traps in reef_perf, and the driver reports the trap. The current workloads don't use them. | `coralnpu/third_party/spike/0002-*.patch`, `0004-*.patch` | code-confirmed | 2nd |
-| F3 | Vector policy choices: Spike's tail/mask-agnostic fill values, fault-only-first and `vstart` behaviour may differ from the RTL. These change data values, rarely the instruction stream, so they rarely affect timing. | - | hypothesis | 2nd |
-| F4 | Spike decodes the Kelvin-era `flushat`/`flushall` ops that the M3 decoder still recognises as illegal instructions (they trap). | `scalar/Decode.scala:163` | hypothesis | 2nd |
-| F5 | CSR set, `misa` and trap behaviour haven't been compared against the M3 RTL. B01's check (same instruction count between the ROI markers on Spike and the RTL) is the first test of this. | - | hypothesis | 2nd |
+| F1 | Spike does not implement `mpause` (`0x08000073`), which ends programs on Reef. The driver stops when it reaches `mpause`, without executing it. CoralNPU's patch 0001 instead makes Spike call `exit(0)`, which would kill the simulator process. | `reef-perf/model/frontend/FuncSim.cpp` (`MpauseEncoding`); `coralnpu/third_party/spike/0001-Add-mpause.patch` | code-confirmed | none (handled) |
+| F2 | Spike lacks CoralNPU's custom CSRs (`0xFC0`-`0xFD4` KISA/KSCM, `0x7C0`-`0x7C7` MCONTEXT, `0x7E0`/`0x7E1`) and reports `mvendorid` = 0. Code that touches them traps in reef_perf, and the driver reports the trap. The current microbenchmarks don't use them. | `coralnpu/third_party/spike/0002-*.patch`, `0004-*.patch` | code-confirmed | 2nd |
+| F3 | Vector policy choices: Spike's tail/mask-agnostic fill values, fault-only-first and `vstart` behavior may differ from the RTL. These change data values, rarely the instruction stream, so they rarely affect timing. | - | hypothesis | 2nd |
+| F4 | Spike decodes the Kelvin-era `flushat`/`flushall` ops that the M3 decoder still recognizes as illegal instructions (they trap). | `scalar/Decode.scala:163` | hypothesis | 2nd |
+| F5 | CSR set, `misa` and trap behavior haven't been compared against the M3 RTL. B01's check (same instruction count between the ROI markers on Spike and the RTL) is the first test of this. | - | hypothesis | 2nd |
 
 Spike at the pin runs everything the M3 toolchain emits (RV32IMF + Zbb + Zve32f,
-including vector FP), so FP kernels such as `rvv_float_matmul` can be modelled.
+including vector FP), so FP kernels such as `rvv_float_matmul` can be modeled.
 
 ## A: Intentional model abstractions
 
@@ -128,10 +128,10 @@ budget once measurements exist.
 
 | ID | Abstraction | Expected worst case |
 | --- | --- | --- |
-| A1 | LSU modelled as whole 16B-line transactions, with a fixed per-register overhead for vector ops, instead of byte-level slot state | Indexed, strided and misaligned accesses |
+| A1 | LSU modeled as whole 16B-line transactions, with a fixed per-register overhead for vector ops, instead of byte-level slot state | Indexed, strided and misaligned accesses |
 | A2 | RVV micro-op expansion driven by a table (LMUL/SEW rules), not a model of the decode logic | Mask, permute and reduction ops |
-| A3 | No VRF read-port conflict modelling at first | Dense 3-source MAC code |
-| A4 | Wrong-path fetch modelled as a timed bubble only | Should be close to exact, since the core is in-order |
+| A3 | No VRF read-port conflict modeling at first | Dense 3-source MAC code |
+| A4 | Wrong-path fetch modeled as a timed bubble only | Should be close to exact, since the core is in-order |
 
 ## Appendix: changes after M3 (for when the pin moves)
 
@@ -140,7 +140,7 @@ but each one invalidates entries above when the pin is bumped:
 
 - **Fetch:** 2 fetches in flight, via a fetch reorder buffer. This removes most of D7.
 - **LSU:** rewritten as LSUv3, with `LsuSuperSlot`, up to 8×VLENB byte cells and
-  row coalescing. This replaces the whole U3/U6 behaviour.
+  row coalescing. This replaces the whole U3/U6 behavior.
 - **Retirement buffers:** scalar retirement buffer grows to 16, and the vector ROB
   to 16.
 - **Verification vs production timing:** verification builds retire vector and
@@ -151,7 +151,7 @@ but each one invalidates entries above when the pin is bumped:
 - **BF16 extensions:** Zfbfmin, Zvfbfmin and Zvfbfwma added to the RTL and the
   toolchain. Spike supports them; add them to the driver's ISA string.
 - **Zvt in Spike:** upstream Spike implements the Zvt extensions (`EXT_ZVT*`),
-  but after the `fd72ee2d` pin. Modelling the VME needs a Spike bump.
+  but after the `fd72ee2d` pin. Modeling the VME needs a Spike bump.
 - **DTCM:** becomes 8 banks, split by address range (`BankedDtcm.scala`).
 - **Docs:** `overview.md` is rewritten for RVV and VME, and adds new claims (Zba,
   4 × 32b DTCM banks, 4 branches/cycle) that also disagree with the RTL.

@@ -1,5 +1,7 @@
+# LLVM coding style (https://llvm.org/docs/CodingStandards.html).
 BasedOnStyle: LLVM
-IndentWidth: 4
-ColumnLimit: 80
-DerivePointerAlignment: false
-PointerAlignment: Left
+# "Don't use braces on simple single-statement bodies of if/else/loop
+# statements" -- the LLVM rule clang-format can enforce.
+RemoveBracesLLVM: true
+InsertNewlineAtEOF: true
+LineEnding: LF

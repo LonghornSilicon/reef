@@ -4,12 +4,16 @@ project(reef_perf LANGUAGES C CXX)
 # Sparta 3.x requires C++20.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# compile_commands.json, for clang-tidy (scripts/check_cpp.sh).
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Warnings are errors in every build of our own code.
+set(REEF_PERF_WARNINGS -Wall -Wextra -Wpedantic -Werror)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
 # Third-party dependencies are built from the ext/ submodules by
-# tools/build_deps.sh; the Docker image installs them in /opt/reef-perf.
+# scripts/build_deps.sh; the Docker image installs them in /opt/reef-perf.
 if(DEFINED ENV{REEF_PERF_DEPS})
     set(_deps_default "$ENV{REEF_PERF_DEPS}")
 else()
@@ -19,7 +23,7 @@ set(REEF_PERF_DEPS "${_deps_default}" CACHE PATH
     "Install prefix of yaml-cpp, Sparta and Spike built from ext/")
 if(NOT EXISTS "${REEF_PERF_DEPS}/lib/libsparta.a")
     message(FATAL_ERROR "Dependencies not found in ${REEF_PERF_DEPS}. Build "
-                        "inside the Docker image (tools/docker.sh shell).")
+                        "inside the Docker image (../tools/docker.sh shell).")
 endif()
 
 # Sparta. Prefer our yaml-cpp 0.8 over any system copy.
@@ -37,26 +41,44 @@ endforeach()
 target_link_libraries(spike INTERFACE ${CMAKE_DL_LIBS} pthread)
 
 # The model as a library, so the simulator, tools and tests share it.
+# One block per module; see docs/interfaces.md.
 add_library(reef_perf_core STATIC
-    src/csrc/src/dispatch.cpp
-    src/csrc/src/execute.cpp
-    src/csrc/src/fetch.cpp
-    src/csrc/src/func_sim.cpp
-    src/csrc/src/inst.cpp
-    src/csrc/src/inst_decode.cpp
-    src/csrc/src/reef_sim.cpp
-    src/csrc/src/resource_pool.cpp
-    src/csrc/src/rob.cpp
-    src/csrc/src/spike_driver.cpp
-)
-target_include_directories(reef_perf_core PUBLIC src/csrc/include)
-target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta PRIVATE spike)
+    model/common/Inst.cpp
+    model/common/Module.cpp
+    model/common/ResourcePool.cpp
 
-add_executable(reef_perf src/csrc/src/main.cpp)
+    model/frontend/Fetch.cpp
+    model/frontend/FuncSim.cpp
+    model/frontend/InstDecode.cpp
+
+    model/core/Core.cpp
+    model/core/Dispatch.cpp
+    model/core/Lsu.cpp
+    model/core/Rob.cpp
+    model/core/ScalarExec.cpp
+
+    model/vector/Vector.cpp
+
+    model/matrix/Matrix.cpp
+
+    model/memory/MemTiming.cpp
+    model/memory/Memory.cpp
+
+    model/ReefSim.cpp
+)
+target_include_directories(reef_perf_core PUBLIC model)
+# Spike is public: frontend/FuncSim.h holds Spike objects directly.
+target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta spike)
+target_compile_options(reef_perf_core PRIVATE ${REEF_PERF_WARNINGS})
+
+add_executable(reef_perf model/main.cpp)
 target_link_libraries(reef_perf PRIVATE reef_perf_core)
 
-add_executable(reef_trace tools/reef_trace.cpp)
+add_executable(reef_trace tools/reef_trace/reef_trace.cpp)
 target_link_libraries(reef_trace PRIVATE reef_perf_core)
+foreach(tool reef_perf reef_trace)
+    target_compile_options(${tool} PRIVATE ${REEF_PERF_WARNINGS})
+endforeach()
 
 set_target_properties(reef_perf reef_trace PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
