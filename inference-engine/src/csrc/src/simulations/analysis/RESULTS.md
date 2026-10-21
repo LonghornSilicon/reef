@@ -75,4 +75,4 @@ of it.
 | 2026-10-18 | 57df445 | VME block-flash attention: q.kt and P.v through matmul() on the matrix engine, expf softmax | 11005 | 9317 | 84 | 1378744 | 105549 |  |  |  |  | 53287 | 243069 | 241850 | attn_prefill -84%, attn_decode -81% |
 | 2026-10-18 | 8f71744 | LUT exp (softmax_lut_table) replaces expf in VME attention | 11005 | 9317 | 84 | 362264 | 40118 |  |  |  | 127576 | 53296 | 243078 | 241857 | attn_prefill -74%, attn_decode -62% |
 | 2026-10-18 | 590ad5a | GPT-Neo 28M d32 attention streams measured (no kernel change) | 11005 | 9317 | 84 | 362264 | 40118 | 263044 | 25930 | 290351 | 127576 | 53296 | 243078 | 242082 | no change |
-| 2026-10-20 | 376cd28+ | PR #16 trim: kernels merged into 3 files, 2 ELFs (no kernel changes) | 11002 | 9315 | 84 | 358439 | 39934 | 259219 | 25746 | 285563 | 127577 | 53286 | 243105 | 241941 | attn_prefill -1%, attn_d32_prefill -1%, attn_d32_local -2% |
+| 2026-10-20 | 4b30629+ | PR #16 trim: kernels merged into 3 files, 2 ELFs (no kernel changes) | 11002 | 9315 | 84 | 358439 | 39934 | 259219 | 25746 | 285563 | 127577 | 53286 | 243105 | 241941 | attn_prefill -1%, attn_d32_prefill -1%, attn_d32_local -2% |
