@@ -9,7 +9,8 @@
 //
 // BENCH_GROUP selects which kernels this ELF links, to keep each one inside
 // the 8 KB ITCM. One ELF per operator: 0 = linear, 1 = attention, 2 =
-// pointwise (activation, plus LayerNorm and residual add), 3 = mlp.
+// pointwise (activation, plus LayerNorm and residual add), 3 = mlp, 4 =
+// embedding.
 #include <stddef.h>
 #include <stdint.h>
 
@@ -33,6 +34,8 @@ enum Op : uint32_t {
     kSoftmaxLutTable = 25,
     kMlpBlock = 40,
     kMlpFinish = 41,
+    kEmbeddingLookup = 50,
+    kAddPositionEmbeddings = 51,
 };
 
 // An argument word meaning "no buffer" (e.g. a linear without bias).
@@ -155,6 +158,21 @@ bool run() {
         mlp_finish(arg(1), arg(2), at<int32_t>(3), at<int32_t>(4), arg_f(5),
                    arg_f(6), at<int8_t>(7));
         break;
+#elif BENCH_GROUP == 4
+    // args: length, width, ids, vocab_start, vocab_rows, table, y, filled
+    // (a uint32 the return value is written to)
+    case kEmbeddingLookup:
+        *at<uint32_t>(8) =
+            embedding_lookup(arg(1), arg(2), at<uint32_t>(3), arg(4), arg(5),
+                             at<int8_t>(6), at<int8_t>(7));
+        break;
+    // args: length, width, tokens, token_scale, position_table,
+    //       position_scale, position_offset, out_scale, y
+    case kAddPositionEmbeddings:
+        add_position_embeddings(arg(1), arg(2), at<int8_t>(3), arg_f(4),
+                                at<int8_t>(5), arg_f(6), arg(7), arg_f(8),
+                                at<int8_t>(9));
+        break;
 #endif
     default:
         return false;
@@ -165,7 +183,9 @@ bool run() {
 } // namespace
 
 int main() {
-#if BENCH_GROUP == 2
+#if BENCH_GROUP == 4
+    // no setup: the embedding kernels use neither engine
+#elif BENCH_GROUP == 2
     if (arg(0) == kGelu) {
         gelu_table(arg_f(5), arg_f(6), at<int8_t>(3)); // setup, not timed
     } else if (arg(0) == kSoftmaxLut) {

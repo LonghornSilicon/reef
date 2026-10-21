@@ -10,19 +10,20 @@ serial/flash attention, `expf` softmax) are in git history before the PR
 
 Each kernel file is one operator of the inference engine
 (`src/csrc/include/inference_engine/operator/`), with a sim test and an ELF
-of its own. Embedding stays on the host.
+of its own.
 
     linear.cc          linear: VME and RVV matmul, matmul() dispatcher, linear()
     attention.cc       attention: block-flash attention on the VME
     activation.cc      activation: GeLU, LUT softmax and its exp table
     mlp.cc             mlp: c_fc -> GeLU -> c_proj streamed over the inner width
+    embedding.cc       embedding: token lookup from table slices, position add
     block.cc           no engine operator yet: LayerNorm, residual add
     kernels.h          every kernel's contract
     helpers.h          quantization, RVV and VME instruction wrappers
     test_kernels.cc    host unit tests (RVV and VME emulated in C)
     bench_main.cc      the sim ELF harness; BUILD builds it in coralnpu
     bench.py           sim test harness and NumPy references
-    test_<op>.py       sim tests: linear, attention, pointwise, mlp
+    test_<op>.py       sim tests: linear, attention, pointwise, mlp, embedding
     sim.py             runs all of the above
     analysis/          results log, roofline model and its configs
 
@@ -33,8 +34,8 @@ simulator; the first run builds the coralnpu image and RTL model, which
 takes hours on Apple Silicon.
 
     python sim.py unit                  host unit tests (clang++ only)
-    python sim.py build                 build the four ELFs into bin/
-    python sim.py test                  run the four sim tests on bin/
+    python sim.py build                 build the five ELFs into bin/
+    python sim.py test                  run the five sim tests on bin/
     python sim.py test attention        run one sim test
 
 Each sim test checks every kernel call against NumPy, prints its cycle

@@ -679,6 +679,90 @@ int test_softmax() {
     return failures;
 }
 
+// ---------------------------------------------------------------------------
+// Embedding: the lookup streamed over table slices matches a full lookup
+// exactly; the position add is within half an int8 step of double
+// ---------------------------------------------------------------------------
+
+constexpr size_t kVocab = 64;
+constexpr size_t kWidth = 32;
+constexpr size_t kLength = 10;
+
+int test_embedding_lookup(size_t slice) {
+    static int8_t table[kVocab * kWidth];
+    static int8_t y[kLength * kWidth];
+    uint32_t ids[kLength];
+    uint32_t state = 11;
+    for (auto& v : table) {
+        v = random_s8(&state);
+    }
+    for (auto& id : ids) {
+        id = next_random(&state) % kVocab;
+    }
+    ids[1] = ids[0]; // a repeated token
+    for (auto& v : y) {
+        v = 0x5A; // poison, so an unfilled row fails
+    }
+    size_t filled = 0;
+    bool untouched = true;
+    for (uint32_t start = 0; start < kVocab; start += slice) {
+        const size_t rows = kVocab - start < slice ? kVocab - start : slice;
+        filled += embedding_lookup(kLength, kWidth, &ids[0], start, rows,
+                                   &table[start * kWidth], &y[0]);
+        // rows of later slices must still hold the poison
+        for (size_t p = 0; p < kLength; ++p) {
+            if (ids[p] >= start + rows && y[p * kWidth] != 0x5A) {
+                untouched = false;
+            }
+        }
+    }
+    size_t bad = 0;
+    for (size_t p = 0; p < kLength; ++p) {
+        for (size_t c = 0; c < kWidth; ++c) {
+            bad += y[(p * kWidth) + c] != table[(ids[p] * kWidth) + c] ? 1 : 0;
+        }
+    }
+    const bool pass = bad == 0 && filled == kLength && untouched;
+    printf("embedding lookup, %2zu-row slices %s (%zu of %zu filled, %zu "
+           "wrong)\n",
+           slice, pass ? "pass" : "FAIL", filled, kLength, bad);
+    return pass ? 0 : 1;
+}
+
+int test_position_embeddings() {
+    constexpr size_t kPositions = 32;
+    constexpr size_t kOffset = 20;
+    constexpr float kTokenScale = 0.02F;
+    constexpr float kPositionScale = 0.01F;
+    constexpr float kOutScale = 0.03F;
+    static int8_t tokens[kLength * kWidth];
+    static int8_t positions[kPositions * kWidth];
+    static int8_t y[kLength * kWidth];
+    uint32_t state = 13;
+    for (auto& v : tokens) {
+        v = random_s8(&state);
+    }
+    for (auto& v : positions) {
+        v = random_s8(&state);
+    }
+    add_position_embeddings(kLength, kWidth, &tokens[0], kTokenScale,
+                            &positions[0], kPositionScale, kOffset, kOutScale,
+                            &y[0]);
+    double worst = 0;
+    for (size_t i = 0; i < kLength * kWidth; ++i) {
+        const double sum =
+            (kTokenScale * static_cast<double>(tokens[i])) +
+            (kPositionScale *
+             static_cast<double>(positions[(kOffset * kWidth) + i]));
+        const double err = abs_double(y[i] - clamp_int8(sum / kOutScale));
+        worst = err > worst ? err : worst;
+    }
+    const bool pass = worst <= 0.5 + 1e-4;
+    printf("add_position_embeddings    %s (max err %.3f LSB)\n",
+           pass ? "pass" : "FAIL", worst);
+    return pass ? 0 : 1;
+}
+
 } // namespace
 
 int main() {
@@ -689,6 +773,10 @@ int main() {
     failures += test_exp_lut();
     failures += test_softmax();
     failures += test_mlp();
+    failures += test_embedding_lookup(16);
+    failures += test_embedding_lookup(kVocab);
+    failures += test_embedding_lookup(7);
+    failures += test_position_embeddings();
     failures += test_gelu();
     failures += test_layernorm();
     failures += test_residual();

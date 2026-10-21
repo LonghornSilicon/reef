@@ -39,8 +39,16 @@ TESTS = {
     "attention": "bench_attention",
     "pointwise": "bench_pointwise",
     "mlp": "bench_mlp",
+    "embedding": "bench_embedding",
 }
-KERNELS = ["linear.cc", "attention.cc", "activation.cc", "mlp.cc", "block.cc"]
+KERNELS = [
+    "linear.cc",
+    "attention.cc",
+    "activation.cc",
+    "mlp.cc",
+    "embedding.cc",
+    "block.cc",
+]
 UNIT_FLAGS = ["-std=c++17", "-O2", "-DVME_EMULATE", "-DRVV_EMULATE"]
 
 # Bash that puts this folder into coralnpu as the Bazel package

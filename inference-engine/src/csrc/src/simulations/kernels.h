@@ -1,13 +1,14 @@
 // Int8 transformer kernels for the Coral NPU, built on helpers.h. Each
 // file is one operator of the inference engine (src/csrc/include/
 // inference_engine/operator/), except block.cc, whose ops have no engine
-// operator yet. Embedding stays on the host.
+// operator yet.
 //
 // linear.cc      linear: vme_matmul_u8/s8u8, matmul_rvv/_s8u8, matmul,
 //                linear_acc, linear
 // attention.cc   attention: vme_attention_block, attention_flash_finish
 // activation.cc  activation: gelu_table/gelu, softmax_lut_table/softmax_lut
 // mlp.cc         mlp: mlp_block, mlp_finish
+// embedding.cc   embedding: embedding_lookup, add_position_embeddings
 // block.cc       no operator yet: layernorm, residual_add
 //
 // Quantization: activations are int8 with zero point 0. Weights are uint8
@@ -220,6 +221,40 @@ extern "C" void mlp_block(size_t rows, size_t d, size_t chunk, const int8_t* x,
 extern "C" void mlp_finish(size_t rows, size_t d, const int32_t* acc,
                            const int32_t* proj_bias, float acc_scale,
                            float out_scale, int8_t* y);
+
+// ===========================================================================
+// Embedding (operator/embedding.hpp)
+// ===========================================================================
+
+// The tables are int8 (zero point 0), one row per token / position. The
+// token table doesn't fit in DTCM (GPT-Neo 28M: 50,257 x 512 = 25 MB), so
+// the host streams it in slices, like attention's K/V blocks, or looks up
+// on its own when a slice per token costs more than it saves.
+
+// lookup_token_embeddings for the rows in one slice of the table: for each
+// position whose token id is in [vocab_start, vocab_start + vocab_rows),
+// copies table row (id - vocab_start) to y[position]; other positions are
+// left untouched, so slices may come in any order. table is that slice,
+// [vocab_rows x width]; ids holds length token ids. Returns how many
+// positions this slice filled, so the host can check every id was covered
+// (lookup_token_embeddings throws for an id outside the vocabulary).
+extern "C" size_t embedding_lookup(size_t length, size_t width,
+                                   const uint32_t* ids, uint32_t vocab_start,
+                                   size_t vocab_rows, const int8_t* table,
+                                   int8_t* y);
+
+// add_position_embeddings: y[i] = tokens[i] + position_table[position_offset
+// + i] for each of `length` rows of `width`, all int8. The two tables carry
+// their own scales, so the sum is dequantized, added and requantized with
+// out_scale; it saturates at the int8 range where the operator throws.
+// position_table may be a slice of the full table, with position_offset
+// counted from its first row. y may be tokens.
+extern "C" void add_position_embeddings(size_t length, size_t width,
+                                        const int8_t* tokens, float token_scale,
+                                        const int8_t* position_table,
+                                        float position_scale,
+                                        size_t position_offset, float out_scale,
+                                        int8_t* y);
 
 // ===========================================================================
 // No engine operator yet: LayerNorm and residual add

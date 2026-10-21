@@ -42,6 +42,7 @@ Q = {
     "ln_beta_scale": 0.02,
     "ln_out_scale": 0.05,
     "residual_out_scale": 0.05,
+    "embedding_scale": 0.02,
 }
 D_HEAD = 64
 LAYERNORM_EPS = 1e-5
@@ -67,6 +68,8 @@ OPS = {
     "softmax_lut_table": 25,
     "mlp_block": 40,
     "mlp_finish": 41,
+    "embedding_lookup": 50,
+    "add_position_embeddings": 51,
 }
 NULL = 0xFFFFFFFF  # bench_main.cc kNull: no buffer (e.g. no bias)
 W_ZERO = 128  # weight zero point
@@ -214,6 +217,22 @@ def check(job: dict, data: dict) -> tuple[float, float]:
         err = float(np.abs(data["out_y"] - expected).max())
         # an accumulator off by anything is a kernel bug, not rounding
         return (err if job["acc_mismatches"] == 0 else math.inf), 0.5 + 1e-3
+    if op == "embedding_lookup":
+        # every position whose id is in this slice gets that table row; the
+        # count it reports must be how many there were
+        rows = data["in_ids"].astype(np.int64) - job["vocab_start"]
+        hit = (rows >= 0) & (rows < data["in_table"].shape[0])
+        wrong = (data["out_y"][hit] != data["in_table"][rows[hit]]).sum()
+        wrong += int(data["out_filled"][0]) != int(hit.sum())
+        return float(wrong), 0.0
+    if op == "add_position_embeddings":
+        off = job["position_offset"]
+        pos = data["in_positions"][off : off + data["in_tokens"].shape[0]]
+        real = (
+            data["in_tokens"] * job["token_scale"] + pos * job["position_scale"]
+        )
+        expected = np.clip(real / job["out_scale"], -128, 127)
+        return float(np.abs(data["out_y"] - expected).max()), 0.5 + 1e-4
     if op == "softmax_lut":
         lo, hi = job["lo"], job["hi"]
         s = SCORE_SCALE * data["in_scores"][lo : hi + 1].astype(np.float64)
@@ -680,5 +699,100 @@ async def run_mlp(
             "fc_bias": fc_bias,
             "proj_wt": proj_wt,
             "gelu_table": table,
+        },
+    )
+
+
+async def run_embedding_lookup(
+    bench: Bench,
+    name: str,
+    length: int,
+    width: int,
+    vocab: int,
+    slice_rows: int,
+    phase: str,
+) -> None:
+    """Stream a [vocab x width] table through DTCM in `slice_rows` slices.
+
+    Each embedding_lookup call fills the positions whose ids fall in its
+    slice and is checked on its own; y stays in the arena across calls.
+    """
+    rng = np.random.default_rng(length * 31 + vocab)
+    table = rng.integers(-128, 128, (vocab, width)).astype(np.int8)
+    ids = rng.integers(0, vocab, length).astype(np.uint32)
+    arena = Arena()
+    oi, ot, oy, of = (
+        arena.take(s)
+        for s in (ids.nbytes, slice_rows * width, length * width, 4)
+    )
+    for start in range(0, vocab, slice_rows):
+        await bench.call(
+            f"{name}_slice{start // slice_rows}",
+            "embedding_lookup",
+            [length, width, oi, start, slice_rows, ot, oy, of],
+            {
+                **({"ids": (oi, ids)} if start == 0 else {}),
+                "table": (ot, table[start : start + slice_rows]),
+            },
+            {
+                "y": (oy, np.int8, (length, width)),
+                "filled": (of, np.uint32, (1,)),
+            },
+            {
+                "kernel": "embedding_lookup",
+                "shape": [length, slice_rows, width],
+                "phase": phase,
+                "stream": name,
+                "vocab_start": start,
+                "ops": 0,
+            },
+            save={"ids": ids},
+        )
+
+
+async def run_position_embeddings(
+    bench: Bench,
+    name: str,
+    length: int,
+    width: int,
+    table_rows: int,
+    offset: int,
+    phase: str,
+) -> None:
+    """One add_position_embeddings call on a slice of the position table."""
+    rng = np.random.default_rng(length * 17 + offset)
+    tokens = rng.integers(-128, 128, (length, width)).astype(np.int8)
+    positions = rng.integers(-128, 128, (table_rows, width)).astype(np.int8)
+    token_scale, position_scale = Q["embedding_scale"], Q["embedding_scale"]
+    out_scale = Q["act_scale"]
+    arena = Arena()
+    ot, op, oy = (
+        arena.take(s) for s in (tokens.nbytes, positions.nbytes, tokens.nbytes)
+    )
+    await bench.call(
+        name,
+        "add_position_embeddings",
+        [
+            length,
+            width,
+            ot,
+            token_scale,
+            op,
+            position_scale,
+            offset,
+            out_scale,
+            oy,
+        ],
+        {"tokens": (ot, tokens), "positions": (op, positions)},
+        {"y": (oy, np.int8, (length, width))},
+        {
+            "kernel": "add_position_embeddings",
+            "shape": [length, width],
+            "phase": phase,
+            "position_offset": offset,
+            "token_scale": token_scale,
+            "position_scale": position_scale,
+            "out_scale": out_scale,
+            "ops": length * width,
         },
     )

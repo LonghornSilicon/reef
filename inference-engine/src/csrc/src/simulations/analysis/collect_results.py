@@ -46,6 +46,8 @@ METRICS = {
     "residual": ("job", "residual_add"),
     "mlp_prefill": ("stream", "mlp_prefill"),
     "mlp_d512_decode": ("stream", "mlp_d512_decode"),
+    "embed_prefill": ("stream", "embed_prefill"),
+    "position_prefill": ("job", "position_prefill"),
 }
 CHANGE_THRESHOLD = 0.01  # moves smaller than 1% are noise in the log
 
