@@ -3,15 +3,13 @@
 Int8 transformer kernels for Coral NPU M3, the base Reef uses
 (rv32imf_zve32f: scalar core plus the RVV vector unit). Each .cc file
 implements one inference-engine operator
-(`src/csrc/include/inference_engine/operator/`). The exception is
-block.cc, whose ops don't have an engine operator yet.
+(`src/csrc/include/inference_engine/operator/`).
 
     linear.cc      linear: matmul on the vector unit, linear()
     attention.cc   attention: block-flash attention
     activation.cc  activation: GeLU, LUT softmax
     mlp.cc         mlp: c_fc -> GeLU -> c_proj, streamed over the inner width
     embedding.cc   embedding: token lookup, position add
-    block.cc       LayerNorm, residual add
     kernels.h      every kernel's signature and contract (shapes, scales, limits)
     helpers.h      quantization and RVV instruction wrappers
     main.cc        runs one kernel on M3 or reef_perf (see below)
@@ -40,9 +38,9 @@ builds. The globals for each kernel are in main.cc under its
 ## Build
 
 Pick one kernel per ELF with `-DKERNEL_LINEAR`, `_ATTENTION`, `_MLP`,
-`_GELU`, `_SOFTMAX`, `_LAYERNORM`, `_RESIDUAL` or `_EMBEDDING`. Shapes
-default to 16 rows of a 64-wide head; set `-DROWS=1` for decode, and `-DD=`
-and `-DCOLS=` for other widths.
+`_GELU`, `_SOFTMAX` or `_EMBEDDING`. Shapes default to 16 rows of a
+64-wide head; set `-DROWS=1` for decode, and `-DD=` and `-DCOLS=` for
+other widths.
 
 **Without Bazel**, use M3's GCC (`toolchain_kelvin_v2-2025-09-11`, the
 archive coralnpu's M3 WORKSPACE downloads) and reef-perf's linker script:
@@ -53,7 +51,7 @@ archive coralnpu's M3 WORKSPACE downloads) and reef-perf's linker script:
         -nostartfiles -T reef-perf/src/reef_perf/experiments/run/workloads/link.ld \
         -DREEF_START -DKERNEL_LINEAR -I. \
         main.cc linear.cc attention.cc activation.cc mlp.cc embedding.cc \
-        block.cc -lm -o linear.elf
+        -lm -o linear.elf
     reef_perf --elf linear.elf -c configs/m3.yaml
 
 **In coralnpu at the M3 tag**, Coral's own startup code replaces
@@ -62,7 +60,7 @@ archive coralnpu's M3 WORKSPACE downloads) and reef-perf's linker script:
     coralnpu_v2_binary(
         name = "linear",
         srcs = ["main.cc", "linear.cc", "attention.cc", "activation.cc",
-                "mlp.cc", "embedding.cc", "block.cc"],
+                "mlp.cc", "embedding.cc"],
         hdrs = ["kernels.h", "helpers.h"],
         copts = ["-DKERNEL_LINEAR"],
     )
@@ -75,7 +73,7 @@ To check the logic on a host machine, `-DRVV_EMULATE -DVME_EMULATE`
 replaces the vector instructions with C:
 
     clang++ -std=c++17 -DRVV_EMULATE -DVME_EMULATE -DKERNEL_LINEAR -I. \
-        main.cc linear.cc attention.cc activation.cc mlp.cc embedding.cc block.cc
+        main.cc linear.cc attention.cc activation.cc mlp.cc embedding.cc
 
 ## Calling
 

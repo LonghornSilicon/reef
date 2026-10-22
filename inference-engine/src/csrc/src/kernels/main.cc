@@ -1,6 +1,6 @@
 // Runs one kernel on Coral M3: the RTL testbench or reef_perf. Pick it with
-// -DKERNEL_LINEAR, _ATTENTION, _MLP, _GELU, _SOFTMAX, _LAYERNORM,
-// _RESIDUAL or _EMBEDDING; see README.md for the build.
+// -DKERNEL_LINEAR, _ATTENTION, _MLP, _GELU, _SOFTMAX or _EMBEDDING; see
+// README.md for the build.
 //
 // Passing values: every input, output and scale is a named global in .data,
 // so a testbench can find it in the ELF's symbol table.
@@ -193,46 +193,6 @@ void run() {
         softmax_lut(scores + (r * COLS), 0, COLS - 1, exp_table,
                     probs + (r * COLS));
     }
-    cycles = read_mcycle() - start;
-}
-
-#elif defined(KERNEL_LAYERNORM)
-int8_t x[ROWS * D] DATA;
-int8_t gamma[D] DATA;
-int8_t beta[D] DATA;
-int8_t out[ROWS * D] DATA;
-float x_scale DATA = 0.05F;
-float gamma_scale DATA = 0.01F;
-float beta_scale DATA = 0.01F;
-float out_scale DATA = 0.05F;
-
-void run() {
-    if (fill_inputs != 0) {
-        fill(x, sizeof(x), 1);
-        fill(gamma, sizeof(gamma), 2);
-        fill(beta, sizeof(beta), 3);
-    }
-    const uint32_t start = read_mcycle();
-    layernorm(ROWS, D, x, x_scale, gamma, gamma_scale, beta, beta_scale,
-              out_scale, out);
-    cycles = read_mcycle() - start;
-}
-
-#elif defined(KERNEL_RESIDUAL)
-int8_t a[ROWS * D] DATA;
-int8_t b[ROWS * D] DATA;
-int8_t out[ROWS * D] DATA;
-float a_scale DATA = 0.05F;
-float b_scale DATA = 0.04F;
-float out_scale DATA = 0.06F;
-
-void run() {
-    if (fill_inputs != 0) {
-        fill(a, sizeof(a), 1);
-        fill(b, sizeof(b), 2);
-    }
-    const uint32_t start = read_mcycle();
-    residual_add(ROWS * D, a, a_scale, b, b_scale, out_scale, out);
     cycles = read_mcycle() - start;
 }
 

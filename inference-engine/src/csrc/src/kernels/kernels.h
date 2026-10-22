@@ -1,7 +1,6 @@
 // Int8 transformer kernels for the Coral NPU, built on helpers.h. Each
 // file is one operator of the inference engine (src/csrc/include/
-// inference_engine/operator/), except block.cc, whose ops have no engine
-// operator yet.
+// inference_engine/operator/).
 //
 // linear.cc      linear: vme_matmul_u8/s8u8, matmul_rvv/_s8u8, matmul,
 //                linear_acc, linear
@@ -9,7 +8,6 @@
 // activation.cc  activation: gelu_table/gelu, softmax_lut_table/softmax_lut
 // mlp.cc         mlp: mlp_block, mlp_finish
 // embedding.cc   embedding: embedding_lookup, add_position_embeddings
-// block.cc       no operator yet: layernorm, residual_add
 //
 // Quantization: activations are int8 with zero point 0. Weights are uint8
 // with a zero point, stored transposed ([in x out], the operator's
@@ -25,9 +23,7 @@
 // requantization is fixed point (quant::requantize in helpers.h), so a
 // result written as int8(v * f) below is within 0.5 + 2^-shift steps of
 // exact. Scales are positive and below 1 where they multiply an int32
-// accumulator (e.g. acc_scale / out_scale); LayerNorm also needs
-// beta_scale / out_scale * 2^shift * 128 < 2^30, which holds for its
-// shift <= 22.
+// accumulator (e.g. acc_scale / out_scale).
 #pragma once
 
 #include <stddef.h>
@@ -272,31 +268,3 @@ extern "C" void add_position_embeddings(size_t length, size_t width,
                                         float position_scale,
                                         size_t position_offset, float out_scale,
                                         int8_t* y);
-
-// ===========================================================================
-// No engine operator yet: LayerNorm and residual add
-// ===========================================================================
-
-// out[r][c] = gamma[c] * (x[r][c] - mean_r) / sqrt(var_r + eps) + beta[c]
-// for each of `rows` rows of width d, all row-major.
-//
-// Quantization (all zero point 0): x is int8 with x_scale, gamma and beta
-// are int8 with gamma_scale and beta_scale, out is int8 with out_scale.
-// eps = 1e-5 (GPT-2's).
-//
-// Stats: the row sum and sum of squares are exact int32 (d < 131,072 keeps
-// them in range), then mean, variance and 1/sqrt are float. Future work:
-// integer-only stats (integer mean and variance plus a fixed-point inverse
-// square root), which would drop the FPU from this kernel.
-extern "C" void layernorm(size_t rows, size_t d, const int8_t* x, float x_scale,
-                          const int8_t* gamma, float gamma_scale,
-                          const int8_t* beta, float beta_scale, float out_scale,
-                          int8_t* out);
-
-// out[i] = a[i] * a_scale + b[i] * b_scale, requantized to int8 with
-// out_scale, for i < n. All int8 with zero point 0. This is the skip
-// connection around attention and the MLP, and lets a block's two branches
-// carry different scales.
-extern "C" void residual_add(size_t n, const int8_t* a, float a_scale,
-                             const int8_t* b, float b_scale, float out_scale,
-                             int8_t* out);

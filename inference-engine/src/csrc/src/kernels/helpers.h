@@ -11,7 +11,6 @@
 // newlib's math, declared directly: the freestanding build has no <math.h>.
 extern "C" float expf(float);
 extern "C" float tanhf(float);
-extern "C" float sqrtf(float);
 
 namespace quant {
 
@@ -177,9 +176,6 @@ RVV_INLINE vi32 add(vi32 a, vi32 b, size_t vl) {
 RVV_INLINE vi32 add_x(vi32 a, int32_t x, size_t vl) {
     return __riscv_vadd_vx_i32m4(a, x, vl);
 }
-RVV_INLINE vi32 mul(vi32 a, vi32 b, size_t vl) {
-    return __riscv_vmul_vv_i32m4(a, b, vl);
-}
 RVV_INLINE vi32 mul_x(vi32 a, int32_t x, size_t vl) {
     return __riscv_vmul_vx_i32m4(a, x, vl);
 }
@@ -194,11 +190,6 @@ RVV_INLINE int32_t sum(vi32 v, size_t vl) {
 RVV_INLINE int32_t reduce_max(vi32 v, int32_t init, size_t vl) {
     return __riscv_vmv_x_s_i32m1_i32(
         __riscv_vredmax_vs_i32m4_i32m1(v, __riscv_vmv_v_x_i32m1(init, 1), vl));
-}
-// sum of squares of an int8 row: widening square, widening sum
-RVV_INLINE int32_t sum_squares(vi8 v, size_t vl) {
-    return __riscv_vmv_x_s_i32m1_i32(__riscv_vwredsum_vs_i16m2_i32m1(
-        __riscv_vwmul_vv_i16m2(v, v, vl), __riscv_vmv_v_x_i32m1(0, 1), vl));
 }
 // quant::q31_mul per lane (vsmul)
 RVV_INLINE vi32 q31_mul(vi32 v, int32_t m, size_t vl) {
@@ -370,12 +361,6 @@ RVV_INLINE vi32 add_x(vi32 a, int32_t x, size_t vl) {
     }
     return a;
 }
-RVV_INLINE vi32 mul(vi32 a, vi32 b, size_t vl) {
-    for (size_t i = 0; i < vl; i++) {
-        a.e[i] *= b.e[i];
-    }
-    return a;
-}
 RVV_INLINE vi32 mul_x(vi32 a, int32_t x, size_t vl) {
     for (size_t i = 0; i < vl; i++) {
         a.e[i] *= x;
@@ -400,13 +385,6 @@ RVV_INLINE int32_t reduce_max(vi32 v, int32_t init, size_t vl) {
         init = v.e[i] > init ? v.e[i] : init;
     }
     return init;
-}
-RVV_INLINE int32_t sum_squares(vi8 v, size_t vl) {
-    int32_t s = 0;
-    for (size_t i = 0; i < vl; i++) {
-        s += v.e[i] * v.e[i];
-    }
-    return s;
 }
 RVV_INLINE vi32 q31_mul(vi32 v, int32_t m, size_t vl) {
     for (size_t i = 0; i < vl; i++) {

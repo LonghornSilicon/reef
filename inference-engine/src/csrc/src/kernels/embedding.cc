@@ -33,8 +33,7 @@ extern "C" void add_position_embeddings(size_t length, size_t width,
                                         float position_scale,
                                         size_t position_offset, float out_scale,
                                         int8_t* y) {
-    // token * ft + position * fp with both factors as q-bit fixed point,
-    // like residual_add
+    // token * ft + position * fp with both factors as q-bit fixed point
     const int8_t* positions = position_table + (position_offset * width);
     const float ft = token_scale / out_scale;
     const float fp = position_scale / out_scale;
