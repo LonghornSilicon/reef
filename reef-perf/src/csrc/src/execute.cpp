@@ -152,12 +152,15 @@ void Execute::receive_inst(const InstPtr& inst) {
     case InstClass::FP_LOAD:
     case InstClass::FP_STORE:
     case InstClass::V_LOAD:
-    case InstClass::V_STORE:
-        pool = &lsu_;
-        occupancy = static_cast<std::uint64_t>(distinct_lines(*inst)) *
-                    cfg_.lsu_cycles_per_line;
-        latency = cfg_.lsu_latency + occupancy - 1;
-        break;
+    case InstClass::V_STORE: {
+            pool = &lsu_;
+
+            const std::uint64_t lines = distinct_lines(*inst);
+            occupancy = lines * cfg_.lsu_cycles_per_line;
+            latency = cfg_.lsu_latency +
+                    (lines - 1) * cfg_.lsu_cycles_per_line;
+            break;
+        }
     case InstClass::V_ALU:
     case InstClass::V_MUL:
     case InstClass::V_FP:

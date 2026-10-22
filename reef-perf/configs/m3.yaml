@@ -43,7 +43,7 @@ top:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
         lsu_latency: 5          # B13: measure load-to-use
         lsu_line_bytes: 16      # 128-bit data bus
-        lsu_cycles_per_line: 1  # B13: measure
+        lsu_cycles_per_line: 4  # Modified
         vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
         vec_units: 2            # B15: replace with per-type functional units
         vlen_bits: 128
