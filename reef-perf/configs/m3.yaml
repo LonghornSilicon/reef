@@ -41,7 +41,7 @@ top:
         fdiv_latency: 12        # B11: measure
         fdiv_occupancy: 12
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
-        lsu_latency: 2          # B13: measure load-to-use
+        lsu_latency: 5          # B13: measure load-to-use
         lsu_line_bytes: 16      # 128-bit data bus
         lsu_cycles_per_line: 1  # B13: measure
         vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
