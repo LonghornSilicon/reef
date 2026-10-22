@@ -1,0 +1,81 @@
+name: RTL
+
+on:
+  push:
+    paths: ["hw/**", ".github/workflows/rtl.yml"]
+  pull_request:
+    paths: ["hw/**", ".github/workflows/rtl.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rtl-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Verilator 5.032 is the version M3 tests with; newer and older releases report different warnings.
+    container: verilator/verilator:v5.032@sha256:a15a3787ada50408643bab4bd71e0eb14b0738fde7fc275ea599ff7e19ad5645
+    defaults:
+      run:
+        working-directory: hw
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint vendored core (sim + synth define sets)
+        run: scripts/lint_vendor.sh
+      - name: Lint reef RTL, TCM wrappers, reef_top + core; filelists up to date
+        run: scripts/lint_reef.sh
+      - name: TCM wrapper unit test (Verilator --timing)
+        run: SIM=verilator MODELS="sram22 cycle" JOBS=4 scripts/run_sram_sky130_tb.sh
+
+  rtl-synth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      OSS_CAD_SUITE_TAG: "2026-10-01"
+      # Standard-cell area budget for reef_top (Yosys, area-only, sky130_fd_sc_hd tt). Last run: hw/results/.
+      AREA_BUDGET_MM2: "8.0"
+    defaults:
+      run:
+        working-directory: hw
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: No PDK/NDA files, secrets or server paths under hw/
+        run: scripts/check_no_confidential.sh --all
+      - name: Cache OSS CAD Suite
+        id: oss-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/oss-cad-suite
+          key: oss-cad-suite-${{ env.OSS_CAD_SUITE_TAG }}
+      - name: Install OSS CAD Suite (Yosys + yosys-slang)
+        if: steps.oss-cache.outputs.cache-hit != 'true'
+        run: |
+          tag="${OSS_CAD_SUITE_TAG}"
+          curl -fsSL --retry 3 \
+            "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${tag}/oss-cad-suite-linux-x64-${tag//-/}.tgz" \
+            | tar -xz -C "$RUNNER_TEMP"
+      - name: Yosys synthesis, reef_top Drop 0 build (sky130, SRAM22 TCMs, sky130 clock gates)
+        run: |
+          OSS_CAD_SUITE="$RUNNER_TEMP/oss-cad-suite" \
+            scripts/synth_yosys.sh --lib sky130hd --top reef_top --node sky130 --out build/synth/ci
+      - name: Check the netlist
+        run: |
+          python3 scripts/check_synth.py build/synth/ci/stat.json --top reef_top \
+            --std-prefix sky130_fd_sc_hd__ --macro sram22_512x128m4w8 \
+            --expect sram22_512x128m4w8=5 --expect sky130_fd_sc_hd__sdlclkp_4=2 \
+            --max-area-mm2 "$AREA_BUDGET_MM2" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          cat build/synth/ci/area_by_block.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload synthesis reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rtl-synth-reports
+          path: |
+            hw/build/synth/ci/stat.txt
+            hw/build/synth/ci/stat.json
+            hw/build/synth/ci/area_by_block.md
+            hw/build/synth/ci/yosys.log
+          if-no-files-found: ignore

@@ -1,0 +1,19 @@
+# Simulation / lint outputs
+obj_dir/
+sim_build/
+build/
+*.vcd
+*.fst
+*.fsdb
+*.log
+results.xml
+__pycache__/
+*.pyc
+
+# Bazel symlinks (if anyone builds from here)
+bazel-*
+
+# Editor / OS
+.vscode/
+*.swp
+.DS_Store
