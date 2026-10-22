@@ -105,13 +105,24 @@ bool Dispatch::can_dispatch(const InstPtr& inst, std::uint64_t now,
             return false;
         }
     }
+
+    //ADDED for WAW accuracy
     for (const std::uint16_t reg : inst->dsts) {
         const InstPtr& writer = last_writer_.at(reg);
-        if (writer && writer->result_ready_cycle > now) {
+
+        // M3 checks WAW hazards through the combinational scoreboard. A scalar
+        // load's destination becomes available one cycle earlier than its
+        // registered load-to-use timing.
+        const std::uint64_t waw_advance =
+            writer && writer->cls == InstClass::LOAD ? 1 : 0;
+
+        if (writer &&
+            writer->result_ready_cycle > now + waw_advance) {
             why = StallReason::WAW;
             return false;
         }
     }
+
     if (rob_credits_ == 0) {
         why = StallReason::ROB_FULL;
         return false;
