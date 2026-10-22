@@ -1,0 +1,302 @@
+// Int8 transformer kernels for the Coral NPU, built on helpers.h. Each
+// file is one operator of the inference engine (src/csrc/include/
+// inference_engine/operator/), except block.cc, whose ops have no engine
+// operator yet.
+//
+// linear.cc      linear: vme_matmul_u8/s8u8, matmul_rvv/_s8u8, matmul,
+//                linear_acc, linear
+// attention.cc   attention: vme_attention_block, attention_flash_finish
+// activation.cc  activation: gelu_table/gelu, softmax_lut_table/softmax_lut
+// mlp.cc         mlp: mlp_block, mlp_finish
+// embedding.cc   embedding: embedding_lookup, add_position_embeddings
+// block.cc       no operator yet: layernorm, residual_add
+//
+// Quantization: activations are int8 with zero point 0. Weights are uint8
+// with a zero point, stored transposed ([in x out], the operator's
+// weight.T) so they are the matmul's B operand; the host transposes them
+// once at load. Biases are int32 in accumulator units (x_scale * w_scale).
+//
+// Coral M3, the base Reef uses, has no matrix engine (VME). Build with
+// -DCORAL_VME only for a newer Coral that has one: then matmul() sends
+// tile-shaped matmuls to it. Everything below the VME declarations works
+// either way, and its results are the same.
+//
+// Every integer loop runs on the vector unit (16 lanes), and every
+// requantization is fixed point (quant::requantize in helpers.h), so a
+// result written as int8(v * f) below is within 0.5 + 2^-shift steps of
+// exact. Scales are positive and below 1 where they multiply an int32
+// accumulator (e.g. acc_scale / out_scale); LayerNorm also needs
+// beta_scale / out_scale * 2^shift * 128 < 2^30, which holds for its
+// shift <= 22.
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+
+// ===========================================================================
+// Linear (operator/linear.hpp): y = x . weight.T + bias
+// ===========================================================================
+
+// C[n x m] (int32) = A[n x k] * B[k x m] (uint8), all row-major.
+
+#ifdef CORAL_VME
+// Matrix engine (Zvt), built only with -DCORAL_VME. Requirements: n % 16
+// == 0, m % 16 == 0, k % 4 == 0 (true for GPT-2 dims). Other shapes are not
+// checked: they read and write past the matrices.
+// uint8 A x uint8 B (vtmmu.tvv)
+extern "C" void vme_matmul_u8(size_t n, size_t k, size_t m, const uint8_t* a,
+                              const uint8_t* b, int32_t* c);
+// int8 A x uint8 B (vtmms.tvv). VME has no int8 x int8 matmul.
+extern "C" void vme_matmul_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
+                                const uint8_t* b, int32_t* c);
+#endif
+
+// Vector unit. Any n, k, m.
+// uint8 A -> uint32 C. k must stay below 66,051 to rule out overflow
+// (255 * 255 * k < 2^32).
+extern "C" void matmul_rvv(size_t n, size_t k, size_t m, const uint8_t* a,
+                           const uint8_t* b, uint32_t* c);
+// int8 A -> int32 C, the fallback for the signed score matmul (q . kt).
+// k must stay below 65,794 (128 * 255 * k < 2^31).
+extern "C" void matmul_rvv_s8u8(size_t n, size_t k, size_t m, const int8_t* a,
+                                const uint8_t* b, int32_t* c);
+
+// The one matmul entry point. A is int8 when signed_a (pass the int8 buffer
+// cast to uint8_t*), uint8 otherwise.
+//
+// Dispatch (without -DCORAL_VME, always the vector unit):
+// - n % 16 == 0, m % 16 == 0 and k % 4 == 0: the matrix engine
+//   (vme_matmul_s8u8 / vme_matmul_u8).
+// - anything else, e.g. decode's n = 1: the vector unit (matmul_rvv_s8u8 /
+//   matmul_rvv). We don't pad to VME's shape: padding A to 16 rows needs a
+//   16 x k scratch copy plus a copy-out of C, in a 32 KB DTCM that already
+//   holds A, B and C, and 15 of the 16 rows would be wasted work.
+//
+// Limit: k <= 33,025 on the uint8 RVV path, whose uint32 sums are returned
+// as int32 (255 * 255 * k < 2^31). GPT-2's largest k is 3072.
+extern "C" void matmul(size_t n, size_t k, size_t m, const uint8_t* a,
+                       bool signed_a, const uint8_t* b, int32_t* c);
+
+// acc[rows x out] (int32) = x[rows x in] . (wt - w_zero) + bias, the
+// accumulator of linear() before requantization. x is int8; wt is the
+// uint8 weight transposed, [in x out]; bias is [out] int32 in accumulator
+// units, or nullptr for none. Runs the matmul through matmul(), so the
+// shape picks the engine.
+extern "C" void linear_acc(size_t rows, size_t in, size_t out, const int8_t* x,
+                           const uint8_t* wt, int32_t w_zero,
+                           const int32_t* bias, int32_t* acc);
+
+// y[rows x out] = int8(acc_scale * linear_acc(...), out_scale), where
+// acc_scale = x_scale * w_scale. scratch holds rows * out int32.
+extern "C" void linear(size_t rows, size_t in, size_t out, const int8_t* x,
+                       const uint8_t* wt, int32_t w_zero, const int32_t* bias,
+                       float acc_scale, float out_scale, int32_t* scratch,
+                       int8_t* y);
+
+// ===========================================================================
+// Attention (operator/attention.hpp)
+// ===========================================================================
+
+// Block-flash attention for one head (Attention::context), with both
+// matmuls through matmul(). The vme_ prefix is historical: on M3 (no VME)
+// both run on the vector unit. The q/k/v and output projections are
+// linear() calls. The host streams K and V through DTCM in blocks: at n_ctx =
+// 1024 one head's K and V are 64 KB each, twice the 32 KB DTCM.
+//
+// Quantization: q is int8 with zero point 0. kt (K transposed, so it can be
+// the uint8 B operand of the matmul) and v are uint8 with zero points k_zero
+// and v_zero. score_scale turns a q.k accumulator into a real score:
+// q_scale * k_scale / sqrt(d) for GPT-2.
+//
+// Masking is causal, done by loop bounds instead of mask values: query row i
+// (absolute position query_start + i) sees key positions [lo, query_start +
+// i], where lo = max(0, query_start + i + 1 - window). GPT-2 attends to the
+// full causal prefix (window >= n_ctx); a smaller window gives a sliding
+// local window (GPT-Neo's local layers). window must be at least 1.
+//
+// Running state per query row, owned by the host between calls:
+//   m[nq]       running max score
+//   l[nq]       running softmax denominator; 0 means no key seen yet
+//   acc[nq x d] running probability-weighted sum of v (zero point not
+//               yet removed)
+// Zero l and acc before the first block. m needs no initial value.
+//
+// Per KV block at absolute positions [kv_start, kv_start + kv_len), with kt
+// that block of K transposed ([d x kv_len]) and v [kv_len x d]:
+//   1. S = q . kt  via matmul() (int8 x uint8 -> int32)
+//   2. per row: fix up k_zero * sum(q), apply score_scale and the causal /
+//      window bounds, take the block max, and update the running max m
+//   3. P = round(255 * exp(s - m)) as uint8 (0 for masked keys), with exp
+//      read from exp_table on the integer score gap, so no expf per score
+//   4. PV = P . v  via matmul() (uint8 x uint8 -> int32)
+//   5. acc = acc * exp(m_old - m) + PV / 255, l = l * exp(m_old - m) +
+//      sum(P) / 255
+//
+// With -DCORAL_VME, both matmuls run on the matrix engine when nq % 16 ==
+// 0, kv_len % 16 == 0 and d % 16 == 0 (GPT-2 prefill: nq = 16, 64-key
+// blocks, d = 64); any other shape (decode's nq = 1) falls back to the
+// vector unit inside matmul().
+// nq <= 64.
+//
+// exp_table: kSoftmaxLutEntries entries from softmax_lut_table(score_scale),
+// built once per layer and kept in DTCM.
+// scratch: nq * max(kv_len, d) int32 (scores, then P . V) followed by
+// nq * kv_len bytes (P). The host places it in DTCM next to the block.
+extern "C" void vme_attention_block(size_t nq, size_t d, size_t query_start,
+                                    size_t window, size_t kv_start,
+                                    size_t kv_len, const int8_t* q,
+                                    const uint8_t* kt, int32_t k_zero,
+                                    const uint8_t* v, float score_scale,
+                                    const uint16_t* exp_table, int32_t* scratch,
+                                    float* m, float* l, float* acc);
+
+// After the last block: out = v_scale * (acc / l - v_zero), requantized to
+// int8 with out_scale. Every row must have seen at least one key (row i
+// always sees its own position, so streaming all blocks up to it does).
+extern "C" void attention_flash_finish(size_t nq, size_t d, const float* l,
+                                       const float* acc, int32_t v_zero,
+                                       float v_scale, float out_scale,
+                                       int8_t* out);
+
+// ===========================================================================
+// Activation (operator/activation.hpp)
+// ===========================================================================
+
+// Fills table[256] so that table[x + 128] = GeLU(x * in_scale) requantized
+// to int8 with out_scale (both zero point 0). GeLU is GPT-2's tanh form:
+// 0.5 x (1 + tanh(sqrt(2/pi) (x + 0.044715 x^3))). Build it once per pair
+// of scales.
+extern "C" void gelu_table(float in_scale, float out_scale, int8_t* table);
+
+// y[i] = table[x[i] + 128] for i < n. A pure lookup, so it is exact for
+// this quantization: every int8 input has its own precomputed output.
+extern "C" void gelu(size_t n, const int8_t* x, const int8_t* table, int8_t* y);
+
+// Entries softmax_lut_table writes: 256 coarse, then 256 fine.
+constexpr size_t kSoftmaxLutEntries = 512;
+
+// Fills table[512] with exp(-score_scale * d) in Q15 (1.0 = 32768) for a
+// score gap d = max - s split into its high and low bytes:
+//   table[i]       = exp(-score_scale * 256 * i)
+//   table[256 + j] = exp(-score_scale * j)
+// so exp(-score_scale * d) = table[d >> 8] * table[256 + (d & 255)] is
+// exact up to the Q15 rounding. Gaps of 65536 or more read as 0, which
+// needs score_scale * 65536 >= 13 (exp(-13) is under 1/255 / 1000);
+// GPT-2's score scale gives 20.5. Build it once per score_scale, i.e. once
+// per layer, like gelu_table.
+extern "C" void softmax_lut_table(float score_scale, uint16_t* table);
+
+// exp(-score_scale * d) in Q15 for a score gap d >= 0.
+inline uint32_t exp_lut(uint32_t d, const uint16_t* table) {
+    if (d >= 65536U) {
+        return 0;
+    }
+    const uint32_t coarse = table[d >> 8U];
+    const uint32_t fine = table[256U + (d & 255U)];
+    return ((coarse * fine) + (1U << 14U)) >> 15U;
+}
+
+// softmax over scores[lo..hi] (inclusive), one int32 score row (the q . kt
+// accumulator after the k_zero fixup) with real scores score_scale * s:
+// probs[j] as uint8 with scale 1/255, for j in [lo, hi]. Entries outside
+// the range are neither read nor written, so [lo, hi] is masked_softmax's
+// mask. Integers only: one pass for the int32 max, one for the Q15 sum
+// through exp_lut, and one to normalize with a single division per row.
+// Each probability is within one 1/255 step of the exact softmax.
+extern "C" void softmax_lut(const int32_t* scores, size_t lo, size_t hi,
+                            const uint16_t* table, uint8_t* probs);
+
+// ===========================================================================
+// MLP (operator/mlp.hpp): y = c_proj(gelu(c_fc(x)))
+// ===========================================================================
+
+// The weights don't fit in DTCM (GPT-Neo 28M: 2 x 1 MB), so the host
+// streams the inner width in chunks, like attention's K/V blocks. Per chunk
+// [c0, c0 + chunk) of the inner width:
+//   1. h = gelu(int8(fc_scale * linear_acc(x, fc_wt, fc_zero, fc_bias)))
+//      fc_wt: c_fc.T columns c0.., [d x chunk]; fc_bias: those chunk
+//      entries; fc_scale = x_scale * fc_w_scale / gelu_in_scale, so the
+//      requantized value is GeLU's int8 input; gelu_table from gelu_table()
+//   2. acc += linear_acc(h, proj_wt, proj_zero, no bias)
+//      proj_wt: c_proj.T rows c0.., [chunk x d]
+// Zero acc [rows x d] (int32) before the first chunk. scratch holds
+// rows * max(chunk, d) int32 followed by rows * chunk bytes. With
+// -DCORAL_VME, both matmuls use the matrix engine when rows % 16 == 0,
+// chunk % 16 == 0 and d % 16 == 0 (prefill), the vector unit otherwise
+// (decode's rows = 1).
+// DTCM: acc alone is rows * d * 4 bytes, so 16 prefill rows fit up to
+// d = 128; GPT-Neo's d = 512 fits at decode, and prefill there needs
+// c_proj's output columns split across calls (not done yet).
+extern "C" void mlp_block(size_t rows, size_t d, size_t chunk, const int8_t* x,
+                          const uint8_t* fc_wt, int32_t fc_zero,
+                          const int32_t* fc_bias, float fc_scale,
+                          const int8_t* gelu_table, const uint8_t* proj_wt,
+                          int32_t proj_zero, int32_t* scratch, int32_t* acc);
+
+// After the last chunk: y = int8(acc_scale * (acc + proj_bias), out_scale),
+// with acc_scale = gelu_out_scale * proj_w_scale and proj_bias [d] int32.
+extern "C" void mlp_finish(size_t rows, size_t d, const int32_t* acc,
+                           const int32_t* proj_bias, float acc_scale,
+                           float out_scale, int8_t* y);
+
+// ===========================================================================
+// Embedding (operator/embedding.hpp)
+// ===========================================================================
+
+// The tables are int8 (zero point 0), one row per token / position. The
+// token table doesn't fit in DTCM (GPT-Neo 28M: 50,257 x 512 = 25 MB), so
+// the host streams it in slices, like attention's K/V blocks, or looks up
+// on its own when a slice per token costs more than it saves.
+
+// lookup_token_embeddings for the rows in one slice of the table: for each
+// position whose token id is in [vocab_start, vocab_start + vocab_rows),
+// copies table row (id - vocab_start) to y[position]; other positions are
+// left untouched, so slices may come in any order. table is that slice,
+// [vocab_rows x width]; ids holds length token ids. Returns how many
+// positions this slice filled, so the host can check every id was covered
+// (lookup_token_embeddings throws for an id outside the vocabulary).
+extern "C" size_t embedding_lookup(size_t length, size_t width,
+                                   const uint32_t* ids, uint32_t vocab_start,
+                                   size_t vocab_rows, const int8_t* table,
+                                   int8_t* y);
+
+// add_position_embeddings: y[i] = tokens[i] + position_table[position_offset
+// + i] for each of `length` rows of `width`, all int8. The two tables carry
+// their own scales, so the sum is dequantized, added and requantized with
+// out_scale; it saturates at the int8 range where the operator throws.
+// position_table may be a slice of the full table, with position_offset
+// counted from its first row. y may be tokens.
+extern "C" void add_position_embeddings(size_t length, size_t width,
+                                        const int8_t* tokens, float token_scale,
+                                        const int8_t* position_table,
+                                        float position_scale,
+                                        size_t position_offset, float out_scale,
+                                        int8_t* y);
+
+// ===========================================================================
+// No engine operator yet: LayerNorm and residual add
+// ===========================================================================
+
+// out[r][c] = gamma[c] * (x[r][c] - mean_r) / sqrt(var_r + eps) + beta[c]
+// for each of `rows` rows of width d, all row-major.
+//
+// Quantization (all zero point 0): x is int8 with x_scale, gamma and beta
+// are int8 with gamma_scale and beta_scale, out is int8 with out_scale.
+// eps = 1e-5 (GPT-2's).
+//
+// Stats: the row sum and sum of squares are exact int32 (d < 131,072 keeps
+// them in range), then mean, variance and 1/sqrt are float. Future work:
+// integer-only stats (integer mean and variance plus a fixed-point inverse
+// square root), which would drop the FPU from this kernel.
+extern "C" void layernorm(size_t rows, size_t d, const int8_t* x, float x_scale,
+                          const int8_t* gamma, float gamma_scale,
+                          const int8_t* beta, float beta_scale, float out_scale,
+                          int8_t* out);
+
+// out[i] = a[i] * a_scale + b[i] * b_scale, requantized to int8 with
+// out_scale, for i < n. All int8 with zero point 0. This is the skip
+// connection around attention and the MLP, and lets a block's two branches
+// carry different scales.
+extern "C" void residual_add(size_t n, const int8_t* a, float a_scale,
+                             const int8_t* b, float b_scale, float out_scale,
+                             int8_t* out);
