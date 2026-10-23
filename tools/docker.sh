@@ -28,7 +28,7 @@ build)
     if [[ -n "${REEF_PERF_EXTRA_CA:-}" ]]; then
         extra=(--secret "id=extra_ca,src=${REEF_PERF_EXTRA_CA}")
     fi
-    DOCKER_BUILDKIT=1 docker build "${extra[@]}" \
+    DOCKER_BUILDKIT=1 docker build ${extra[@]+"${extra[@]}"} \
         --build-arg "JOBS=${JOBS:-4}" -t "${IMAGE}" "${ROOT}"
     ;;
 shell)
