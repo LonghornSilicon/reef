@@ -71,17 +71,12 @@ image:
 
 ## Quick start
 
-`tools/docker.sh` lives at the repo root, not in `reef-perf/tools/`, so run
-it from `reef/`:
-
 ```sh
 git clone --recursive https://github.com/LonghornSilicon/reef.git
 cd reef
 tools/docker.sh build     # once: builds Sparta and Spike into the image (~1 hour)
 tools/docker.sh shell     # shell inside the image, with this checkout mounted
 ```
-
-The shell starts in `/app/reef`:
 
 ```sh
 cd reef-perf
