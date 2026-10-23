@@ -56,7 +56,7 @@ Headers are in `src/csrc/include/reef_perf/` and implementations in
 ## Requirements
 
 **Docker. Nothing else.** Every build, test and experiment runs inside the
-image defined by [Dockerfile](Dockerfile). You don't need sudo or any host
+image defined by [Dockerfile](../Dockerfile). You don't need sudo or any host
 packages. Windows hosts are not supported directly; use Docker on Linux or
 macOS, or from inside WSL.
 
@@ -71,16 +71,20 @@ image:
 
 ## Quick start
 
+`tools/docker.sh` lives at the repo root, not in `reef-perf/tools/`, so run
+it from `reef/`:
+
 ```sh
 git clone --recursive https://github.com/LonghornSilicon/reef.git
-cd reef/reef-perf
+cd reef
 tools/docker.sh build     # once: builds Sparta and Spike into the image (~1 hour)
 tools/docker.sh shell     # shell inside the image, with this checkout mounted
 ```
 
-Inside the shell (`/app/reef/reef-perf`):
+The shell starts in `/app/reef`:
 
 ```sh
+cd reef-perf
 cmake -S . -B build -G Ninja && cmake --build build      # build reef_perf
 uv run python -m reef_perf.experiments.run.run \
     --config src/reef_perf/experiments/run/configs/all.yaml  # run every workload
@@ -144,8 +148,8 @@ assembly programs plus an LLM-decode-shaped int8 GEMV) are in
 
 ## Testing
 
-Run everything from `reef-perf/` inside the image (`tools/docker.sh shell`),
-or from the host with `tools/docker.sh test [pytest args]`.
+Run everything from `reef-perf/` inside the image (`tools/docker.sh shell`
+from the repo root).
 
 **Everything:**
 

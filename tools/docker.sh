@@ -19,8 +19,8 @@ CONTAINER="${NAME}-container"
 
 case "${1:-}" in
 build)
-    if [[ ! -f "${ROOT}/ext/map/sparta/CMakeLists.txt" ||
-          ! -f "${ROOT}/ext/spike/configure" ]]; then
+    if [[ ! -f "${ROOT}/reef-perf/ext/map/sparta/CMakeLists.txt" ||
+          ! -f "${ROOT}/reef-perf/ext/spike/configure" ]]; then
         echo "== fetching submodules"
         git -C "${ROOT}" submodule update --init --recursive
     fi
@@ -45,7 +45,7 @@ shell)
     exec docker exec -it -w /app/reef "${CONTAINER}" bash
     ;;
 *)
-    sed -n '2,15p' "$0"
+    sed -n '2,12p' "$0"
     exit 2
     ;;
 esac
