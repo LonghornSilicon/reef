@@ -518,7 +518,13 @@ RTL, and the per-class microbenchmarks are within 10%.
 
 ---
 
-#### B16: Vector decode and dispatch widths (~1 week)
+#### B16: Vector decode and dispatch widths (~1 week) — in progress
+
+**Status.** Done for vector arithmetic and `vset*`, together with B18, in
+`model/vector/VectorPipeline.cpp`: one in-order pipeline that computes each
+instruction's path when it arrives, instead of a separate decode unit (a
+port between stages would only add latency). Vector loads and stores still
+go straight to the core's LSU; on M3 they pass through this pipeline too.
 
 **Hardware.** Vector instructions go through their own pipeline:
 
@@ -575,7 +581,12 @@ with mixed LMUL=8 and LMUL=1 ops matches the RTL within 15%.
 
 ---
 
-#### B18: Vector reorder buffer (~2–3 days)
+#### B18: Vector reorder buffer (~2–3 days) — in progress
+
+**Status.** The vector ROB is modeled with B16 (8 uops, 4 retired per
+cycle), and a vector instruction completes for the core's Rob when its last
+uop retires from it (deviation U8). Open: the `vdiv` LMUL=8 check below, and
+vector loads and stores.
 
 **Hardware.** Besides the 8-entry scalar retirement buffer, the vector backend has
 its own **8-entry** reorder buffer. Long vector ops can fill it and stall new

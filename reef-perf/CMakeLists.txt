@@ -58,6 +58,7 @@ add_library(reef_perf_core STATIC
     model/core/ScalarExec.cpp
 
     model/vector/Vector.cpp
+    model/vector/VectorPipeline.cpp
 
     model/matrix/Matrix.cpp
 
