@@ -60,7 +60,8 @@ top:
       vec_latency: 4          # B15: measure per class
       vec_cycles_per_uop: 1   # B15
       vec_div_cycles_per_uop: 8   # B15
-      vec_to_scalar_latency: 2    # B17: measure
+      vec_to_scalar_latency: 4    # B17: fit to vec_pingpong on the RTL
+                                  # (17.0 cycles/iteration, rtl_m3.csv)
       vset_latency: 1         # U4: measure (was timed as an ALU op)
   matrix:
     params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
