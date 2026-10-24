@@ -48,6 +48,9 @@ top:
     lsu:
       params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
+        lsu_vector_load_reg_overhead: 3   # B14: fit to vle8 microbenchmarks on the
+        lsu_vector_store_reg_overhead: 2  # RTL at LMUL 1 and 8 (per register:
+                                          # 1 line + 3 load / + 2 store cycles)
     rob:
       params:
         rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
