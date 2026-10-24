@@ -208,8 +208,12 @@ void Dispatch::dispatchGroup() {
     ++(*StallCounters.at(static_cast<size_t>(Why)));
   }
 
-  // The slots left over this cycle go to whatever stopped the group.
+  // A slot an instruction dispatched in counts as Retiring: the instruction
+  // will retire, since the model never runs the wrong path.
   Slots.Retiring += Count;
+  // The other slots this cycle are charged to the reason dispatch stopped:
+  // the frontend if there was nothing to dispatch, otherwise the unit holding
+  // up the first instruction that couldn't go.
   uint32_t Lost = DispatchWidth - Count;
   if (Why == StallReason::IbufEmpty)
     Slots.Frontend.at(static_cast<size_t>(Frontend->getStall(Now))) += Lost;
