@@ -366,6 +366,7 @@ has to do the same for ROI counts to match.
    reason `csr_drain`.
 3. Confirm `retire_width` from the RTL (`RetirementBuffer.scala`: how many
    entries can retire per cycle?). Update `configs/machines/m3.yaml` with the citation.
+   **Done:** 8, the whole buffer, in one cycle.
 
 **Check.** Short-loop microbenchmarks' ROI cycles should shift by a few cycles. The
 drain happens at the ROI edges, not inside the loop.
