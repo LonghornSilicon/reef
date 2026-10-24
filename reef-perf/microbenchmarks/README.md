@@ -20,6 +20,7 @@ against.
 | `vec_add_m1`, `vec_add_m4`, `vec_memcpy` | Vector ALU and vector memory at different LMUL |
 | `vec_pingpong` | Scalar to vector to scalar round trip (`vmv.s.x`, `vmv.x.s`) |
 | `gemv_int8` | int8 matrix-vector product (widening multiply + reduction) |
+| `gemv_loads` | `gemv_int8`'s vector loads alone (4 registers per `vle8`) |
 
 To add one, drop a `<name>.S` file here that uses `common.inc`, measure it on
 the RTL and add its row to `rtl_m3.csv`. The tests, experiments and golden file pick it up
