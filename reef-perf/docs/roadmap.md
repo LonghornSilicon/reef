@@ -114,14 +114,21 @@ The results are in `microbenchmarks/rtl_m3.csv`; `rtl_trace.py` in the
 correlation experiment extracts them from a trace log:
 
 ```
-bazel build //tests/verilator_sim:rvv_core_mini_verification_axi_sim
+bazel build -c opt //tests/verilator_sim:rvv_core_mini_verification_axi_sim
 bazel-bin/tests/verilator_sim/rvv_core_mini_verification_axi_sim \
   --binary <path>/<name>.elf --backdoor_load --instr_trace > <name>.log
 ```
 
+Build with `-c opt`. Without it Bazel uses its default `fastbuild` mode, which
+compiles the Verilated model without optimization; CoralNPU's README omits the
+flag. The optimized simulator is about 19x faster (`vec_memcpy`: 6.0 s instead
+of 114.5 s) and gives identical traces apart from the junk instruction word in
+the final `trap=yes` row after `mpause`.
+
 The ELFs are in `reef-perf/build/microbenchmarks/` after an experiment has run
-once. The build is heavy; use `--jobs=4` on an 8 GB machine. Deviation M1
-records the check that the verification build has production timing.
+once. The build is heavy (about 18 minutes with `--jobs=6`); use `--jobs=4` on
+an 8 GB machine. Deviation M1 records the check that the verification build has
+production timing.
 
 When a microbenchmark is added or changed, measure it the same way and update
 its row.
