@@ -9,7 +9,7 @@ Usage (from reef-perf/, inside Docker):
 
     uv run python tools/correlation/compare_rtl.py
     uv run python tools/correlation/compare_rtl.py \
-        --model old=/tmp/reef_perf_base:/tmp/m3_base.yaml \
+        --model old=/tmp/reef_perf_before_my_change:/tmp/m3_before_my_change.yaml \
         --model new=build/bin/reef_perf --only va1_
 """
 

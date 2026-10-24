@@ -59,14 +59,21 @@ From `reef-perf/`, inside Docker:
 
 ```sh
 uv run python tools/correlation/compare_rtl.py
-uv run python tools/correlation/compare_rtl.py --only sp \
-    --model before=/tmp/reef_perf_base:/tmp/m3_base.yaml \
-    --model after=build/bin/reef_perf
 ```
 
 Each `--model` is `LABEL=BINARY[:CONFIG]`. To compare before and after a
-change, copy the old binary and its `m3.yaml` aside before rebuilding. Some
-results depend on unmerged work elsewhere (for example the fetch fixes
+change, copy the old binary and its `m3.yaml` aside before rebuilding:
+
+```sh
+cp build/bin/reef_perf /tmp/reef_perf_before_my_change
+cp configs/machines/m3.yaml /tmp/m3_before_my_change.yaml
+# ... make the change and rebuild ...
+uv run python tools/correlation/compare_rtl.py --only sp \
+    --model before=/tmp/reef_perf_before_my_change:/tmp/m3_before_my_change.yaml \
+    --model after=build/bin/reef_perf
+```
+
+Some results depend on unmerged work elsewhere (for example the fetch fixes
 B04-B06); check out a branch that has it when that matters.
 
 ## Reading waveforms
