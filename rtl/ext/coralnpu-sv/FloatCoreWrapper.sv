@@ -35,7 +35,7 @@ module FloatCoreWrapper(
   assign status_o_3 = status_o_pkg[3];
   assign status_o_4 = status_o_pkg[4];
   localparam fpnew_pkg::fpu_implementation_t impl = '{
-  PipeRegs:   '{default: 'd3},
+  PipeRegs:   '{'{default: 'd3}, '{default: 'd3}, '{default: 'd3}, '{default: 'd3}},
   UnitTypes:  '{'{default: fpnew_pkg::PARALLEL}, // ADDMUL
                 '{default: fpnew_pkg::MERGED},   // DIVSQRT
                 '{default: fpnew_pkg::PARALLEL}, // NONCOMP

@@ -12,3 +12,13 @@ The SystemVerilog the Reef build synthesizes: CoralNPU `RvvCoreMiniAxi` from rel
 
 `TB_SUPPORT` is needed for synthesis too: in M3 the scalar `RetirementBuffer` uses the
 `uop_pc`/`last_uop_valid` fields it adds, so the core does not elaborate without it.
+
+## Patches
+
+The files here are the release plus these patches, nothing else.
+
+| Patch | Why |
+|---|---|
+| `0001-fpnew-piperegs-per-format.patch` | `FloatCoreWrapper.sv:38` `PipeRegs: '{default: 'd3}`: Verilator (5.032 to 5.053) puts 3 only in the last format slot, so the FP32 FMA gets 0 pipeline stages in sim. slang and DC already read 3 everywhere. One `'{default: 'd3}` per op group gives 3 in all three tools. Synthesized netlists don't change. |
+
+Check from the repo root: `git apply --check -R rtl/ext/coralnpu-sv/0001-*.patch`.
