@@ -130,14 +130,14 @@
   "gemv_int8": {
     "instructions": 3385,
     "functional_instructions": 3385,
-    "cycles": 9824,
+    "cycles": 12384,
     "taken_redirects": 255,
     "dispatch": {
       "cycles_with_dispatch": 1561,
       "stall_ibuf_empty": 1,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
-      "stall_raw_hazard": 7944,
+      "stall_raw_hazard": 10504,
       "stall_rob_full": 316,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0

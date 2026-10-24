@@ -14,13 +14,23 @@
 ///   D+3  DE2 splits into uops        (<= de2_width instructions and
 ///                                     <= de2_uop_width uops per cycle)
 ///   D+4  dispatch from the uop queue (<= dispatch_width uops per cycle)
-///   D+5  the unit starts             (reservation station pop)
-///   D+5 + latency - 1                (last cycle in the unit)
+///   D+5  the functional unit starts  (reservation station pop)
+///   D+5 + latency - 1                (last cycle in the functional unit)
 ///   ...  result FIFO, then the ROB marks the uop done
 ///   D+8  the vector ROB retires it   (<= retire_width uops per cycle)
 ///
 /// Queues between stages hold `*_entries` items. An entry freed in cycle C can
-/// be refilled in cycle C + 1, because every queue's count is registered.
+/// be refilled in cycle C + 1, because every queue's count is registered. The
+/// vector ROB is the exception: dispatch reuses an entry in the cycle it
+/// retires (RTL waveform of vadd_m4_indep: 2 uops retire and 2 dispatch each
+/// cycle with all 8 entries in use).
+///
+/// Dispatch is in order: a uop waits for a vector ROB entry and an entry in
+/// the reservation station of its pool, and holds back every younger uop
+/// meanwhile (rvv_backend_dispatch_ctrl.sv). Each reservation station issues
+/// in order to the pools it feeds. Which pools and stations exist is
+/// configuration (VectorPipelineConfig), so other organizations than M3's can
+/// be compared.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -30,8 +40,11 @@
 #include "common/ResourcePool.h"
 #include "common/Types.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <string>
+#include <vector>
 
 namespace reef_perf {
 
@@ -55,11 +68,12 @@ private:
 /// A queue of fixed depth seen through the cycles its entries leave it.
 class QueueOccupancy {
 public:
-  /// Creates an empty queue of \p Entries entries.
-  explicit QueueOccupancy(uint32_t Entries);
+  /// Creates an empty queue of \p Entries entries, whose freed entries can be
+  /// refilled \p RefillDelay cycles after they leave.
+  explicit QueueOccupancy(uint32_t Entries, Cycle RefillDelay = 1);
 
   /// \returns the first cycle the next item can enter: when the item
-  /// `Entries` places ahead of it has left, plus one.
+  /// `Entries` places ahead of it has left, plus the refill delay.
   Cycle getFreeCycle() const;
 
   /// Records that the next item leaves the queue in cycle \p Leave.
@@ -67,10 +81,20 @@ public:
 
 private:
   uint32_t Entries;
+  Cycle RefillDelay;
   std::deque<Cycle> Leaves; // The last `Entries` leave cycles.
 };
 
-/// Sizes and widths of the vector backend (rvv_backend_define.svh).
+/// One pool of identical functional units and the reservation station that
+/// feeds it.
+struct VectorPoolConfig {
+  std::string Name;   ///< Name in statistics.
+  uint32_t Count = 1; ///< Functional units in the pool.
+  size_t Station = 0; ///< Index into VectorPipelineConfig::StationEntries.
+};
+
+/// Sizes and widths of the vector backend (rvv_backend_define.svh), and how
+/// its functional units are organized.
 struct VectorPipelineConfig {
   uint32_t De1Width = 2;          ///< Instructions DE1 takes per cycle.
   uint32_t LegalQueueEntries = 8; ///< Legal command queue entries.
@@ -78,9 +102,23 @@ struct VectorPipelineConfig {
   uint32_t De2UopWidth = 6;       ///< Uops DE2 writes per cycle.
   uint32_t UopQueueEntries = 16;  ///< Uop queue entries.
   uint32_t DispatchWidth = 3;     ///< Uops dispatched per cycle.
-  uint32_t StationEntries = 8;    ///< Reservation station entries.
   uint32_t RobEntries = 8;        ///< Vector ROB entries (uops).
   uint32_t RetireWidth = 4;       ///< Uops retired per cycle.
+  /// Entries of each reservation station; a station may feed several pools.
+  std::vector<uint32_t> StationEntries;
+  std::vector<VectorPoolConfig> Pools; ///< The functional unit pools.
+};
+
+/// What one instruction needs from the vector backend.
+struct VectorOp {
+  size_t Pool = 0;        ///< Index of the pool its uops run on.
+  uint32_t Uops = 1;      ///< Uops it splits into (at least 1).
+  uint64_t Latency = 1;   ///< Cycles each uop spends in its unit.
+  uint64_t Occupancy = 1; ///< Cycles each uop keeps its unit busy.
+  /// Only the first functional unit of the pool can run it (M3's compares).
+  bool FirstUnitOnly = false;
+  /// Only its last uop takes a vector ROB entry (compares, reductions).
+  bool OneRobEntry = false;
 };
 
 /// When one instruction reached the pipeline's stages.
@@ -98,15 +136,14 @@ public:
 
   /// Schedules the next instruction in program order.
   /// \param Dispatched the cycle the scalar core dispatched it.
-  /// \param Uops the uops it splits into (at least 1).
-  /// \param Latency cycles each uop spends in its unit.
-  /// \param Occupancy cycles each uop keeps a unit of \p Units busy.
+  /// \param Op what it needs from the backend.
   /// \param SourcesReady first cycle its uops may start, given the vector
   ///        registers it reads (Inst::VecSourcesReadyCycle).
-  /// \param Units the execution units its uops are booked on.
-  VectorTiming schedule(Cycle Dispatched, uint32_t Uops, uint64_t Latency,
-                        uint64_t Occupancy, Cycle SourcesReady,
-                        ResourcePool &Units);
+  VectorTiming schedule(Cycle Dispatched, const VectorOp &Op,
+                        Cycle SourcesReady);
+
+  /// \returns the functional unit pools, for the end-of-run summary.
+  std::vector<const ResourcePool *> getPools() const;
 
 private:
   InOrderSlots De1Slots;
@@ -116,10 +153,12 @@ private:
   InOrderSlots RetireSlots;
   QueueOccupancy LegalQueue;
   QueueOccupancy UopQueue;
-  QueueOccupancy Station;
   QueueOccupancy Rob;
+  std::vector<ResourcePool> Pools;
+  std::vector<size_t> PoolStations; // Per pool: the station feeding it.
+  std::vector<QueueOccupancy> Stations;
+  std::vector<Cycle> LastStart; // Per station: each issues in order.
   Cycle LastUopPush = 0; // Last uop DE2 pushed into the uop queue.
-  Cycle LastStart = 0;   // Units start uops in order.
   Cycle LastRetire = 0;
 };
 
