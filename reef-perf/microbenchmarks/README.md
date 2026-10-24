@@ -18,6 +18,7 @@ against.
 | `fp_chain`, `fp_mix` | FPU latency; FP dispatches alone |
 | `load_stream`, `load_chain`, `addr_forward` | LSU throughput; load-to-use latency; address forwarding |
 | `vec_add_m1`, `vec_add_m4`, `vec_memcpy` | Vector ALU and vector memory at different LMUL |
+| `vec_pingpong` | Scalar to vector to scalar round trip (`vmv.s.x`, `vmv.x.s`) |
 | `gemv_int8` | int8 matrix-vector product (widening multiply + reduction) |
 
 To add one, drop a `<name>.S` file here that uses `common.inc`, measure it on
