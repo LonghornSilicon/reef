@@ -97,7 +97,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 4. Run `build/bin/reef_trace build/microbenchmarks/gemv_int8.elf 60` and match the
    printed instructions to
    `microbenchmarks/gemv_int8.S`.
-5. Change one parameter with `-p` (e.g. `top.vector.params.vec_lanes 1`)
+5. Change one parameter with `-p` (e.g. `top.vector.params.vec_alu_count 1`)
    and explain the change in cycles to a teammate.
 6. Run `uv run pytest` and make sure it passes.
 
@@ -487,6 +487,21 @@ RTL on their memory-bound parts.
 ### Group 4: Vector unit
 
 #### B15: Model the real vector functional units (~1 week)
+
+**Status.** Done for arithmetic, in `model/vector/Vector.cpp` and
+`VectorPipeline.cpp`: one pool and reservation station per functional unit
+type, M3's uop counts (by EMUL, not `vl`), one vector ROB entry for compares
+and reductions, and latencies from `microbenchmarks/vector_units/` (all
+within 0.3% of the RTL except the small-dividend divides, deviation U5).
+With the fetch fixes B04-B06 applied, `gemv_int8` went from -29.5% to -11.2% and `vec_add_m4` stays at +10.4%;
+`vec_add_m1` stays at -20.9%, an error in vector loads and stores, which
+don't pass through this pipeline yet.
+
+Instead of a `vec_unified` switch, the organization is configuration: the
+reservation stations, the pools they feed, and the pool each instruction
+group runs on (`vec_stations`, `vec_pools`, `vec_<group>_pool`).
+`configs/machines/m3_unified_vector.yaml`, applied after `m3.yaml`, is the
+old design: two general-purpose lanes behind one shared station.
 
 **Hardware.** The M3 vector backend has separate functional units, each with its
 own reservation station:

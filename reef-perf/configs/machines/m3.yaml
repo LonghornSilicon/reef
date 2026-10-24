@@ -65,19 +65,46 @@ top:
       vec_de2_uop_width: 6        # NUM_DE_UOP
       vec_uop_queue_entries: 16   # UQ_DEPTH
       vec_dispatch_width: 3       # NUM_DP_UOP
-      vec_station_entries: 8      # ALU_RS_DEPTH; B15: one per unit type
       vec_rob_entries: 8          # ROB_DEPTH
       vec_retire_width: 4         # NUM_RT_UOP
-      vec_lanes: 2            # B15: replace with per-type functional units
-      vlen_bits: 128
-      # Cycles a uop spends in its unit (RTL waveforms, M3 vector timing):
+      # How the functional units are organized: reservation stations
+      # (*_RS_DEPTH), the pools they feed (NUM_*) and the pool each
+      # instruction group runs on (rvv_backend_dispatch_ctrl.sv). FP divide
+      # shares the divider's station, FP reductions the permute/reduction
+      # station. configs/machines/m3_unified_vector.yaml is an alternative.
+      vec_stations:        [alu, mul, div, fma, permute_reduce]
+      vec_station_entries: [8, 8, 4, 8, 4]
+      vec_pools:           [alu, mul, div, fdiv, fma, permute_reduce, fp_reduce]
+      vec_pool_counts:     [2, 2, 1, 1, 2, 1, 1]
+      vec_pool_stations:   [alu, mul, div, div, fma, permute_reduce, permute_reduce]
+      vec_alu_addsub_pool: alu
+      vec_alu_pool: alu
+      vec_compare_pool: alu
+      vec_compare_first_unit_only: true   # rvv_backend_alu.sv
+      vec_mul_pool: mul
+      vec_div_pool: div
+      vec_fdiv_pool: fdiv
+      vec_fp_pool: fma
+      vec_permute_pool: permute_reduce
+      vec_reduce_pool: permute_reduce
+      vec_widening_reduce_pool: permute_reduce
+      vec_fp_reduce_pool: fp_reduce
+      # Cycles a uop spends in its functional unit, and how long it keeps it
+      # busy when that is more than 1: microbenchmarks/vector_units/ (chain
+      # = latency + 2, independent stream = cycles per uop).
       vec_addsub_latency: 2   # p0 + p1 (rvv_backend_alu_unit_addsub.sv)
       vec_alu_latency: 1      # p0 only: logic, shifts, masks, moves
-      vec_mul_latency: 2
-      vec_perm_latency: 3     # reductions
-      vec_fp_latency: 4       # ASSUMPTION; not measured
-      vec_cycles_per_uop: 1   # B15
-      vec_div_cycles_per_uop: 8   # B15
+      vec_mul_latency: 2      # also multiply-accumulate
+      vec_div_cycles_per_uop: 13  # 31-bit dividend; 3 for a 1-bit one
+      vec_fdiv_latency: 9
+      vec_fdiv_cycles_per_uop: 8
+      vec_fp_latency: 4       # add, multiply-add
+      vec_permute_latency: 3  # slides, gathers: not pipelined
+      vec_permute_cycles_per_uop: 5
+      vec_reduce_latency: 3   # also vcpop, viota (not measured)
+      vec_widening_reduce_cycles_per_uop: 2  # two halves per uop (wsum_h)
+      vec_fp_reduce_latency: 13
+      vec_fp_reduce_cycles_per_uop: 12
       vec_to_scalar_latency: 0    # RTL waveform of vec_pingpong: the x
                                   # register is usable in the retire cycle
       vset_latency: 1         # U4: measure (was timed as an ALU op)

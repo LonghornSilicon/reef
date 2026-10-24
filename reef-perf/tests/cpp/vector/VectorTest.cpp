@@ -2,39 +2,85 @@
 
 #include "vector/Vector.h"
 #include "common/Inst.h"
-#include "common/ResourcePool.h"
 #include "vector/VectorPipeline.h"
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 
 using namespace reef_perf;
 
-/// \returns a vector ALU instruction with vector length \p VL and element
-/// width \p SEWBytes.
-static Inst getVectorInst(uint32_t VL, uint8_t SEWBytes) {
+/// \returns an instruction \p Mnemonic of class \p Class at LMUL x 8 =
+/// \p LMUL8.
+static Inst getVectorInst(const char *Mnemonic, uint8_t LMUL8,
+                          InstClass Class = InstClass::V_ALU) {
   Inst I;
-  I.Class = InstClass::V_ALU;
-  I.VL = VL;
-  I.SEWBytes = SEWBytes;
+  I.Mnemonic = Mnemonic;
+  I.Class = Class;
+  I.LMUL8 = LMUL8;
   return I;
 }
 
 namespace {
 
-TEST(VectorUopsTest, OneRegisterIsOneUop) {
-  EXPECT_EQ(getVectorUops(getVectorInst(4, 4), 128), 1U);
-  EXPECT_EQ(getVectorUops(getVectorInst(16, 1), 128), 1U);
+TEST(VectorUopsTest, OneUopPerRegisterOfTheGroup) {
+  EXPECT_EQ(getVectorUops(getVectorInst("vadd.vv", 8)), 1U);
+  EXPECT_EQ(getVectorUops(getVectorInst("vadd.vv", 32)), 4U);
+  EXPECT_EQ(getVectorUops(getVectorInst("vadd.vv", 4)), 1U); // LMUL = 1/2
 }
 
-TEST(VectorUopsTest, RegisterGroupsSplitIntoOneUopPerRegister) {
-  EXPECT_EQ(getVectorUops(getVectorInst(16, 4), 128), 4U); // LMUL = 4
-  EXPECT_EQ(getVectorUops(getVectorInst(5, 4), 128), 2U);  // Partly filled.
+TEST(VectorUopsTest, WideningAndNarrowingUseTheDoubleGroup) {
+  EXPECT_EQ(getVectorUops(getVectorInst("vwmul.vv", 32, InstClass::V_MUL)), 8U);
+  EXPECT_EQ(getVectorUops(getVectorInst("vnsrl.wi", 16)), 4U);
+  EXPECT_EQ(getVectorUops(getVectorInst("vwadd.vv", 4)), 1U);
+  // Not narrowing, despite the "vn".
+  EXPECT_EQ(getVectorUops(getVectorInst("vnmsac.vv", 8, InstClass::V_MUL)), 1U);
 }
 
-TEST(VectorUopsTest, EmptyInstructionStillTakesOneUop) {
-  EXPECT_EQ(getVectorUops(getVectorInst(0, 4), 128), 1U);
+TEST(VectorUopsTest, ReductionWalksItsSourceGroup) {
+  EXPECT_EQ(
+      getVectorUops(getVectorInst("vwredsum.vs", 64, InstClass::V_PERM)), 8U);
+}
+
+TEST(VectorUopsTest, ScalarAndMaskRegisterOpsTakeOneUop) {
+  for (const char *Op : {"vmv.s.x", "vmv.x.s", "vcpop.m", "vmand.mm"})
+    EXPECT_EQ(getVectorUops(getVectorInst(Op, 64)), 1U) << Op;
+  EXPECT_EQ(getVectorUops(getVectorInst("vmv4r.v", 8)), 4U);
+}
+
+TEST(VectorGroupTest, EveryInstructionLandsInOneGroup) {
+  struct Case {
+    const char *Mnemonic;
+    InstClass Class;
+    VectorGroup Group;
+  };
+  for (const Case &C : std::initializer_list<Case>{
+           {"vadd.vv", InstClass::V_ALU, VectorGroup::AluAddSub},
+           {"vwsubu.wx", InstClass::V_ALU, VectorGroup::AluAddSub},
+           {"vand.vv", InstClass::V_ALU, VectorGroup::Alu},
+           {"vmv.v.x", InstClass::V_ALU, VectorGroup::Alu},
+           {"vmv.x.s", InstClass::V_TO_SCALAR, VectorGroup::Alu},
+           {"vfmv.v.f", InstClass::V_FP, VectorGroup::Alu},
+           {"vmseq.vv", InstClass::V_ALU, VectorGroup::Compare},
+           {"vmadc.vvm", InstClass::V_ALU, VectorGroup::Compare},
+           {"vwmul.vv", InstClass::V_MUL, VectorGroup::Mul},
+           {"vnmsac.vv", InstClass::V_MUL, VectorGroup::Mul},
+           {"vrem.vx", InstClass::V_DIV, VectorGroup::Div},
+           {"vfsqrt.v", InstClass::V_FDIV, VectorGroup::FDiv},
+           {"vfmacc.vv", InstClass::V_FP, VectorGroup::Fp},
+           {"vmflt.vf", InstClass::V_FP, VectorGroup::Fp},
+           {"vslidedown.vi", InstClass::V_PERM, VectorGroup::Permute},
+           {"vcompress.vm", InstClass::V_PERM, VectorGroup::Permute},
+           {"vredsum.vs", InstClass::V_PERM, VectorGroup::Reduce},
+           {"vcpop.m", InstClass::V_TO_SCALAR, VectorGroup::Reduce},
+           {"viota.m", InstClass::V_ALU, VectorGroup::Reduce},
+           {"vwredsum.vs", InstClass::V_PERM, VectorGroup::WideningReduce},
+           {"vfredusum.vs", InstClass::V_PERM, VectorGroup::FpReduce},
+       })
+    EXPECT_EQ(getVectorGroup(getVectorInst(C.Mnemonic, 8, C.Class)), C.Group)
+        << C.Mnemonic;
 }
 
 TEST(VectorLatencyTest, OnlyAddSubtractFamilyUsesTheSecondAluStage) {
@@ -68,38 +114,122 @@ TEST(QueueOccupancyTest, EntryFreesTheCycleAfterItLeaves) {
   EXPECT_EQ(Queue.getFreeCycle(), 13U);
 }
 
+// Pool indices of getM3Config().
+constexpr size_t AluPool = 0;
+constexpr size_t PermuteReducePool = 5;
+
+/// \returns M3's organization, as configs/machines/m3.yaml lists it.
+VectorPipelineConfig getM3Config() {
+  VectorPipelineConfig Config;
+  Config.StationEntries = {8, 8, 4, 8, 4};
+  Config.Pools = {{"alu", 2, 0},  {"mul", 2, 1},
+                  {"div", 1, 2},  {"fdiv", 1, 2},
+                  {"fma", 2, 3},  {"permute_reduce", 1, 4},
+                  {"fp_reduce", 1, 4}};
+  return Config;
+}
+
+/// \returns a vector add of \p Uops uops.
+VectorOp getAdd(uint32_t Uops) {
+  VectorOp Op;
+  Op.Pool = AluPool;
+  Op.Uops = Uops;
+  Op.Latency = 2;
+  return Op;
+}
+
 // The vector add of the M3 waveform: scalar dispatch in D = 72, DE1 in 74,
 // the ALU in 77, vector ROB retire in 80 = D + 8.
 TEST(VectorPipelineTest, AddRetiresEightCyclesAfterDispatch) {
-  VectorPipeline Pipeline((VectorPipelineConfig()));
-  ResourcePool Units("vector", 2);
-  VectorTiming T = Pipeline.schedule(72, 1, 2, 1, 0, Units);
+  VectorPipeline Pipeline(getM3Config());
+  VectorTiming T = Pipeline.schedule(72, getAdd(1), 0);
   EXPECT_EQ(T.CommandQueuePop, 74U);
   EXPECT_EQ(T.FirstStart, 77U);
   EXPECT_EQ(T.Retire, 80U);
 }
 
 TEST(VectorPipelineTest, DependentDispatchesWhenItsProducerRetires) {
-  VectorPipeline Pipeline((VectorPipelineConfig()));
-  ResourcePool Units("vector", 2);
-  VectorTiming Producer = Pipeline.schedule(0, 1, 2, 1, 0, Units);
+  VectorPipeline Pipeline(getM3Config());
+  VectorTiming Producer = Pipeline.schedule(0, getAdd(1), 0);
   // Dispatch passes the first cycle the consumer may start: retire + 1.
   VectorTiming Consumer =
-      Pipeline.schedule(1, 1, 2, 1, Producer.Retire + 1, Units);
+      Pipeline.schedule(1, getAdd(1), Producer.Retire + 1);
   EXPECT_EQ(Consumer.FirstStart, Producer.Retire + 1);
   EXPECT_EQ(Consumer.Retire, Producer.Retire + 4);
 }
 
 TEST(VectorPipelineTest, FullVectorRobHoldsBackDispatch) {
-  VectorPipeline Pipeline((VectorPipelineConfig()));
-  ResourcePool Units("vector", 2);
+  VectorPipeline Pipeline(getM3Config());
   // 8 uops fill the vector ROB; the first of them retires in cycle 8.
-  VectorTiming Group = Pipeline.schedule(0, 8, 2, 1, 0, Units);
+  VectorTiming Group = Pipeline.schedule(0, getAdd(8), 0);
   EXPECT_EQ(Group.Retire, 11U);
-  // The next uop dispatches in 9, the cycle after that entry frees.
-  VectorTiming Next = Pipeline.schedule(0, 1, 2, 1, 0, Units);
-  EXPECT_EQ(Next.FirstStart, 10U);
-  EXPECT_EQ(Next.Retire, 13U);
+  // The next uop dispatches in 8, reusing that entry in the cycle it frees.
+  VectorTiming Next = Pipeline.schedule(0, getAdd(1), 0);
+  EXPECT_EQ(Next.FirstStart, 9U);
+  EXPECT_EQ(Next.Retire, 12U);
+}
+
+// vmseq at LMUL=4 (vmseq_m4_indep): its 4 uops all run on the first ALU.
+TEST(VectorPipelineTest, CompareRunsOnTheFirstAluOnly) {
+  VectorPipeline Pipeline(getM3Config());
+  VectorOp Compare = getAdd(4);
+  Compare.FirstUnitOnly = true;
+  Compare.OneRobEntry = true;
+  VectorTiming T = Pipeline.schedule(0, Compare, 0);
+  EXPECT_EQ(T.FirstStart, 5U);
+  EXPECT_EQ(T.Retire, 5U + 3 + 2 + 1); // The fourth uop starts in 8.
+}
+
+// The vwredsum of gemv_int8's waveform: 8 uops, one every 2 cycles, through
+// the single permute/reduction unit; its 4-entry station holds back the rest.
+TEST(VectorPipelineTest, WideningReductionTakesTwoCyclesPerUop) {
+  VectorPipeline Pipeline(getM3Config());
+  VectorOp Reduce;
+  Reduce.Pool = PermuteReducePool;
+  Reduce.Uops = 8;
+  Reduce.Latency = 4;
+  Reduce.Occupancy = 2;
+  Reduce.OneRobEntry = true;
+  VectorTiming T = Pipeline.schedule(0, Reduce, 0);
+  EXPECT_EQ(T.FirstStart, 5U);
+  EXPECT_EQ(T.Retire, 5U + 7 * 2 + 4 + 1);
+  // A younger add waits behind the reduction's uops in dispatch.
+  VectorTiming Add = Pipeline.schedule(0, getAdd(1), 0);
+  EXPECT_GT(Add.FirstStart, 5U + 3 * 2);
+}
+
+TEST(VectorPipelineTest, OneRobEntryLeavesRoomForMoreUops) {
+  VectorPipeline Pipeline(getM3Config());
+  VectorOp Reduce;
+  Reduce.Pool = PermuteReducePool;
+  Reduce.Uops = 4;
+  Reduce.Latency = 3;
+  Reduce.OneRobEntry = true;
+  Pipeline.schedule(0, Reduce, 0);
+  // 7 ROB entries remain, so 7 adds dispatch without waiting for a retire.
+  VectorTiming Adds = Pipeline.schedule(0, getAdd(7), 0);
+  EXPECT_LT(Adds.FirstStart, 9U);
+}
+
+// Two pools behind one 1-entry station: the second instruction waits for the
+// station although its own pool is idle.
+TEST(VectorPipelineTest, PoolsSharingAStationWaitForItsEntries) {
+  VectorPipelineConfig Config;
+  Config.StationEntries = {1};
+  Config.Pools = {{"slow", 1, 0}, {"fast", 1, 0}};
+  VectorPipeline Pipeline(Config);
+  VectorOp Slow;
+  Slow.Pool = 0;
+  Slow.Latency = 10;
+  Slow.Occupancy = 10;
+  VectorOp Fast;
+  Fast.Pool = 1;
+  VectorTiming First = Pipeline.schedule(0, Slow, 0);
+  VectorTiming Second = Pipeline.schedule(0, Fast, 0);
+  EXPECT_EQ(First.FirstStart, 5U);
+  // The station entry frees when Slow starts; Fast dispatches the cycle after
+  // and starts the cycle after that.
+  EXPECT_EQ(Second.FirstStart, 7U);
 }
 
 } // namespace

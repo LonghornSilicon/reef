@@ -8,12 +8,21 @@
 ///
 /// Each instruction goes through M3's in-order backend (VectorPipeline): the
 /// frontend register stage, the command queue, two decode stages, the uop
-/// queue, dispatch, a unit, the result FIFO and the vector ROB. It completes,
-/// for the core's Rob, when its last uop retires from the vector ROB.
+/// queue, dispatch, a reservation station and functional unit pool, the
+/// result FIFO and the vector ROB. It completes, for the core's Rob, when its
+/// last uop retires from the vector ROB.
+///
+/// The functional units are configuration: `vec_stations` and `vec_pools`
+/// list the reservation stations and pools, and `vec_<group>_pool` assigns
+/// each instruction group (VectorGroup) to one pool, so it also lands in that
+/// pool's station. The defaults are M3's per-type organization;
+/// configs/machines/m3_unified_vector.yaml is a two-lane alternative.
+/// Uop counts, vector ROB entries and latencies stay M3's in every
+/// organization.
 ///
 /// Simpler than the M3 RTL:
-/// - one pool of `vec_lanes` identical units, with a latency per class
-///   instead of M3's per-type units and reservation stations (B15);
+/// - fixed cycles per uop; M3's integer divider takes longer for wider
+///   dividends and reuses its last result for repeated operands;
 /// - a dependent uop dispatches when its producer's last uop retires;
 /// - vset* stays in the frontend: `vset_latency` cycles, no uops;
 /// - Dispatch sees the command queue through credits; an entry frees when DE1
@@ -33,14 +42,40 @@
 #include "sparta/simulation/Unit.hpp"
 #include "sparta/statistics/Counter.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace reef_perf {
 
-/// \returns the uops \p I splits into on a machine with \p VLENBits-bit
-/// vector registers: ceil(vl x SEW / VLEN), at least 1.
-uint32_t getVectorUops(const Inst &I, uint32_t VLENBits);
+/// \returns the uops M3 splits \p I into: one per register of its largest
+/// register group (EMUL), whatever its vector length
+/// (rvv_backend_decode_unit_ari.sv).
+uint32_t getVectorUops(const Inst &I);
+
+/// Sets of vector instructions with the same timing, which the configuration
+/// assigns to functional unit pools. Every instruction is in exactly one.
+enum class VectorGroup : uint8_t {
+  AluAddSub,      ///< Add, subtract, min/max: M3's two-stage ALU path.
+  Alu,            ///< Other ALU ops: logic, shifts, moves, mask logic.
+  Compare,        ///< Integer compares, vmadc, vmsbc.
+  Mul,            ///< Integer multiply and multiply-accumulate.
+  Div,            ///< Integer divide and remainder.
+  FDiv,           ///< FP divide and square root.
+  Fp,             ///< Other FP arithmetic, compares and conversions.
+  Permute,        ///< Slides, gathers, compress.
+  Reduce,         ///< Integer reductions, vcpop, viota.
+  WideningReduce, ///< vwredsum, vwredsumu.
+  FpReduce,       ///< FP reductions.
+};
+
+/// The number of VectorGroup values.
+inline constexpr size_t NumVectorGroups = 11;
+
+/// \returns the instruction group of \p I.
+VectorGroup getVectorGroup(const Inst &I);
 
 /// \returns true if \p I goes through M3's two-stage add/subtract ALU path:
 /// add, subtract, carry, saturating and averaging add/subtract, min/max and
@@ -63,22 +98,74 @@ public:
     PARAMETER(uint32_t, vec_de2_uop_width, 6, "Uops DE2 writes per cycle")
     PARAMETER(uint32_t, vec_uop_queue_entries, 16, "Uop queue entries")
     PARAMETER(uint32_t, vec_dispatch_width, 3, "Uops dispatched per cycle")
-    PARAMETER(uint32_t, vec_station_entries, 8, "Reservation station entries")
     PARAMETER(uint32_t, vec_rob_entries, 8, "Vector ROB entries (uops)")
     PARAMETER(uint32_t, vec_retire_width, 4, "Uops retired per cycle")
-    PARAMETER(uint32_t, vec_lanes, 2, "Vector execution units")
-    PARAMETER(uint32_t, vlen_bits, 128, "VLEN in bits")
+    // How functional units are organized: reservation stations, pools fed by
+    // them, and the pool each instruction group runs on.
+    PARAMETER(std::vector<std::string>, vec_stations,
+              (std::vector<std::string>{"alu", "mul", "div", "fma",
+                                        "permute_reduce"}),
+              "Reservation station names")
+    PARAMETER(std::vector<uint32_t>, vec_station_entries,
+              (std::vector<uint32_t>{8, 8, 4, 8, 4}),
+              "Entries of each reservation station, in vec_stations order")
+    PARAMETER(std::vector<std::string>, vec_pools,
+              (std::vector<std::string>{"alu", "mul", "div", "fdiv", "fma",
+                                        "permute_reduce", "fp_reduce"}),
+              "Functional unit pool names")
+    PARAMETER(std::vector<uint32_t>, vec_pool_counts,
+              (std::vector<uint32_t>{2, 2, 1, 1, 2, 1, 1}),
+              "Functional units in each pool, in vec_pools order")
+    PARAMETER(std::vector<std::string>, vec_pool_stations,
+              (std::vector<std::string>{"alu", "mul", "div", "div", "fma",
+                                        "permute_reduce", "permute_reduce"}),
+              "Station feeding each pool, in vec_pools order")
+    PARAMETER(std::string, vec_alu_addsub_pool, "alu",
+              "Pool for add, subtract, min/max")
+    PARAMETER(std::string, vec_alu_pool, "alu", "Pool for other ALU ops")
+    PARAMETER(std::string, vec_compare_pool, "alu",
+              "Pool for integer compares")
+    PARAMETER(bool, vec_compare_first_unit_only, true,
+              "Only the first unit of its pool runs a compare")
+    PARAMETER(std::string, vec_mul_pool, "mul", "Pool for integer multiply")
+    PARAMETER(std::string, vec_div_pool, "div", "Pool for integer divide")
+    PARAMETER(std::string, vec_fdiv_pool, "fdiv",
+              "Pool for FP divide and square root")
+    PARAMETER(std::string, vec_fp_pool, "fma", "Pool for other FP ops")
+    PARAMETER(std::string, vec_permute_pool, "permute_reduce",
+              "Pool for slides, gathers, compress")
+    PARAMETER(std::string, vec_reduce_pool, "permute_reduce",
+              "Pool for integer reductions, vcpop, viota")
+    PARAMETER(std::string, vec_widening_reduce_pool, "permute_reduce",
+              "Pool for widening reductions")
+    PARAMETER(std::string, vec_fp_reduce_pool, "fp_reduce",
+              "Pool for FP reductions")
     PARAMETER(uint32_t, vec_addsub_latency, 2,
-              "Cycles in a unit: add, subtract, min/max and compare")
+              "Cycles in the ALU: add, subtract, min/max and compare")
     PARAMETER(uint32_t, vec_alu_latency, 1,
-              "Cycles in a unit: other ALU ops, moves to x/f registers")
-    PARAMETER(uint32_t, vec_mul_latency, 2, "Cycles in a unit: multiply")
-    PARAMETER(uint32_t, vec_perm_latency, 3,
-              "Cycles in a unit: permute and reduction")
-    PARAMETER(uint32_t, vec_fp_latency, 4, "Cycles in a unit: FP")
-    PARAMETER(uint32_t, vec_cycles_per_uop, 1, "Cycles a unit is busy per uop")
-    PARAMETER(uint32_t, vec_div_cycles_per_uop, 8,
-              "Cycles per uop for vector divide/sqrt, busy and latency")
+              "Cycles in the ALU: other ops, moves to x/f registers")
+    PARAMETER(uint32_t, vec_mul_latency, 2, "Cycles in a multiplier")
+    PARAMETER(uint32_t, vec_div_cycles_per_uop, 13,
+              "Cycles per uop for integer divide, busy and latency")
+    PARAMETER(uint32_t, vec_fdiv_latency, 9,
+              "Cycles in the divider: FP divide and square root")
+    PARAMETER(uint32_t, vec_fdiv_cycles_per_uop, 8,
+              "Cycles the divider is busy per FP divide uop")
+    PARAMETER(uint32_t, vec_fp_latency, 4, "Cycles in an FP multiply-add unit")
+    PARAMETER(uint32_t, vec_permute_latency, 3,
+              "Cycles in the permute/reduction unit: slides, gathers")
+    PARAMETER(uint32_t, vec_permute_cycles_per_uop, 5,
+              "Cycles it is busy per slide or gather uop")
+    PARAMETER(uint32_t, vec_reduce_latency, 3,
+              "Cycles in the permute/reduction unit: integer reductions, "
+              "vcpop, viota")
+    PARAMETER(uint32_t, vec_widening_reduce_cycles_per_uop, 2,
+              "Cycles it is busy per widening-reduction uop; each extra "
+              "cycle also adds to the latency")
+    PARAMETER(uint32_t, vec_fp_reduce_latency, 13,
+              "Cycles in the permute/reduction unit: FP reductions")
+    PARAMETER(uint32_t, vec_fp_reduce_cycles_per_uop, 12,
+              "Cycles it is busy per FP reduction uop")
     PARAMETER(uint32_t, vec_to_scalar_latency, 0,
               "Cycles from vector ROB retire to a scalar use of the result")
     PARAMETER(uint32_t, vset_latency, 1, "vset* latency")
@@ -96,27 +183,35 @@ public:
   /// Creates the unit on \p Node with parameters \p Params.
   Vector(sparta::TreeNode *Node, const VectorParameterSet *Params);
 
-  /// \returns {vector}, for the end-of-run summary.
-  std::vector<const ResourcePool *> getPools() const { return {&Lanes}; }
+  /// \returns the functional unit pools, for the end-of-run summary.
+  std::vector<const ResourcePool *> getPools() const {
+    return Pipeline.getPools();
+  }
 
 private:
   void receiveInst(const InstRef &I);
   void sendInitialCredits();
-  /// \returns the cycles a uop of \p I spends in its unit.
-  uint64_t getLatency(const Inst &I) const;
+  /// \returns what \p I needs from the backend.
+  VectorOp getOp(const Inst &I) const;
 
   const uint32_t QueueEntries;
-  const uint32_t VLENBits;
   const uint32_t AddSubLatency;
   const uint32_t AluLatency;
   const uint32_t MulLatency;
-  const uint32_t PermLatency;
-  const uint32_t FpLatency;
-  const uint32_t CyclesPerUop;
   const uint32_t DivCyclesPerUop;
+  const uint32_t FDivLatency;
+  const uint32_t FDivCyclesPerUop;
+  const uint32_t FpLatency;
+  const uint32_t PermuteLatency;
+  const uint32_t PermuteCyclesPerUop;
+  const uint32_t ReduceLatency;
+  const uint32_t WideningReduceCyclesPerUop;
+  const uint32_t FpReduceLatency;
+  const uint32_t FpReduceCyclesPerUop;
   const uint32_t ToScalarLatency;
   const uint32_t VsetLatency;
-  ResourcePool Lanes;
+  const bool CompareFirstUnitOnly;
+  std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
@@ -125,7 +220,7 @@ private:
                               "Vector instructions executed",
                               sparta::Counter::COUNT_NORMAL};
   sparta::Counter NumUops{&unit_stat_set_, "num_uops",
-                          "Vector uops retired from the vector ROB",
+                          "Vector uops dispatched to a functional unit",
                           sparta::Counter::COUNT_NORMAL};
 };
 
