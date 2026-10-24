@@ -227,8 +227,9 @@ interface unless noted.
   requester); no redirect/flush signal to the core (interface change).
 - **Core:** Reef's special dispatch rules (a branch ends the group, FP and
   CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
-- **Vector:** one pool of identical lanes; no per-type functional units, chaining or
-  vector ROB capacity.
+- **Vector:** vector loads and stores skip the vector pipeline and go
+  straight to the core's LSU, unlike on M3 (interface change); the divider's
+  time doesn't depend on its operands.
 - **Matrix:** everything. The ISA encoding, an opaque-op extension in Spike,
   operands from vector registers (a vector → matrix interface) and a memory
   port (`RequesterKind::Matrix`).
