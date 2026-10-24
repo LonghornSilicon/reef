@@ -8,8 +8,10 @@
 /// how long it holds the slot and its latency. A vector load or store passes
 /// through the slot one 16-byte vector register at a time, as on M3: each
 /// register pays a fixed overhead, then its own memory request for the lines
-/// it touches. Dispatch sees the queue through credits; an entry frees when
-/// its instruction starts.
+/// it touches. An instruction starts once its vector sources are ready
+/// (Dispatch doesn't wait for them), e.g. a vector store for its data.
+/// Dispatch sees the queue through credits; an entry frees when its
+/// instruction starts.
 ///
 //===----------------------------------------------------------------------===//
 

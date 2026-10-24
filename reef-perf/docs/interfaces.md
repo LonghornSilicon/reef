@@ -59,7 +59,7 @@ one **writer**:
 | --- | --- |
 | `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
-| `DispatchCycle`, `RetireCycle` | core |
+| `DispatchCycle`, `VecSourcesReadyCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
 
 Fields and interfaces use the purpose-defined types in `common/Types.h`:
@@ -74,6 +74,11 @@ not log register reads.
 `ResultReadyCycle` and `CompleteCycle` are `Inst::Never` until their
 writer sets them. Readers must treat `Never` as "not yet": Dispatch stalls a
 dependent instruction, and the Rob keeps waiting.
+
+Dispatch doesn't wait for vector registers, as on M3, whose scalar
+scoreboards cover only x and f. It sets `VecSourcesReadyCycle` to the first
+cycle the instruction's vector sources allow it to start, and the vector
+module and the LSU must not start it earlier.
 
 **Who executes what** is decided by `getExecTarget()` (`common/Interfaces.h`):
 
@@ -216,7 +221,7 @@ interface unless noted.
 - **Core:** Reef's special dispatch rules (a branch ends the group, FP and
   CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
 - **Vector:** one pool of identical lanes; no per-type functional units, chaining or
-  vector ROB.
+  vector ROB capacity.
 - **Matrix:** everything. The ISA encoding, an opaque-op extension in Spike,
   operands from vector registers (a vector → matrix interface) and a memory
   port (`RequesterKind::Matrix`).

@@ -18,6 +18,7 @@ set(REEF_PERF_TESTS
     common/InterfacesTest
     common/ResourcePoolTest
     common/TypesTest
+    core/DispatchTest
     core/LsuTest
     frontend/InstDecodeTest
     memory/MemTimingTest

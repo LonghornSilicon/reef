@@ -8,8 +8,13 @@
 /// Super-coarse, deliberately simpler than the M3 RTL:
 /// - up to `dispatch_width` per cycle, strictly in order: the first
 ///   instruction that cannot go blocks everything behind it;
-/// - an instruction waits while a register it reads or writes is still being
-///   produced (scoreboard: RAW and WAW hazards);
+/// - an instruction waits while a scalar or FP register it reads or writes is
+///   still being produced (scoreboard: RAW and WAW hazards);
+/// - vector registers are not waited for, as on M3, whose scalar scoreboards
+///   cover only x and f. An instruction with a vector source waits only until
+///   the source's producer has reached its unit; it then carries the cycle its
+///   vector sources are ready (Inst::VecSourcesReadyCycle), and the vector
+///   module or the LSU waits for it, like M3's vector ROB;
 /// - an instruction waits while the Rob or its unit's queue is full;
 /// - not modeled yet: Reef's special dispatch rules (a branch ends the group,
 ///   FP and CSR instructions dispatch alone from slot 0, load/store address
@@ -83,6 +88,13 @@ struct TopDownSlots {
   /// \returns all slots counted so far.
   uint64_t getTotal() const;
 };
+
+/// \returns the cycle after the latest ResultReadyCycle of the writers (in
+/// \p LastWriter) of the vector registers \p I reads: when \p I would have
+/// reached its unit had Dispatch waited, so vector dependencies take as long
+/// as scalar ones. 0 if it reads no vector register with a writer.
+Cycle getVecSourcesReady(
+    const Inst &I, const std::array<InstRef, RegId::NumDense> &LastWriter);
 
 class Rob;
 

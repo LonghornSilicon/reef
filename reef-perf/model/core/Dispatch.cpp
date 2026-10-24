@@ -5,6 +5,8 @@
 
 #include "sparta/utils/SpartaAssert.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -56,6 +58,23 @@ uint64_t TopDownSlots::getTotal() const {
     for (uint64_t N : ByReason)
       Total += N;
   return Total;
+}
+
+Cycle reef_perf::getVecSourcesReady(
+    const Inst &I, const std::array<InstRef, RegId::NumDense> &LastWriter) {
+  Cycle Ready = 0;
+  for (RegId Reg : I.Srcs) {
+    const InstRef &Writer = LastWriter.at(Reg.getDense());
+    if (Reg.getFile() != RegFile::V || !Writer)
+      continue;
+    // A dependent could dispatch at ResultReadyCycle and reach its unit a
+    // cycle later, so it may start then.
+    Cycle Start = Writer->ResultReadyCycle == Inst::Never
+                      ? Inst::Never
+                      : Writer->ResultReadyCycle + 1;
+    Ready = std::max(Ready, Start);
+  }
+  return Ready;
 }
 
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
@@ -114,7 +133,14 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   // A register hazard is blamed on the unit producing the register.
   for (RegId Reg : I->Srcs) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Writer && Writer->ResultReadyCycle > Now) {
+    if (!Writer)
+      continue;
+    // A vector source only needs its ready cycle to be known, which it is
+    // once the producer has reached its unit.
+    bool Waiting = Reg.getFile() == RegFile::V
+                       ? Writer->ResultReadyCycle == Inst::Never
+                       : Writer->ResultReadyCycle > Now;
+    if (Waiting) {
       Why = StallReason::Raw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -122,7 +148,8 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   }
   for (RegId Reg : I->Dsts) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Writer && Writer->ResultReadyCycle > Now) {
+    if (Reg.getFile() != RegFile::V && Writer &&
+        Writer->ResultReadyCycle > Now) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -192,6 +219,7 @@ void Dispatch::dispatchGroup() {
     if (!I || !canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
+    I->VecSourcesReadyCycle = getVecSourcesReady(*I, LastWriter);
     for (RegId Reg : I->Dsts)
       LastWriter.at(Reg.getDense()) = I;
     --RobCredits;
