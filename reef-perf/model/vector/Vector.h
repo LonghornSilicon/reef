@@ -9,7 +9,10 @@
 /// Super-coarse, deliberately simpler than the M3 RTL:
 /// - one pool of `vec_lanes` identical lanes; an instruction holds a lane for
 ///   uops x vec_cycles_per_uop cycles, where uops = ceil(vl x SEW / VLEN);
-/// - no per-type functional units, decode width, vector ROB or chaining;
+/// - instructions start in order, each once its vector sources are ready
+///   (Dispatch doesn't wait for them), like dispatch from M3's vector ROB;
+/// - no per-type functional units, decode width, vector ROB capacity or
+///   chaining;
 /// - vset* takes `vset_latency` cycles and uses no lane;
 /// - Dispatch sees the command queue through credits; an entry frees when its
 ///   instruction starts.
@@ -83,6 +86,7 @@ private:
   const uint32_t ToScalarLatency;
   const uint32_t VsetLatency;
   ResourcePool Lanes;
+  Cycle LastStart = 0; // Start of the last instruction that used a lane.
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

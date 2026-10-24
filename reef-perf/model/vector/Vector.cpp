@@ -44,7 +44,11 @@ void Vector::receiveInst(const InstRef &I) {
     InstLatency = Latency + Occupancy - 1;
     if (I->Class == InstClass::V_TO_SCALAR)
       InstLatency += ToScalarLatency;
-    Start = Lanes.reserve(Now, Occupancy);
+    // Vector dispatch is in order, and holds an instruction until its vector
+    // sources are ready.
+    Cycle Earliest = std::max({Now, I->VecSourcesReadyCycle, LastStart});
+    Start = Lanes.reserve(Earliest, Occupancy);
+    LastStart = Start;
   }
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + InstLatency - 1;

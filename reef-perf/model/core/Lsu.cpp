@@ -5,6 +5,7 @@
 #include "sparta/events/StartupEvent.hpp"
 #include "sparta/utils/SpartaAssert.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
@@ -65,7 +66,9 @@ void Lsu::receiveInst(const InstRef &I) {
     Overhead = VectorStoreRegOverhead;
 
   Cycle Start = 0;
-  Cycle BusyUntil = Pipe.getNextFree(Now);
+  // A vector store or masked access waits in the slot for its vector
+  // sources; nothing behind it can go first.
+  Cycle BusyUntil = Pipe.getNextFree(std::max(Now, I->VecSourcesReadyCycle));
   Cycle Ready = 0;
   for (size_t Idx = 0; Idx < Passes.size(); ++Idx) {
     MemRequest Request;

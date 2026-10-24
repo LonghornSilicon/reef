@@ -87,12 +87,16 @@ struct Inst {
   std::vector<RegId> Srcs;              ///< Registers read (no x0).
   std::vector<RegId> Dsts;              ///< Registers written (no x0).
 
-  Cycle FetchCycle = 0;           ///< Cycle it was fetched.
-  Cycle DispatchCycle = 0;        ///< Cycle it was dispatched.
-  Cycle IssueCycle = 0;           ///< Cycle its execution started.
-  Cycle ResultReadyCycle = Never; ///< First cycle a dependent may dispatch.
-  Cycle CompleteCycle = Never;    ///< First cycle it may retire.
-  Cycle RetireCycle = 0;          ///< Cycle it retired.
+  Cycle FetchCycle = 0;    ///< Cycle it was fetched.
+  Cycle DispatchCycle = 0; ///< Cycle it was dispatched.
+  Cycle IssueCycle = 0;    ///< Cycle its execution started.
+  /// First cycle a dependent may dispatch, or, for a vector register, start.
+  Cycle ResultReadyCycle = Never;
+  /// First cycle it may start, given the vector registers it reads. Dispatch
+  /// doesn't wait for vector sources; the vector module and the LSU do.
+  Cycle VecSourcesReadyCycle = 0;
+  Cycle CompleteCycle = Never; ///< First cycle it may retire.
+  Cycle RetireCycle = 0;       ///< Cycle it retired.
 
   /// \returns true for a taken branch, a jump or a trap.
   bool isRedirect() const { return NextPC != PC + 4; }
