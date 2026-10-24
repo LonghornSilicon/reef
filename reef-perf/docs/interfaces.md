@@ -96,6 +96,11 @@ module and the LSU must not start it earlier.
   `CompleteCycle = Start + L`. The `- 1` lets a dependent instruction
   dispatch in the cycle before the result exists, which stands in for
   operand forwarding.
+- The vector module is the exception: an instruction is complete when its
+  last uop retires from the vector ROB (`CompleteCycle`), and its result is
+  ready in that same cycle (`ResultReadyCycle`), as in the M3 RTL, where a
+  dependent uop reads it from the ROB. So a vector instruction holds its Rob
+  entry through the whole vector pipeline: 8 cycles for a vector add.
 - Instructions reach their exec target one cycle after dispatch (input ports
   have a delay of 1).
 
@@ -108,7 +113,9 @@ Every queue between modules uses the same protocol:
 - The **sender** spends one credit per instruction it sends and does not send
   without one.
 - The receiver returns one credit when an instruction **leaves the queue**,
-  i.e. when it starts executing (`out_credits.send(1, start - now)`).
+  i.e. when it starts executing (`out_credits.send(1, start - now)`). The
+  vector module's queue is M3's command queue, which an instruction leaves
+  when the first decode stage takes it.
 
 ## Interfaces
 

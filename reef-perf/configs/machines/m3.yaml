@@ -53,14 +53,29 @@ top:
         retire_width: 4         # B10: confirm from RetirementBuffer.scala
   vector:
     params:
-      vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
+      # Queues and widths: rvv_backend_define.svh under DISPATCH3.
+      vec_queue_entries: 8        # CQ_DEPTH
+      vec_de1_width: 2            # NUM_DE_INST
+      vec_legal_queue_entries: 8  # LCQ_DEPTH
+      vec_de2_width: 2            # NUM_DE_INST
+      vec_de2_uop_width: 6        # NUM_DE_UOP
+      vec_uop_queue_entries: 16   # UQ_DEPTH
+      vec_dispatch_width: 3       # NUM_DP_UOP
+      vec_station_entries: 8      # ALU_RS_DEPTH; B15: one per unit type
+      vec_rob_entries: 8          # ROB_DEPTH
+      vec_retire_width: 4         # NUM_RT_UOP
       vec_lanes: 2            # B15: replace with per-type functional units
       vlen_bits: 128
-      vec_latency: 4          # B15: measure per class
+      # Cycles a uop spends in its unit (RTL waveforms, M3 vector timing):
+      vec_addsub_latency: 2   # p0 + p1 (rvv_backend_alu_unit_addsub.sv)
+      vec_alu_latency: 1      # p0 only: logic, shifts, masks, moves
+      vec_mul_latency: 2
+      vec_perm_latency: 3     # reductions
+      vec_fp_latency: 4       # ASSUMPTION; not measured
       vec_cycles_per_uop: 1   # B15
       vec_div_cycles_per_uop: 8   # B15
-      vec_to_scalar_latency: 4    # B17: fit to vec_pingpong on the RTL
-                                  # (17.0 cycles/iteration, rtl_m3.csv)
+      vec_to_scalar_latency: 0    # RTL waveform of vec_pingpong: the x
+                                  # register is usable in the retire cycle
       vset_latency: 1         # U4: measure (was timed as an ALU op)
   matrix:
     params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
