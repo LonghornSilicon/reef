@@ -6,9 +6,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
+#include <vector>
 
 using namespace reef_perf;
 
@@ -43,6 +45,24 @@ static VectorOp getAdd(uint32_t Uops) {
   Op.Pool = AluPool;
   Op.Uops = Uops;
   Op.Latency = 2;
+  return Op;
+}
+
+/// \returns a load of \p Uops registers, booked in a fake LSU that takes each
+/// register as soon as asked and keeps it 5 cycles, as M3's does between
+/// vector loads. \p Earliests records the cycle each register was offered.
+static VectorOp getLoad(uint32_t Uops, std::vector<Cycle> &Earliests) {
+  VectorOp Op;
+  Op.Uops = Uops;
+  Op.BookLsu = [&Earliests, FreeAt = Cycle(0)](uint32_t,
+                                               Cycle Earliest) mutable {
+    Earliests.push_back(Earliest);
+    VectorLsuResponse Response;
+    Response.Start = std::max(Earliest, FreeAt);
+    Response.Done = Response.Start + 3;
+    FreeAt = Response.Start + 5;
+    return Response;
+  };
   return Op;
 }
 
@@ -141,7 +161,7 @@ TEST(QueueOccupancyTest, EntryFreesTheCycleAfterItLeaves) {
 // the ALU in 77, vector ROB retire in 80 = D + 8.
 TEST(VectorPipelineTest, AddRetiresEightCyclesAfterDispatch) {
   VectorPipeline Pipeline(getM3Config());
-  VectorTiming T = Pipeline.schedule(72, getAdd(1), 0);
+  VectorTiming T = Pipeline.schedule(72, getAdd(1), {});
   EXPECT_EQ(T.CommandQueuePop, 74U);
   EXPECT_EQ(T.FirstStart, 77U);
   EXPECT_EQ(T.Retire, 80U);
@@ -149,9 +169,10 @@ TEST(VectorPipelineTest, AddRetiresEightCyclesAfterDispatch) {
 
 TEST(VectorPipelineTest, DependentDispatchesWhenItsProducerRetires) {
   VectorPipeline Pipeline(getM3Config());
-  VectorTiming Producer = Pipeline.schedule(0, getAdd(1), 0);
+  VectorTiming Producer = Pipeline.schedule(0, getAdd(1), {});
   // Dispatch passes the first cycle the consumer may start: retire + 1.
-  VectorTiming Consumer = Pipeline.schedule(1, getAdd(1), Producer.Retire + 1);
+  VectorTiming Consumer =
+      Pipeline.schedule(1, getAdd(1), {Producer.Retire + 1});
   EXPECT_EQ(Consumer.FirstStart, Producer.Retire + 1);
   EXPECT_EQ(Consumer.Retire, Producer.Retire + 4);
 }
@@ -159,10 +180,10 @@ TEST(VectorPipelineTest, DependentDispatchesWhenItsProducerRetires) {
 TEST(VectorPipelineTest, FullVectorRobHoldsBackDispatch) {
   VectorPipeline Pipeline(getM3Config());
   // 8 uops fill the vector ROB; the first of them retires in cycle 8.
-  VectorTiming Group = Pipeline.schedule(0, getAdd(8), 0);
+  VectorTiming Group = Pipeline.schedule(0, getAdd(8), {});
   EXPECT_EQ(Group.Retire, 11U);
   // The next uop dispatches in 8, reusing that entry in the cycle it frees.
-  VectorTiming Next = Pipeline.schedule(0, getAdd(1), 0);
+  VectorTiming Next = Pipeline.schedule(0, getAdd(1), {});
   EXPECT_EQ(Next.FirstStart, 9U);
   EXPECT_EQ(Next.Retire, 12U);
 }
@@ -173,7 +194,7 @@ TEST(VectorPipelineTest, CompareRunsOnTheFirstAluOnly) {
   VectorOp Compare = getAdd(4);
   Compare.FirstUnitOnly = true;
   Compare.OneRobEntry = true;
-  VectorTiming T = Pipeline.schedule(0, Compare, 0);
+  VectorTiming T = Pipeline.schedule(0, Compare, {});
   EXPECT_EQ(T.FirstStart, 5U);
   EXPECT_EQ(T.Retire, 5U + 3 + 2 + 1); // The fourth uop starts in 8.
 }
@@ -188,11 +209,11 @@ TEST(VectorPipelineTest, WideningReductionTakesTwoCyclesPerUop) {
   Reduce.Latency = 4;
   Reduce.Occupancy = 2;
   Reduce.OneRobEntry = true;
-  VectorTiming T = Pipeline.schedule(0, Reduce, 0);
+  VectorTiming T = Pipeline.schedule(0, Reduce, {});
   EXPECT_EQ(T.FirstStart, 5U);
   EXPECT_EQ(T.Retire, 5U + 7 * 2 + 4 + 1);
   // A younger add waits behind the reduction's uops in dispatch.
-  VectorTiming Add = Pipeline.schedule(0, getAdd(1), 0);
+  VectorTiming Add = Pipeline.schedule(0, getAdd(1), {});
   EXPECT_GT(Add.FirstStart, 5U + 3 * 2);
 }
 
@@ -203,9 +224,9 @@ TEST(VectorPipelineTest, OneRobEntryLeavesRoomForMoreUops) {
   Reduce.Uops = 4;
   Reduce.Latency = 3;
   Reduce.OneRobEntry = true;
-  Pipeline.schedule(0, Reduce, 0);
+  Pipeline.schedule(0, Reduce, {});
   // 7 ROB entries remain, so 7 adds dispatch without waiting for a retire.
-  VectorTiming Adds = Pipeline.schedule(0, getAdd(7), 0);
+  VectorTiming Adds = Pipeline.schedule(0, getAdd(7), {});
   EXPECT_LT(Adds.FirstStart, 9U);
 }
 
@@ -222,12 +243,59 @@ TEST(VectorPipelineTest, PoolsSharingAStationWaitForItsEntries) {
   Slow.Occupancy = 10;
   VectorOp Fast;
   Fast.Pool = 1;
-  VectorTiming First = Pipeline.schedule(0, Slow, 0);
-  VectorTiming Second = Pipeline.schedule(0, Fast, 0);
+  VectorTiming First = Pipeline.schedule(0, Slow, {});
+  VectorTiming Second = Pipeline.schedule(0, Fast, {});
   EXPECT_EQ(First.FirstStart, 5U);
   // The station entry frees when Slow starts; Fast dispatches the cycle after
   // and starts the cycle after that.
   EXPECT_EQ(Second.FirstStart, 7U);
+}
+
+// The first vle32 of vec_add_m1's waveform: scalar dispatch in D = 71, the LSU
+// takes it in 76 = D + 5 and the vector ROB retires it in 81.
+TEST(VectorPipelineTest, LoadReachesTheLsuFiveCyclesAfterDispatch) {
+  VectorPipeline Pipeline(getM3Config());
+  std::vector<Cycle> Earliests;
+  VectorTiming T = Pipeline.schedule(71, getLoad(1, Earliests), {});
+  EXPECT_EQ(Earliests, std::vector<Cycle>{76});
+  EXPECT_EQ(T.FirstStart, 76U);
+  EXPECT_EQ(T.Retire, 81U);
+}
+
+TEST(VectorPipelineTest, LoadRegistersGoToTheLsuInOrder) {
+  VectorPipeline Pipeline(getM3Config());
+  std::vector<Cycle> Earliests;
+  VectorTiming T = Pipeline.schedule(0, getLoad(2, Earliests), {});
+  ASSERT_EQ(Earliests.size(), 2U);
+  EXPECT_EQ(T.FirstStart, 5U);
+  EXPECT_EQ(T.Retire, 15U); // The second register starts in 10.
+}
+
+// vec_add_m1's vadd dispatches in the cycle its second load retires and
+// retires 4 cycles later, as on M3.
+TEST(VectorPipelineTest, AddDependingOnALoadDispatchesWhenItRetires) {
+  VectorPipeline Pipeline(getM3Config());
+  std::vector<Cycle> Earliests;
+  VectorTiming Load = Pipeline.schedule(0, getLoad(1, Earliests), {});
+  VectorTiming Add = Pipeline.schedule(1, getAdd(1), {Load.Retire + 1});
+  EXPECT_EQ(Add.FirstStart, Load.Retire + 1);
+  EXPECT_EQ(Add.Retire, Load.Retire + 4);
+}
+
+// vec_add_m4: uop i of the vadd waits only for register i of the load, so it
+// starts before the load's last register retires.
+TEST(VectorPipelineTest, EachUopWaitsOnlyForTheRegisterItReads) {
+  VectorPipeline Pipeline(getM3Config());
+  std::vector<Cycle> Earliests;
+  VectorTiming Load = Pipeline.schedule(0, getLoad(4, Earliests), {});
+  ASSERT_EQ(Load.UopRetires.size(), 4U);
+  std::vector<Cycle> Ready;
+  for (Cycle Retire : Load.UopRetires)
+    Ready.push_back(Retire + 1);
+  VectorTiming Add = Pipeline.schedule(1, getAdd(4), Ready);
+  EXPECT_EQ(Add.FirstStart, Load.UopRetires[0] + 1);
+  EXPECT_LT(Add.FirstStart, Load.Retire);
+  EXPECT_EQ(Add.Retire, Load.Retire + 4);
 }
 
 } // namespace

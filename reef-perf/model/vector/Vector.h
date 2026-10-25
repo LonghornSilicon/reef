@@ -2,15 +2,16 @@
 ///
 /// \file
 /// The vector module: the RVV backend. Executes every instruction Dispatch
-/// routes to ExecTarget::Vector (vector arithmetic, permutes, vector-to-scalar
-/// moves, vset*). Vector loads and stores go to the core's LSU directly; on
-/// M3 they also pass through this pipeline (not modeled yet).
+/// routes to ExecTarget::Vector: vector arithmetic, permutes, vector-to-scalar
+/// moves, vset*, and vector loads and stores.
 ///
 /// Each instruction goes through M3's in-order backend (VectorPipeline): the
 /// frontend register stage, the command queue, two decode stages, the uop
 /// queue, dispatch, a reservation station and functional unit pool, the
 /// result FIFO and the vector ROB. It completes, for the core's Rob, when its
-/// last uop retires from the vector ROB.
+/// last uop retires from the vector ROB. A load or store has one uop per
+/// vector register; each waits in the LSU reservation station, then books the
+/// core's LSU (VectorLsuInterface), which M3's scalar core shares.
 ///
 /// The functional units are configuration: `vec_stations` and `vec_pools`
 /// list the reservation stations and pools, and `vec_<group>_pool` assigns
@@ -34,6 +35,7 @@
 #define REEF_PERF_VECTOR_VECTOR_H
 
 #include "common/Inst.h"
+#include "common/Interfaces.h"
 #include "common/ResourcePool.h"
 #include "vector/VectorPipeline.h"
 
@@ -56,7 +58,8 @@ namespace reef_perf {
 uint32_t getVectorUops(const Inst &I);
 
 /// Sets of vector instructions with the same timing, which the configuration
-/// assigns to functional unit pools. Every instruction is in exactly one.
+/// assigns to functional unit pools. Every vector instruction except vset*,
+/// loads and stores is in exactly one.
 enum class VectorGroup : uint8_t {
   AluAddSub,      ///< Add, subtract, min/max: M3's two-stage ALU path.
   Alu,            ///< Other ALU ops: logic, shifts, moves, mask logic.
@@ -120,6 +123,8 @@ public:
               (std::vector<std::string>{"alu", "mul", "div", "div", "fma",
                                         "permute_reduce", "permute_reduce"}),
               "Station feeding each pool, in vec_pools order")
+    PARAMETER(uint32_t, vec_lsu_station_entries, 4,
+              "Entries of the reservation station for loads and stores")
     PARAMETER(std::string, vec_alu_addsub_pool, "alu",
               "Pool for add, subtract, min/max")
     PARAMETER(std::string, vec_alu_pool, "alu", "Pool for other ALU ops")
@@ -182,6 +187,10 @@ public:
   /// Creates the unit on \p Node with parameters \p Params.
   Vector(sparta::TreeNode *Node, const VectorParameterSet *Params);
 
+  /// Connects the core's LSU \p NewLsu, which runs vector loads and stores
+  /// and must outlive the unit.
+  void setLsu(VectorLsuInterface *NewLsu) { Lsu = NewLsu; }
+
   /// \returns the functional unit pools, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const {
     return Pipeline.getPools();
@@ -192,6 +201,11 @@ private:
   void sendInitialCredits();
   /// \returns what \p I needs from the backend.
   VectorOp getOp(const Inst &I) const;
+  /// \returns per uop of \p I's \p Uops, the first cycle the vector
+  /// registers it reads allow it to start.
+  std::vector<Cycle> getSourcesReady(const Inst &I, uint32_t Uops) const;
+  /// Records when \p I's destination registers are ready, from timing \p T.
+  void recordResults(const Inst &I, const VectorTiming &T);
 
   const uint32_t QueueEntries;
   const uint32_t AddSubLatency;
@@ -212,6 +226,11 @@ private:
   const bool CompareFirstUnitOnly;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
+  VectorLsuInterface *Lsu = nullptr;
+  // Per vector register: the first cycle a uop reading it may start, the
+  // cycle after the uop writing it retires. Every writer is a vector
+  // instruction, and they arrive in program order.
+  std::array<Cycle, RegId::NumPerFile> RegReady{};
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

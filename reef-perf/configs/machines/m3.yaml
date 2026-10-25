@@ -47,6 +47,9 @@ top:
         lsu_vector_load_reg_overhead: 3   # B14: fit to vle8 microbenchmarks on the
         lsu_vector_store_reg_overhead: 2  # RTL at LMUL 1 and 8 (per register:
                                           # 1 line + 3 load / + 2 store cycles)
+        lsu_vector_switch_cycles: 1       # RTL waveform of vec_add_m4: the slot
+                                          # reloads per instruction (Lsu.scala
+                                          # LsuSlot.fromLsuUOp)
     rob:
       params:
         rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
@@ -73,6 +76,8 @@ top:
       vec_pools:           [alu, mul, div, fdiv, fma, permute_reduce, fp_reduce]
       vec_pool_counts:     [2, 2, 1, 1, 2, 1, 1]
       vec_pool_stations:   [alu, mul, div, div, fma, permute_reduce, permute_reduce]
+      vec_lsu_station_entries: 4   # LSU_RS_DEPTH; loads and stores then book
+                                   # top.core.lsu one register at a time
       vec_alu_addsub_pool: alu
       vec_alu_pool: alu
       vec_compare_pool: alu

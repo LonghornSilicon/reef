@@ -32,17 +32,24 @@
 /// configuration (VectorPipelineConfig), so other organizations than M3's can
 /// be compared.
 ///
+/// Loads and stores take the same path, one uop per vector register, but wait
+/// in the LSU reservation station and run in the core's LSU instead of a pool:
+/// the caller books it (VectorOp::BookLsu), and the LSU says when the uop
+/// starts and when its result comes back.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef REEF_PERF_VECTOR_VECTORPIPELINE_H
 #define REEF_PERF_VECTOR_VECTORPIPELINE_H
 
+#include "common/Interfaces.h"
 #include "common/ResourcePool.h"
 #include "common/Types.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -107,6 +114,7 @@ struct VectorPipelineConfig {
   /// Entries of each reservation station; a station may feed several pools.
   std::vector<uint32_t> StationEntries;
   std::vector<VectorPoolConfig> Pools; ///< The functional unit pools.
+  uint32_t LsuStationEntries = 4; ///< Entries of the LSU reservation station.
 };
 
 /// What one instruction needs from the vector backend.
@@ -119,13 +127,21 @@ struct VectorOp {
   bool FirstUnitOnly = false;
   /// Only its last uop takes a vector ROB entry (compares, reductions).
   bool OneRobEntry = false;
+  /// Set for loads and stores: books uop `Uop` in the core's LSU, starting no
+  /// earlier than `Earliest`. Its uops wait in the LSU reservation station,
+  /// and Pool, Latency, Occupancy and FirstUnitOnly don't apply.
+  std::function<VectorLsuResponse(uint32_t Uop, Cycle Earliest)> BookLsu;
 };
 
 /// When one instruction reached the pipeline's stages.
 struct VectorTiming {
   Cycle CommandQueuePop = 0; ///< DE1 took it; its command-queue entry frees.
   Cycle FirstStart = 0;      ///< Its first uop entered a unit.
+  Cycle FirstDone = 0;       ///< Its first uop's result came back.
   Cycle Retire = 0;          ///< Its last uop retired from the vector ROB.
+  /// Per uop: when it retired, or for a uop without a ROB entry, when the
+  /// instruction did.
+  std::vector<Cycle> UopRetires;
 };
 
 /// The vector backend's queues, decode, dispatch and ROB.
@@ -137,10 +153,10 @@ public:
   /// Schedules the next instruction in program order.
   /// \param Dispatched the cycle the scalar core dispatched it.
   /// \param Op what it needs from the backend.
-  /// \param SourcesReady first cycle its uops may start, given the vector
-  ///        registers it reads (Inst::VecSourcesReadyCycle).
+  /// \param SourcesReady per uop, the first cycle it may start, given the
+  ///        vector registers it reads; empty if it reads none.
   VectorTiming schedule(Cycle Dispatched, const VectorOp &Op,
-                        Cycle SourcesReady);
+                        const std::vector<Cycle> &SourcesReady);
 
   /// \returns the functional unit pools, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const;
@@ -155,10 +171,11 @@ private:
   QueueOccupancy UopQueue;
   QueueOccupancy Rob;
   std::vector<ResourcePool> Pools;
-  std::vector<size_t> PoolStations; // Per pool: the station feeding it.
-  std::vector<QueueOccupancy> Stations;
-  std::vector<Cycle> LastStart; // Per station: each issues in order.
-  Cycle LastUopPush = 0;        // Last uop DE2 pushed into the uop queue.
+  std::vector<size_t> PoolStations;     // Per pool: the station feeding it.
+  std::vector<QueueOccupancy> Stations; // The configured ones, then the LSU's.
+  size_t LsuStation = 0;                // Index of the LSU's in Stations.
+  std::vector<Cycle> LastStart;         // Per station: each issues in order.
+  Cycle LastUopPush = 0; // Last uop DE2 pushed into the uop queue.
   Cycle LastRetire = 0;
 };
 

@@ -11,9 +11,11 @@
 #include <cstdint>
 #include <initializer_list>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 using namespace reef_perf;
 
@@ -47,6 +49,13 @@ static bool isFpCompare(const Inst &I) {
                        {"vmfeq", "vmfne", "vmflt", "vmfle", "vmfgt", "vmfge"});
 }
 
+/// \returns true for widening and narrowing ops, whose widest operand spans
+/// 2 x LMUL registers.
+static bool usesDoubleGroup(const Inst &I) {
+  return !isReduction(I) &&
+         startsWithAny(getStem(I), {"vw", "vfw", "vnsr", "vnclip", "vfncvt"});
+}
+
 uint32_t reef_perf::getVectorUops(const Inst &I) {
   std::string_view Mnemonic = I.Mnemonic;
   std::string_view Stem = getStem(I);
@@ -62,8 +71,7 @@ uint32_t reef_perf::getVectorUops(const Inst &I) {
   uint32_t EMUL8 = I.LMUL8;
   // Widening and narrowing ops read or write 2 x LMUL registers; a reduction
   // walks its LMUL source registers into one result.
-  if (!isReduction(I) &&
-      startsWithAny(Stem, {"vw", "vfw", "vnsr", "vnclip", "vfncvt"}))
+  if (usesDoubleGroup(I))
     EMUL8 *= 2;
   return std::clamp<uint32_t>(EMUL8 / 8, 1, 8);
 }
@@ -149,6 +157,7 @@ getPipelineConfig(const Vector::VectorParameterSet *Params) {
     throw std::invalid_argument("vec_pool_counts and vec_pool_stations need "
                                 "one value per vec_pools name");
   Config.StationEntries = Params->vec_station_entries;
+  Config.LsuStationEntries = Params->vec_lsu_station_entries;
   for (size_t I = 0; I < Pools.size(); ++I)
     Config.Pools.push_back({Pools[I], Counts[I],
                             findName(Stations, PoolStations[I],
@@ -250,6 +259,59 @@ VectorOp Vector::getOp(const Inst &I) const {
   return Op;
 }
 
+std::vector<Cycle> Vector::getSourcesReady(const Inst &I, uint32_t Uops) const {
+  std::vector<unsigned> Regs;
+  for (RegId Reg : I.Srcs)
+    if (Reg.getFile() == RegFile::V)
+      Regs.push_back(Reg.getIndex());
+  if (Regs.empty())
+    return {};
+
+  // Srcs lists each operand's register group in turn. A group is aligned to
+  // its size: LMUL registers, 2 x LMUL for a widening or narrowing operand,
+  // or one (v0, a reduction's vs1).
+  uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
+  std::vector<uint32_t> Sizes = {EMUL};
+  if (usesDoubleGroup(I))
+    Sizes.insert(Sizes.begin(), 2 * EMUL);
+  std::vector<Cycle> Ready(Uops, 0);
+  for (size_t Begin = 0; Begin < Regs.size();) {
+    uint32_t Size = 1;
+    for (uint32_t Try : Sizes) {
+      bool Fits = Regs[Begin] % Try == 0 && Begin + Try <= Regs.size();
+      for (uint32_t K = 1; Fits && K < Try; ++K)
+        Fits = Regs[Begin + K] == Regs[Begin] + K;
+      if (Fits) {
+        Size = Try;
+        break;
+      }
+    }
+    // Uop U reads the part of the group in the same position, as M3 does
+    // (one register of an LMUL group, half of one for a widening op).
+    for (uint32_t Uop = 0; Uop < Uops; ++Uop) {
+      unsigned Reg =
+          Regs[Begin + std::min<size_t>(Size - 1, size_t{Uop} * Size / Uops)];
+      Ready[Uop] = std::max(Ready[Uop], RegReady[Reg]);
+    }
+    Begin += Size;
+  }
+  return Ready;
+}
+
+void Vector::recordResults(const Inst &I, const VectorTiming &T) {
+  std::vector<unsigned> Regs;
+  for (RegId Reg : I.Dsts)
+    if (Reg.getFile() == RegFile::V)
+      Regs.push_back(Reg.getIndex());
+  // Register K of the destination group is ready once the last uop writing it
+  // retires (two uops each for a narrowing op).
+  size_t Uops = T.UopRetires.size();
+  for (size_t K = 0; K < Regs.size(); ++K) {
+    size_t Writer = std::min(Uops, (K + 1) * Uops / Regs.size());
+    RegReady[Regs[K]] = T.UopRetires[Writer > 0 ? Writer - 1 : 0] + 1;
+  }
+}
+
 void Vector::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
@@ -264,9 +326,30 @@ void Vector::receiveInst(const InstRef &I) {
     return;
   }
 
-  VectorOp Op = getOp(*I);
+  VectorOp Op;
+  // A load or store is one uop per vector register, each run by the core's
+  // LSU on the accesses Spike recorded for it.
+  std::vector<std::span<const MemAccess>> Registers;
+  if (I->Class == InstClass::V_LOAD || I->Class == InstClass::V_STORE) {
+    sparta_assert(Lsu, "the core's LSU was not connected to the vector module");
+    Registers = splitByRegister(I->Mem, VectorRegisterBytes);
+    if (Registers.empty())
+      Registers.emplace_back(I->Mem);
+    Op.Uops = static_cast<uint32_t>(Registers.size());
+    Op.BookLsu = [&](uint32_t Uop, Cycle Earliest) {
+      VectorLsuRequest Request;
+      Request.IsStore = I->Class == InstClass::V_STORE;
+      Request.Accesses = Registers.at(Uop);
+      Request.Earliest = Earliest;
+      Request.LastRegister = Uop + 1 == Registers.size();
+      return Lsu->accessVectorRegister(Request);
+    };
+  } else {
+    Op = getOp(*I);
+  }
   VectorTiming T =
-      Pipeline.schedule(I->DispatchCycle, Op, I->VecSourcesReadyCycle);
+      Pipeline.schedule(I->DispatchCycle, Op, getSourcesReady(*I, Op.Uops));
+  recordResults(*I, T);
   NumUops += Op.Uops;
 
   I->IssueCycle = T.FirstStart;
@@ -274,6 +357,11 @@ void Vector::receiveInst(const InstRef &I) {
   if (I->Class == InstClass::V_TO_SCALAR)
     I->ResultReadyCycle += ToScalarLatency;
   I->CompleteCycle = T.Retire;
+  // The scalar retirement buffer marks a store done a cycle after the LSU's
+  // first store-complete signal for its PC, which its first register sends
+  // (RetirementBuffer.scala, storeComplete).
+  if (I->Class == InstClass::V_STORE)
+    I->CompleteCycle = T.FirstDone + 1;
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

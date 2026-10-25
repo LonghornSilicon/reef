@@ -48,6 +48,8 @@ VectorPipeline::VectorPipeline(const VectorPipelineConfig &Config)
       UopQueue(Config.UopQueueEntries), Rob(Config.RobEntries, 0) {
   for (uint32_t Entries : Config.StationEntries)
     Stations.emplace_back(Entries);
+  LsuStation = Stations.size();
+  Stations.emplace_back(Config.LsuStationEntries);
   LastStart.assign(Stations.size(), 0);
   for (const VectorPoolConfig &Pool : Config.Pools) {
     sparta_assert(Pool.Station < Stations.size());
@@ -64,11 +66,12 @@ std::vector<const ResourcePool *> VectorPipeline::getPools() const {
 }
 
 VectorTiming VectorPipeline::schedule(Cycle Dispatched, const VectorOp &Op,
-                                      Cycle SourcesReady) {
+                                      const std::vector<Cycle> &SourcesReady) {
+  bool UsesLsu = static_cast<bool>(Op.BookLsu);
   sparta_assert(Op.Uops > 0 && Op.Latency > 0);
-  sparta_assert(Op.Pool < Pools.size());
-  ResourcePool &Units = Pools[Op.Pool];
-  size_t StationIndex = PoolStations[Op.Pool];
+  sparta_assert(SourcesReady.empty() || SourcesReady.size() == Op.Uops);
+  sparta_assert(UsesLsu || Op.Pool < Pools.size());
+  size_t StationIndex = UsesLsu ? LsuStation : PoolStations[Op.Pool];
   QueueOccupancy &Station = Stations[StationIndex];
   VectorTiming T;
   // The frontend's inst_q holds it in D+1 and pushes it into the command
@@ -89,29 +92,46 @@ VectorTiming VectorPipeline::schedule(Cycle Dispatched, const VectorOp &Op,
     // Dispatch needs a vector ROB entry and a reservation-station entry, and
     // its sources: a dependent uop dispatches in the cycle its producer
     // retires, reading the result from the ROB, and starts the next cycle.
-    Cycle Dispatch = DispatchSlots.take(std::max(
-        {Push + 1, TakesRobEntry ? Rob.getFreeCycle() : 0,
-         Station.getFreeCycle(), SourcesReady > 0 ? SourcesReady - 1 : 0}));
+    Cycle Ready = SourcesReady.empty() ? 0 : SourcesReady[Uop];
+    Cycle Dispatch = DispatchSlots.take(
+        std::max({Push + 1, TakesRobEntry ? Rob.getFreeCycle() : 0,
+                  Station.getFreeCycle(), Ready > 0 ? Ready - 1 : 0}));
     UopQueue.recordLeave(Dispatch);
 
     Cycle Earliest = std::max(Dispatch + 1, LastStart[StationIndex]);
-    Cycle Start = Op.FirstUnitOnly ? Units.reserveFirst(Earliest, Op.Occupancy)
-                                   : Units.reserve(Earliest, Op.Occupancy);
+    Cycle Start = 0;
+    Cycle Done = 0; // The result leaves the unit, or comes back from the LSU.
+    if (UsesLsu) {
+      VectorLsuResponse Lsu = Op.BookLsu(Uop, Earliest);
+      Start = Lsu.Start;
+      Done = Lsu.Done;
+    } else {
+      ResourcePool &Units = Pools[Op.Pool];
+      Start = Op.FirstUnitOnly ? Units.reserveFirst(Earliest, Op.Occupancy)
+                               : Units.reserve(Earliest, Op.Occupancy);
+      Done = Start + Op.Latency - 1;
+    }
     LastStart[StationIndex] = Start;
     Station.recordLeave(Start);
-    if (Uop == 0)
+    if (Uop == 0) {
       T.FirstStart = Start;
-    if (!TakesRobEntry)
+      T.FirstDone = Done;
+    }
+    if (!TakesRobEntry) {
+      T.UopRetires.push_back(0); // Set below, to the instruction's retire.
       continue;
+    }
 
-    // After the unit: a cycle in the result FIFO, then the ROB marks it done
-    // and can retire it, in order.
-    Cycle Retire =
-        RetireSlots.take(std::max(Start + Op.Latency + 1, LastRetire));
+    // A cycle in the result FIFO, then the ROB marks the uop done and can
+    // retire it, in order.
+    Cycle Retire = RetireSlots.take(std::max(Done + 2, LastRetire));
     LastRetire = Retire;
     Rob.recordLeave(Retire);
     T.Retire = Retire;
+    T.UopRetires.push_back(Retire);
   }
+  if (Op.OneRobEntry)
+    std::ranges::fill(T.UopRetires, T.Retire);
   LegalQueue.recordLeave(LastUopPush);
   return T;
 }

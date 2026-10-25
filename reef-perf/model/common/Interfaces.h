@@ -55,6 +55,39 @@ struct MemoryInterface {
   virtual MemResponse access(const MemRequest &Request) = 0;
 };
 
+/// One vector register's part of a vector load or store, as the vector module
+/// hands it to the core's LSU.
+struct VectorLsuRequest {
+  bool IsStore = false; ///< True for a vector store.
+  /// The register's bytes (its part of Inst::Mem). Empty means one access of
+  /// unknown address, timed as one DTCM line.
+  std::span<const MemAccess> Accesses;
+  /// First cycle the LSU may take it (it left the vector LSU reservation
+  /// station).
+  Cycle Earliest = 0;
+  bool LastRegister = true; ///< The instruction's last register.
+};
+
+/// The LSU's answer to a VectorLsuRequest.
+struct VectorLsuResponse {
+  Cycle Start = 0; ///< Cycle the LSU took it (>= Earliest).
+  /// Cycle the LSU hands the loaded register back or reports the store
+  /// complete (M3's lsu2rvv and storeComplete).
+  Cycle Done = 0;
+};
+
+/// The core's LSU as the vector module sees it. On M3 one LSU serves both
+/// the scalar core and the RVV backend, which sends it one vector register
+/// at a time. Synchronous, like MemoryInterface: the call books the LSU and
+/// returns the timing at once (docs/interfaces.md, "Vector -> core").
+struct VectorLsuInterface {
+  virtual ~VectorLsuInterface() = default; ///< The vector module never owns it.
+
+  /// Times \p Request and books the LSU for it. \returns its timing.
+  virtual VectorLsuResponse
+  accessVectorRegister(const VectorLsuRequest &Request) = 0;
+};
+
 /// Why the frontend had no instruction for the core in a cycle, for top-down
 /// accounting (docs/topdown.md).
 enum class FrontendStall : uint8_t {
@@ -104,23 +137,24 @@ struct InstBufferInterface {
 /// result-ready and complete cycles.
 enum class ExecTarget : uint8_t {
   Scalar, ///< core.scalar_exec: integer, FP, branch, CSR, system.
-  LSU,    ///< core.lsu: scalar, FP and vector loads and stores.
-  Vector, ///< vector: vector arithmetic and vset*.
+  LSU,    ///< core.lsu: scalar and FP loads and stores.
+  Vector, ///< vector: every vector instruction, loads and stores included.
   Matrix  ///< matrix: matrix-engine ops.
 };
 
 /// Number of ExecTarget values.
 constexpr size_t NumExecTargets = 4;
 
-/// \returns the unit that executes \p I. Vector memory ops go to the LSU: on
-/// M3 one LSU serves both the scalar core and the RVV backend.
+/// \returns the unit that executes \p I. Vector loads and stores go to the
+/// vector module, which passes them on to the core's LSU through
+/// VectorLsuInterface, as M3's RVV backend does.
 inline ExecTarget getExecTarget(const Inst &I) {
+  if (I.isVector())
+    return ExecTarget::Vector;
   if (I.isMemory())
     return ExecTarget::LSU;
   if (I.isMatrix())
     return ExecTarget::Matrix;
-  if (I.isVector())
-    return ExecTarget::Vector;
   return ExecTarget::Scalar;
 }
 

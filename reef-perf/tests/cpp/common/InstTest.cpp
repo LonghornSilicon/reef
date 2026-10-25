@@ -1,6 +1,6 @@
-//===- LsuTest.cpp - Lsu tests --------------------------------------------===//
+//===- InstTest.cpp - Instruction helper tests ----------------------------===//
 
-#include "core/Lsu.h"
+#include "common/Inst.h"
 
 #include <gtest/gtest.h>
 
