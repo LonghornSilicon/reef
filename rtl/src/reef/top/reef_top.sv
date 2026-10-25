@@ -36,7 +36,8 @@ module reef_top (
       .rst_no   (rst_n_sync)
   );
 
-  // Core AXI ports
+  // Core AXI ports. The err slave and spi2axi ignore some fields (ids, master payload).
+  // verilator lint_off UNUSEDSIGNAL
   logic s_write_addr_ready;
   logic s_write_addr_valid;
   logic [31:0] s_write_addr_bits_addr;
@@ -118,6 +119,7 @@ module reef_top (
 
   // Host -> core AXI slave
   logic spi_err;
+  // verilator lint_on UNUSEDSIGNAL
   reef_spi2axi #(
       .IdW(6)
   ) u_spi2axi (
@@ -194,6 +196,9 @@ module reef_top (
       .r_last_o  (m_read_data_bits_last)
   );
 
+  // io_debug_* and the io_dm_* outputs are left open on purpose (see header).
+  // verilator lint_off PINMISSING
+  // verilator lint_off PINCONNECTEMPTY
   RvvCoreMiniAxi u_core (
       .io_aclk                             (clk_i),
       .io_aresetn                          (rst_ni),
@@ -293,5 +298,7 @@ module reef_top (
       .io_dm_rsp_bits_op                   (),
       .io_te                               (test_en_i)
   );
+  // verilator lint_on PINCONNECTEMPTY
+  // verilator lint_on PINMISSING
 
 endmodule
