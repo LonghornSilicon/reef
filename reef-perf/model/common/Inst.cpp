@@ -2,8 +2,13 @@
 
 #include "common/Inst.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <ios>
 #include <ostream>
+#include <span>
+#include <stdexcept>
+#include <vector>
 
 using namespace reef_perf;
 
@@ -69,4 +74,23 @@ const char *reef_perf::getClassName(InstClass Class) {
 std::ostream &reef_perf::operator<<(std::ostream &OS, const Inst &I) {
   return OS << "#" << I.Seq << " 0x" << std::hex << I.PC << std::dec << " "
             << I.Disasm;
+}
+
+std::vector<std::span<const MemAccess>>
+reef_perf::splitByRegister(std::span<const MemAccess> Accesses,
+                           uint32_t RegBytes) {
+  if (RegBytes == 0)
+    throw std::invalid_argument("register size must be at least 1 byte");
+  std::vector<std::span<const MemAccess>> Groups;
+  size_t Begin = 0;
+  uint32_t Bytes = 0;
+  for (size_t Idx = 0; Idx < Accesses.size(); ++Idx) {
+    Bytes += Accesses[Idx].Size;
+    if (Bytes >= RegBytes || Idx + 1 == Accesses.size()) {
+      Groups.push_back(Accesses.subspan(Begin, Idx + 1 - Begin));
+      Begin = Idx + 1;
+      Bytes = 0;
+    }
+  }
+  return Groups;
 }

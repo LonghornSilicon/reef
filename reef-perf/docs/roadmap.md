@@ -454,6 +454,20 @@ the RTL.
 
 #### B14: Vector loads/stores go through the LSU one register at a time (~3–5 days)
 
+**Status.** Done. Vector loads and stores pass through the vector pipeline
+(B16/B18), one uop per register, wait in a 4-entry LSU reservation station,
+and book the core's LSU per register through `VectorLsuInterface`
+(docs/interfaces.md, "Vector → core (LSU)"). From RTL waveforms of
+`vec_add_m1` and `vec_add_m4`: the LSU takes a load register every 4 cycles
+and a store register every 3, plus 1 cycle to move on to the next
+instruction (`lsu_vector_switch_cycles`); uop *i* of a dependent instruction
+waits only for register *i* of its source; and a store frees its scalar
+retirement-buffer entry once its first register's store completes. On the
+correlation test bench (with B04-B06), `vec_add_m1` went from -20.9% to
+-0.1%, `vec_add_m4` from +10.4% to -0.1%, `vec_memcpy` from -1.1% to +0.4%
+and `gemv_loads` from -4.7% to +1.5%. Only unit-stride e32 accesses are
+measured (deviation U6).
+
 **Hardware.**
 - A vector load/store is split per 16-byte vector register. For each register,
   the LSU slot:
@@ -493,9 +507,9 @@ RTL on their memory-bound parts.
 type, M3's uop counts (by EMUL, not `vl`), one vector ROB entry for compares
 and reductions, and latencies from `microbenchmarks/vector_units/` (all
 within 0.3% of the RTL except the small-dividend divides, deviation U5).
-With the fetch fixes B04-B06 applied, `gemv_int8` went from -29.5% to -11.2% and `vec_add_m4` stays at +10.4%;
-`vec_add_m1` stays at -20.9%, an error in vector loads and stores, which
-don't pass through this pipeline yet.
+With the fetch fixes B04-B06 applied, `gemv_int8` went from -29.5% to
+-11.2%, and to -7.5% with B14's vector loads. The rest is in the scalar loop
+tail (a branch alone in its dispatch group, the taken-branch redirect).
 
 Instead of a `vec_unified` switch, the organization is configuration: the
 reservation stations, the pools they feed, and the pool each instruction
@@ -538,8 +552,8 @@ RTL, and the per-class microbenchmarks are within 10%.
 **Status.** Done for vector arithmetic and `vset*`, together with B18, in
 `model/vector/VectorPipeline.cpp`: one in-order pipeline that computes each
 instruction's path when it arrives, instead of a separate decode unit (a
-port between stages would only add latency). Vector loads and stores still
-go straight to the core's LSU; on M3 they pass through this pipeline too.
+port between stages would only add latency). Vector loads and stores pass
+through it too (B14).
 
 **Hardware.** Vector instructions go through their own pipeline:
 
@@ -600,8 +614,8 @@ with mixed LMUL=8 and LMUL=1 ops matches the RTL within 15%.
 
 **Status.** The vector ROB is modeled with B16 (8 uops, 4 retired per
 cycle), and a vector instruction completes for the core's Rob when its last
-uop retires from it (deviation U8). Open: the `vdiv` LMUL=8 check below, and
-vector loads and stores.
+uop retires from it (deviation U8), except a store, which completes with its
+first register (B14). Open: the `vdiv` LMUL=8 check below.
 
 **Hardware.** Besides the 8-entry scalar retirement buffer, the vector backend has
 its own **8-entry** reorder buffer. Long vector ops can fill it and stall new

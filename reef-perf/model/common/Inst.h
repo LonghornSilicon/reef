@@ -17,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <ostream>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,16 @@ struct MemAccess {
   bool IsStore = false; ///< True for a store.
 };
 
+/// Bytes in one vector register (VLEN = 128 on M3).
+inline constexpr uint32_t VectorRegisterBytes = 16;
+
+/// Splits a vector memory instruction's \p Accesses (one per element) into
+/// one group per vector register of \p RegBytes bytes, in element order.
+/// Spike records only active elements, so a masked access groups them as if
+/// they were contiguous. \throws std::invalid_argument if \p RegBytes is 0.
+std::vector<std::span<const MemAccess>>
+splitByRegister(std::span<const MemAccess> Accesses, uint32_t RegBytes);
+
 /// One dynamic instruction and its progress through the timing model.
 struct Inst {
   /// Marks a timing field that has not been set yet.
@@ -90,11 +101,8 @@ struct Inst {
   Cycle FetchCycle = 0;    ///< Cycle it was fetched.
   Cycle DispatchCycle = 0; ///< Cycle it was dispatched.
   Cycle IssueCycle = 0;    ///< Cycle its execution started.
-  /// First cycle a dependent may dispatch, or, for a vector register, start.
+  /// First cycle a dependent may dispatch.
   Cycle ResultReadyCycle = Never;
-  /// First cycle it may start, given the vector registers it reads. Dispatch
-  /// doesn't wait for vector sources; the vector module and the LSU do.
-  Cycle VecSourcesReadyCycle = 0;
   Cycle CompleteCycle = Never; ///< First cycle it may retire.
   Cycle RetireCycle = 0;       ///< Cycle it retired.
 
