@@ -36,3 +36,8 @@ gtest_discover_tests(test_linear_cpp)
 add_executable(test_mlp_cpp test_mlp.cpp)
 target_link_libraries(test_mlp_cpp PRIVATE inference_engine GTest::gtest_main)
 gtest_discover_tests(test_mlp_cpp)
+
+# LayerNorm
+add_executable(test_layernorm_cpp test_layernorm.cpp)
+target_link_libraries(test_layernorm_cpp PRIVATE inference_engine GTest::gtest_main)
+gtest_discover_tests(test_layernorm_cpp)
