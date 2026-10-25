@@ -23,6 +23,29 @@ static Inst getVectorInst(const char *Mnemonic, uint8_t LMUL8,
   return I;
 }
 
+// Pool indices of getM3Config().
+static constexpr size_t AluPool = 0;
+static constexpr size_t PermuteReducePool = 5;
+
+/// \returns M3's organization, as configs/machines/m3.yaml lists it.
+static VectorPipelineConfig getM3Config() {
+  VectorPipelineConfig Config;
+  Config.StationEntries = {8, 8, 4, 8, 4};
+  Config.Pools = {{"alu", 2, 0},      {"mul", 2, 1}, {"div", 1, 2},
+                  {"fdiv", 1, 2},     {"fma", 2, 3}, {"permute_reduce", 1, 4},
+                  {"fp_reduce", 1, 4}};
+  return Config;
+}
+
+/// \returns a vector add of \p Uops uops.
+static VectorOp getAdd(uint32_t Uops) {
+  VectorOp Op;
+  Op.Pool = AluPool;
+  Op.Uops = Uops;
+  Op.Latency = 2;
+  return Op;
+}
+
 namespace {
 
 TEST(VectorUopsTest, OneUopPerRegisterOfTheGroup) {
@@ -40,8 +63,8 @@ TEST(VectorUopsTest, WideningAndNarrowingUseTheDoubleGroup) {
 }
 
 TEST(VectorUopsTest, ReductionWalksItsSourceGroup) {
-  EXPECT_EQ(
-      getVectorUops(getVectorInst("vwredsum.vs", 64, InstClass::V_PERM)), 8U);
+  EXPECT_EQ(getVectorUops(getVectorInst("vwredsum.vs", 64, InstClass::V_PERM)),
+            8U);
 }
 
 TEST(VectorUopsTest, ScalarAndMaskRegisterOpsTakeOneUop) {
@@ -114,30 +137,6 @@ TEST(QueueOccupancyTest, EntryFreesTheCycleAfterItLeaves) {
   EXPECT_EQ(Queue.getFreeCycle(), 13U);
 }
 
-// Pool indices of getM3Config().
-constexpr size_t AluPool = 0;
-constexpr size_t PermuteReducePool = 5;
-
-/// \returns M3's organization, as configs/machines/m3.yaml lists it.
-VectorPipelineConfig getM3Config() {
-  VectorPipelineConfig Config;
-  Config.StationEntries = {8, 8, 4, 8, 4};
-  Config.Pools = {{"alu", 2, 0},  {"mul", 2, 1},
-                  {"div", 1, 2},  {"fdiv", 1, 2},
-                  {"fma", 2, 3},  {"permute_reduce", 1, 4},
-                  {"fp_reduce", 1, 4}};
-  return Config;
-}
-
-/// \returns a vector add of \p Uops uops.
-VectorOp getAdd(uint32_t Uops) {
-  VectorOp Op;
-  Op.Pool = AluPool;
-  Op.Uops = Uops;
-  Op.Latency = 2;
-  return Op;
-}
-
 // The vector add of the M3 waveform: scalar dispatch in D = 72, DE1 in 74,
 // the ALU in 77, vector ROB retire in 80 = D + 8.
 TEST(VectorPipelineTest, AddRetiresEightCyclesAfterDispatch) {
@@ -152,8 +151,7 @@ TEST(VectorPipelineTest, DependentDispatchesWhenItsProducerRetires) {
   VectorPipeline Pipeline(getM3Config());
   VectorTiming Producer = Pipeline.schedule(0, getAdd(1), 0);
   // Dispatch passes the first cycle the consumer may start: retire + 1.
-  VectorTiming Consumer =
-      Pipeline.schedule(1, getAdd(1), Producer.Retire + 1);
+  VectorTiming Consumer = Pipeline.schedule(1, getAdd(1), Producer.Retire + 1);
   EXPECT_EQ(Consumer.FirstStart, Producer.Retire + 1);
   EXPECT_EQ(Consumer.Retire, Producer.Retire + 4);
 }

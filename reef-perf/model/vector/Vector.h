@@ -123,8 +123,7 @@ public:
     PARAMETER(std::string, vec_alu_addsub_pool, "alu",
               "Pool for add, subtract, min/max")
     PARAMETER(std::string, vec_alu_pool, "alu", "Pool for other ALU ops")
-    PARAMETER(std::string, vec_compare_pool, "alu",
-              "Pool for integer compares")
+    PARAMETER(std::string, vec_compare_pool, "alu", "Pool for integer compares")
     PARAMETER(bool, vec_compare_first_unit_only, true,
               "Only the first unit of its pool runs a compare")
     PARAMETER(std::string, vec_mul_pool, "mul", "Pool for integer multiply")
