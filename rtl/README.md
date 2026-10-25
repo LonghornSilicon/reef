@@ -1,17 +1,20 @@
 # rtl
 
-Reef RTL. There is no chip RTL here yet. This is the structure, the tooling and a toy design that proves lint, sim, synth and the handoff to PD end to end.
+Reef RTL: the structure, the tooling, a toy design that proves lint, sim, synth and the handoff to PD end to end, and Drop 0 (target `reef_top_sky130_sram22`), the CoralNPU M3 core with the Reef top and sky130 wrappers.
 
 ```
-src/reef/      Reef-owned SV. Empty. Split by block when the first one lands.
-src/common/    reef_defs.svh, included first by every file
-src/toy/       toy_counter and its testbench, the smoke test
-ext/coralnpu   CoralNPU M3-2026-04-27 as a git submodule, a pointer only
-filelists/     one .f per target, paths relative to rtl/
-targets/       one yaml per synthesis target: what to build and why
-constraints/   one SDC per target, tool neutral
-handoff/       the package schema and a hand-written example shaped like the core
-tools/         check.sh, lint.sh, export_handoff.py, validate_handoff.py
+src/reef/        Reef-owned SV, split by block: top/ (reef_top), sky130/ (macro and cell wrappers)
+src/common/      reef_defs.svh, included first by every file
+src/toy/         toy_counter and its testbench, the smoke test
+ext/coralnpu     CoralNPU M3-2026-04-27 as a git submodule, a pointer only
+ext/coralnpu-sv  the generated SV of that release the build uses, see its README
+ext/sram22       SRAM22 macro model, lint and sim only
+filelists/       one .f per target, paths relative to rtl/
+targets/         one yaml per synthesis target: what to build and why
+constraints/     one SDC per target, tool neutral
+macros/          macro catalog: role, blackbox, views PD must supply
+handoff/         the package schema and a hand-written example shaped like the core
+tools/           check.sh, lint.sh, export_handoff.py, validate_handoff.py, target_args.py
 ```
 
 ## Run
@@ -34,7 +37,7 @@ Pinned in `docker/Dockerfile`: OSS CAD Suite 2026-10-12 (Verilator 5.053, Yosys 
 ## Existing RTL
 
 - The baseline core is CoralNPU release `M3-2026-04-27`, commit `72d700ef`, the same pin `reef-perf/docs/deviations.md` uses. `ext/coralnpu` is a submodule pointing at that commit and is empty until you run `git submodule update --init rtl/ext/coralnpu`. Nothing runs it for you. Never edit anything under `ext/`.
-- The submodule holds Chisel, not SystemVerilog. The SV to synthesize is the `RvvCoreMiniAxi.sv` asset Google attaches to the release tag. Fetching it is the next step when the core is needed; it is not here yet.
+- The submodule holds Chisel, not SystemVerilog. The SV to synthesize is the `RvvCoreMiniAxi.sv` asset Google attaches to the release tag. It is in `ext/coralnpu-sv/`, split one file per module; its README has the tag, the sha256 and the one patch on top.
 - On macOS the submodule shows as modified forever: upstream has both `SRAM.scala` and `Sram.scala`, which collide on a case-insensitive filesystem. Harmless. The export tool ignores submodule contents for that reason.
 - SV from other repos (pe-apprentice, lambda-arch): copy the file into `src/reef/`, add a header with the origin repo, commit and license, make it lint clean, give it a testbench in `tb/unit/`, add it to a filelist.
 
@@ -46,13 +49,13 @@ Pinned in `docker/Dockerfile`: OSS CAD Suite 2026-10-12 (Verilator 5.053, Yosys 
 - Header comment on every module: purpose, parameters, clocking and reset, owner.
 - Everything in a filelist is synthesizable. Simulation-only code goes in a `_tb` file or under `ifndef SYNTHESIS`.
 - Foundry cells only behind a technology-neutral wrapper module.
-- `check.sh` runs Verible lint and format, Verilator `-Wall` with warnings as errors, Ruff, pytest, the toy sim and a generic Yosys synth. 2-space indent, 100 columns. `.rules.verible_lint` is the lowRISC rule set CoralNPU uses, so upstream code lints the same way here.
+- `check.sh` runs Verible lint and format, Verilator `-Wall` with warnings as errors, Ruff, pytest, the toy sim and a generic Yosys synth. 2-space indent, 100 columns. `.rules.verible_lint` is the lowRISC rule set CoralNPU uses, so upstream code lints the same way here. Verilator gets the target's defines and `.rules.verilator.vlt`, which keeps `-Wall` on `src/` and waives warnings in `ext/` (upstream code; errors still fail).
 
 Borrowed from how CoralNPU is laid out: tests live next to the code they test, one lint config at the root of the tree, CI builds the pinned image with a layer cache and runs everything inside it, and the deliverable is a release artifact, not a branch. Upstream attaches generated SV to each tag; here a tag `rtl-*` attaches the toy handoff package. Not borrowed: Bazel, which is more build system than a student team needs.
 
 ## Targets and handoff
 
-A target is a named build: `targets/<name>.yaml` says which top, which filelist, which SDC, which defines, what the clocks are meant to be, and a status (smoke, experimental, candidate, frozen) that says how seriously to take it. It holds intent, not tool commands, so the same file drives lint, sim, synth and the export.
+A target is a named build: `targets/<name>.yaml` says which top, which filelist, which SDC, which defines, what the clocks are meant to be, and a status (smoke, experimental, candidate, frozen) that says how seriously to take it. It holds intent, not tool commands, so the same file drives lint, sim, synth and the export. Optional `models` lists behavioral models of the macros and foundry cells the filelist instantiates: lint and sim read them, synth-check blackboxes them, the export leaves them out.
 
 `make export TARGET=<name>` writes `out/<name>/<sha8>/`: the RTL, filelist, SDC, io map, macro list, lint and sim reports, `manifest.yaml` and checksums. PD imports that directory, never a branch. It refuses a dirty tree unless `EXPORT_FLAGS=--allow-dirty`, and PD will not promote a dirty package past import.
 
@@ -72,6 +75,6 @@ Decisions, Alan's call:
 
 Known rough edges:
 
-- `export_handoff.py` looks up macro names in a `macros/` catalog that does not exist yet. It becomes real when the first SRAM macro is picked.
+- `macros/sram22.yaml` has `blackbox: TBD`, so the export ships no blackbox for the SRAM22 macro yet.
 - Verilator cannot build under a path with a space. Outside the image, set `REEF_BUILD_DIR` to somewhere without one.
 - `checks.lint: pass` in the example is what a real package must carry, not a measurement.

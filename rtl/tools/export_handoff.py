@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from target_args import target_args
 
 RTL = Path(__file__).resolve().parent.parent
 SCHEMA_VERSION = 1
@@ -88,16 +89,19 @@ def tool_version(tool: str, flag: str = "--version") -> str:
 def lint(
     target: dict[str, Any], filelist: Path, sources: list[str]
 ) -> tuple[str, str]:
-    """Run verilator and verible lint. Return (status, report text)."""
+    """Run verilator and verible lint. Return (status, report text).
+
+    Verible only sees src/, like check.sh. ext/ is upstream code.
+    """
     parts: list[str] = []
     ok = True
-    defines = [f"+define+{d}" for d in target["defines"]]
+    args = [".rules.verilator.vlt", *target_args(target)]
     v = run(
         [
             "verilator",
             "--lint-only",
             "-Wall",
-            *defines,
+            *args,
             "-f",
             str(filelist),
             "--top-module",
@@ -105,15 +109,16 @@ def lint(
         ]
     )
     parts.append(
-        f"$ verilator --lint-only -Wall -f {filelist.name} "
+        f"$ verilator --lint-only -Wall {' '.join(args)} -f {filelist.name} "
         f"--top-module {target['top']}\nexit {v.returncode}\n{v.stderr}"
     )
     ok &= v.returncode == 0
+    ours = [s for s in sources if s.startswith("src/")]
     vl = run(
-        ["verible-verilog-lint", "--rules_config=.rules.verible_lint", *sources]
+        ["verible-verilog-lint", "--rules_config=.rules.verible_lint", *ours]
     )
     parts.append(
-        f"$ verible-verilog-lint {' '.join(sources)}\n"
+        f"$ verible-verilog-lint {' '.join(ours)}\n"
         f"exit {vl.returncode}\n{vl.stdout}{vl.stderr}"
     )
     ok &= vl.returncode == 0
