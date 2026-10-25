@@ -28,8 +28,8 @@ The core has several units and its own `Module` subclass.
 
 ## Rules
 
-1. **Modules connect only through public ports, `InstBufferInterface` and
-   `MemoryInterface`.** Each
+1. **Modules connect only through public ports, `InstBufferInterface`,
+   `VectorLsuInterface` and `MemoryInterface`.** Each
    module lists its public ports as constants, e.g.
    `Core::OutVector` or `Vector::InInsts`. `ReefSim::bindTree_()` binds them; nothing else
    reaches into another module's units.
@@ -75,13 +75,17 @@ not log register reads.
 writer sets them. Readers must treat `Never` as "not yet": Dispatch stalls a
 dependent instruction, and the Rob keeps waiting.
 
+Dispatch doesn't wait for vector registers, as on M3, whose scalar
+scoreboards cover only x and f. Only vector instructions read and write them,
+so the vector module tracks them itself, one register at a time.
+
 **Who executes what** is decided by `getExecTarget()` (`common/Interfaces.h`):
 
 | `ExecTarget` | Unit | Instruction classes |
 | --- | --- | --- |
 | `Scalar` | `core.scalar_exec` | ALU, branch, jump, MUL, DIV, CSR, fence, system, FP, FP divide, unknown |
-| `LSU` | `core.lsu` | every load and store, scalar, FP and vector (one LSU serves both, as on M3) |
-| `Vector` | `vector` | `vset*` and vector arithmetic, permutes and vector-to-scalar moves |
+| `LSU` | `core.lsu` | scalar and FP loads and stores |
+| `Vector` | `vector` | every vector instruction: `vset*`, arithmetic, permutes, vector-to-scalar moves, loads and stores. Loads and stores reach `core.lsu` through `VectorLsuInterface`; one LSU serves both, as on M3 |
 | `Matrix` | `matrix` | `MATRIX` (nothing decodes to it until the matrix ISA exists) |
 
 ### Timing conventions
@@ -91,6 +95,20 @@ dependent instruction, and the Rob keeps waiting.
   `CompleteCycle = Start + L`. The `- 1` lets a dependent instruction
   dispatch in the cycle before the result exists, which stands in for
   operand forwarding.
+- The vector module is the exception: an instruction is complete when its
+  last uop retires from the vector ROB (`CompleteCycle`), and its result is
+  ready in that same cycle (`ResultReadyCycle`), as in the M3 RTL, where a
+  dependent uop reads it from the ROB. So a vector instruction holds its Rob
+  entry through the whole vector pipeline: 8 cycles for a vector add. A
+  vector store is complete for the core's Rob a cycle after its first
+  register's store completes, as on M3, where the retirement buffer matches
+  the LSU's `storeComplete` by PC (`RetirementBuffer.scala`). The buffer
+  matches vector writes by PC too, so an instruction is also complete when an
+  older instance with the same PC, still in flight when it was dispatched,
+  completes: in a short loop, a later iteration's vector instruction can
+  retire long before its own uops finish. This is an M3 RTL bug (RB1 in
+  `rtl_bugs.md` at the top of the Reef repository), fixed upstream after M3;
+  `vec_completion_matches_pc: false` models the fix.
 - Instructions reach their exec target one cycle after dispatch (input ports
   have a delay of 1).
 
@@ -103,7 +121,9 @@ Every queue between modules uses the same protocol:
 - The **sender** spends one credit per instruction it sends and does not send
   without one.
 - The receiver returns one credit when an instruction **leaves the queue**,
-  i.e. when it starts executing (`out_credits.send(1, start - now)`).
+  i.e. when it starts executing (`out_credits.send(1, start - now)`). The
+  vector module's queue is M3's command queue, which an instruction leaves
+  when the first decode stage takes it.
 
 ## Interfaces
 
@@ -136,8 +156,34 @@ knows the outcome from Spike.
 | `Core::OutVector` → `Vector::InInsts` | `InstRef` | instructions routed to `VECTOR` |
 | `Vector::OutCredits` → `Core::InVectorCredits` | `uint32_t` | free command-queue entries |
 
-Vector loads and stores do **not** cross this interface; they go to the
-core's LSU.
+Vector loads and stores cross this interface like every other vector
+instruction.
+
+### Vector → core (LSU)
+
+The vector module runs vector loads and stores through its own pipeline, one
+uop per 16-byte vector register, and books the core's LSU for each register
+through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
+`MemoryInterface`: the call books the LSU and returns the timing at once.
+`Core::getVectorLsu()` returns it and `Vector::setLsu()` connects it.
+
+| `VectorLsuRequest` field | Meaning |
+| --- | --- |
+| `IsStore` | true for a vector store |
+| `Accesses` | the register's bytes, its part of `Inst::Mem` (`splitByRegister()`) |
+| `Earliest` | first cycle the LSU may take it: it left the vector LSU reservation station |
+| `FirstRegister` | the instruction's first register; its LSU queue entry frees when it starts |
+| `LastRegister` | the instruction's last register; the LSU then takes a cycle to load the next instruction |
+
+| `VectorLsuResponse` field | Meaning |
+| --- | --- |
+| `Start` | cycle the LSU took it (≥ `Earliest`) |
+| `Done` | cycle the LSU hands the loaded register back, or reports the store complete (M3's `lsu2rvv` and `storeComplete`) |
+
+Scalar and vector accesses share the LSU's one slot, in the order they book
+it. A vector load or store also takes an LSU queue entry at dispatch, as on
+M3, so Dispatch needs both a vector and an LSU credit for it. The LSU owns the per-register cost (`lsu_vector_*` parameters); the
+vector module owns everything before and after it.
 
 ### Core → matrix
 
@@ -215,8 +261,9 @@ interface unless noted.
   requester); no redirect/flush signal to the core (interface change).
 - **Core:** Reef's special dispatch rules (a branch ends the group, FP and
   CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
-- **Vector:** one pool of identical lanes; no per-type functional units, chaining or
-  vector ROB.
+- **Vector:** the divider's time doesn't depend on its operands; a load or
+  store has one uop per register its accesses touch, whatever its EMUL; only
+  unit-stride e32 loads and stores at LMUL 1 and 4 are measured.
 - **Matrix:** everything. The ISA encoding, an opaque-op extension in Spike,
   operands from vector registers (a vector → matrix interface) and a memory
   port (`RequesterKind::Matrix`).

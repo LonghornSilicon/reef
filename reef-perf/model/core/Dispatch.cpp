@@ -5,12 +5,19 @@
 
 #include "sparta/utils/SpartaAssert.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 
 using namespace reef_perf;
+
+/// \returns true for a vector load or store.
+static bool isVectorMemory(const Inst &I) {
+  return I.Class == InstClass::V_LOAD || I.Class == InstClass::V_STORE;
+}
 
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
@@ -114,7 +121,8 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   // A register hazard is blamed on the unit producing the register.
   for (RegId Reg : I->Srcs) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Writer && Writer->ResultReadyCycle > Now) {
+    if (Reg.getFile() != RegFile::V && Writer &&
+        Writer->ResultReadyCycle > Now) {
       Why = StallReason::Raw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -122,7 +130,8 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   }
   for (RegId Reg : I->Dsts) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Writer && Writer->ResultReadyCycle > Now) {
+    if (Reg.getFile() != RegFile::V && Writer &&
+        Writer->ResultReadyCycle > Now) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -158,6 +167,14 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     Blamed = getExecTarget(*I);
     return false;
   }
+  // A vector load or store also takes an LSU queue entry, which the LSU
+  // frees when the instruction's first register starts (RTL waveform of
+  // gemv_loads).
+  if (isVectorMemory(*I) && LsuCredits == 0) {
+    Why = StallReason::LsuFull;
+    Blamed = ExecTarget::LSU;
+    return false;
+  }
   return true;
 }
 
@@ -172,6 +189,8 @@ void Dispatch::sendToTarget(const InstRef &I) {
     break;
   case ExecTarget::Vector:
     --VecCredits;
+    if (isVectorMemory(*I))
+      --LsuCredits;
     OutVectorPort.send(I);
     break;
   case ExecTarget::Matrix:
