@@ -47,7 +47,9 @@ top:
     rob:
       params:
         rob_entries: 8          # Parameters.scala:95 retirementBufferSize = 8
-        retire_width: 4         # B10: confirm from RetirementBuffer.scala
+        retire_width: 8         # RetirementBuffer.scala: CircularBufferMulti
+                                # dequeues up to bufferSize per cycle; the
+                                # RTL waveform shows 8 retiring in one cycle
   vector:
     params:
       vec_queue_entries: 8    # rvv_backend_define.svh CQ_DEPTH
