@@ -1,16 +1,17 @@
 """Compare model ROI cycles with RTL measurements.
 
-Runs every microbenchmark in microbenchmarks/rtl_m3.csv and every variant in
-tools/correlation/rtl_variants.csv on one or more builds of the model, and
-prints each one's ROI cycles (per loop iteration for variants) and error
-against the RTL.
+Runs every microbenchmark in microbenchmarks/rtl_m3.csv (and in
+microbenchmarks/vector_units/rtl_m3.csv, if the checkout has it) and every
+variant in tools/correlation/rtl_variants.csv on one or more builds of the
+model, and prints each one's ROI cycles (per loop iteration for variants) and
+error against the RTL.
 
 Usage (from reef-perf/, inside Docker):
 
     uv run python tools/correlation/compare_rtl.py
+    OLD=/tmp/reef_perf_before_my_change:/tmp/m3_before_my_change.yaml
     uv run python tools/correlation/compare_rtl.py \
-        --model old=/tmp/reef_perf_before_my_change:/tmp/m3_before_my_change.yaml \
-        --model new=build/bin/reef_perf --only va1_
+        --model old=$OLD --model new=build/bin/reef_perf --only va1_
 """
 
 import argparse
@@ -67,17 +68,21 @@ class Model:
 def load_benchmarks() -> list[Benchmark]:
     """Read the RTL measurements of the microbenchmarks and variants."""
     benchmarks = []
-    with (MICROBENCHMARK_DIR / "rtl_m3.csv").open() as f:
-        for row in csv.DictReader(f):
-            name = row["microbenchmark"]
-            benchmarks.append(
-                Benchmark(
-                    name,
-                    MICROBENCHMARK_DIR / f"{name}.S",
-                    int(row["rtl_roi_cycles"]),
-                    1,
+    for folder in (MICROBENCHMARK_DIR, MICROBENCHMARK_DIR / "vector_units"):
+        table = folder / "rtl_m3.csv"
+        if not table.exists():
+            continue
+        with table.open() as f:
+            for row in csv.DictReader(f):
+                name = row["microbenchmark"]
+                benchmarks.append(
+                    Benchmark(
+                        name,
+                        folder / f"{name}.S",
+                        int(row["rtl_roi_cycles"]),
+                        1,
+                    )
                 )
-            )
     with (TOOL_DIR / "rtl_variants.csv").open() as f:
         for row in csv.DictReader(f):
             name = row["variant"]
@@ -181,7 +186,7 @@ def main() -> int:
     args = parser.parse_args()
     models = args.model or [parse_model("model=build/bin/reef_perf")]
 
-    header = f"{'benchmark':<16} {'RTL':>9}"
+    header = f"{'benchmark':<20} {'RTL':>9}"
     for model in models:
         header += f" {model.label:>9} {'err':>8}"
     print(header)
@@ -190,7 +195,7 @@ def main() -> int:
             continue
         elf = assemble(bench.source, args.build_dir)
         rtl = bench.rtl_roi_cycles / bench.iterations
-        line = f"{bench.name:<16} {rtl:>9.2f}"
+        line = f"{bench.name:<20} {rtl:>9.2f}"
         for model in models:
             cycles = measure(model, elf)
             if cycles is None:
