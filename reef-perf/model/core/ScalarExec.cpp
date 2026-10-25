@@ -7,9 +7,7 @@
 
 using namespace reef_perf;
 
-namespace {
-
-uint32_t getM3DivIterations(const Inst &I) {
+static uint32_t getM3DivIterations(const Inst &I) {
   if (I.Rs2Val == 0)
     return 32;
 
@@ -25,8 +23,6 @@ uint32_t getM3DivIterations(const Inst &I) {
   uint32_t Clz = LeadingZeros == 0 ? 0 : LeadingZeros - 1;
   return 32 - Clz;
 }
-
-} // namespace
 
 ScalarExec::ScalarExec(sparta::TreeNode *Node,
                        const ScalarExecParameterSet *Params)
