@@ -12,7 +12,8 @@ ARG OSS_CAD_SUITE_TAG=2026-10-12
 RUN curl -fsSL --retry 3 \
       "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_SUITE_TAG}/oss-cad-suite-linux-x64-${OSS_CAD_SUITE_TAG//-/}.tgz" \
     | tar -xz -C /opt
-ENV PATH="${PATH}:/opt/oss-cad-suite/bin"
+# py3bin: verilator --binary runs python3, which ubuntu:22.04 does not ship.
+ENV PATH="${PATH}:/opt/oss-cad-suite/bin:/opt/oss-cad-suite/py3bin"
 
 ARG VERIBLE_TAG=v0.0-4296-g0f262651
 RUN curl -fsSL --retry 3 \

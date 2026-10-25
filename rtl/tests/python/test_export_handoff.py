@@ -43,6 +43,17 @@ def test_bad_target_fails(tmp_path: Path) -> None:
     assert "missing keys" in proc.stdout
 
 
+def test_missing_model_fails(tmp_path: Path) -> None:
+    """A target listing a model file that does not exist is rejected."""
+    t = yaml.safe_load((RTL / "targets" / "toy_counter.yaml").read_text())
+    t["models"] = ["ext/no_such_model.v"]
+    bad = tmp_path / "toy_counter.yaml"
+    bad.write_text(yaml.safe_dump(t))
+    proc = validate(bad)
+    assert proc.returncode == 1
+    assert "model ext/no_such_model.v does not exist" in proc.stdout
+
+
 def test_example_validates() -> None:
     """The committed example package passes validation."""
     proc = validate(EXAMPLE)

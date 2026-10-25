@@ -1,0 +1,5 @@
+`verilator_config
+// Lint config, passed before every filelist. ext/ is upstream code: errors
+// still stop the build, its warnings do not. src/ keeps the full -Wall.
+lint_off -file "*ext/*"
+lint_off -rule UNOPTFLAT -file "*ext/*"

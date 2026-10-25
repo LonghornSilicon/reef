@@ -63,7 +63,7 @@ def check_target(path: Path) -> list[str]:
     errs: list[str] = []
     t: dict[str, Any] = yaml.safe_load(path.read_text())
     missing = TARGET_KEYS - t.keys()
-    extra = t.keys() - TARGET_KEYS - {"io_map"}
+    extra = t.keys() - TARGET_KEYS - {"io_map", "models"}
     if missing:
         errs.append(f"missing keys: {sorted(missing)}")
     if extra:
@@ -80,6 +80,9 @@ def check_target(path: Path) -> list[str]:
     for key in ("filelist", "constraints"):
         if not (RTL / t[key]).is_file():
             errs.append(f"{key} {t[key]} does not exist")
+    for m in t.get("models", []):
+        if not (RTL / m).is_file():
+            errs.append(f"model {m} does not exist")
     for d in t["include_dirs"]:
         if not (RTL / d).is_dir():
             errs.append(f"include_dir {d} does not exist")
