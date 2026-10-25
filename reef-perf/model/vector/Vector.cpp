@@ -200,6 +200,7 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       ToScalarLatency(Params->vec_to_scalar_latency),
       VsetLatency(Params->vset_latency),
       CompareFirstUnitOnly(Params->vec_compare_first_unit_only),
+      CompletionMatchesPc(Params->vec_completion_matches_pc),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -318,12 +319,16 @@ Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
       I.Dsts, [](RegId Reg) { return Reg.getFile() == RegFile::V; });
   if (!IsStore && !WritesVector)
     return T.Retire; // Matched by its scalar destination instead.
+  // The retirement buffer marks an entry done on its last uop leaving the
+  // vector ROB, or for a store, a cycle after the LSU's first store-complete
+  // signal (each register sends one).
+  if (!CompletionMatchesPc)
+    return IsStore ? T.UopDones.front() + 1 : T.Retire;
 
-  // The retirement buffer marks an entry done on a write whose PC matches
-  // (RetirementBuffer.scala): a vector instruction's last uop leaving the
-  // vector ROB, or for a store, a cycle after the LSU's store-complete
-  // signal, which each register sends. A write for an older instance of the
-  // same PC, still in flight when this one was dispatched, counts too.
+  // M3 matches those writes to entries by PC (RetirementBuffer.scala:270,
+  // :326), so a write for an older instance of the same PC, still in flight
+  // when this one was dispatched, completes this one too. An RTL bug, fixed
+  // after M3 (rtl_bugs.md at the top of the Reef repository).
   std::vector<Cycle> &Events = PcDoneEvents[I.PC];
   std::erase_if(Events, [&](Cycle C) { return C <= I.DispatchCycle; });
   if (IsStore)

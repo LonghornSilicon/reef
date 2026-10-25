@@ -53,3 +53,19 @@ def test_unified_vector_overlay_changes_the_organization(
     unified = run_sim(elf, overlay_configs=[UNIFIED_OVERLAY])
     assert m3.roi_cycles is not None and unified.roi_cycles is not None
     assert unified.roi_cycles < m3.roi_cycles
+
+
+@pytest.mark.integration
+def test_completion_by_pc_switch_reproduces_the_m3_bug(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """Without M3's PC matching, LMUL=8 divides stop retiring early."""
+    del cpp_build_dir  # Built for its side effect.
+    (tmp_path / "vector_units").mkdir()
+    elf = build_microbenchmark("vector_units/vdiv_m8_indep", tmp_path)
+    m3 = run_sim(elf)
+    fixed = run_sim(
+        elf, params={"top.vector.params.vec_completion_matches_pc": False}
+    )
+    assert m3.roi_cycles is not None and fixed.roi_cycles is not None
+    assert m3.roi_cycles < fixed.roi_cycles
