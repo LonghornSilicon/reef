@@ -13,6 +13,7 @@ tables.
 | `rtl_variants.csv` | ROI cycles of each variant on the M3 RTL, and its loop iterations |
 | `compare_rtl.py` | runs the microbenchmarks and variants on model builds and prints the error against the RTL |
 | `measure_on_rtl.sh` | assembles programs and measures their ROI cycles on the RTL simulator |
+| `generate_vector_unit_microbenchmarks.py` | writes the 29 vector functional unit microbenchmarks of roadmap B15 (`microbenchmarks/vector_units/`) from one table |
 | `sync_edits_to_correlation_testbench.sh` | copies uncommitted edits onto a test bench checkout that has unmerged work, rebuilds and tests it |
 | `fstr.c` | a minimal reader for the simulator's FST waveforms |
 | `wave_table.py` | prints chosen waveform signals as one row per clock cycle |
@@ -82,6 +83,26 @@ also writes its waveform.
 In a vector loop shorter than the 8-entry retirement buffer, the ROI can end
 while vector work is still in flight, because of RTL bug RB1
 (`rtl_bugs.md`). The ROI cycles then understate the work.
+
+## Generating the vector unit microbenchmarks
+
+`microbenchmarks/vector_units/` holds one dependent chain and one independent
+stream per M3 vector functional unit type (roadmap B15). All 29 have the same
+shape: a setup that fills the source registers, then 250 iterations of 6 or 8
+vector instructions. `generate_vector_unit_microbenchmarks.py` writes them
+from one table, `SPECS`, listing each file's setup and loop body. From
+`reef-perf/`:
+
+```sh
+python3 tools/correlation/generate_vector_unit_microbenchmarks.py
+```
+
+Edit `SPECS` to add an operation, or the shared template in `render()` to
+change every file at once, then regenerate and remeasure on the RTL. The
+divide setups divide by -1 and alternate two dividends, so no divide sees the
+previous one's operands: M3's divider reuses its last result when it does.
+`vmixed_lmul`, `vdiv_m8_indep` and `vdiv_m8_then_vadd_m8` are written by hand
+and aren't generated.
 
 ## Comparing with the model
 
