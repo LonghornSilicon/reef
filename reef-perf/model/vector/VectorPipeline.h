@@ -158,7 +158,7 @@ private:
   std::vector<size_t> PoolStations; // Per pool: the station feeding it.
   std::vector<QueueOccupancy> Stations;
   std::vector<Cycle> LastStart; // Per station: each issues in order.
-  Cycle LastUopPush = 0; // Last uop DE2 pushed into the uop queue.
+  Cycle LastUopPush = 0;        // Last uop DE2 pushed into the uop queue.
   Cycle LastRetire = 0;
 };
 

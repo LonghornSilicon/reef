@@ -9,7 +9,9 @@ from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
 from reef_perf.sim import MODULE_ROOT, run_sim
 
 VECTOR_UNITS_DIR = MICROBENCHMARK_DIR / "vector_units"
-UNIFIED_OVERLAY = MODULE_ROOT / "configs" / "machines" / "m3_unified_vector.yaml"
+UNIFIED_OVERLAY = (
+    MODULE_ROOT / "configs" / "machines" / "m3_unified_vector.yaml"
+)
 """Two general-purpose vector lanes instead of M3's per-type units."""
 TOLERANCE = 0.10
 """Allowed relative ROI-cycle error (roadmap B15)."""

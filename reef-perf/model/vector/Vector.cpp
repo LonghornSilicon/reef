@@ -37,8 +37,8 @@ static bool isReduction(const Inst &I) {
 /// (rvv_backend_alu.sv) and which write one mask register.
 static bool isIntegerCompare(const Inst &I) {
   static const std::set<std::string_view> Stems = {
-      "vmseq", "vmsne", "vmsltu", "vmslt", "vmsleu",
-      "vmsle", "vmsgtu", "vmsgt", "vmadc", "vmsbc"};
+      "vmseq", "vmsne",  "vmsltu", "vmslt", "vmsleu",
+      "vmsle", "vmsgtu", "vmsgt",  "vmadc", "vmsbc"};
   return Stems.count(getStem(I)) != 0;
 }
 
@@ -53,12 +53,11 @@ uint32_t reef_perf::getVectorUops(const Inst &I) {
   // Scalar moves, mask-register ops and mask-to-scalar ops use one register.
   if (startsWithAny(Mnemonic, {"vmv.s.x", "vmv.x.s", "vfmv.s.f", "vfmv.f.s",
                                "vcpop", "vfirst", "vmsbf", "vmsif", "vmsof"}) ||
-      startsWithAny(Stem, {"vmand", "vmnand", "vmor", "vmnor", "vmxor",
-                           "vmxnor"}))
+      startsWithAny(Stem,
+                    {"vmand", "vmnand", "vmor", "vmnor", "vmxor", "vmxnor"}))
     return 1;
   // vmv<N>r.v moves N whole registers.
-  if (Mnemonic.size() > 4 && Mnemonic.starts_with("vmv") &&
-      Mnemonic[4] == 'r')
+  if (Mnemonic.size() > 4 && Mnemonic.starts_with("vmv") && Mnemonic[4] == 'r')
     return static_cast<uint32_t>(Mnemonic[3] - '0');
   uint32_t EMUL8 = I.LMUL8;
   // Widening and narrowing ops read or write 2 x LMUL registers; a reduction
@@ -121,7 +120,8 @@ static void checkUnique(const std::vector<std::string> &Names,
                         const std::string &What) {
   for (size_t I = 0; I < Names.size(); ++I)
     if (std::ranges::count(Names, Names[I]) > 1)
-      throw std::invalid_argument(What + " '" + Names[I] + "' is defined twice");
+      throw std::invalid_argument(What + " '" + Names[I] +
+                                  "' is defined twice");
 }
 
 static VectorPipelineConfig
@@ -150,10 +150,9 @@ getPipelineConfig(const Vector::VectorParameterSet *Params) {
                                 "one value per vec_pools name");
   Config.StationEntries = Params->vec_station_entries;
   for (size_t I = 0; I < Pools.size(); ++I)
-    Config.Pools.push_back(
-        {Pools[I], Counts[I],
-         findName(Stations, PoolStations[I],
-                  "vec_pool_stations: vector station")});
+    Config.Pools.push_back({Pools[I], Counts[I],
+                            findName(Stations, PoolStations[I],
+                                     "vec_pool_stations: vector station")});
   return Config;
 }
 
