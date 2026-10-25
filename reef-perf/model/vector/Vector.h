@@ -29,6 +29,12 @@
 /// - Dispatch sees the command queue through credits; an entry frees when DE1
 ///   takes its instruction.
 ///
+/// `vec_completion_matches_pc` reproduces an M3 RTL bug: the retirement
+/// buffer matches vector completions by PC, so in a loop shorter than the
+/// buffer, a later iteration retires when an earlier one completes
+/// (rtl_bugs.md at the top of the Reef repository). Set it to false for the
+/// fixed behavior.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef REEF_PERF_VECTOR_VECTOR_H
@@ -174,6 +180,10 @@ public:
     PARAMETER(uint32_t, vec_to_scalar_latency, 0,
               "Cycles from vector ROB retire to a scalar use of the result")
     PARAMETER(uint32_t, vset_latency, 1, "vset* latency")
+    PARAMETER(bool, vec_completion_matches_pc, true,
+              "The core's retirement buffer matches vector results and "
+              "store completions to entries by PC, so an older instance of "
+              "the same PC completes newer ones (M3's RTL bug)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -228,6 +238,7 @@ private:
   const uint32_t ToScalarLatency;
   const uint32_t VsetLatency;
   const bool CompareFirstUnitOnly;
+  const bool CompletionMatchesPc;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
   VectorLsuInterface *Lsu = nullptr;

@@ -113,6 +113,10 @@ top:
       vec_to_scalar_latency: 0    # RTL waveform of vec_pingpong: the x
                                   # register is usable in the retire cycle
       vset_latency: 1         # U4: measure (was timed as an ALU op)
+      vec_completion_matches_pc: true  # M3 RTL bug, RetirementBuffer.scala:270
+                                       # and :326; fixed after M3 by CoralNPU
+                                       # 302a42d3 (rtl_bugs.md at the top of
+                                       # the Reef repository)
   matrix:
     params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
       mtx_queue_entries: 4

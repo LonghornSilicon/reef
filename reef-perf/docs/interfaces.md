@@ -106,7 +106,9 @@ so the vector module tracks them itself, one register at a time.
   matches vector writes by PC too, so an instruction is also complete when an
   older instance with the same PC, still in flight when it was dispatched,
   completes: in a short loop, a later iteration's vector instruction can
-  retire long before its own uops finish.
+  retire long before its own uops finish. This is an M3 RTL bug (RB1 in
+  `rtl_bugs.md` at the top of the Reef repository), fixed upstream after M3;
+  `vec_completion_matches_pc: false` models the fix.
 - Instructions reach their exec target one cycle after dispatch (input ports
   have a delay of 1).
 

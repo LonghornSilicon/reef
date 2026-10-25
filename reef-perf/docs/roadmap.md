@@ -619,8 +619,10 @@ uop retires from it (deviation U8), except a store, which completes with its
 first register (B14). Check: `vdiv_m8_indep` and `vdiv_m8_then_vadd_m8` in
 `microbenchmarks/vector_units/` are within 3.2% of the RTL. They showed that
 the scalar retirement buffer matches vector writes by PC, so a loop's later
-iteration retires when an earlier one with the same PC does; the model does
-the same. The same waveforms showed that a vector load or store takes a
+iteration retires when an earlier one with the same PC does. That is an RTL
+bug (RB1 in `rtl_bugs.md` at the top of the Reef repository, fixed upstream
+after M3); the model reproduces it, and `vec_completion_matches_pc: false`
+turns it off. The same waveforms showed that a vector load or store takes a
 scalar LSU queue entry at dispatch, until its first register starts, which
 took `gemv_loads` from +1.5% to -0.6%.
 

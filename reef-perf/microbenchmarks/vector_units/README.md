@@ -58,11 +58,13 @@ Three more check the vector pipeline as a whole (roadmap B16 and B18):
 | `vdiv_m8_then_vadd_m8` | `vdiv.vv` then an independent `vadd.vv`, both at LMUL=8, 25 iterations | 70 per iteration |
 
 The LMUL=8 divides look faster than 8 uops x 13 cycles because the ROI ends
-early. The scalar retirement buffer matches a vector write to its entry by PC
-(`RetirementBuffer.scala`), so when an older instance of a loop's `vdiv`
+early, from an M3 RTL bug (RB1 in `rtl_bugs.md` at the top of the Reef
+repository). The scalar retirement buffer matches a vector write to its entry
+by PC (`RetirementBuffer.scala`), so when an older instance of a loop's `vdiv`
 retires its last uop, every newer instance with the same PC is marked done
 too. The buffer then drains and `csrr mcycle` reads the time while divides
-are still running. The model does the same (`Vector::getScalarComplete()`).
+are still running. The model does the same (`Vector::getScalarComplete()`)
+while `vec_completion_matches_pc` is true, as in `m3.yaml`.
 
 Build one by hand (the sweep doesn't), inside the Docker image:
 
