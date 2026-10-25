@@ -69,10 +69,14 @@ struct Inst {
   /// Marks a timing field that has not been set yet.
   static constexpr Cycle Never = std::numeric_limits<Cycle>::max();
 
-  uint64_t Seq = 0;           ///< 0-based dynamic instruction number.
-  Address PC = 0;             ///< Address of the instruction.
-  Address NextPC = 0;         ///< Address executed next (branch outcome).
-  uint32_t Encoding = 0;      ///< Raw 32-bit instruction word.
+  uint64_t Seq = 0;      ///< 0-based dynamic instruction number.
+  Address PC = 0;        ///< Address of the instruction.
+  Address NextPC = 0;    ///< Address executed next (branch outcome).
+  uint32_t Encoding = 0; ///< Raw 32-bit instruction word.
+  uint32_t Rs1Val =
+      0; ///< Value of integer source register rs1 before execution.
+  uint32_t Rs2Val =
+      0; ///< Value of integer source register rs2 before execution.
   std::string Disasm;         ///< Spike's disassembly.
   std::string Mnemonic;       ///< First token of Disasm, e.g. "addi".
   std::vector<MemAccess> Mem; ///< Accesses; one per element for vectors.

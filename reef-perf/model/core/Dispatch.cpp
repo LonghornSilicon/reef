@@ -122,7 +122,8 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   }
   for (RegId Reg : I->Dsts) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Writer && Writer->ResultReadyCycle > Now) {
+    const Cycle WawAdvance = Writer && Writer->Class == InstClass::LOAD ? 1 : 0;
+    if (Writer && Writer->ResultReadyCycle > Now + WawAdvance) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;
