@@ -14,6 +14,11 @@
 
 using namespace reef_perf;
 
+/// \returns true for a vector load or store.
+static bool isVectorMemory(const Inst &I) {
+  return I.Class == InstClass::V_LOAD || I.Class == InstClass::V_STORE;
+}
+
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
   case StallReason::IbufEmpty:
@@ -162,6 +167,14 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     Blamed = getExecTarget(*I);
     return false;
   }
+  // A vector load or store also takes an LSU queue entry, which the LSU
+  // frees when the instruction's first register starts (RTL waveform of
+  // gemv_loads).
+  if (isVectorMemory(*I) && LsuCredits == 0) {
+    Why = StallReason::LsuFull;
+    Blamed = ExecTarget::LSU;
+    return false;
+  }
   return true;
 }
 
@@ -176,6 +189,8 @@ void Dispatch::sendToTarget(const InstRef &I) {
     break;
   case ExecTarget::Vector:
     --VecCredits;
+    if (isVectorMemory(*I))
+      --LsuCredits;
     OutVectorPort.send(I);
     break;
   case ExecTarget::Matrix:

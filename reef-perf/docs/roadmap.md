@@ -540,13 +540,14 @@ RTL, and the per-class microbenchmarks are within 10%.
 
 ---
 
-#### B16: Vector decode and dispatch widths (~1 week) — in progress
+#### B16: Vector decode and dispatch widths (~1 week) — done
 
-**Status.** Done for vector arithmetic and `vset*`, together with B18, in
+**Status.** Done, together with B18, in
 `model/vector/VectorPipeline.cpp`: one in-order pipeline that computes each
 instruction's path when it arrives, instead of a separate decode unit (a
 port between stages would only add latency). Vector loads and stores pass
-through it too (B14).
+through it too (B14). Check: `microbenchmarks/vector_units/vmixed_lmul`
+(LMUL=8 and LMUL=1 adds, a `vsetvli` between them) is within 0.1% of the RTL.
 
 **Hardware.** Vector instructions go through their own pipeline:
 
@@ -603,12 +604,18 @@ with mixed LMUL=8 and LMUL=1 ops matches the RTL within 15%.
 
 ---
 
-#### B18: Vector reorder buffer (~2–3 days) — in progress
+#### B18: Vector reorder buffer (~2–3 days) — done
 
 **Status.** The vector ROB is modeled with B16 (8 uops, 4 retired per
 cycle), and a vector instruction completes for the core's Rob when its last
 uop retires from it (deviation U8), except a store, which completes with its
-first register (B14). Open: the `vdiv` LMUL=8 check below.
+first register (B14). Check: `vdiv_m8_indep` and `vdiv_m8_then_vadd_m8` in
+`microbenchmarks/vector_units/` are within 3.2% of the RTL. They showed that
+the scalar retirement buffer matches vector writes by PC, so a loop's later
+iteration retires when an earlier one with the same PC does; the model does
+the same. The same waveforms showed that a vector load or store takes a
+scalar LSU queue entry at dispatch, until its first register starts, which
+took `gemv_loads` from +1.5% to -0.6%.
 
 **Hardware.** Besides the 8-entry scalar retirement buffer, the vector backend has
 its own **8-entry** reorder buffer. Long vector ops can fill it and stall new

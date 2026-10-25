@@ -65,7 +65,8 @@ struct VectorLsuRequest {
   /// First cycle the LSU may take it (it left the vector LSU reservation
   /// station).
   Cycle Earliest = 0;
-  bool LastRegister = true; ///< The instruction's last register.
+  bool FirstRegister = true; ///< The instruction's first register.
+  bool LastRegister = true;  ///< The instruction's last register.
 };
 
 /// The LSU's answer to a VectorLsuRequest.

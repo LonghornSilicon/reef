@@ -48,6 +48,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace reef_perf {
@@ -206,6 +207,9 @@ private:
   std::vector<Cycle> getSourcesReady(const Inst &I, uint32_t Uops) const;
   /// Records when \p I's destination registers are ready, from timing \p T.
   void recordResults(const Inst &I, const VectorTiming &T);
+  /// \returns when the core's retirement buffer sees \p I, with timing \p T,
+  /// complete.
+  Cycle getScalarComplete(const Inst &I, const VectorTiming &T);
 
   const uint32_t QueueEntries;
   const uint32_t AddSubLatency;
@@ -231,6 +235,9 @@ private:
   // cycle after the uop writing it retires. Every writer is a vector
   // instruction, and they arrive in program order.
   std::array<Cycle, RegId::NumPerFile> RegReady{};
+  // Per PC: the cycles a write for it marks retirement-buffer entries done,
+  // from instances that may still be in flight.
+  std::unordered_map<Address, std::vector<Cycle>> PcDoneEvents;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};
