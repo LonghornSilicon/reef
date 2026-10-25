@@ -13,8 +13,19 @@ set(INSTALL_GTEST OFF CACHE BOOL "Install Google Test" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
-foreach(test test_inst_decode test_resource_pool)
-    add_executable(${test} ${test}.cpp)
+# One directory per module, matching model/<module>/.
+set(REEF_PERF_TESTS
+    common/InterfacesTest
+    common/ResourcePoolTest
+    common/TypesTest
+    frontend/InstDecodeTest
+    memory/MemTimingTest
+    vector/VectorTest
+)
+foreach(path ${REEF_PERF_TESTS})
+    get_filename_component(test ${path} NAME)
+    add_executable(${test} ${path}.cpp)
     target_link_libraries(${test} PRIVATE reef_perf_core GTest::gtest_main)
+    target_compile_options(${test} PRIVATE ${REEF_PERF_WARNINGS})
     gtest_discover_tests(${test})
 endforeach()
