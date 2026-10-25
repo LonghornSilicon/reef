@@ -113,10 +113,9 @@ VectorTiming VectorPipeline::schedule(Cycle Dispatched, const VectorOp &Op,
     }
     LastStart[StationIndex] = Start;
     Station.recordLeave(Start);
-    if (Uop == 0) {
+    if (Uop == 0)
       T.FirstStart = Start;
-      T.FirstDone = Done;
-    }
+    T.UopDones.push_back(Done);
     if (!TakesRobEntry) {
       T.UopRetires.push_back(0); // Set below, to the instruction's retire.
       continue;

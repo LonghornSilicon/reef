@@ -137,8 +137,9 @@ struct VectorOp {
 struct VectorTiming {
   Cycle CommandQueuePop = 0; ///< DE1 took it; its command-queue entry frees.
   Cycle FirstStart = 0;      ///< Its first uop entered a unit.
-  Cycle FirstDone = 0;       ///< Its first uop's result came back.
-  Cycle Retire = 0;          ///< Its last uop retired from the vector ROB.
+  /// Per uop: when its result came back from its unit or the LSU.
+  std::vector<Cycle> UopDones;
+  Cycle Retire = 0; ///< Its last uop retired from the vector ROB.
   /// Per uop: when it retired, or for a uop without a ROB entry, when the
   /// instruction did.
   std::vector<Cycle> UopRetires;

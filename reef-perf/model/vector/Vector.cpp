@@ -312,6 +312,28 @@ void Vector::recordResults(const Inst &I, const VectorTiming &T) {
   }
 }
 
+Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
+  bool IsStore = I.Class == InstClass::V_STORE;
+  bool WritesVector = std::ranges::any_of(
+      I.Dsts, [](RegId Reg) { return Reg.getFile() == RegFile::V; });
+  if (!IsStore && !WritesVector)
+    return T.Retire; // Matched by its scalar destination instead.
+
+  // The retirement buffer marks an entry done on a write whose PC matches
+  // (RetirementBuffer.scala): a vector instruction's last uop leaving the
+  // vector ROB, or for a store, a cycle after the LSU's store-complete
+  // signal, which each register sends. A write for an older instance of the
+  // same PC, still in flight when this one was dispatched, counts too.
+  std::vector<Cycle> &Events = PcDoneEvents[I.PC];
+  std::erase_if(Events, [&](Cycle C) { return C <= I.DispatchCycle; });
+  if (IsStore)
+    for (Cycle Done : T.UopDones)
+      Events.push_back(Done + 1);
+  else
+    Events.push_back(T.Retire);
+  return std::ranges::min(Events);
+}
+
 void Vector::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
@@ -341,6 +363,7 @@ void Vector::receiveInst(const InstRef &I) {
       Request.IsStore = I->Class == InstClass::V_STORE;
       Request.Accesses = Registers.at(Uop);
       Request.Earliest = Earliest;
+      Request.FirstRegister = Uop == 0;
       Request.LastRegister = Uop + 1 == Registers.size();
       return Lsu->accessVectorRegister(Request);
     };
@@ -356,12 +379,7 @@ void Vector::receiveInst(const InstRef &I) {
   I->ResultReadyCycle = T.Retire;
   if (I->Class == InstClass::V_TO_SCALAR)
     I->ResultReadyCycle += ToScalarLatency;
-  I->CompleteCycle = T.Retire;
-  // The scalar retirement buffer marks a store done a cycle after the LSU's
-  // first store-complete signal for its PC, which its first register sends
-  // (RetirementBuffer.scala, storeComplete).
-  if (I->Class == InstClass::V_STORE)
-    I->CompleteCycle = T.FirstDone + 1;
+  I->CompleteCycle = getScalarComplete(*I, T);
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

@@ -62,6 +62,13 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
     BusyUntil += VectorSwitchCycles;
   Cycle Reserved = Pipe.reserve(Result.Start, BusyUntil - Result.Start);
   sparta_assert(Reserved == Result.Start, "LSU busy at the memory's start");
+  // Dispatch gave the instruction an LSU queue entry; it leaves the queue when
+  // its first register starts.
+  if (Request.FirstRegister) {
+    Cycle Now = getClock()->currentCycle();
+    sparta_assert(Result.Start >= Now);
+    OutCreditsPort.send(1, Result.Start - Now);
+  }
   // The data is usable at Start + Latency; the LSU hands it over two cycles
   // earlier (RTL waveform of vec_add_m1: a load is taken in A, its data is
   // handed back in A + 3 and usable in A + 5).

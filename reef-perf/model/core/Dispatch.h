@@ -13,7 +13,8 @@
 /// - vector registers are not waited for, as on M3, whose scalar scoreboards
 ///   cover only x and f. Only vector instructions read them, and the vector
 ///   module tracks them itself;
-/// - an instruction waits while the Rob or its unit's queue is full;
+/// - an instruction waits while the Rob or its unit's queue is full; a vector
+///   load or store also needs an LSU queue entry, as on M3;
 /// - not modeled yet: Reef's special dispatch rules (a branch ends the group,
 ///   FP and CSR instructions dispatch alone from slot 0, load/store address
 ///   registers need a registered value, CSRs wait for an empty Rob).

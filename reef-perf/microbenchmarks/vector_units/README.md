@@ -49,6 +49,21 @@ The model has no operand values and uses the 31-bit time; the two
 `vdiv_small_*` rows are marked `not modeled` in `rtl_m3.csv` and the test
 skips them.
 
+Three more check the vector pipeline as a whole (roadmap B16 and B18):
+
+| Microbenchmark | What it runs | RTL cycles |
+| --- | --- | --- |
+| `vmixed_lmul` | per iteration, `vadd.vv` at LMUL=8, then 4 at LMUL=1, with a `vsetvli` before each part | 12.0 per iteration |
+| `vdiv_m8_indep` | 2 independent `vdiv.vv` at LMUL=8 (8 uops each) per iteration, 25 iterations | 135 per iteration |
+| `vdiv_m8_then_vadd_m8` | `vdiv.vv` then an independent `vadd.vv`, both at LMUL=8, 25 iterations | 70 per iteration |
+
+The LMUL=8 divides look faster than 8 uops x 13 cycles because the ROI ends
+early. The scalar retirement buffer matches a vector write to its entry by PC
+(`RetirementBuffer.scala`), so when an older instance of a loop's `vdiv`
+retires its last uop, every newer instance with the same PC is marked done
+too. The buffer then drains and `csrr mcycle` reads the time while divides
+are still running. The model does the same (`Vector::getScalarComplete()`).
+
 Build one by hand (the sweep doesn't), inside the Docker image:
 
 ```sh

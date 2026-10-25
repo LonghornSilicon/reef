@@ -102,7 +102,11 @@ so the vector module tracks them itself, one register at a time.
   entry through the whole vector pipeline: 8 cycles for a vector add. A
   vector store is complete for the core's Rob a cycle after its first
   register's store completes, as on M3, where the retirement buffer matches
-  the LSU's `storeComplete` by PC (`RetirementBuffer.scala`).
+  the LSU's `storeComplete` by PC (`RetirementBuffer.scala`). The buffer
+  matches vector writes by PC too, so an instruction is also complete when an
+  older instance with the same PC, still in flight when it was dispatched,
+  completes: in a short loop, a later iteration's vector instruction can
+  retire long before its own uops finish.
 - Instructions reach their exec target one cycle after dispatch (input ports
   have a delay of 1).
 
@@ -166,6 +170,7 @@ through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
 | `IsStore` | true for a vector store |
 | `Accesses` | the register's bytes, its part of `Inst::Mem` (`splitByRegister()`) |
 | `Earliest` | first cycle the LSU may take it: it left the vector LSU reservation station |
+| `FirstRegister` | the instruction's first register; its LSU queue entry frees when it starts |
 | `LastRegister` | the instruction's last register; the LSU then takes a cycle to load the next instruction |
 
 | `VectorLsuResponse` field | Meaning |
@@ -174,7 +179,8 @@ through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
 | `Done` | cycle the LSU hands the loaded register back, or reports the store complete (M3's `lsu2rvv` and `storeComplete`) |
 
 Scalar and vector accesses share the LSU's one slot, in the order they book
-it. The LSU owns the per-register cost (`lsu_vector_*` parameters); the
+it. A vector load or store also takes an LSU queue entry at dispatch, as on
+M3, so Dispatch needs both a vector and an LSU credit for it. The LSU owns the per-register cost (`lsu_vector_*` parameters); the
 vector module owns everything before and after it.
 
 ### Core → matrix
@@ -252,9 +258,7 @@ interface unless noted.
   forward-not-taken); fetch does not go through memory (adds an `IFetch`
   requester); no redirect/flush signal to the core (interface change).
 - **Core:** Reef's special dispatch rules (a branch ends the group, FP and
-  CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time;
-  vector loads and stores don't take an LSU queue entry, though on M3 they
-  do (`Lsu.scala`, `LsuSlot.fromLsuUOp`).
+  CSR dispatch alone, CSRs wait for an empty Rob); the LSU handles one memory instruction at a time.
 - **Vector:** the divider's time doesn't depend on its operands; a load or
   store has one uop per register its accesses touch, whatever its EMUL; only
   unit-stride e32 loads and stores at LMUL 1 and 4 are measured.
