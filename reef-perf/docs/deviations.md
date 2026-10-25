@@ -102,6 +102,7 @@ These are problems with how we measure the RTL, not with the RTL itself.
 | M5 | The M3 kernel set is thin: `tests/cocotb/rvv/ml_ops` has only `rvv_matmul` (int8) and `rvv_float_matmul`. The Gemma kernels were added after M3, and some of them use BF16, which isn't in the M3 toolchain. | `tests/cocotb/rvv/ml_ops/` at M3 | code-confirmed | 1st |
 | M6 | Default ITCM/DTCM (8 KB/32 KB) is too small for most kernels, so correlation runs need highmem builds. Check whether highmem changes any timing. | `hdl/chisel/src/coralnpu/BUILD` | hypothesis | 2nd |
 | M7 | The CoralNPU M3 RTL is not part of the reef-perf build: correlation runs use a separate `coralnpu` checkout at tag `M3-2026-04-27`. Make sure it is at that tag, not main. | - | code-confirmed | setup |
+| M8 | `--instr_trace` can end with a spurious `trap=yes` row for the word after `mpause`, with a random instruction word. **Measured** (RTL waveform): in the cycle `mpause` retires, the core hasn't halted yet and the next word, which is uninitialized memory, sits in dispatch slot 0. It usually decodes as illegal, so the undefined-instruction check raises a fault (`mcause` 2, `mepc` = its PC) that the retirement buffer reports as a trapped entry a cycle later. The word changes on every run, and the row is missing when it happens to decode as a legal instruction. It comes after the ROI, so ignore it. | `scalar/Decode.scala` (`io.undefFault`), `tests/verilator_sim/coralnpu/core_mini_axi_tb.cc:443` (`TraceInstructions`) | measured | none |
 
 ## F: Spike (functional model) vs RTL
 

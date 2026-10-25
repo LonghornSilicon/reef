@@ -72,8 +72,11 @@ struct TopDownSlots {
   static constexpr size_t NumReasons =
       static_cast<size_t>(StallReason::NumReasons);
 
-  uint32_t Width = 0;    ///< Slots per cycle (dispatch_width).
-  uint64_t Retiring = 0; ///< Slots an instruction dispatched in.
+  uint32_t Width = 0; ///< Slots per cycle (dispatch_width).
+  /// Slots in which an instruction dispatched. Top-down calls them Retiring
+  /// because the instruction eventually retires: the model never runs the
+  /// wrong path, so every dispatched instruction does.
+  uint64_t Retiring = 0;
   /// Slots with nothing to dispatch, by FrontendStall.
   std::array<uint64_t, NumFrontend> Frontend{};
   /// Slots blocked behind an instruction, by the ExecTarget responsible and

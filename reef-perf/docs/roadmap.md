@@ -66,13 +66,13 @@ cycle count by roughly 5% or more. Don't chase single cycles.
 ```
 B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be parallel with B19/B20)
      ├─ B19, B20             (tooling: any time)
-     └─ then any of B04..B18 (model fixes); within a group, go in order
+     └─ then any of B04..B18, B21 (model fixes); within a group, go in order
 ```
 
 | Group | Tickets |
 | --- | --- |
 | 0. Measure | B00 run the model · B01 RTL cycle counts · B02 region of interest · B03 `correlation` experiment |
-| 1. Fetch | B04 fetch every other cycle · B05 static branch prediction · B06 aligned fetch blocks |
+| 1. Fetch | B04 fetch every other cycle · B05 static branch prediction · B06 aligned fetch blocks · B21 fetch waits for room for a whole block |
 | 2. Dispatch | B07 branch ends the group · B08 dispatch-alone instructions · B09 no address forwarding · B10 CSRs drain the Rob |
 | 3. Execute (core, memory) | B11 multiplier and FPU latency · B12 data-dependent divider · B13 LSU timing · B14 vector memory through the LSU |
 | 4. Vector | B15 real vector functional units · B16 vector decode/dispatch widths · B17 scalar↔vector crossing · B18 vector ROB |
@@ -259,6 +259,48 @@ within 1 cycle per iteration.
 
 ---
 
+#### B21: Fetch waits for room for a whole block in the instruction buffer (~2 days)
+
+**Hardware.**
+- The fetch unit sends a request only when the 8-entry instruction buffer has
+  room for a whole block (4 instructions). It reserves the space at request
+  time because the response, a cycle later, can't be held back.
+- It reads the buffer's free count from a register, so a slot dispatch frees
+  in cycle N counts from cycle N+1.
+- After a dispatch stall leaves the buffer nearly full, fetch can't refill it
+  until 4 slots are free. If dispatch then drains the buffer faster than the
+  request and response take, it has a cycle with nothing to dispatch.
+
+**RTL evidence.**
+- `UncachedFetch.scala:189-192`: `insufficientBuffer = io.bufferSpaces <
+  nValid +& p.fetchInstrSlots.U` blocks new fetches.
+- Waveform of `vadd_indep` (B15's `microbenchmarks/vector_units/`, not merged
+  yet) cut to 6 iterations: in each iteration the 4
+  `vadd`s at 0x30–0x3c dispatch, the next cycle nothing does
+  (`score.dispatch.io_inst_0..3_valid` all 0), and the block at 0x40 is only
+  requested once `fetch.ctrl.io_bufferSpaces` reaches 4.
+
+**Model.** `Fetch::fetchGroup()` (`model/frontend/Fetch.cpp`) fetches when
+`getFreeEntries()` reports one free entry, and `pop()` lets the core's freed
+entry be refilled the next cycle.
+
+**Steps**
+1. Add a parameter `fetch_needs_whole_block` (default `false`).
+2. When it's on, fetch only if `getFreeEntries()` is at least `fetch_width`,
+   counting entries freed in the current and the previous cycle as still used.
+3. Update the frontend → core hand-off paragraph in `docs/interfaces.md`.
+
+**Check.** Prototyped on top of B04–B06 and the unmerged vector work (B14–B18):
+`alu_chain` -11.1% → 0.0%,
+`gemv_int8` -7.5% → -3.7%, `vadd_indep` and `vmul_indep` -9.0% → -6.1% (the
+rest is B07). Rerun `microbenchmarks/frontend/`, since its mispredict numbers
+were measured without this rule.
+
+**Done when** `alu_chain` is within 1% of the RTL and the frontend
+microbenchmarks still match.
+
+---
+
 ### Group 2: Dispatch rules
 
 All four tickets change `Dispatch::canDispatch()` / `Dispatch::dispatchGroup()`
@@ -283,6 +325,14 @@ in the same cycle.
 
 **Check.** `branch_group` (`[alu, beq, alu, alu]` repeated) should go from about
 4 instructions per dispatch cycle to about 2. Compare with the RTL.
+
+**Measured impact.** The waveform of `vadd_indep` shows the loop's `bnez`
+dispatching alone with free retirement-buffer slots, while the model
+dispatches it with the next iteration's first `vadd`s. Prototyped on top of
+B04–B06, B21 and the unmerged vector work (B14–B18), which adds these
+microbenchmarks: `vadd_indep`, `vmul_indep` and `vfadd_indep` go to 0.0% and
+`vec_pingpong` -5.9% → 0.0%, but `fp_mix` goes 0.0% → +8.3%, so another error
+was hiding this one there.
 
 ---
 
