@@ -39,7 +39,9 @@ from `base` (`vsetvli t0, a3, ...; vadd.vv; ` the scalar bookkeeping):
 **`waveforms`**: each is a microbenchmark cut to a few iterations, so its
 waveform stays small: `wave_gemv` and `wave_gemv_loads` (`gemv_int8`,
 `gemv_loads`), `wave_va1` and `wave_va4` (`vec_add_m1`, `vec_add_m4`),
-`wave_vadd_m4` (`vadd_m4_indep`), `wave_vdiv_m8` (`vdiv_m8_indep`), and
+`wave_vadd_m4` (`vadd_m4_indep`), `wave_vadd_indep` (`vadd_indep`, the
+fetch bubble of roadmap B21 and the branch rule of B07), `wave_vdiv_m8`
+(`vdiv_m8_indep`), and
 `wave_vse_m8`, a 3-instruction loop around an LMUL=8 store that shows RTL bug
 RB1 (`rtl_bugs.md` at the top of the Reef repository).
 
