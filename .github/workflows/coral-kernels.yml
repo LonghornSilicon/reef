@@ -2,7 +2,7 @@ name: Coral kernels
 
 # Checks every Coral kernel, and the firmware's whole forward pass, against
 # the C++ reference bit for bit (inference-engine/coral/tools/test.sh).
-# Programs run on coral_sim, reef-perf's Spike driver without the Sparta
+# Programs run on coral_sim, reef-perf's FuncSim without the Sparta
 # timing model, which builds in minutes; Spike and Coral's GCC are cached.
 
 on:
@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/coral-sim
-          key: spike-${{ runner.os }}-${{ steps.spike.outputs.commit }}-${{ hashFiles('reef-perf/tools/build_deps.sh') }}
+          key: spike-${{ runner.os }}-${{ steps.spike.outputs.commit }}-${{ hashFiles('reef-perf/scripts/build_deps.sh') }}
 
       - name: Fetch Spike's source
         if: steps.spike-cache.outputs.cache-hit != 'true'

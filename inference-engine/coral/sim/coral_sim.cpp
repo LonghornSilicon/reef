@@ -2,14 +2,15 @@
 //
 //   coral_sim [--highmem] --elf ELF
 //
-// This is reef_perf's functional half, reef-perf's SpikeDriver: the same
-// ISA, memory map and mpause handling, without Sparta. It is enough to tell
+// This is reef_perf's functional half, reef-perf's FuncSim: the same ISA,
+// memory map and mpause handling, without Sparta. It is enough to tell
 // whether a golden test passed, and it builds in minutes rather than hours,
 // so CI uses it (coral/tools/setup_sim.sh builds it). Exits 0 when the
 // program reaches mpause and 1 if it traps.
-#include "reef_perf/spike_driver.hpp"
+#include "common/MemoryMap.h"
+#include "frontend/FuncSim.h"
 
-#include <cstdint>
+#include <cstddef>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -21,8 +22,7 @@ int main(int argc, char** argv) {
     std::string elf;
     for (std::size_t index = 0; index < args.size(); ++index) {
         if (args[index] == "--highmem") {
-            constexpr std::uint32_t kOneMiB = 1024 * 1024;
-            options.regions = {{0x00000000, kOneMiB}, {0x00100000, kOneMiB}};
+            options.Regions = reef_perf::getHighmemMemoryMap();
         } else if (args[index] == "--elf" && index + 1 < args.size()) {
             elf = args[++index];
         } else {
@@ -36,10 +36,10 @@ int main(int argc, char** argv) {
     }
 
     try {
-        reef_perf::SpikeDriver driver(elf, options);
-        while (driver.step()) {
+        reef_perf::FuncSim sim(elf, options);
+        while (sim.next()) {
         }
-        std::cout << "  instructions retired: " << driver.executed() << '\n';
+        std::cout << "  instructions retired: " << sim.getNumExecuted() << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "coral_sim: " << error.what() << '\n';

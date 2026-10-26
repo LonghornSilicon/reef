@@ -100,7 +100,7 @@ request, natively on an x86-64 runner:
 - `setup_toolchain.sh DIR` installs only GCC, stripped, from the pinned
   archive.
 - `setup_sim.sh PREFIX` builds Spike (reef-perf's `build_deps.sh`) and
-  `sim/coral_sim.cpp`. That's reef-perf's `SpikeDriver` without the Sparta
+  `sim/coral_sim.cpp`. That's reef-perf's `FuncSim` without the Sparta
   timing model: same ISA, memory map and `mpause` handling, so pass/fail
   matches reef_perf, but it builds in minutes rather than an hour.
 
