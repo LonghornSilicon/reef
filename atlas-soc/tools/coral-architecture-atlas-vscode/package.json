@@ -1,0 +1,77 @@
+{
+  "name": "coral-architecture-atlas-mental-model",
+  "displayName": "Coral Architecture Atlas Mental Model",
+  "description": "A source-linked, interactive architecture atlas for the Coral SoC.",
+  "version": "0.1.0",
+  "publisher": "lhs-soc",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "architecture",
+    "mental-model",
+    "source-navigation"
+  ],
+  "main": "./extension.js",
+  "files": [
+    "extension.js",
+    "model.json",
+    "media/*.svg",
+    "media/*.css",
+    "media/*.js",
+    "media/*.html",
+    "media/assets/*",
+    "README.md"
+  ],
+  "activationEvents": [
+    "onView:coralArchitectureAtlasMentalModel.view",
+    "onCommand:coralArchitectureAtlasMentalModel.focus"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "coralArchitectureAtlasMentalModel.focus",
+        "title": "Coral Architecture Atlas Mental Model: Focus View"
+      },
+      {
+        "command": "coralArchitectureAtlasMentalModel.followCursor",
+        "title": "Coral Architecture Atlas Mental Model: Follow Active Editor"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "coralArchitectureAtlasMentalModel",
+          "title": "Coral Architecture Atlas Mental Model",
+          "icon": "media/model.svg"
+        }
+      ]
+    },
+    "views": {
+      "coralArchitectureAtlasMentalModel": [
+        {
+          "type": "webview",
+          "id": "coralArchitectureAtlasMentalModel.view",
+          "name": "Coral Architecture Atlas"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "coralArchitectureAtlasMentalModel.followCursor",
+          "when": "view == coralArchitectureAtlasMentalModel.view",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js"
+  }
+}

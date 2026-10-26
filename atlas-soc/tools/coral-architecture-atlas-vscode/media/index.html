@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#e8edf0">
+  <meta name="description" content="Interactive, evidence-linked architecture atlas for the Coral SoC.">
+  <title>Coral Architecture Atlas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!--
+  THESIS: Coral is understood by moving through its interfaces; this surface refuses the dashboard-of-cards default.
+  OWN-WORLD: A bright lab drafting table, ink-black chip boundaries, protocol-colored routes, and compact engraved controls.
+  STORY: Orient in the SoC, enter a block, inspect its evidence, and leave with the next unresolved ownership decision visible.
+  FIRST VIEWPORT: A narrow instrument rail, a dominant connected schematic, and an evidence inspector share one uninterrupted workbench.
+  FORM: Source-linked architecture workbench; preserved schematic world; seed coral-drafting-table-v1.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+  -->
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#view=structure&focus=coral-system" aria-label="Coral Architecture Atlas home">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M8 31V18m0 0 6-7m-6 7 7 5m0 0 7-12m-7 12 8 5m-1-17 9 6m-9-6V5m9 12v11m0-11 4-4"/>
+          <circle cx="8" cy="31" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="14" cy="11" r="2"/><circle cx="15" cy="23" r="2"/><circle cx="22" cy="11" r="2"/><circle cx="22" cy="5" r="2"/><circle cx="23" cy="28" r="2"/><circle cx="31" cy="17" r="2"/><circle cx="31" cy="28" r="2"/><circle cx="35" cy="13" r="2"/>
+        </svg>
+        <span><strong>Coral</strong><small>Architecture Atlas</small></span>
+      </a>
+      <nav class="view-tabs" role="tablist" aria-label="Architecture views">
+        <button class="view-tab" type="button" role="tab" data-view="structure" aria-selected="true">Structure</button>
+        <button class="view-tab" type="button" role="tab" data-view="boot" aria-selected="false">Boot flow</button>
+        <button class="view-tab" type="button" role="tab" data-view="protocols" aria-selected="false">Protocols</button>
+        <button class="view-tab" type="button" role="tab" data-view="instructions" aria-selected="false">Instructions</button>
+        <button class="view-tab" type="button" role="tab" data-view="ownership" aria-selected="false">Ownership</button>
+      </nav>
+      <div class="top-actions">
+        <button class="icon-button" id="search-trigger" type="button" aria-label="Search architecture" title="Search architecture (/)" data-icon="search"></button>
+        <a class="edit-link" href="architecture/soc.yaml" id="edit-source-link">Edit source</a>
+      </div>
+    </header>
+
+    <aside class="instrument-rail" aria-label="Atlas controls">
+      <div class="rail-section">
+        <span class="rail-label">View</span>
+        <button class="rail-tool active" type="button" data-view="structure" aria-label="Structure view" data-icon="blocks"><span>Structure</span></button>
+        <button class="rail-tool" type="button" data-view="boot" aria-label="Boot flow view" data-icon="flow"><span>Boot flow</span></button>
+        <button class="rail-tool" type="button" data-view="protocols" aria-label="Protocols view" data-icon="protocols"><span>Protocols</span></button>
+        <button class="rail-tool" type="button" data-view="instructions" aria-label="Instruction execution view" data-icon="instructions"><span>Instructions</span></button>
+        <button class="rail-tool" type="button" data-view="ownership" aria-label="Ownership view" data-icon="people"><span>Ownership</span></button>
+      </div>
+      <div class="rail-section rail-section-bottom">
+        <button class="rail-tool" id="export-svg" type="button" aria-label="Export current view as SVG" data-icon="download"><span>Export SVG</span></button>
+        <button class="rail-tool" id="export-png" type="button" aria-label="Export current view as PNG" data-icon="image"><span>Export PNG</span></button>
+        <a class="rail-tool" href="docs/editing-guide.md" data-local-link="docs/editing-guide.md" aria-label="Open editing guide" data-icon="book"><span>Editing guide</span></a>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="canvas-panel" aria-label="Architecture canvas">
+        <div class="canvas-toolbar">
+          <div class="canvas-location">
+            <div class="hierarchy-nav" id="hierarchy-nav" aria-label="Hierarchy navigation">
+              <button type="button" id="nav-up" title="Move up one hierarchy level" data-icon="up"><span>Up</span></button>
+              <button type="button" id="nav-down" title="Open the selected block" data-icon="down"><span>Down</span></button>
+            </div>
+            <nav class="breadcrumbs" id="breadcrumbs" aria-label="Architecture location"></nav>
+          </div>
+          <div class="canvas-actions">
+            <div class="canvas-meta"><span class="sync-indicator" id="sync-indicator">Model ready</span><span id="model-count"></span></div>
+            <button class="arrange-toggle" id="arrange-toggle" type="button" aria-pressed="false" title="Move blocks with the pointer or arrow keys" data-icon="move"><span>Arrange</span></button>
+            <div class="arrange-actions" id="arrange-actions" hidden>
+              <button type="button" id="copy-positions" title="Copy this layout as YAML" data-icon="copy"><span>Copy positions</span></button>
+              <button type="button" id="reset-positions" title="Restore authored positions" data-icon="reset"><span>Reset</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="diagram-viewport" id="diagram-viewport" tabindex="0" aria-label="Interactive architecture diagram. Drag in any direction to pan. Use Tab to move between blocks.">
+          <div class="diagram-stage" id="diagram-stage">
+            <svg class="edge-layer" id="edge-layer" aria-hidden="true"></svg>
+            <div class="node-layer" id="node-layer"></div>
+          </div>
+          <div class="empty-state" id="empty-state" hidden>
+            <div class="empty-symbol" aria-hidden="true"></div>
+            <h2>No matching blocks</h2>
+            <p>Clear the filters or move back up one level.</p>
+          </div>
+        </div>
+        <div class="zoom-dock" aria-label="Canvas zoom controls">
+          <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+          <output id="zoom-value" aria-live="polite">100%</output>
+          <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+          <button type="button" id="zoom-fit" aria-label="Center readable overview" title="Center readable overview" data-icon="fit"></button>
+        </div>
+        <div class="protocol-legend" id="protocol-legend" aria-label="Protocol legend"></div>
+      </section>
+
+      <aside class="inspector" id="inspector" aria-label="Selected block details">
+        <div class="inspector-empty" id="inspector-empty">
+          <svg viewBox="0 0 160 120" aria-hidden="true"><path d="M26 82h31V52h46v-24h31M57 52v42h77M103 52v42"/><circle cx="26" cy="82" r="6"/><circle cx="57" cy="52" r="6"/><circle cx="103" cy="28" r="6"/><circle cx="134" cy="28" r="6"/><circle cx="134" cy="94" r="6"/></svg>
+          <h2>Select a block</h2>
+          <p>Inspect its responsibility, maturity, interfaces, documents, and future RTL links.</p>
+        </div>
+        <div class="inspector-content" id="inspector-content" hidden></div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="search-layer" id="search-layer" hidden>
+    <button class="search-backdrop" type="button" aria-label="Close search"></button>
+    <section class="search-panel" role="dialog" aria-modal="true" aria-labelledby="search-title">
+      <div class="search-head">
+        <h2 id="search-title">Find a block, interface, or document</h2>
+        <button class="icon-button" id="search-close" type="button" aria-label="Close search" data-icon="close"></button>
+      </div>
+      <label class="search-box"><span data-icon="search" aria-hidden="true"></span><input id="search-input" type="search" autocomplete="off" placeholder="Try “DMA”, “ITCM”, or “boot”…"></label>
+      <div class="filter-row">
+        <label>Status <select id="status-filter"><option value="">All maturity states</option></select></label>
+        <label>Owner <select id="owner-filter"><option value="">All owners</option></select></label>
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="model.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

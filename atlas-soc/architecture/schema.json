@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lhs.example/coral-architecture.schema.json",
+  "title": "Coral Architecture Atlas model",
+  "type": "object",
+  "required": ["schema_version", "product", "owners", "protocols", "layouts", "ports", "blocks", "connections", "behaviors"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "product": {
+      "type": "object",
+      "required": ["id", "name", "description", "default_focus"]
+    },
+    "owners": {"type": "array", "items": {"type": "object", "required": ["id", "name"]}},
+    "protocols": {"type": "object"},
+    "layouts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["canvas", "nodes"],
+        "properties": {
+          "canvas": {"type": "object", "required": ["width", "height"]},
+          "nodes": {"type": "object"}
+        }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["label", "protocol", "side", "offset"],
+          "properties": {
+            "side": {"enum": ["left", "right", "top", "bottom"]},
+            "offset": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "kind", "summary", "parent", "owner", "maturity", "rank", "order", "responsibilities", "documents", "issues", "rtl"],
+        "properties": {
+          "maturity": {"enum": ["proposal", "specified", "in-progress", "implemented", "verified"]}
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {"type": "object", "required": ["id", "from", "from_port", "to", "to_port", "protocol", "label", "bidirectional"]}
+    },
+    "behaviors": {"type": "array"}
+  }
+}
