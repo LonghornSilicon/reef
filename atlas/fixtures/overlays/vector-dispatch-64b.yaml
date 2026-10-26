@@ -1,0 +1,124 @@
+# Sample v2 overlay for atlas/vector-dispatch-64b.
+# Adds what spec v2 carries on top of architecture/soc.yaml: status, RTL anchors,
+# a signal-level protocol with timing rules, one interface, and a process section.
+
+protocols:
+  decoupled:
+    name: Ready/valid decoupled
+    color: "#0f766e"
+    abbreviation: DEC
+    purpose: Chisel Decoupled handshake. A beat transfers on a cycle where valid and ready are both high.
+    roles: [producer, consumer]
+    signals:
+      - {name: valid, width: 1, dir: fwd}
+      - {name: ready, width: 1, dir: bwd}
+      - {name: bits, width: "param:BITS_W", dir: fwd}
+    timing_rules:
+      - id: payload-stable
+        kind: stable_while
+        when: valid && !ready
+        signals: [bits]
+        severity: error
+        summary: bits must not change while a beat is offered and not yet taken.
+      - id: no-drop
+        kind: next
+        when: valid && !ready
+        then: valid
+        severity: error
+        summary: Once valid is raised it stays high until the beat transfers.
+      - id: progress
+        kind: within
+        when: valid
+        then: ready
+        cycles: 24
+        severity: warn
+        summary: A consumer should accept an offered beat within 24 cycles.
+
+interfaces:
+  vcmd-64:
+    protocol: decoupled
+    params: {BITS_W: 64}
+    role_naming: decoupled
+
+blocks:
+  coral-core: {status: implemented, rtl: {module: CoralCore}}
+  core-axi-slave: {status: verified, rtl: {module: CoreAxiSlave, instance: axiSlave}}
+  axi-to-fabric: {status: verified, rtl: {module: AxiToFabric, instance: axi2fabric}}
+  fabric-mux: {status: verified, rtl: {module: FabricMux, instance: fabricMux}}
+  compute-cluster: {status: implemented, rtl: {module: ComputeCluster, instance: cluster}}
+  scalar-core: {status: implemented, rtl: {module: SCore, instance: score}}
+  vector-engine: {status: modified, rtl: {module: VectorEngine, instance: vcore}}
+  systolic-array-16x16: {status: in-progress, rtl: {module: SystolicArray, instance: array}}
+  core-master-arbiter: {status: implemented, rtl: {module: CoreMasterArbiter, instance: masterArb}}
+  core-axi-master: {status: implemented, rtl: {module: CoreAxiMaster, instance: axiMaster}}
+  core-debug: {status: planned}
+  ibus-mux: {status: verified, rtl: {module: IBusMux, instance: ibusMux}}
+  dtcm-arbiter: {status: implemented, rtl: {module: DtcmArbiter, instance: dtcmArb}}
+  dtcm: {status: verified, rtl: {module: Dtcm, instance: dtcm}}
+  itcm-arbiter: {status: implemented, rtl: {module: ItcmArbiter, instance: itcmArb}}
+  itcm: {status: verified, rtl: {module: Itcm, instance: itcm}}
+  vector-command-queue: {status: implemented, rtl: {module: VectorCommandQueue, instance: vcq}}
+  vector-alu: {status: implemented, rtl: {module: VAlu, instance: valu}}
+  vector-register-file: {status: implemented, rtl: {module: VRegFile, instance: vrf}}
+  scalar-fetch: {status: verified, rtl: {module: Fetch, instance: fetch}}
+  scalar-decode: {status: implemented, rtl: {module: Decode, instance: decode}}
+
+ports:
+  scalar-core.vector:
+    interface: vcmd-64
+    role: producer
+    rtl: {prefix: vcmd}
+  vector-engine.command:
+    interface: vcmd-64
+    role: consumer
+    rtl: {prefix: cmd}
+  # The debug unit is not built yet, so the arbiters' debug ports are still planned.
+  itcm-arbiter.debug: {status: planned}
+  scalar-core.array: {status: in-progress}
+
+process:
+  - id: vector-dispatch
+    name: Vector dispatch
+    stages:
+      - key: fetch
+        name: Fetch
+        block: scalar-fetch
+        ordering: pipeline
+        capacity: 1
+      - key: decode
+        name: Decode
+        block: scalar-decode
+        ordering: pipeline
+        capacity: 1
+        deq: {valid: score.io_vcmd_valid, ready: score.io_vcmd_ready}
+        stallReason: Decode holds a vector command while the command queue is full (no-drop rule keeps vcmd.valid high).
+      - key: vcq
+        name: VCQ FIFO
+        block: vector-command-queue
+        ordering: fifo
+        capacity: 4
+        enq: {valid: score.io_vcmd_valid, ready: score.io_vcmd_ready}
+        deq: {valid: vcq.io_deq_valid, ready: vcq.io_deq_ready}
+        stallReason: Issue is not taking commands while the VRF read ports are busy, so the queue backs up.
+      - key: issue
+        name: Issue
+        block: vector-engine
+        ordering: pipeline
+        capacity: 1
+        enq: {valid: vcq.io_deq_valid, ready: vcq.io_deq_ready}
+        stallReason: Issue waits for both VRF read ports to be free.
+      - key: vrf
+        name: VRF read
+        block: vector-register-file
+        ordering: pipeline
+        capacity: 1
+      - key: valu
+        name: VALU
+        block: vector-alu
+        ordering: pipeline
+        capacity: 1
+      - key: wb
+        name: Writeback
+        block: vector-register-file
+        ordering: pipeline
+        capacity: 1

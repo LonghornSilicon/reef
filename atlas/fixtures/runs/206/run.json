@@ -1,0 +1,18 @@
+{
+ "id": "206",
+ "branch": "atlas/vector-dispatch-64b",
+ "commit": "a04d9e2",
+ "test": "test_vector_dispatch_random",
+ "simulator": "verilator 5.030 · cocotb 1.9.2",
+ "seed": 3,
+ "cycles": 1800,
+ "dirty": true,
+ "status": "incomplete",
+ "startedAt": "2026-10-24T11:20:00Z",
+ "durationS": 0,
+ "files": [
+  "run.json",
+  "events.jsonl"
+ ],
+ "summary": "Upload interrupted after events.jsonl"
+}

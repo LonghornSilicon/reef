@@ -1,0 +1,17 @@
+{
+ "id": "208",
+ "simulator": "verilator 5.030 · cocotb 1.9.2",
+ "dirty": false,
+ "durationS": 180,
+ "files": [
+  "run.json"
+ ],
+ "branch": "atlas/axi-burst-fix",
+ "commit": "9e1d07b",
+ "test": "test_axi_burst_wrap",
+ "seed": 5,
+ "cycles": 2600,
+ "status": "failed",
+ "startedAt": "2026-10-26T08:12:00Z",
+ "summary": "AXI WRAP burst crossed a 4 KiB boundary"
+}

@@ -1,0 +1,20 @@
+{
+ "id": "212",
+ "branch": "atlas/vector-dispatch-64b",
+ "commit": "3f9c2a1",
+ "test": "test_vector_dispatch_burst",
+ "simulator": "verilator 5.030 · cocotb 1.9.2",
+ "seed": 7,
+ "cycles": 1800,
+ "dirty": false,
+ "status": "failed",
+ "startedAt": "2026-10-26T09:42:00Z",
+ "durationS": 214,
+ "files": [
+  "run.json",
+  "events.jsonl",
+  "signals.json",
+  "transactions.json"
+ ],
+ "summary": "1 vector command dropped under back-pressure"
+}

@@ -1,0 +1,1982 @@
+{
+ "schema": "atlas.rtl-extract/1",
+ "commit": "3f9c2a1",
+ "tools": {
+  "firtool": "1.86.0",
+  "slang": "8.1",
+  "yosys": "0.48"
+ },
+ "top": "CoralCore",
+ "modules": {
+  "CoralCore": {
+   "sv": {
+    "file": "gen/CoralCore.sv",
+    "line": 2
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/CoralCore.scala",
+    "line": 19
+   },
+   "doc": "Top of the Coral core: TCMs, compute cluster, AXI master and slave.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 27
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 28
+     }
+    },
+    {
+     "name": "io_dma_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 29
+     }
+    },
+    {
+     "name": "io_dma_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 30
+     }
+    },
+    {
+     "name": "io_dma_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 31
+     }
+    },
+    {
+     "name": "io_dma_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 32
+     }
+    },
+    {
+     "name": "io_dma_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 33
+     }
+    },
+    {
+     "name": "io_axi_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 34
+     }
+    },
+    {
+     "name": "io_axi_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 35
+     }
+    },
+    {
+     "name": "io_axi_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 36
+     }
+    },
+    {
+     "name": "io_axi_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 37
+     }
+    },
+    {
+     "name": "io_axi_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/CoralCore.scala",
+      "line": 38
+     }
+    }
+   ]
+  },
+  "CoreAxiSlave": {
+   "sv": {
+    "file": "gen/CoreAxiSlave.sv",
+    "line": 35
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+    "line": 149
+   },
+   "doc": "AXI4 slave port into the core.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 157
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 158
+     }
+    },
+    {
+     "name": "io_fabric_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 159
+     }
+    },
+    {
+     "name": "io_fabric_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 160
+     }
+    },
+    {
+     "name": "io_fabric_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 161
+     }
+    },
+    {
+     "name": "io_fabric_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 162
+     }
+    },
+    {
+     "name": "io_fabric_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiSlave.scala",
+      "line": 163
+     }
+    }
+   ]
+  },
+  "AxiToFabric": {
+   "sv": {
+    "file": "gen/AxiToFabric.sv",
+    "line": 16
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+    "line": 174
+   },
+   "doc": "Converts inbound AXI bursts into fabric beats.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 182
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 183
+     }
+    },
+    {
+     "name": "io_axi_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 184
+     }
+    },
+    {
+     "name": "io_axi_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 185
+     }
+    },
+    {
+     "name": "io_axi_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 186
+     }
+    },
+    {
+     "name": "io_axi_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 187
+     }
+    },
+    {
+     "name": "io_axi_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 188
+     }
+    },
+    {
+     "name": "io_fabric_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 189
+     }
+    },
+    {
+     "name": "io_fabric_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 190
+     }
+    },
+    {
+     "name": "io_fabric_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 191
+     }
+    },
+    {
+     "name": "io_fabric_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 192
+     }
+    },
+    {
+     "name": "io_fabric_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/AxiToFabric.scala",
+      "line": 193
+     }
+    }
+   ]
+  },
+  "FabricMux": {
+   "sv": {
+    "file": "gen/FabricMux.sv",
+    "line": 12
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+    "line": 124
+   },
+   "doc": "Routes inbound fabric requests to DTCM or ITCM by address.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 132
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 133
+     }
+    },
+    {
+     "name": "io_ingress_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 134
+     }
+    },
+    {
+     "name": "io_ingress_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 135
+     }
+    },
+    {
+     "name": "io_ingress_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 136
+     }
+    },
+    {
+     "name": "io_ingress_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 137
+     }
+    },
+    {
+     "name": "io_ingress_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 138
+     }
+    },
+    {
+     "name": "io_dtcm_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 139
+     }
+    },
+    {
+     "name": "io_dtcm_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 140
+     }
+    },
+    {
+     "name": "io_dtcm_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 141
+     }
+    },
+    {
+     "name": "io_dtcm_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 142
+     }
+    },
+    {
+     "name": "io_dtcm_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 143
+     }
+    },
+    {
+     "name": "io_itcm_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 144
+     }
+    },
+    {
+     "name": "io_itcm_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 145
+     }
+    },
+    {
+     "name": "io_itcm_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 146
+     }
+    },
+    {
+     "name": "io_itcm_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 147
+     }
+    },
+    {
+     "name": "io_itcm_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/fabric/FabricMux.scala",
+      "line": 148
+     }
+    }
+   ]
+  },
+  "ComputeCluster": {
+   "sv": {
+    "file": "gen/ComputeCluster.sv",
+    "line": 23
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+    "line": 179
+   },
+   "doc": "Scalar core, vector engine and systolic array.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 187
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 188
+     }
+    },
+    {
+     "name": "io_dbus_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 189
+     }
+    },
+    {
+     "name": "io_dbus_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 190
+     }
+    },
+    {
+     "name": "io_dbus_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 191
+     }
+    },
+    {
+     "name": "io_dbus_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 192
+     }
+    },
+    {
+     "name": "io_dbus_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 193
+     }
+    },
+    {
+     "name": "io_ibus_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 194
+     }
+    },
+    {
+     "name": "io_ibus_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 195
+     }
+    },
+    {
+     "name": "io_ibus_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 196
+     }
+    },
+    {
+     "name": "io_ibus_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 197
+     }
+    },
+    {
+     "name": "io_ibus_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 198
+     }
+    },
+    {
+     "name": "io_ebus_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 199
+     }
+    },
+    {
+     "name": "io_ebus_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 200
+     }
+    },
+    {
+     "name": "io_ebus_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 201
+     }
+    },
+    {
+     "name": "io_ebus_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 202
+     }
+    },
+    {
+     "name": "io_ebus_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/ComputeCluster.scala",
+      "line": 203
+     }
+    }
+   ]
+  },
+  "SCore": {
+   "sv": {
+    "file": "gen/SCore.sv",
+    "line": 34
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+    "line": 54
+   },
+   "doc": "In-order scalar core. Dispatches vector commands through a Decoupled port.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 62
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 63
+     }
+    },
+    {
+     "name": "io_fetch_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 64
+     }
+    },
+    {
+     "name": "io_fetch_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 65
+     }
+    },
+    {
+     "name": "io_fetch_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 66
+     }
+    },
+    {
+     "name": "io_fetch_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 67
+     }
+    },
+    {
+     "name": "io_fetch_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 68
+     }
+    },
+    {
+     "name": "io_vcmd_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 69
+     }
+    },
+    {
+     "name": "io_vcmd_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 70
+     }
+    },
+    {
+     "name": "io_vcmd_bits",
+     "dir": "out",
+     "width": 64,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 71
+     }
+    },
+    {
+     "name": "io_array_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/SCore.scala",
+      "line": 72
+     }
+    }
+   ]
+  },
+  "VectorEngine": {
+   "sv": {
+    "file": "gen/VectorEngine.sv",
+    "line": 27
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+    "line": 163
+   },
+   "doc": "Vector engine: command queue, VALU, VMAC and the vector register file.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 171
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 172
+     }
+    },
+    {
+     "name": "io_cmd_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 173
+     }
+    },
+    {
+     "name": "io_cmd_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 174
+     }
+    },
+    {
+     "name": "io_cmd_bits",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 175
+     }
+    },
+    {
+     "name": "io_dbg_sel",
+     "dir": "in",
+     "width": 4,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorEngine.scala",
+      "line": 176
+     }
+    }
+   ]
+  },
+  "SystolicArray": {
+   "sv": {
+    "file": "gen/SystolicArray.sv",
+    "line": 5
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/systolic/SystolicArray.scala",
+    "line": 167
+   },
+   "doc": "16×16 weight-stationary array (in progress).",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/systolic/SystolicArray.scala",
+      "line": 175
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/systolic/SystolicArray.scala",
+      "line": 176
+     }
+    },
+    {
+     "name": "io_command_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/systolic/SystolicArray.scala",
+      "line": 177
+     }
+    }
+   ]
+  },
+  "CoreMasterArbiter": {
+   "sv": {
+    "file": "gen/CoreMasterArbiter.sv",
+    "line": 11
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+    "line": 108
+   },
+   "doc": "Arbitrates uncached requests onto the AXI master.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 116
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 117
+     }
+    },
+    {
+     "name": "io_core_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 118
+     }
+    },
+    {
+     "name": "io_core_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 119
+     }
+    },
+    {
+     "name": "io_core_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 120
+     }
+    },
+    {
+     "name": "io_core_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 121
+     }
+    },
+    {
+     "name": "io_core_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 122
+     }
+    },
+    {
+     "name": "io_axi_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 123
+     }
+    },
+    {
+     "name": "io_axi_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 124
+     }
+    },
+    {
+     "name": "io_axi_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 125
+     }
+    },
+    {
+     "name": "io_axi_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 126
+     }
+    },
+    {
+     "name": "io_axi_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreMasterArbiter.scala",
+      "line": 127
+     }
+    }
+   ]
+  },
+  "CoreAxiMaster": {
+   "sv": {
+    "file": "gen/CoreAxiMaster.sv",
+    "line": 7
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+    "line": 58
+   },
+   "doc": "AXI4 master out of the core.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 66
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 67
+     }
+    },
+    {
+     "name": "io_core_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 68
+     }
+    },
+    {
+     "name": "io_core_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 69
+     }
+    },
+    {
+     "name": "io_core_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 70
+     }
+    },
+    {
+     "name": "io_core_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 71
+     }
+    },
+    {
+     "name": "io_core_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/axi/CoreAxiMaster.scala",
+      "line": 72
+     }
+    }
+   ]
+  },
+  "IBusMux": {
+   "sv": {
+    "file": "gen/IBusMux.sv",
+    "line": 25
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+    "line": 83
+   },
+   "doc": "Selects the instruction fetch target.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 91
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 92
+     }
+    },
+    {
+     "name": "io_core_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 93
+     }
+    },
+    {
+     "name": "io_core_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 94
+     }
+    },
+    {
+     "name": "io_core_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 95
+     }
+    },
+    {
+     "name": "io_core_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 96
+     }
+    },
+    {
+     "name": "io_core_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 97
+     }
+    },
+    {
+     "name": "io_itcm_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 98
+     }
+    },
+    {
+     "name": "io_itcm_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 99
+     }
+    },
+    {
+     "name": "io_itcm_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 100
+     }
+    },
+    {
+     "name": "io_itcm_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 101
+     }
+    },
+    {
+     "name": "io_itcm_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/IBusMux.scala",
+      "line": 102
+     }
+    }
+   ]
+  },
+  "DtcmArbiter": {
+   "sv": {
+    "file": "gen/DtcmArbiter.sv",
+    "line": 21
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+    "line": 33
+   },
+   "doc": "Arbitrates core and fabric access to the DTCM banks.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 41
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 42
+     }
+    },
+    {
+     "name": "io_fabric_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 43
+     }
+    },
+    {
+     "name": "io_fabric_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 44
+     }
+    },
+    {
+     "name": "io_fabric_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 45
+     }
+    },
+    {
+     "name": "io_fabric_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 46
+     }
+    },
+    {
+     "name": "io_fabric_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 47
+     }
+    },
+    {
+     "name": "io_core_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 48
+     }
+    },
+    {
+     "name": "io_core_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 49
+     }
+    },
+    {
+     "name": "io_core_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 50
+     }
+    },
+    {
+     "name": "io_core_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 51
+     }
+    },
+    {
+     "name": "io_core_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 52
+     }
+    },
+    {
+     "name": "io_memory_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 53
+     }
+    },
+    {
+     "name": "io_memory_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 54
+     }
+    },
+    {
+     "name": "io_memory_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 55
+     }
+    },
+    {
+     "name": "io_memory_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 56
+     }
+    },
+    {
+     "name": "io_memory_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/DtcmArbiter.scala",
+      "line": 57
+     }
+    }
+   ]
+  },
+  "Dtcm": {
+   "sv": {
+    "file": "gen/Dtcm.sv",
+    "line": 32
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+    "line": 88
+   },
+   "doc": "Four-bank data TCM.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 96
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 97
+     }
+    },
+    {
+     "name": "io_dbus_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 98
+     }
+    },
+    {
+     "name": "io_dbus_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 99
+     }
+    },
+    {
+     "name": "io_dbus_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 100
+     }
+    },
+    {
+     "name": "io_dbus_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 101
+     }
+    },
+    {
+     "name": "io_dbus_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Dtcm.scala",
+      "line": 102
+     }
+    }
+   ]
+  },
+  "ItcmArbiter": {
+   "sv": {
+    "file": "gen/ItcmArbiter.sv",
+    "line": 13
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+    "line": 113
+   },
+   "doc": "Arbitrates fetch and fabric access to the ITCM.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 121
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 122
+     }
+    },
+    {
+     "name": "io_fabric_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 123
+     }
+    },
+    {
+     "name": "io_fabric_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 124
+     }
+    },
+    {
+     "name": "io_fabric_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 125
+     }
+    },
+    {
+     "name": "io_fabric_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 126
+     }
+    },
+    {
+     "name": "io_fabric_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 127
+     }
+    },
+    {
+     "name": "io_core_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 128
+     }
+    },
+    {
+     "name": "io_core_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 129
+     }
+    },
+    {
+     "name": "io_core_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 130
+     }
+    },
+    {
+     "name": "io_core_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 131
+     }
+    },
+    {
+     "name": "io_core_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 132
+     }
+    },
+    {
+     "name": "io_memory_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 133
+     }
+    },
+    {
+     "name": "io_memory_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 134
+     }
+    },
+    {
+     "name": "io_memory_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 135
+     }
+    },
+    {
+     "name": "io_memory_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 136
+     }
+    },
+    {
+     "name": "io_memory_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/ItcmArbiter.scala",
+      "line": 137
+     }
+    }
+   ]
+  },
+  "Itcm": {
+   "sv": {
+    "file": "gen/Itcm.sv",
+    "line": 24
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+    "line": 168
+   },
+   "doc": "Instruction TCM.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 176
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 177
+     }
+    },
+    {
+     "name": "io_ibus_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 178
+     }
+    },
+    {
+     "name": "io_ibus_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 179
+     }
+    },
+    {
+     "name": "io_ibus_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 180
+     }
+    },
+    {
+     "name": "io_ibus_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 181
+     }
+    },
+    {
+     "name": "io_ibus_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/mem/Itcm.scala",
+      "line": 182
+     }
+    }
+   ]
+  },
+  "VectorCommandQueue": {
+   "sv": {
+    "file": "gen/VectorCommandQueue.sv",
+    "line": 5
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+    "line": 13
+   },
+   "doc": "Four-entry Chisel Queue in front of vector issue.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 21
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 22
+     }
+    },
+    {
+     "name": "io_enq_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 23
+     }
+    },
+    {
+     "name": "io_enq_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 24
+     }
+    },
+    {
+     "name": "io_enq_bits",
+     "dir": "in",
+     "width": 64,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 25
+     }
+    },
+    {
+     "name": "io_deq_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 26
+     }
+    },
+    {
+     "name": "io_deq_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 27
+     }
+    },
+    {
+     "name": "io_count",
+     "dir": "out",
+     "width": 3,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VectorCommandQueue.scala",
+      "line": 28
+     }
+    }
+   ]
+  },
+  "VAlu": {
+   "sv": {
+    "file": "gen/VAlu.sv",
+    "line": 26
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/vector/VAlu.scala",
+    "line": 59
+   },
+   "doc": "Vector integer ALU, two-cycle latency.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VAlu.scala",
+      "line": 67
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VAlu.scala",
+      "line": 68
+     }
+    }
+   ]
+  },
+  "VRegFile": {
+   "sv": {
+    "file": "gen/VRegFile.sv",
+    "line": 29
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/vector/VRegFile.scala",
+    "line": 159
+   },
+   "doc": "Vector register file with two read ports and one write port.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VRegFile.scala",
+      "line": 167
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/vector/VRegFile.scala",
+      "line": 168
+     }
+    }
+   ]
+  },
+  "Fetch": {
+   "sv": {
+    "file": "gen/Fetch.sv",
+    "line": 32
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+    "line": 79
+   },
+   "doc": "Instruction fetch.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 87
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 88
+     }
+    },
+    {
+     "name": "io_decode_req_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 89
+     }
+    },
+    {
+     "name": "io_decode_req_ready",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 90
+     }
+    },
+    {
+     "name": "io_decode_req_bits_addr",
+     "dir": "out",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 91
+     }
+    },
+    {
+     "name": "io_decode_rsp_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 92
+     }
+    },
+    {
+     "name": "io_decode_rsp_bits_data",
+     "dir": "in",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Fetch.scala",
+      "line": 93
+     }
+    }
+   ]
+  },
+  "Decode": {
+   "sv": {
+    "file": "gen/Decode.sv",
+    "line": 13
+   },
+   "src": {
+    "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+    "line": 104
+   },
+   "doc": "Instruction decode.",
+   "ports": [
+    {
+     "name": "clock",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 112
+     }
+    },
+    {
+     "name": "reset",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 113
+     }
+    },
+    {
+     "name": "io_fetch_req_valid",
+     "dir": "in",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 114
+     }
+    },
+    {
+     "name": "io_fetch_req_ready",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 115
+     }
+    },
+    {
+     "name": "io_fetch_req_bits_addr",
+     "dir": "in",
+     "width": 32,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 116
+     }
+    },
+    {
+     "name": "io_fetch_rsp_valid",
+     "dir": "out",
+     "width": 1,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 117
+     }
+    },
+    {
+     "name": "io_fetch_rsp_bits_data",
+     "dir": "out",
+     "width": 128,
+     "src": {
+      "file": "hdl/chisel/src/coral/scalar/Decode.scala",
+      "line": 118
+     }
+    }
+   ]
+  }
+ }
+}

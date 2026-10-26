@@ -1,0 +1,905 @@
+{"cycle":12,"block":"scalar-fetch","type":"fetch","details":"0x8000 vmul.vv v28, v19, v22"}
+{"cycle":13,"block":"vector-command-queue","type":"enq","details":"i0 vmul.vv v28, v19, v22 (bits 0x10001c13)"}
+{"cycle":14,"block":"vector-command-queue","type":"deq","details":"i0 → issue (0 left)"}
+{"cycle":15,"block":"vector-engine","type":"issue","details":"vmul.vv v28, v19, v22"}
+{"cycle":19,"block":"vector-register-file","type":"retire","details":"i0 vmul.vv wrote back"}
+{"cycle":26,"block":"scalar-fetch","type":"fetch","details":"0x800c vmax.vv v11, v2, v5"}
+{"cycle":27,"block":"vector-command-queue","type":"enq","details":"i1 vmax.vv v11, v2, v5 (bits 0x10100b03)"}
+{"cycle":28,"block":"scalar-fetch","type":"fetch","details":"0x8018 vredsum.vs v16, v14, v17"}
+{"cycle":28,"block":"vector-command-queue","type":"deq","details":"i1 → issue (0 left)"}
+{"cycle":29,"block":"vector-engine","type":"issue","details":"vmax.vv v11, v2, v5"}
+{"cycle":29,"block":"vector-command-queue","type":"enq","details":"i2 vredsum.vs v16, v14, v17 (bits 0x10201010)"}
+{"cycle":30,"block":"vector-command-queue","type":"deq","details":"i2 → issue (0 left)"}
+{"cycle":31,"block":"vector-engine","type":"issue","details":"vredsum.vs v16, v14, v17"}
+{"cycle":32,"block":"scalar-fetch","type":"fetch","details":"0x8024 vmax.vv v24, v13, v16"}
+{"cycle":33,"block":"vector-register-file","type":"retire","details":"i1 vmax.vv wrote back"}
+{"cycle":33,"block":"vector-command-queue","type":"enq","details":"i3 vmax.vv v24, v13, v16 (bits 0x10301810)"}
+{"cycle":34,"block":"vector-command-queue","type":"deq","details":"i3 → issue (0 left)"}
+{"cycle":35,"block":"vector-register-file","type":"retire","details":"i2 vredsum.vs wrote back"}
+{"cycle":35,"block":"vector-engine","type":"issue","details":"vmax.vv v24, v13, v16"}
+{"cycle":35,"block":"scalar-fetch","type":"fetch","details":"0x8030 vsub.vv v15, v3, v6"}
+{"cycle":36,"block":"vector-command-queue","type":"enq","details":"i4 vsub.vv v15, v3, v6 (bits 0x10400f07)"}
+{"cycle":37,"block":"vector-command-queue","type":"deq","details":"i4 → issue (0 left)"}
+{"cycle":38,"block":"vector-engine","type":"issue","details":"vsub.vv v15, v3, v6"}
+{"cycle":39,"block":"vector-register-file","type":"retire","details":"i3 vmax.vv wrote back"}
+{"cycle":39,"block":"scalar-fetch","type":"fetch","details":"0x803c vsub.vv v6, v30, v1"}
+{"cycle":40,"block":"vector-command-queue","type":"enq","details":"i5 vsub.vv v6, v30, v1 (bits 0x10500623)"}
+{"cycle":41,"block":"scalar-fetch","type":"fetch","details":"0x8048 vand.vv v4, v4, v7"}
+{"cycle":41,"block":"vector-command-queue","type":"deq","details":"i5 → issue (0 left)"}
+{"cycle":42,"block":"vector-register-file","type":"retire","details":"i4 vsub.vv wrote back"}
+{"cycle":42,"block":"vector-engine","type":"issue","details":"vsub.vv v6, v30, v1"}
+{"cycle":42,"block":"vector-command-queue","type":"enq","details":"i6 vand.vv v4, v4, v7 (bits 0x1060040a)"}
+{"cycle":43,"block":"vector-command-queue","type":"deq","details":"i6 → issue (0 left)"}
+{"cycle":44,"block":"vector-engine","type":"issue","details":"vand.vv v4, v4, v7"}
+{"cycle":45,"block":"scalar-fetch","type":"fetch","details":"0x8054 vadd.vv v19, v28, v31"}
+{"cycle":46,"block":"vector-register-file","type":"retire","details":"i5 vsub.vv wrote back"}
+{"cycle":46,"block":"vector-command-queue","type":"enq","details":"i7 vadd.vv v19, v28, v31 (bits 0x10701323)"}
+{"cycle":47,"block":"vector-command-queue","type":"deq","details":"i7 → issue (0 left)"}
+{"cycle":48,"block":"vector-register-file","type":"retire","details":"i6 vand.vv wrote back"}
+{"cycle":48,"block":"vector-engine","type":"issue","details":"vadd.vv v19, v28, v31"}
+{"cycle":48,"block":"scalar-fetch","type":"fetch","details":"0x8060 vsub.vv v10, v16, v19"}
+{"cycle":49,"block":"vector-command-queue","type":"enq","details":"i8 vsub.vv v10, v16, v19 (bits 0x10800a18)"}
+{"cycle":50,"block":"vector-command-queue","type":"deq","details":"i8 → issue (0 left)"}
+{"cycle":51,"block":"vector-engine","type":"issue","details":"vsub.vv v10, v16, v19"}
+{"cycle":52,"block":"vector-register-file","type":"retire","details":"i7 vadd.vv wrote back"}
+{"cycle":52,"block":"scalar-fetch","type":"fetch","details":"0x806c vmul.vv v27, v19, v22"}
+{"cycle":53,"block":"vector-command-queue","type":"enq","details":"i9 vmul.vv v27, v19, v22 (bits 0x10901b1c)"}
+{"cycle":54,"block":"vector-command-queue","type":"deq","details":"i9 → issue (0 left)"}
+{"cycle":55,"block":"vector-register-file","type":"retire","details":"i8 vsub.vv wrote back"}
+{"cycle":55,"block":"vector-engine","type":"issue","details":"vmul.vv v27, v19, v22"}
+{"cycle":55,"block":"scalar-fetch","type":"fetch","details":"0x8078 vand.vv v6, v8, v11"}
+{"cycle":56,"block":"vector-command-queue","type":"enq","details":"i10 vand.vv v6, v8, v11 (bits 0x10a00612)"}
+{"cycle":57,"block":"vector-command-queue","type":"deq","details":"i10 → issue (0 left)"}
+{"cycle":58,"block":"vector-engine","type":"issue","details":"vand.vv v6, v8, v11"}
+{"cycle":59,"block":"vector-register-file","type":"retire","details":"i9 vmul.vv wrote back"}
+{"cycle":60,"block":"scalar-fetch","type":"fetch","details":"0x8084 vand.vv v6, v14, v17"}
+{"cycle":61,"block":"vector-command-queue","type":"enq","details":"i11 vand.vv v6, v14, v17 (bits 0x10b00619)"}
+{"cycle":62,"block":"vector-register-file","type":"retire","details":"i10 vand.vv wrote back"}
+{"cycle":62,"block":"vector-command-queue","type":"deq","details":"i11 → issue (0 left)"}
+{"cycle":63,"block":"vector-engine","type":"issue","details":"vand.vv v6, v14, v17"}
+{"cycle":64,"block":"scalar-fetch","type":"fetch","details":"0x8090 vsll.vi v23, v5, v8"}
+{"cycle":65,"block":"vector-command-queue","type":"enq","details":"i12 vsll.vi v23, v5, v8 (bits 0x10c01711)"}
+{"cycle":66,"block":"vector-command-queue","type":"deq","details":"i12 → issue (0 left)"}
+{"cycle":67,"block":"vector-register-file","type":"retire","details":"i11 vand.vv wrote back"}
+{"cycle":67,"block":"vector-engine","type":"issue","details":"vsll.vi v23, v5, v8"}
+{"cycle":68,"block":"scalar-fetch","type":"fetch","details":"0x809c vredsum.vs v12, v13, v16"}
+{"cycle":69,"block":"vector-command-queue","type":"enq","details":"i13 vredsum.vs v12, v13, v16 (bits 0x10d00c1a)"}
+{"cycle":70,"block":"vector-command-queue","type":"deq","details":"i13 → issue (0 left)"}
+{"cycle":71,"block":"vector-register-file","type":"retire","details":"i12 vsll.vi wrote back"}
+{"cycle":71,"block":"vector-engine","type":"issue","details":"vredsum.vs v12, v13, v16"}
+{"cycle":72,"block":"scalar-fetch","type":"fetch","details":"0x80a8 vmacc.vv v15, v24, v27"}
+{"cycle":73,"block":"vector-command-queue","type":"enq","details":"i14 vmacc.vv v15, v24, v27 (bits 0x10e00f26)"}
+{"cycle":74,"block":"vector-command-queue","type":"deq","details":"i14 → issue (0 left)"}
+{"cycle":75,"block":"vector-register-file","type":"retire","details":"i13 vredsum.vs wrote back"}
+{"cycle":75,"block":"vector-engine","type":"issue","details":"vmacc.vv v15, v24, v27"}
+{"cycle":77,"block":"scalar-fetch","type":"fetch","details":"0x80b4 vredsum.vs v7, v9, v12"}
+{"cycle":78,"block":"vector-command-queue","type":"enq","details":"i15 vredsum.vs v7, v9, v12 (bits 0x10f00718)"}
+{"cycle":79,"block":"vector-register-file","type":"retire","details":"i14 vmacc.vv wrote back"}
+{"cycle":79,"block":"vector-command-queue","type":"deq","details":"i15 → issue (0 left)"}
+{"cycle":80,"block":"vector-engine","type":"issue","details":"vredsum.vs v7, v9, v12"}
+{"cycle":82,"block":"scalar-fetch","type":"fetch","details":"0x80c0 vmul.vv v2, v9, v12"}
+{"cycle":83,"block":"vector-command-queue","type":"enq","details":"i16 vmul.vv v2, v9, v12 (bits 0x11000219)"}
+{"cycle":84,"block":"vector-register-file","type":"retire","details":"i15 vredsum.vs wrote back"}
+{"cycle":84,"block":"vector-command-queue","type":"deq","details":"i16 → issue (0 left)"}
+{"cycle":85,"block":"vector-engine","type":"issue","details":"vmul.vv v2, v9, v12"}
+{"cycle":87,"block":"scalar-fetch","type":"fetch","details":"0x80cc vmul.vv v16, v23, v26"}
+{"cycle":88,"block":"vector-command-queue","type":"enq","details":"i17 vmul.vv v16, v23, v26 (bits 0x11101028)"}
+{"cycle":89,"block":"vector-register-file","type":"retire","details":"i16 vmul.vv wrote back"}
+{"cycle":89,"block":"vector-command-queue","type":"deq","details":"i17 → issue (0 left)"}
+{"cycle":90,"block":"vector-engine","type":"issue","details":"vmul.vv v16, v23, v26"}
+{"cycle":90,"block":"scalar-fetch","type":"fetch","details":"0x80d8 vsub.vv v7, v27, v30"}
+{"cycle":91,"block":"vector-command-queue","type":"enq","details":"i18 vsub.vv v7, v27, v30 (bits 0x1120072d)"}
+{"cycle":92,"block":"scalar-fetch","type":"fetch","details":"0x80e4 vsll.vi v14, v9, v12"}
+{"cycle":92,"block":"vector-command-queue","type":"deq","details":"i18 → issue (0 left)"}
+{"cycle":93,"block":"vector-engine","type":"issue","details":"vsub.vv v7, v27, v30"}
+{"cycle":93,"block":"vector-command-queue","type":"enq","details":"i19 vsll.vi v14, v9, v12 (bits 0x11300e1c)"}
+{"cycle":94,"block":"vector-register-file","type":"retire","details":"i17 vmul.vv wrote back"}
+{"cycle":94,"block":"vector-command-queue","type":"deq","details":"i19 → issue (0 left)"}
+{"cycle":95,"block":"vector-engine","type":"issue","details":"vsll.vi v14, v9, v12"}
+{"cycle":96,"block":"scalar-fetch","type":"fetch","details":"0x80f0 vadd.vv v12, v14, v17"}
+{"cycle":97,"block":"vector-register-file","type":"retire","details":"i18 vsub.vv wrote back"}
+{"cycle":97,"block":"vector-command-queue","type":"enq","details":"i20 vadd.vv v12, v14, v17 (bits 0x11400c22)"}
+{"cycle":98,"block":"vector-command-queue","type":"deq","details":"i20 → issue (0 left)"}
+{"cycle":99,"block":"vector-register-file","type":"retire","details":"i19 vsll.vi wrote back"}
+{"cycle":99,"block":"vector-engine","type":"issue","details":"vadd.vv v12, v14, v17"}
+{"cycle":101,"block":"scalar-fetch","type":"fetch","details":"0x80fc vmax.vv v7, v21, v24"}
+{"cycle":102,"block":"vector-command-queue","type":"enq","details":"i21 vmax.vv v7, v21, v24 (bits 0x1150072a)"}
+{"cycle":103,"block":"vector-register-file","type":"retire","details":"i20 vadd.vv wrote back"}
+{"cycle":103,"block":"vector-command-queue","type":"deq","details":"i21 → issue (0 left)"}
+{"cycle":104,"block":"vector-engine","type":"issue","details":"vmax.vv v7, v21, v24"}
+{"cycle":108,"block":"vector-register-file","type":"retire","details":"i21 vmax.vv wrote back"}
+{"cycle":111,"block":"scalar-fetch","type":"fetch","details":"0x8108 vsll.vi v25, v17, v20"}
+{"cycle":112,"block":"vector-command-queue","type":"enq","details":"i22 vsll.vi v25, v17, v20 (bits 0x11601927)"}
+{"cycle":113,"block":"vector-command-queue","type":"deq","details":"i22 → issue (0 left)"}
+{"cycle":114,"block":"vector-engine","type":"issue","details":"vsll.vi v25, v17, v20"}
+{"cycle":118,"block":"vector-register-file","type":"retire","details":"i22 vsll.vi wrote back"}
+{"cycle":124,"block":"scalar-fetch","type":"fetch","details":"0x8114 vsll.vi v14, v30, v1"}
+{"cycle":125,"block":"vector-command-queue","type":"enq","details":"i23 vsll.vi v14, v30, v1 (bits 0x11700e35)"}
+{"cycle":126,"block":"vector-command-queue","type":"deq","details":"i23 → issue (0 left)"}
+{"cycle":127,"block":"vector-engine","type":"issue","details":"vsll.vi v14, v30, v1"}
+{"cycle":131,"block":"vector-register-file","type":"retire","details":"i23 vsll.vi wrote back"}
+{"cycle":138,"block":"scalar-fetch","type":"fetch","details":"0x8120 vsub.vv v26, v25, v28"}
+{"cycle":139,"block":"vector-command-queue","type":"enq","details":"i24 vsub.vv v26, v25, v28 (bits 0x11801a31)"}
+{"cycle":140,"block":"vector-command-queue","type":"deq","details":"i24 → issue (0 left)"}
+{"cycle":141,"block":"vector-engine","type":"issue","details":"vsub.vv v26, v25, v28"}
+{"cycle":143,"block":"scalar-fetch","type":"fetch","details":"0x812c vadd.vv v27, v8, v11"}
+{"cycle":144,"block":"vector-command-queue","type":"enq","details":"i25 vadd.vv v27, v8, v11 (bits 0x11901b21)"}
+{"cycle":145,"block":"vector-register-file","type":"retire","details":"i24 vsub.vv wrote back"}
+{"cycle":145,"block":"vector-command-queue","type":"deq","details":"i25 → issue (0 left)"}
+{"cycle":146,"block":"vector-engine","type":"issue","details":"vadd.vv v27, v8, v11"}
+{"cycle":150,"block":"vector-register-file","type":"retire","details":"i25 vadd.vv wrote back"}
+{"cycle":158,"block":"scalar-fetch","type":"fetch","details":"0x8138 vredsum.vs v26, v20, v23"}
+{"cycle":159,"block":"vector-command-queue","type":"enq","details":"i26 vredsum.vs v26, v20, v23 (bits 0x11a01a2e)"}
+{"cycle":160,"block":"vector-command-queue","type":"deq","details":"i26 → issue (0 left)"}
+{"cycle":161,"block":"vector-engine","type":"issue","details":"vredsum.vs v26, v20, v23"}
+{"cycle":162,"block":"scalar-fetch","type":"fetch","details":"0x8144 vmul.vv v1, v1, v4"}
+{"cycle":163,"block":"vector-command-queue","type":"enq","details":"i27 vmul.vv v1, v1, v4 (bits 0x11b0011c)"}
+{"cycle":164,"block":"scalar-fetch","type":"fetch","details":"0x8150 vadd.vv v11, v15, v18"}
+{"cycle":164,"block":"vector-command-queue","type":"deq","details":"i27 → issue (0 left)"}
+{"cycle":165,"block":"vector-register-file","type":"retire","details":"i26 vredsum.vs wrote back"}
+{"cycle":165,"block":"vector-engine","type":"issue","details":"vmul.vv v1, v1, v4"}
+{"cycle":165,"block":"vector-command-queue","type":"enq","details":"i28 vadd.vv v11, v15, v18 (bits 0x11c00b2b)"}
+{"cycle":166,"block":"vector-command-queue","type":"deq","details":"i28 → issue (0 left)"}
+{"cycle":167,"block":"vector-engine","type":"issue","details":"vadd.vv v11, v15, v18"}
+{"cycle":169,"block":"vector-register-file","type":"retire","details":"i27 vmul.vv wrote back"}
+{"cycle":171,"block":"vector-register-file","type":"retire","details":"i28 vadd.vv wrote back"}
+{"cycle":179,"block":"scalar-fetch","type":"fetch","details":"0x815c vmacc.vv v16, v13, v16"}
+{"cycle":180,"block":"vector-command-queue","type":"enq","details":"i29 vmacc.vv v16, v13, v16 (bits 0x11d0102a)"}
+{"cycle":188,"block":"scalar-fetch","type":"fetch","details":"0x8168 vsll.vi v8, v14, v17"}
+{"cycle":189,"block":"vector-command-queue","type":"enq","details":"i30 vsll.vi v8, v14, v17 (bits 0x11e0082c)"}
+{"cycle":190,"block":"scalar-fetch","type":"fetch","details":"0x8174 vsll.vi v13, v4, v7"}
+{"cycle":191,"block":"vector-command-queue","type":"enq","details":"i31 vsll.vi v13, v4, v7 (bits 0x11f00d23)"}
+{"cycle":204,"block":"scalar-fetch","type":"fetch","details":"0x8180 vmacc.vv v5, v26, v29"}
+{"cycle":205,"block":"vector-command-queue","type":"enq","details":"i32 vmacc.vv v5, v26, v29 (bits 0x1200053a)"}
+{"cycle":205,"block":"vector-command-queue","type":"full","details":"4/4 entries; decode will stall"}
+{"cycle":207,"block":"scalar-fetch","type":"fetch","details":"0x818c vand.vv v9, v11, v14"}
+{"cycle":208,"block":"scalar-decode","type":"stall","details":"i33 waiting: VCQ full"}
+{"cycle":236,"block":"vector-command-queue","type":"deq","details":"i29 → issue (3 left)"}
+{"cycle":237,"block":"vector-engine","type":"issue","details":"vmacc.vv v16, v13, v16"}
+{"cycle":237,"block":"vector-command-queue","type":"deq","details":"i30 → issue (2 left)"}
+{"cycle":237,"block":"vector-command-queue","type":"enq","details":"i33 vand.vv v9, v11, v14 (bits 0x1210092c)"}
+{"cycle":238,"block":"vector-engine","type":"issue","details":"vsll.vi v8, v14, v17"}
+{"cycle":238,"block":"scalar-fetch","type":"fetch","details":"0x8198 vadd.vv v24, v17, v20"}
+{"cycle":238,"block":"vector-command-queue","type":"deq","details":"i31 → issue (2 left)"}
+{"cycle":239,"block":"vector-engine","type":"issue","details":"vsll.vi v13, v4, v7"}
+{"cycle":239,"block":"vector-command-queue","type":"deq","details":"i32 → issue (1 left)"}
+{"cycle":239,"block":"vector-command-queue","type":"enq","details":"i34 vadd.vv v24, v17, v20 (bits 0x12201833)"}
+{"cycle":240,"block":"vector-engine","type":"issue","details":"vmacc.vv v5, v26, v29"}
+{"cycle":240,"block":"vector-command-queue","type":"deq","details":"i33 → issue (1 left)"}
+{"cycle":241,"block":"vector-register-file","type":"retire","details":"i29 vmacc.vv wrote back"}
+{"cycle":241,"block":"vector-engine","type":"issue","details":"vand.vv v9, v11, v14"}
+{"cycle":241,"block":"vector-command-queue","type":"deq","details":"i34 → issue (0 left)"}
+{"cycle":242,"block":"vector-register-file","type":"retire","details":"i30 vsll.vi wrote back"}
+{"cycle":242,"block":"vector-engine","type":"issue","details":"vadd.vv v24, v17, v20"}
+{"cycle":242,"block":"scalar-fetch","type":"fetch","details":"0x81a4 vmacc.vv v9, v7, v10"}
+{"cycle":243,"block":"vector-register-file","type":"retire","details":"i31 vsll.vi wrote back"}
+{"cycle":243,"block":"vector-command-queue","type":"enq","details":"i35 vmacc.vv v9, v7, v10 (bits 0x1230092a)"}
+{"cycle":244,"block":"vector-register-file","type":"retire","details":"i32 vmacc.vv wrote back"}
+{"cycle":244,"block":"vector-command-queue","type":"deq","details":"i35 → issue (0 left)"}
+{"cycle":245,"block":"vector-register-file","type":"retire","details":"i33 vand.vv wrote back"}
+{"cycle":245,"block":"vector-engine","type":"issue","details":"vmacc.vv v9, v7, v10"}
+{"cycle":246,"block":"vector-register-file","type":"retire","details":"i34 vadd.vv wrote back"}
+{"cycle":247,"block":"scalar-fetch","type":"fetch","details":"0x81b0 vadd.vv v10, v16, v19"}
+{"cycle":248,"block":"vector-command-queue","type":"enq","details":"i36 vadd.vv v10, v16, v19 (bits 0x12400a34)"}
+{"cycle":249,"block":"vector-register-file","type":"retire","details":"i35 vmacc.vv wrote back"}
+{"cycle":249,"block":"scalar-fetch","type":"fetch","details":"0x81bc vredsum.vs v13, v28, v31"}
+{"cycle":249,"block":"vector-command-queue","type":"deq","details":"i36 → issue (0 left)"}
+{"cycle":250,"block":"vector-engine","type":"issue","details":"vadd.vv v10, v16, v19"}
+{"cycle":250,"block":"vector-command-queue","type":"enq","details":"i37 vredsum.vs v13, v28, v31 (bits 0x12500d41)"}
+{"cycle":251,"block":"scalar-fetch","type":"fetch","details":"0x81c8 vmul.vv v13, v29, v0"}
+{"cycle":251,"block":"vector-command-queue","type":"deq","details":"i37 → issue (0 left)"}
+{"cycle":252,"block":"vector-engine","type":"issue","details":"vredsum.vs v13, v28, v31"}
+{"cycle":252,"block":"vector-command-queue","type":"enq","details":"i38 vmul.vv v13, v29, v0 (bits 0x12600d43)"}
+{"cycle":253,"block":"vector-command-queue","type":"deq","details":"i38 → issue (0 left)"}
+{"cycle":254,"block":"vector-register-file","type":"retire","details":"i36 vadd.vv wrote back"}
+{"cycle":254,"block":"vector-engine","type":"issue","details":"vmul.vv v13, v29, v0"}
+{"cycle":256,"block":"vector-register-file","type":"retire","details":"i37 vredsum.vs wrote back"}
+{"cycle":256,"block":"scalar-fetch","type":"fetch","details":"0x81d4 vredsum.vs v5, v10, v13"}
+{"cycle":257,"block":"vector-command-queue","type":"enq","details":"i39 vredsum.vs v5, v10, v13 (bits 0x12700531)"}
+{"cycle":258,"block":"vector-register-file","type":"retire","details":"i38 vmul.vv wrote back"}
+{"cycle":258,"block":"scalar-fetch","type":"fetch","details":"0x81e0 vmul.vv v21, v28, v31"}
+{"cycle":258,"block":"vector-command-queue","type":"deq","details":"i39 → issue (0 left)"}
+{"cycle":259,"block":"vector-engine","type":"issue","details":"vredsum.vs v5, v10, v13"}
+{"cycle":259,"block":"vector-command-queue","type":"enq","details":"i40 vmul.vv v21, v28, v31 (bits 0x12801544)"}
+{"cycle":260,"block":"vector-command-queue","type":"deq","details":"i40 → issue (0 left)"}
+{"cycle":261,"block":"vector-engine","type":"issue","details":"vmul.vv v21, v28, v31"}
+{"cycle":263,"block":"vector-register-file","type":"retire","details":"i39 vredsum.vs wrote back"}
+{"cycle":265,"block":"vector-register-file","type":"retire","details":"i40 vmul.vv wrote back"}
+{"cycle":266,"block":"scalar-fetch","type":"fetch","details":"0x81ec vmax.vv v14, v1, v4"}
+{"cycle":267,"block":"vector-command-queue","type":"enq","details":"i41 vmax.vv v14, v1, v4 (bits 0x12900e2a)"}
+{"cycle":268,"block":"vector-command-queue","type":"deq","details":"i41 → issue (0 left)"}
+{"cycle":269,"block":"vector-engine","type":"issue","details":"vmax.vv v14, v1, v4"}
+{"cycle":270,"block":"scalar-fetch","type":"fetch","details":"0x81f8 vsub.vv v12, v18, v21"}
+{"cycle":271,"block":"vector-command-queue","type":"enq","details":"i42 vsub.vv v12, v18, v21 (bits 0x12a00c3c)"}
+{"cycle":272,"block":"vector-command-queue","type":"deq","details":"i42 → issue (0 left)"}
+{"cycle":273,"block":"vector-register-file","type":"retire","details":"i41 vmax.vv wrote back"}
+{"cycle":273,"block":"vector-engine","type":"issue","details":"vsub.vv v12, v18, v21"}
+{"cycle":275,"block":"scalar-fetch","type":"fetch","details":"0x8204 vmacc.vv v4, v1, v4"}
+{"cycle":276,"block":"vector-command-queue","type":"enq","details":"i43 vmacc.vv v4, v1, v4 (bits 0x12b0042c)"}
+{"cycle":277,"block":"vector-register-file","type":"retire","details":"i42 vsub.vv wrote back"}
+{"cycle":277,"block":"scalar-fetch","type":"fetch","details":"0x8210 vmacc.vv v25, v21, v24"}
+{"cycle":277,"block":"vector-command-queue","type":"deq","details":"i43 → issue (0 left)"}
+{"cycle":278,"block":"vector-engine","type":"issue","details":"vmacc.vv v4, v1, v4"}
+{"cycle":278,"block":"vector-command-queue","type":"enq","details":"i44 vmacc.vv v25, v21, v24 (bits 0x12c01941)"}
+{"cycle":279,"block":"vector-command-queue","type":"deq","details":"i44 → issue (0 left)"}
+{"cycle":280,"block":"vector-engine","type":"issue","details":"vmacc.vv v25, v21, v24"}
+{"cycle":282,"block":"vector-register-file","type":"retire","details":"i43 vmacc.vv wrote back"}
+{"cycle":284,"block":"vector-register-file","type":"retire","details":"i44 vmacc.vv wrote back"}
+{"cycle":289,"block":"scalar-fetch","type":"fetch","details":"0x821c vsll.vi v7, v2, v5"}
+{"cycle":290,"block":"vector-command-queue","type":"enq","details":"i45 vsll.vi v7, v2, v5 (bits 0x12d0072f)"}
+{"cycle":291,"block":"vector-command-queue","type":"deq","details":"i45 → issue (0 left)"}
+{"cycle":292,"block":"vector-engine","type":"issue","details":"vsll.vi v7, v2, v5"}
+{"cycle":294,"block":"scalar-fetch","type":"fetch","details":"0x8228 vsub.vv v27, v25, v28"}
+{"cycle":295,"block":"vector-command-queue","type":"enq","details":"i46 vsub.vv v27, v25, v28 (bits 0x12e01b47)"}
+{"cycle":296,"block":"vector-register-file","type":"retire","details":"i45 vsll.vi wrote back"}
+{"cycle":296,"block":"vector-command-queue","type":"deq","details":"i46 → issue (0 left)"}
+{"cycle":297,"block":"vector-engine","type":"issue","details":"vsub.vv v27, v25, v28"}
+{"cycle":301,"block":"vector-register-file","type":"retire","details":"i46 vsub.vv wrote back"}
+{"cycle":303,"block":"scalar-fetch","type":"fetch","details":"0x8234 vand.vv v25, v28, v31"}
+{"cycle":304,"block":"vector-command-queue","type":"enq","details":"i47 vand.vv v25, v28, v31 (bits 0x12f0194b)"}
+{"cycle":305,"block":"vector-command-queue","type":"deq","details":"i47 → issue (0 left)"}
+{"cycle":306,"block":"vector-engine","type":"issue","details":"vand.vv v25, v28, v31"}
+{"cycle":308,"block":"scalar-fetch","type":"fetch","details":"0x8240 vredsum.vs v1, v30, v1"}
+{"cycle":309,"block":"vector-command-queue","type":"enq","details":"i48 vredsum.vs v1, v30, v1 (bits 0x1300014e)"}
+{"cycle":310,"block":"vector-register-file","type":"retire","details":"i47 vand.vv wrote back"}
+{"cycle":310,"block":"scalar-fetch","type":"fetch","details":"0x824c vmax.vv v13, v20, v23"}
+{"cycle":310,"block":"vector-command-queue","type":"deq","details":"i48 → issue (0 left)"}
+{"cycle":311,"block":"vector-engine","type":"issue","details":"vredsum.vs v1, v30, v1"}
+{"cycle":311,"block":"vector-command-queue","type":"enq","details":"i49 vmax.vv v13, v20, v23 (bits 0x13100d45)"}
+{"cycle":312,"block":"vector-command-queue","type":"deq","details":"i49 → issue (0 left)"}
+{"cycle":313,"block":"vector-engine","type":"issue","details":"vmax.vv v13, v20, v23"}
+{"cycle":314,"block":"scalar-fetch","type":"fetch","details":"0x8258 vand.vv v8, v8, v11"}
+{"cycle":315,"block":"vector-register-file","type":"retire","details":"i48 vredsum.vs wrote back"}
+{"cycle":315,"block":"vector-command-queue","type":"enq","details":"i50 vand.vv v8, v8, v11 (bits 0x1320083a)"}
+{"cycle":316,"block":"vector-command-queue","type":"deq","details":"i50 → issue (0 left)"}
+{"cycle":317,"block":"vector-register-file","type":"retire","details":"i49 vmax.vv wrote back"}
+{"cycle":317,"block":"vector-engine","type":"issue","details":"vand.vv v8, v8, v11"}
+{"cycle":317,"block":"scalar-fetch","type":"fetch","details":"0x8264 vsll.vi v26, v13, v16"}
+{"cycle":318,"block":"vector-command-queue","type":"enq","details":"i51 vsll.vi v26, v13, v16 (bits 0x13301a40)"}
+{"cycle":319,"block":"scalar-fetch","type":"fetch","details":"0x8270 vand.vv v20, v25, v28"}
+{"cycle":319,"block":"vector-command-queue","type":"deq","details":"i51 → issue (0 left)"}
+{"cycle":320,"block":"vector-engine","type":"issue","details":"vsll.vi v26, v13, v16"}
+{"cycle":320,"block":"vector-command-queue","type":"enq","details":"i52 vand.vv v20, v25, v28 (bits 0x1340144d)"}
+{"cycle":321,"block":"vector-register-file","type":"retire","details":"i50 vand.vv wrote back"}
+{"cycle":321,"block":"scalar-fetch","type":"fetch","details":"0x827c vmax.vv v14, v13, v16"}
+{"cycle":321,"block":"vector-command-queue","type":"deq","details":"i52 → issue (0 left)"}
+{"cycle":322,"block":"vector-engine","type":"issue","details":"vand.vv v20, v25, v28"}
+{"cycle":322,"block":"vector-command-queue","type":"enq","details":"i53 vmax.vv v14, v13, v16 (bits 0x13500e42)"}
+{"cycle":323,"block":"vector-command-queue","type":"deq","details":"i53 → issue (0 left)"}
+{"cycle":324,"block":"vector-register-file","type":"retire","details":"i51 vsll.vi wrote back"}
+{"cycle":324,"block":"vector-engine","type":"issue","details":"vmax.vv v14, v13, v16"}
+{"cycle":326,"block":"vector-register-file","type":"retire","details":"i52 vand.vv wrote back"}
+{"cycle":327,"block":"scalar-fetch","type":"fetch","details":"0x8288 vsub.vv v14, v7, v10"}
+{"cycle":328,"block":"vector-register-file","type":"retire","details":"i53 vmax.vv wrote back"}
+{"cycle":328,"block":"vector-command-queue","type":"enq","details":"i54 vsub.vv v14, v7, v10 (bits 0x13600e3d)"}
+{"cycle":329,"block":"vector-command-queue","type":"deq","details":"i54 → issue (0 left)"}
+{"cycle":330,"block":"vector-engine","type":"issue","details":"vsub.vv v14, v7, v10"}
+{"cycle":334,"block":"vector-register-file","type":"retire","details":"i54 vsub.vv wrote back"}
+{"cycle":338,"block":"scalar-fetch","type":"fetch","details":"0x8294 vmax.vv v30, v22, v25"}
+{"cycle":339,"block":"vector-command-queue","type":"enq","details":"i55 vmax.vv v30, v22, v25 (bits 0x13701e4d)"}
+{"cycle":340,"block":"scalar-fetch","type":"fetch","details":"0x82a0 vmax.vv v6, v24, v27"}
+{"cycle":340,"block":"vector-command-queue","type":"deq","details":"i55 → issue (0 left)"}
+{"cycle":341,"block":"vector-engine","type":"issue","details":"vmax.vv v30, v22, v25"}
+{"cycle":341,"block":"vector-command-queue","type":"enq","details":"i56 vmax.vv v6, v24, v27 (bits 0x13800650)"}
+{"cycle":342,"block":"vector-command-queue","type":"deq","details":"i56 → issue (0 left)"}
+{"cycle":343,"block":"vector-engine","type":"issue","details":"vmax.vv v6, v24, v27"}
+{"cycle":343,"block":"scalar-fetch","type":"fetch","details":"0x82ac vmul.vv v25, v11, v14"}
+{"cycle":344,"block":"vector-command-queue","type":"enq","details":"i57 vmul.vv v25, v11, v14 (bits 0x13901944)"}
+{"cycle":345,"block":"vector-register-file","type":"retire","details":"i55 vmax.vv wrote back"}
+{"cycle":345,"block":"scalar-fetch","type":"fetch","details":"0x82b8 vand.vv v15, v26, v29"}
+{"cycle":345,"block":"vector-command-queue","type":"deq","details":"i57 → issue (0 left)"}
+{"cycle":346,"block":"vector-engine","type":"issue","details":"vmul.vv v25, v11, v14"}
+{"cycle":346,"block":"vector-command-queue","type":"enq","details":"i58 vand.vv v15, v26, v29 (bits 0x13a00f54)"}
+{"cycle":347,"block":"vector-register-file","type":"retire","details":"i56 vmax.vv wrote back"}
+{"cycle":347,"block":"vector-command-queue","type":"deq","details":"i58 → issue (0 left)"}
+{"cycle":348,"block":"vector-engine","type":"issue","details":"vand.vv v15, v26, v29"}
+{"cycle":348,"block":"scalar-fetch","type":"fetch","details":"0x82c4 vadd.vv v17, v15, v18"}
+{"cycle":349,"block":"vector-command-queue","type":"enq","details":"i59 vadd.vv v17, v15, v18 (bits 0x13b0114a)"}
+{"cycle":350,"block":"vector-register-file","type":"retire","details":"i57 vmul.vv wrote back"}
+{"cycle":350,"block":"vector-command-queue","type":"deq","details":"i59 → issue (0 left)"}
+{"cycle":351,"block":"vector-engine","type":"issue","details":"vadd.vv v17, v15, v18"}
+{"cycle":352,"block":"vector-register-file","type":"retire","details":"i58 vand.vv wrote back"}
+{"cycle":355,"block":"vector-register-file","type":"retire","details":"i59 vadd.vv wrote back"}
+{"cycle":358,"block":"scalar-fetch","type":"fetch","details":"0x82d0 vmul.vv v14, v28, v31"}
+{"cycle":359,"block":"vector-command-queue","type":"enq","details":"i60 vmul.vv v14, v28, v31 (bits 0x13c00e58)"}
+{"cycle":360,"block":"vector-command-queue","type":"deq","details":"i60 → issue (0 left)"}
+{"cycle":361,"block":"vector-engine","type":"issue","details":"vmul.vv v14, v28, v31"}
+{"cycle":363,"block":"scalar-fetch","type":"fetch","details":"0x82dc vand.vv v6, v8, v11"}
+{"cycle":364,"block":"vector-command-queue","type":"enq","details":"i61 vand.vv v6, v8, v11 (bits 0x13d00645)"}
+{"cycle":365,"block":"vector-register-file","type":"retire","details":"i60 vmul.vv wrote back"}
+{"cycle":365,"block":"vector-command-queue","type":"deq","details":"i61 → issue (0 left)"}
+{"cycle":366,"block":"vector-engine","type":"issue","details":"vand.vv v6, v8, v11"}
+{"cycle":367,"block":"scalar-fetch","type":"fetch","details":"0x82e8 vmax.vv v23, v29, v0"}
+{"cycle":368,"block":"vector-command-queue","type":"enq","details":"i62 vmax.vv v23, v29, v0 (bits 0x13e0175b)"}
+{"cycle":369,"block":"scalar-fetch","type":"fetch","details":"0x82f4 vsll.vi v11, v7, v10"}
+{"cycle":369,"block":"vector-command-queue","type":"deq","details":"i62 → issue (0 left)"}
+{"cycle":370,"block":"vector-register-file","type":"retire","details":"i61 vand.vv wrote back"}
+{"cycle":370,"block":"vector-engine","type":"issue","details":"vmax.vv v23, v29, v0"}
+{"cycle":370,"block":"vector-command-queue","type":"enq","details":"i63 vsll.vi v11, v7, v10 (bits 0x13f00b46)"}
+{"cycle":371,"block":"vector-command-queue","type":"deq","details":"i63 → issue (0 left)"}
+{"cycle":372,"block":"vector-engine","type":"issue","details":"vsll.vi v11, v7, v10"}
+{"cycle":373,"block":"scalar-fetch","type":"fetch","details":"0x8300 vmul.vv v15, v8, v11"}
+{"cycle":374,"block":"vector-register-file","type":"retire","details":"i62 vmax.vv wrote back"}
+{"cycle":374,"block":"vector-command-queue","type":"enq","details":"i64 vmul.vv v15, v8, v11 (bits 0x14000f48)"}
+{"cycle":375,"block":"vector-command-queue","type":"deq","details":"i64 → issue (0 left)"}
+{"cycle":376,"block":"vector-register-file","type":"retire","details":"i63 vsll.vi wrote back"}
+{"cycle":376,"block":"vector-engine","type":"issue","details":"vmul.vv v15, v8, v11"}
+{"cycle":380,"block":"vector-register-file","type":"retire","details":"i64 vmul.vv wrote back"}
+{"cycle":380,"block":"scalar-fetch","type":"fetch","details":"0x830c vsub.vv v8, v29, v0"}
+{"cycle":381,"block":"vector-command-queue","type":"enq","details":"i65 vsub.vv v8, v29, v0 (bits 0x1410085e)"}
+{"cycle":382,"block":"scalar-fetch","type":"fetch","details":"0x8318 vmax.vv v15, v12, v15"}
+{"cycle":382,"block":"vector-command-queue","type":"deq","details":"i65 → issue (0 left)"}
+{"cycle":383,"block":"vector-engine","type":"issue","details":"vsub.vv v8, v29, v0"}
+{"cycle":383,"block":"vector-command-queue","type":"enq","details":"i66 vmax.vv v15, v12, v15 (bits 0x14200f4e)"}
+{"cycle":384,"block":"vector-command-queue","type":"deq","details":"i66 → issue (0 left)"}
+{"cycle":385,"block":"vector-engine","type":"issue","details":"vmax.vv v15, v12, v15"}
+{"cycle":386,"block":"scalar-fetch","type":"fetch","details":"0x8324 vmul.vv v19, v22, v25"}
+{"cycle":387,"block":"vector-register-file","type":"retire","details":"i65 vsub.vv wrote back"}
+{"cycle":387,"block":"vector-command-queue","type":"enq","details":"i67 vmul.vv v19, v22, v25 (bits 0x14301359)"}
+{"cycle":388,"block":"vector-command-queue","type":"deq","details":"i67 → issue (0 left)"}
+{"cycle":389,"block":"vector-register-file","type":"retire","details":"i66 vmax.vv wrote back"}
+{"cycle":389,"block":"vector-engine","type":"issue","details":"vmul.vv v19, v22, v25"}
+{"cycle":393,"block":"vector-register-file","type":"retire","details":"i67 vmul.vv wrote back"}
+{"cycle":395,"block":"scalar-fetch","type":"fetch","details":"0x8330 vmul.vv v28, v22, v25"}
+{"cycle":396,"block":"vector-command-queue","type":"enq","details":"i68 vmul.vv v28, v22, v25 (bits 0x14401c5a)"}
+{"cycle":397,"block":"scalar-fetch","type":"fetch","details":"0x833c vsub.vv v26, v26, v29"}
+{"cycle":397,"block":"vector-command-queue","type":"deq","details":"i68 → issue (0 left)"}
+{"cycle":398,"block":"vector-engine","type":"issue","details":"vmul.vv v28, v22, v25"}
+{"cycle":398,"block":"vector-command-queue","type":"enq","details":"i69 vsub.vv v26, v26, v29 (bits 0x14501a5f)"}
+{"cycle":399,"block":"scalar-fetch","type":"fetch","details":"0x8348 vsub.vv v29, v8, v11"}
+{"cycle":399,"block":"vector-command-queue","type":"deq","details":"i69 → issue (0 left)"}
+{"cycle":400,"block":"vector-engine","type":"issue","details":"vsub.vv v26, v26, v29"}
+{"cycle":400,"block":"vector-command-queue","type":"enq","details":"i70 vsub.vv v29, v8, v11 (bits 0x14601d4e)"}
+{"cycle":401,"block":"vector-command-queue","type":"deq","details":"i70 → issue (0 left)"}
+{"cycle":402,"block":"vector-register-file","type":"retire","details":"i68 vmul.vv wrote back"}
+{"cycle":402,"block":"vector-engine","type":"issue","details":"vsub.vv v29, v8, v11"}
+{"cycle":402,"block":"scalar-fetch","type":"fetch","details":"0x8354 vadd.vv v19, v20, v23"}
+{"cycle":403,"block":"vector-command-queue","type":"enq","details":"i71 vadd.vv v19, v20, v23 (bits 0x1470135b)"}
+{"cycle":404,"block":"vector-register-file","type":"retire","details":"i69 vsub.vv wrote back"}
+{"cycle":404,"block":"vector-command-queue","type":"deq","details":"i71 → issue (0 left)"}
+{"cycle":405,"block":"vector-engine","type":"issue","details":"vadd.vv v19, v20, v23"}
+{"cycle":405,"block":"scalar-fetch","type":"fetch","details":"0x8360 vand.vv v6, v14, v17"}
+{"cycle":406,"block":"vector-register-file","type":"retire","details":"i70 vsub.vv wrote back"}
+{"cycle":406,"block":"vector-command-queue","type":"enq","details":"i72 vand.vv v6, v14, v17 (bits 0x14800656)"}
+{"cycle":407,"block":"scalar-fetch","type":"fetch","details":"0x836c vmax.vv v15, v10, v13"}
+{"cycle":407,"block":"vector-command-queue","type":"deq","details":"i72 → issue (0 left)"}
+{"cycle":408,"block":"vector-engine","type":"issue","details":"vand.vv v6, v14, v17"}
+{"cycle":408,"block":"vector-command-queue","type":"enq","details":"i73 vmax.vv v15, v10, v13 (bits 0x14900f53)"}
+{"cycle":409,"block":"vector-register-file","type":"retire","details":"i71 vadd.vv wrote back"}
+{"cycle":409,"block":"scalar-fetch","type":"fetch","details":"0x8378 vmax.vv v8, v15, v18"}
+{"cycle":409,"block":"vector-command-queue","type":"deq","details":"i73 → issue (0 left)"}
+{"cycle":410,"block":"vector-engine","type":"issue","details":"vmax.vv v15, v10, v13"}
+{"cycle":410,"block":"vector-command-queue","type":"enq","details":"i74 vmax.vv v8, v15, v18 (bits 0x14a00859)"}
+{"cycle":411,"block":"vector-command-queue","type":"deq","details":"i74 → issue (0 left)"}
+{"cycle":412,"block":"vector-register-file","type":"retire","details":"i72 vand.vv wrote back"}
+{"cycle":412,"block":"vector-engine","type":"issue","details":"vmax.vv v8, v15, v18"}
+{"cycle":413,"block":"scalar-fetch","type":"fetch","details":"0x8384 vand.vv v17, v16, v19"}
+{"cycle":414,"block":"vector-register-file","type":"retire","details":"i73 vmax.vv wrote back"}
+{"cycle":414,"block":"vector-command-queue","type":"enq","details":"i75 vand.vv v17, v16, v19 (bits 0x14b0115b)"}
+{"cycle":415,"block":"vector-command-queue","type":"deq","details":"i75 → issue (0 left)"}
+{"cycle":416,"block":"vector-register-file","type":"retire","details":"i74 vmax.vv wrote back"}
+{"cycle":416,"block":"vector-engine","type":"issue","details":"vand.vv v17, v16, v19"}
+{"cycle":420,"block":"vector-register-file","type":"retire","details":"i75 vand.vv wrote back"}
+{"cycle":428,"block":"scalar-fetch","type":"fetch","details":"0x8390 vmul.vv v21, v28, v31"}
+{"cycle":429,"block":"vector-command-queue","type":"enq","details":"i76 vmul.vv v21, v28, v31 (bits 0x14c01568)"}
+{"cycle":430,"block":"scalar-fetch","type":"fetch","details":"0x839c vand.vv v4, v15, v18"}
+{"cycle":430,"block":"vector-command-queue","type":"deq","details":"i76 → issue (0 left)"}
+{"cycle":431,"block":"vector-engine","type":"issue","details":"vmul.vv v21, v28, v31"}
+{"cycle":431,"block":"vector-command-queue","type":"enq","details":"i77 vand.vv v4, v15, v18 (bits 0x14d0045c)"}
+{"cycle":432,"block":"vector-command-queue","type":"deq","details":"i77 → issue (0 left)"}
+{"cycle":433,"block":"vector-engine","type":"issue","details":"vand.vv v4, v15, v18"}
+{"cycle":435,"block":"vector-register-file","type":"retire","details":"i76 vmul.vv wrote back"}
+{"cycle":435,"block":"scalar-fetch","type":"fetch","details":"0x83a8 vmul.vv v1, v23, v26"}
+{"cycle":436,"block":"vector-command-queue","type":"enq","details":"i78 vmul.vv v1, v23, v26 (bits 0x14e00165)"}
+{"cycle":437,"block":"vector-register-file","type":"retire","details":"i77 vand.vv wrote back"}
+{"cycle":437,"block":"vector-command-queue","type":"deq","details":"i78 → issue (0 left)"}
+{"cycle":438,"block":"vector-engine","type":"issue","details":"vmul.vv v1, v23, v26"}
+{"cycle":442,"block":"vector-register-file","type":"retire","details":"i78 vmul.vv wrote back"}
+{"cycle":444,"block":"scalar-fetch","type":"fetch","details":"0x83b4 vmacc.vv v28, v6, v9"}
+{"cycle":445,"block":"vector-command-queue","type":"enq","details":"i79 vmacc.vv v28, v6, v9 (bits 0x14f01c55)"}
+{"cycle":446,"block":"vector-command-queue","type":"deq","details":"i79 → issue (0 left)"}
+{"cycle":447,"block":"vector-engine","type":"issue","details":"vmacc.vv v28, v6, v9"}
+{"cycle":449,"block":"scalar-fetch","type":"fetch","details":"0x83c0 vsub.vv v13, v18, v21"}
+{"cycle":450,"block":"vector-command-queue","type":"enq","details":"i80 vsub.vv v13, v18, v21 (bits 0x15000d62)"}
+{"cycle":451,"block":"vector-register-file","type":"retire","details":"i79 vmacc.vv wrote back"}
+{"cycle":451,"block":"vector-command-queue","type":"deq","details":"i80 → issue (0 left)"}
+{"cycle":452,"block":"vector-engine","type":"issue","details":"vsub.vv v13, v18, v21"}
+{"cycle":453,"block":"scalar-fetch","type":"fetch","details":"0x83cc vadd.vv v6, v12, v15"}
+{"cycle":454,"block":"vector-command-queue","type":"enq","details":"i81 vadd.vv v6, v12, v15 (bits 0x1510065d)"}
+{"cycle":455,"block":"vector-command-queue","type":"deq","details":"i81 → issue (0 left)"}
+{"cycle":456,"block":"vector-register-file","type":"retire","details":"i80 vsub.vv wrote back"}
+{"cycle":456,"block":"vector-engine","type":"issue","details":"vadd.vv v6, v12, v15"}
+{"cycle":460,"block":"vector-register-file","type":"retire","details":"i81 vadd.vv wrote back"}
+{"cycle":464,"block":"scalar-fetch","type":"fetch","details":"0x83d8 vredsum.vs v14, v4, v7"}
+{"cycle":465,"block":"vector-command-queue","type":"enq","details":"i82 vredsum.vs v14, v4, v7 (bits 0x15200e56)"}
+{"cycle":466,"block":"vector-command-queue","type":"deq","details":"i82 → issue (0 left)"}
+{"cycle":467,"block":"vector-engine","type":"issue","details":"vredsum.vs v14, v4, v7"}
+{"cycle":468,"block":"scalar-fetch","type":"fetch","details":"0x83e4 vsll.vi v8, v15, v18"}
+{"cycle":469,"block":"vector-command-queue","type":"enq","details":"i83 vsll.vi v8, v15, v18 (bits 0x15300862)"}
+{"cycle":470,"block":"vector-command-queue","type":"deq","details":"i83 → issue (0 left)"}
+{"cycle":471,"block":"vector-register-file","type":"retire","details":"i82 vredsum.vs wrote back"}
+{"cycle":471,"block":"vector-engine","type":"issue","details":"vsll.vi v8, v15, v18"}
+{"cycle":471,"block":"scalar-fetch","type":"fetch","details":"0x83f0 vsll.vi v21, v4, v7"}
+{"cycle":472,"block":"vector-command-queue","type":"enq","details":"i84 vsll.vi v21, v4, v7 (bits 0x15401558)"}
+{"cycle":473,"block":"vector-command-queue","type":"deq","details":"i84 → issue (0 left)"}
+{"cycle":474,"block":"vector-engine","type":"issue","details":"vsll.vi v21, v4, v7"}
+{"cycle":475,"block":"vector-register-file","type":"retire","details":"i83 vsll.vi wrote back"}
+{"cycle":478,"block":"vector-register-file","type":"retire","details":"i84 vsll.vi wrote back"}
+{"cycle":484,"block":"scalar-fetch","type":"fetch","details":"0x83fc vmul.vv v13, v2, v5"}
+{"cycle":485,"block":"vector-command-queue","type":"enq","details":"i85 vmul.vv v13, v2, v5 (bits 0x15500d57)"}
+{"cycle":486,"block":"scalar-fetch","type":"fetch","details":"0x8408 vadd.vv v27, v23, v26"}
+{"cycle":486,"block":"vector-command-queue","type":"deq","details":"i85 → issue (0 left)"}
+{"cycle":487,"block":"vector-engine","type":"issue","details":"vmul.vv v13, v2, v5"}
+{"cycle":487,"block":"vector-command-queue","type":"enq","details":"i86 vadd.vv v27, v23, v26 (bits 0x15601b6d)"}
+{"cycle":488,"block":"vector-command-queue","type":"deq","details":"i86 → issue (0 left)"}
+{"cycle":489,"block":"vector-engine","type":"issue","details":"vadd.vv v27, v23, v26"}
+{"cycle":489,"block":"scalar-fetch","type":"fetch","details":"0x8414 vredsum.vs v6, v6, v9"}
+{"cycle":490,"block":"vector-command-queue","type":"enq","details":"i87 vredsum.vs v6, v6, v9 (bits 0x1570065d)"}
+{"cycle":491,"block":"vector-register-file","type":"retire","details":"i85 vmul.vv wrote back"}
+{"cycle":491,"block":"vector-command-queue","type":"deq","details":"i87 → issue (0 left)"}
+{"cycle":492,"block":"vector-engine","type":"issue","details":"vredsum.vs v6, v6, v9"}
+{"cycle":493,"block":"vector-register-file","type":"retire","details":"i86 vadd.vv wrote back"}
+{"cycle":496,"block":"vector-register-file","type":"retire","details":"i87 vredsum.vs wrote back"}
+{"cycle":499,"block":"scalar-fetch","type":"fetch","details":"0x8420 vadd.vv v29, v19, v22"}
+{"cycle":500,"block":"vector-command-queue","type":"enq","details":"i88 vadd.vv v29, v19, v22 (bits 0x15801d6b)"}
+{"cycle":501,"block":"scalar-fetch","type":"fetch","details":"0x842c vsub.vv v27, v25, v28"}
+{"cycle":501,"block":"vector-command-queue","type":"deq","details":"i88 → issue (0 left)"}
+{"cycle":502,"block":"vector-engine","type":"issue","details":"vadd.vv v29, v19, v22"}
+{"cycle":502,"block":"vector-command-queue","type":"enq","details":"i89 vsub.vv v27, v25, v28 (bits 0x15901b72)"}
+{"cycle":503,"block":"vector-command-queue","type":"deq","details":"i89 → issue (0 left)"}
+{"cycle":504,"block":"vector-engine","type":"issue","details":"vsub.vv v27, v25, v28"}
+{"cycle":504,"block":"scalar-fetch","type":"fetch","details":"0x8438 vmacc.vv v21, v26, v29"}
+{"cycle":505,"block":"vector-command-queue","type":"enq","details":"i90 vmacc.vv v21, v26, v29 (bits 0x15a01574)"}
+{"cycle":506,"block":"vector-register-file","type":"retire","details":"i88 vadd.vv wrote back"}
+{"cycle":506,"block":"vector-command-queue","type":"deq","details":"i90 → issue (0 left)"}
+{"cycle":507,"block":"vector-engine","type":"issue","details":"vmacc.vv v21, v26, v29"}
+{"cycle":508,"block":"vector-register-file","type":"retire","details":"i89 vsub.vv wrote back"}
+{"cycle":509,"block":"scalar-fetch","type":"fetch","details":"0x8444 vsll.vi v13, v4, v7"}
+{"cycle":510,"block":"vector-command-queue","type":"enq","details":"i91 vsll.vi v13, v4, v7 (bits 0x15b00d5f)"}
+{"cycle":511,"block":"vector-register-file","type":"retire","details":"i90 vmacc.vv wrote back"}
+{"cycle":511,"block":"scalar-fetch","type":"fetch","details":"0x8450 vredsum.vs v28, v22, v25"}
+{"cycle":511,"block":"vector-command-queue","type":"deq","details":"i91 → issue (0 left)"}
+{"cycle":512,"block":"vector-engine","type":"issue","details":"vsll.vi v13, v4, v7"}
+{"cycle":512,"block":"vector-command-queue","type":"enq","details":"i92 vredsum.vs v28, v22, v25 (bits 0x15c01c72)"}
+{"cycle":513,"block":"vector-command-queue","type":"deq","details":"i92 → issue (0 left)"}
+{"cycle":514,"block":"vector-engine","type":"issue","details":"vredsum.vs v28, v22, v25"}
+{"cycle":514,"block":"scalar-fetch","type":"fetch","details":"0x845c vmacc.vv v13, v4, v7"}
+{"cycle":515,"block":"vector-command-queue","type":"enq","details":"i93 vmacc.vv v13, v4, v7 (bits 0x15d00d61)"}
+{"cycle":516,"block":"vector-register-file","type":"retire","details":"i91 vsll.vi wrote back"}
+{"cycle":516,"block":"vector-command-queue","type":"deq","details":"i93 → issue (0 left)"}
+{"cycle":517,"block":"vector-engine","type":"issue","details":"vmacc.vv v13, v4, v7"}
+{"cycle":518,"block":"vector-register-file","type":"retire","details":"i92 vredsum.vs wrote back"}
+{"cycle":521,"block":"vector-register-file","type":"retire","details":"i93 vmacc.vv wrote back"}
+{"cycle":521,"block":"scalar-fetch","type":"fetch","details":"0x8468 vmax.vv v24, v29, v0"}
+{"cycle":522,"block":"vector-command-queue","type":"enq","details":"i94 vmax.vv v24, v29, v0 (bits 0x15e0187b)"}
+{"cycle":523,"block":"vector-command-queue","type":"deq","details":"i94 → issue (0 left)"}
+{"cycle":524,"block":"vector-engine","type":"issue","details":"vmax.vv v24, v29, v0"}
+{"cycle":526,"block":"scalar-fetch","type":"fetch","details":"0x8474 vmacc.vv v13, v16, v19"}
+{"cycle":527,"block":"vector-command-queue","type":"enq","details":"i95 vmacc.vv v13, v16, v19 (bits 0x15f00d6f)"}
+{"cycle":528,"block":"vector-register-file","type":"retire","details":"i94 vmax.vv wrote back"}
+{"cycle":528,"block":"vector-command-queue","type":"deq","details":"i95 → issue (0 left)"}
+{"cycle":529,"block":"vector-engine","type":"issue","details":"vmacc.vv v13, v16, v19"}
+{"cycle":533,"block":"vector-register-file","type":"retire","details":"i95 vmacc.vv wrote back"}
+{"cycle":538,"block":"scalar-fetch","type":"fetch","details":"0x8480 vmacc.vv v10, v27, v30"}
+{"cycle":539,"block":"vector-command-queue","type":"enq","details":"i96 vmacc.vv v10, v27, v30 (bits 0x16000a7b)"}
+{"cycle":540,"block":"scalar-fetch","type":"fetch","details":"0x848c vmax.vv v10, v3, v6"}
+{"cycle":540,"block":"vector-command-queue","type":"deq","details":"i96 → issue (0 left)"}
+{"cycle":541,"block":"vector-engine","type":"issue","details":"vmacc.vv v10, v27, v30"}
+{"cycle":541,"block":"vector-command-queue","type":"enq","details":"i97 vmax.vv v10, v3, v6 (bits 0x16100a64)"}
+{"cycle":542,"block":"vector-command-queue","type":"deq","details":"i97 → issue (0 left)"}
+{"cycle":543,"block":"vector-engine","type":"issue","details":"vmax.vv v10, v3, v6"}
+{"cycle":544,"block":"scalar-fetch","type":"fetch","details":"0x8498 vsll.vi v21, v13, v16"}
+{"cycle":545,"block":"vector-register-file","type":"retire","details":"i96 vmacc.vv wrote back"}
+{"cycle":545,"block":"vector-command-queue","type":"enq","details":"i98 vsll.vi v21, v13, v16 (bits 0x1620156f)"}
+{"cycle":546,"block":"vector-command-queue","type":"deq","details":"i98 → issue (0 left)"}
+{"cycle":547,"block":"vector-register-file","type":"retire","details":"i97 vmax.vv wrote back"}
+{"cycle":547,"block":"vector-engine","type":"issue","details":"vsll.vi v21, v13, v16"}
+{"cycle":547,"block":"scalar-fetch","type":"fetch","details":"0x84a4 vmul.vv v14, v9, v12"}
+{"cycle":548,"block":"vector-command-queue","type":"enq","details":"i99 vmul.vv v14, v9, v12 (bits 0x16300e6c)"}
+{"cycle":549,"block":"vector-command-queue","type":"deq","details":"i99 → issue (0 left)"}
+{"cycle":550,"block":"vector-engine","type":"issue","details":"vmul.vv v14, v9, v12"}
+{"cycle":550,"block":"scalar-fetch","type":"fetch","details":"0x84b0 vsub.vv v7, v23, v26"}
+{"cycle":551,"block":"vector-register-file","type":"retire","details":"i98 vsll.vi wrote back"}
+{"cycle":551,"block":"vector-command-queue","type":"enq","details":"i100 vsub.vv v7, v23, v26 (bits 0x1640077b)"}
+{"cycle":552,"block":"scalar-fetch","type":"fetch","details":"0x84bc vsll.vi v1, v16, v19"}
+{"cycle":552,"block":"vector-command-queue","type":"deq","details":"i100 → issue (0 left)"}
+{"cycle":553,"block":"vector-engine","type":"issue","details":"vsub.vv v7, v23, v26"}
+{"cycle":553,"block":"vector-command-queue","type":"enq","details":"i101 vsll.vi v1, v16, v19 (bits 0x16500175)"}
+{"cycle":554,"block":"vector-register-file","type":"retire","details":"i99 vmul.vv wrote back"}
+{"cycle":554,"block":"scalar-fetch","type":"fetch","details":"0x84c8 vmax.vv v13, v10, v13"}
+{"cycle":554,"block":"vector-command-queue","type":"deq","details":"i101 → issue (0 left)"}
+{"cycle":555,"block":"vector-engine","type":"issue","details":"vsll.vi v1, v16, v19"}
+{"cycle":555,"block":"vector-command-queue","type":"enq","details":"i102 vmax.vv v13, v10, v13 (bits 0x16600d70)"}
+{"cycle":556,"block":"vector-command-queue","type":"deq","details":"i102 → issue (0 left)"}
+{"cycle":557,"block":"vector-register-file","type":"retire","details":"i100 vsub.vv wrote back"}
+{"cycle":557,"block":"vector-engine","type":"issue","details":"vmax.vv v13, v10, v13"}
+{"cycle":558,"block":"scalar-fetch","type":"fetch","details":"0x84d4 vredsum.vs v12, v25, v28"}
+{"cycle":559,"block":"vector-register-file","type":"retire","details":"i101 vsll.vi wrote back"}
+{"cycle":559,"block":"vector-command-queue","type":"enq","details":"i103 vredsum.vs v12, v25, v28 (bits 0x16700c80)"}
+{"cycle":560,"block":"scalar-fetch","type":"fetch","details":"0x84e0 vsll.vi v22, v9, v12"}
+{"cycle":560,"block":"vector-command-queue","type":"deq","details":"i103 → issue (0 left)"}
+{"cycle":561,"block":"vector-register-file","type":"retire","details":"i102 vmax.vv wrote back"}
+{"cycle":561,"block":"vector-engine","type":"issue","details":"vredsum.vs v12, v25, v28"}
+{"cycle":561,"block":"vector-command-queue","type":"enq","details":"i104 vsll.vi v22, v9, v12 (bits 0x16801671)"}
+{"cycle":562,"block":"vector-command-queue","type":"deq","details":"i104 → issue (0 left)"}
+{"cycle":563,"block":"vector-engine","type":"issue","details":"vsll.vi v22, v9, v12"}
+{"cycle":564,"block":"scalar-fetch","type":"fetch","details":"0x84ec vadd.vv v28, v4, v7"}
+{"cycle":565,"block":"vector-register-file","type":"retire","details":"i103 vredsum.vs wrote back"}
+{"cycle":565,"block":"vector-command-queue","type":"enq","details":"i105 vadd.vv v28, v4, v7 (bits 0x16901c6d)"}
+{"cycle":566,"block":"vector-command-queue","type":"deq","details":"i105 → issue (0 left)"}
+{"cycle":567,"block":"vector-register-file","type":"retire","details":"i104 vsll.vi wrote back"}
+{"cycle":567,"block":"vector-engine","type":"issue","details":"vadd.vv v28, v4, v7"}
+{"cycle":568,"block":"scalar-fetch","type":"fetch","details":"0x84f8 vand.vv v26, v17, v20"}
+{"cycle":569,"block":"vector-command-queue","type":"enq","details":"i106 vand.vv v26, v17, v20 (bits 0x16a01a7b)"}
+{"cycle":570,"block":"scalar-fetch","type":"fetch","details":"0x8504 vadd.vv v18, v30, v1"}
+{"cycle":570,"block":"vector-command-queue","type":"deq","details":"i106 → issue (0 left)"}
+{"cycle":571,"block":"vector-register-file","type":"retire","details":"i105 vadd.vv wrote back"}
+{"cycle":571,"block":"vector-engine","type":"issue","details":"vand.vv v26, v17, v20"}
+{"cycle":571,"block":"vector-command-queue","type":"enq","details":"i107 vadd.vv v18, v30, v1 (bits 0x16b01289)"}
+{"cycle":572,"block":"vector-command-queue","type":"deq","details":"i107 → issue (0 left)"}
+{"cycle":573,"block":"vector-engine","type":"issue","details":"vadd.vv v18, v30, v1"}
+{"cycle":575,"block":"vector-register-file","type":"retire","details":"i106 vand.vv wrote back"}
+{"cycle":575,"block":"scalar-fetch","type":"fetch","details":"0x8510 vredsum.vs v4, v2, v5"}
+{"cycle":576,"block":"vector-command-queue","type":"enq","details":"i108 vredsum.vs v4, v2, v5 (bits 0x16c0046e)"}
+{"cycle":577,"block":"vector-register-file","type":"retire","details":"i107 vadd.vv wrote back"}
+{"cycle":577,"block":"vector-command-queue","type":"deq","details":"i108 → issue (0 left)"}
+{"cycle":578,"block":"vector-engine","type":"issue","details":"vredsum.vs v4, v2, v5"}
+{"cycle":582,"block":"vector-register-file","type":"retire","details":"i108 vredsum.vs wrote back"}
+{"cycle":589,"block":"scalar-fetch","type":"fetch","details":"0x851c vand.vv v20, v23, v26"}
+{"cycle":590,"block":"vector-command-queue","type":"enq","details":"i109 vand.vv v20, v23, v26 (bits 0x16d01484)"}
+{"cycle":591,"block":"vector-command-queue","type":"deq","details":"i109 → issue (0 left)"}
+{"cycle":592,"block":"vector-engine","type":"issue","details":"vand.vv v20, v23, v26"}
+{"cycle":593,"block":"scalar-fetch","type":"fetch","details":"0x8528 vadd.vv v16, v11, v14"}
+{"cycle":594,"block":"vector-command-queue","type":"enq","details":"i110 vadd.vv v16, v11, v14 (bits 0x16e01079)"}
+{"cycle":595,"block":"vector-command-queue","type":"deq","details":"i110 → issue (0 left)"}
+{"cycle":596,"block":"vector-register-file","type":"retire","details":"i109 vand.vv wrote back"}
+{"cycle":596,"block":"vector-engine","type":"issue","details":"vadd.vv v16, v11, v14"}
+{"cycle":597,"block":"scalar-fetch","type":"fetch","details":"0x8534 vmacc.vv v23, v3, v6"}
+{"cycle":598,"block":"vector-command-queue","type":"enq","details":"i111 vmacc.vv v23, v3, v6 (bits 0x16f01772)"}
+{"cycle":599,"block":"scalar-fetch","type":"fetch","details":"0x8540 vredsum.vs v8, v18, v21"}
+{"cycle":599,"block":"vector-command-queue","type":"deq","details":"i111 → issue (0 left)"}
+{"cycle":600,"block":"vector-register-file","type":"retire","details":"i110 vadd.vv wrote back"}
+{"cycle":600,"block":"vector-engine","type":"issue","details":"vmacc.vv v23, v3, v6"}
+{"cycle":600,"block":"vector-command-queue","type":"enq","details":"i112 vredsum.vs v8, v18, v21 (bits 0x17000882)"}
+{"cycle":601,"block":"scalar-fetch","type":"fetch","details":"0x854c vadd.vv v27, v19, v22"}
+{"cycle":601,"block":"vector-command-queue","type":"deq","details":"i112 → issue (0 left)"}
+{"cycle":602,"block":"vector-engine","type":"issue","details":"vredsum.vs v8, v18, v21"}
+{"cycle":602,"block":"vector-command-queue","type":"enq","details":"i113 vadd.vv v27, v19, v22 (bits 0x17101b84)"}
+{"cycle":603,"block":"vector-command-queue","type":"deq","details":"i113 → issue (0 left)"}
+{"cycle":604,"block":"vector-register-file","type":"retire","details":"i111 vmacc.vv wrote back"}
+{"cycle":604,"block":"vector-engine","type":"issue","details":"vadd.vv v27, v19, v22"}
+{"cycle":606,"block":"vector-register-file","type":"retire","details":"i112 vredsum.vs wrote back"}
+{"cycle":608,"block":"vector-register-file","type":"retire","details":"i113 vadd.vv wrote back"}
+{"cycle":610,"block":"scalar-fetch","type":"fetch","details":"0x8558 vredsum.vs v14, v4, v7"}
+{"cycle":611,"block":"vector-command-queue","type":"enq","details":"i114 vredsum.vs v14, v4, v7 (bits 0x17200e76)"}
+{"cycle":617,"block":"scalar-fetch","type":"fetch","details":"0x8564 vmax.vv v6, v27, v30"}
+{"cycle":618,"block":"vector-command-queue","type":"enq","details":"i115 vmax.vv v6, v27, v30 (bits 0x1730068e)"}
+{"cycle":619,"block":"scalar-fetch","type":"fetch","details":"0x8570 vredsum.vs v17, v28, v31"}
+{"cycle":620,"block":"vector-command-queue","type":"enq","details":"i116 vredsum.vs v17, v28, v31 (bits 0x17401190)"}
+{"cycle":624,"block":"scalar-fetch","type":"fetch","details":"0x857c vand.vv v27, v17, v20"}
+{"cycle":625,"block":"vector-command-queue","type":"enq","details":"i117 vand.vv v27, v17, v20 (bits 0x17501b86)"}
+{"cycle":625,"block":"vector-command-queue","type":"full","details":"4/4 entries; decode will stall"}
+{"cycle":631,"block":"scalar-fetch","type":"fetch","details":"0x8588 vadd.vv v5, v21, v24"}
+{"cycle":632,"block":"scalar-decode","type":"stall","details":"i118 waiting: VCQ full"}
+{"cycle":690,"block":"vector-command-queue","type":"deq","details":"i114 → issue (3 left)"}
+{"cycle":691,"block":"vector-engine","type":"issue","details":"vredsum.vs v14, v4, v7"}
+{"cycle":691,"block":"vector-command-queue","type":"deq","details":"i115 → issue (2 left)"}
+{"cycle":691,"block":"vector-command-queue","type":"enq","details":"i118 vadd.vv v5, v21, v24 (bits 0x1760058b)"}
+{"cycle":692,"block":"vector-engine","type":"issue","details":"vmax.vv v6, v27, v30"}
+{"cycle":692,"block":"scalar-fetch","type":"fetch","details":"0x8594 vadd.vv v12, v4, v7"}
+{"cycle":692,"block":"vector-command-queue","type":"deq","details":"i116 → issue (2 left)"}
+{"cycle":693,"block":"vector-engine","type":"issue","details":"vredsum.vs v17, v28, v31"}
+{"cycle":693,"block":"vector-command-queue","type":"deq","details":"i117 → issue (1 left)"}
+{"cycle":693,"block":"vector-command-queue","type":"enq","details":"i119 vadd.vv v12, v4, v7 (bits 0x17700c7b)"}
+{"cycle":694,"block":"vector-engine","type":"issue","details":"vand.vv v27, v17, v20"}
+{"cycle":694,"block":"vector-command-queue","type":"deq","details":"i118 → issue (1 left)"}
+{"cycle":695,"block":"vector-register-file","type":"retire","details":"i114 vredsum.vs wrote back"}
+{"cycle":695,"block":"vector-engine","type":"issue","details":"vadd.vv v5, v21, v24"}
+{"cycle":695,"block":"vector-command-queue","type":"deq","details":"i119 → issue (0 left)"}
+{"cycle":696,"block":"vector-register-file","type":"retire","details":"i115 vmax.vv wrote back"}
+{"cycle":696,"block":"vector-engine","type":"issue","details":"vadd.vv v12, v4, v7"}
+{"cycle":697,"block":"vector-register-file","type":"retire","details":"i116 vredsum.vs wrote back"}
+{"cycle":697,"block":"scalar-fetch","type":"fetch","details":"0x85a0 vsub.vv v26, v6, v9"}
+{"cycle":698,"block":"vector-register-file","type":"retire","details":"i117 vand.vv wrote back"}
+{"cycle":698,"block":"vector-command-queue","type":"enq","details":"i120 vsub.vv v26, v6, v9 (bits 0x17801a7e)"}
+{"cycle":699,"block":"vector-register-file","type":"retire","details":"i118 vadd.vv wrote back"}
+{"cycle":699,"block":"vector-command-queue","type":"deq","details":"i120 → issue (0 left)"}
+{"cycle":700,"block":"vector-register-file","type":"retire","details":"i119 vadd.vv wrote back"}
+{"cycle":700,"block":"vector-engine","type":"issue","details":"vsub.vv v26, v6, v9"}
+{"cycle":701,"block":"scalar-fetch","type":"fetch","details":"0x85ac vand.vv v12, v29, v0"}
+{"cycle":702,"block":"vector-command-queue","type":"enq","details":"i121 vand.vv v12, v29, v0 (bits 0x17900c96)"}
+{"cycle":703,"block":"scalar-fetch","type":"fetch","details":"0x85b8 vsll.vi v11, v20, v23"}
+{"cycle":703,"block":"vector-command-queue","type":"deq","details":"i121 → issue (0 left)"}
+{"cycle":704,"block":"vector-register-file","type":"retire","details":"i120 vsub.vv wrote back"}
+{"cycle":704,"block":"vector-engine","type":"issue","details":"vand.vv v12, v29, v0"}
+{"cycle":704,"block":"vector-command-queue","type":"enq","details":"i122 vsll.vi v11, v20, v23 (bits 0x17a00b8e)"}
+{"cycle":705,"block":"vector-command-queue","type":"deq","details":"i122 → issue (0 left)"}
+{"cycle":706,"block":"vector-engine","type":"issue","details":"vsll.vi v11, v20, v23"}
+{"cycle":706,"block":"scalar-fetch","type":"fetch","details":"0x85c4 vmul.vv v22, v9, v12"}
+{"cycle":707,"block":"vector-command-queue","type":"enq","details":"i123 vmul.vv v22, v9, v12 (bits 0x17b01684)"}
+{"cycle":708,"block":"vector-register-file","type":"retire","details":"i121 vand.vv wrote back"}
+{"cycle":708,"block":"vector-command-queue","type":"deq","details":"i123 → issue (0 left)"}
+{"cycle":709,"block":"vector-engine","type":"issue","details":"vmul.vv v22, v9, v12"}
+{"cycle":710,"block":"vector-register-file","type":"retire","details":"i122 vsll.vi wrote back"}
+{"cycle":711,"block":"scalar-fetch","type":"fetch","details":"0x85d0 vmul.vv v28, v29, v0"}
+{"cycle":712,"block":"vector-command-queue","type":"enq","details":"i124 vmul.vv v28, v29, v0 (bits 0x17c01c99)"}
+{"cycle":713,"block":"vector-register-file","type":"retire","details":"i123 vmul.vv wrote back"}
+{"cycle":713,"block":"scalar-fetch","type":"fetch","details":"0x85dc vmacc.vv v6, v14, v17"}
+{"cycle":713,"block":"vector-command-queue","type":"deq","details":"i124 → issue (0 left)"}
+{"cycle":714,"block":"vector-engine","type":"issue","details":"vmul.vv v28, v29, v0"}
+{"cycle":714,"block":"vector-command-queue","type":"enq","details":"i125 vmacc.vv v6, v14, v17 (bits 0x17d0068b)"}
+{"cycle":715,"block":"vector-command-queue","type":"deq","details":"i125 → issue (0 left)"}
+{"cycle":716,"block":"vector-engine","type":"issue","details":"vmacc.vv v6, v14, v17"}
+{"cycle":718,"block":"vector-register-file","type":"retire","details":"i124 vmul.vv wrote back"}
+{"cycle":720,"block":"vector-register-file","type":"retire","details":"i125 vmacc.vv wrote back"}
+{"cycle":727,"block":"scalar-fetch","type":"fetch","details":"0x85e8 vsll.vi v12, v25, v28"}
+{"cycle":728,"block":"vector-command-queue","type":"enq","details":"i126 vsll.vi v12, v25, v28 (bits 0x17e00c97)"}
+{"cycle":729,"block":"vector-command-queue","type":"deq","details":"i126 → issue (0 left)"}
+{"cycle":730,"block":"vector-engine","type":"issue","details":"vsll.vi v12, v25, v28"}
+{"cycle":730,"block":"scalar-fetch","type":"fetch","details":"0x85f4 vmax.vv v1, v30, v1"}
+{"cycle":731,"block":"vector-command-queue","type":"enq","details":"i127 vmax.vv v1, v30, v1 (bits 0x17f0019d)"}
+{"cycle":732,"block":"vector-command-queue","type":"deq","details":"i127 → issue (0 left)"}
+{"cycle":733,"block":"vector-engine","type":"issue","details":"vmax.vv v1, v30, v1"}
+{"cycle":734,"block":"vector-register-file","type":"retire","details":"i126 vsll.vi wrote back"}
+{"cycle":735,"block":"scalar-fetch","type":"fetch","details":"0x8600 vsll.vi v20, v5, v8"}
+{"cycle":736,"block":"vector-command-queue","type":"enq","details":"i128 vsll.vi v20, v5, v8 (bits 0x18001485)"}
+{"cycle":737,"block":"vector-register-file","type":"retire","details":"i127 vmax.vv wrote back"}
+{"cycle":737,"block":"scalar-fetch","type":"fetch","details":"0x860c vsub.vv v1, v11, v14"}
+{"cycle":737,"block":"vector-command-queue","type":"deq","details":"i128 → issue (0 left)"}
+{"cycle":738,"block":"vector-engine","type":"issue","details":"vsll.vi v20, v5, v8"}
+{"cycle":738,"block":"vector-command-queue","type":"enq","details":"i129 vsub.vv v1, v11, v14 (bits 0x1810018c)"}
+{"cycle":739,"block":"vector-command-queue","type":"deq","details":"i129 → issue (0 left)"}
+{"cycle":740,"block":"vector-engine","type":"issue","details":"vsub.vv v1, v11, v14"}
+{"cycle":742,"block":"vector-register-file","type":"retire","details":"i128 vsll.vi wrote back"}
+{"cycle":742,"block":"scalar-fetch","type":"fetch","details":"0x8618 vadd.vv v7, v2, v5"}
+{"cycle":743,"block":"vector-command-queue","type":"enq","details":"i130 vadd.vv v7, v2, v5 (bits 0x18200784)"}
+{"cycle":744,"block":"vector-register-file","type":"retire","details":"i129 vsub.vv wrote back"}
+{"cycle":744,"block":"scalar-fetch","type":"fetch","details":"0x8624 vmax.vv v20, v26, v29"}
+{"cycle":744,"block":"vector-command-queue","type":"deq","details":"i130 → issue (0 left)"}
+{"cycle":745,"block":"vector-engine","type":"issue","details":"vadd.vv v7, v2, v5"}
+{"cycle":745,"block":"vector-command-queue","type":"enq","details":"i131 vmax.vv v20, v26, v29 (bits 0x1830149d)"}
+{"cycle":746,"block":"scalar-fetch","type":"fetch","details":"0x8630 vmacc.vv v2, v4, v7"}
+{"cycle":746,"block":"vector-command-queue","type":"deq","details":"i131 → issue (0 left)"}
+{"cycle":747,"block":"vector-engine","type":"issue","details":"vmax.vv v20, v26, v29"}
+{"cycle":747,"block":"vector-command-queue","type":"enq","details":"i132 vmacc.vv v2, v4, v7 (bits 0x18400288)"}
+{"cycle":748,"block":"vector-command-queue","type":"deq","details":"i132 → issue (0 left)"}
+{"cycle":749,"block":"vector-register-file","type":"retire","details":"i130 vadd.vv wrote back"}
+{"cycle":749,"block":"vector-engine","type":"issue","details":"vmacc.vv v2, v4, v7"}
+{"cycle":749,"block":"scalar-fetch","type":"fetch","details":"0x863c vand.vv v11, v18, v21"}
+{"cycle":750,"block":"vector-command-queue","type":"enq","details":"i133 vand.vv v11, v18, v21 (bits 0x18500b97)"}
+{"cycle":751,"block":"vector-register-file","type":"retire","details":"i131 vmax.vv wrote back"}
+{"cycle":751,"block":"scalar-fetch","type":"fetch","details":"0x8648 vredsum.vs v18, v17, v20"}
+{"cycle":751,"block":"vector-command-queue","type":"deq","details":"i133 → issue (0 left)"}
+{"cycle":752,"block":"vector-engine","type":"issue","details":"vand.vv v11, v18, v21"}
+{"cycle":752,"block":"vector-command-queue","type":"enq","details":"i134 vredsum.vs v18, v17, v20 (bits 0x18601297)"}
+{"cycle":753,"block":"vector-register-file","type":"retire","details":"i132 vmacc.vv wrote back"}
+{"cycle":753,"block":"vector-command-queue","type":"deq","details":"i134 → issue (0 left)"}
+{"cycle":754,"block":"vector-engine","type":"issue","details":"vredsum.vs v18, v17, v20"}
+{"cycle":756,"block":"vector-register-file","type":"retire","details":"i133 vand.vv wrote back"}
+{"cycle":757,"block":"scalar-fetch","type":"fetch","details":"0x8654 vsll.vi v6, v22, v25"}
+{"cycle":758,"block":"vector-register-file","type":"retire","details":"i134 vredsum.vs wrote back"}
+{"cycle":758,"block":"vector-command-queue","type":"enq","details":"i135 vsll.vi v6, v22, v25 (bits 0x1870069d)"}
+{"cycle":759,"block":"vector-command-queue","type":"deq","details":"i135 → issue (0 left)"}
+{"cycle":760,"block":"vector-engine","type":"issue","details":"vsll.vi v6, v22, v25"}
+{"cycle":762,"block":"scalar-fetch","type":"fetch","details":"0x8660 vand.vv v9, v15, v18"}
+{"cycle":763,"block":"vector-command-queue","type":"enq","details":"i136 vand.vv v9, v15, v18 (bits 0x18800997)"}
+{"cycle":764,"block":"vector-register-file","type":"retire","details":"i135 vsll.vi wrote back"}
+{"cycle":764,"block":"vector-command-queue","type":"deq","details":"i136 → issue (0 left)"}
+{"cycle":765,"block":"vector-engine","type":"issue","details":"vand.vv v9, v15, v18"}
+{"cycle":769,"block":"vector-register-file","type":"retire","details":"i136 vand.vv wrote back"}
+{"cycle":773,"block":"scalar-fetch","type":"fetch","details":"0x866c vmax.vv v23, v1, v4"}
+{"cycle":774,"block":"vector-command-queue","type":"enq","details":"i137 vmax.vv v23, v1, v4 (bits 0x1890178a)"}
+{"cycle":775,"block":"vector-command-queue","type":"deq","details":"i137 → issue (0 left)"}
+{"cycle":776,"block":"vector-engine","type":"issue","details":"vmax.vv v23, v1, v4"}
+{"cycle":776,"block":"scalar-fetch","type":"fetch","details":"0x8678 vmacc.vv v16, v21, v24"}
+{"cycle":777,"block":"vector-command-queue","type":"enq","details":"i138 vmacc.vv v16, v21, v24 (bits 0x18a0109f)"}
+{"cycle":778,"block":"scalar-fetch","type":"fetch","details":"0x8684 vmax.vv v26, v17, v20"}
+{"cycle":778,"block":"vector-command-queue","type":"deq","details":"i138 → issue (0 left)"}
+{"cycle":779,"block":"vector-engine","type":"issue","details":"vmacc.vv v16, v21, v24"}
+{"cycle":779,"block":"vector-command-queue","type":"enq","details":"i139 vmax.vv v26, v17, v20 (bits 0x18b01a9c)"}
+{"cycle":780,"block":"vector-register-file","type":"retire","details":"i137 vmax.vv wrote back"}
+{"cycle":780,"block":"scalar-fetch","type":"fetch","details":"0x8690 vredsum.vs v7, v12, v15"}
+{"cycle":780,"block":"vector-command-queue","type":"deq","details":"i139 → issue (0 left)"}
+{"cycle":781,"block":"vector-engine","type":"issue","details":"vmax.vv v26, v17, v20"}
+{"cycle":781,"block":"vector-command-queue","type":"enq","details":"i140 vredsum.vs v7, v12, v15 (bits 0x18c00798)"}
+{"cycle":782,"block":"vector-command-queue","type":"deq","details":"i140 → issue (0 left)"}
+{"cycle":783,"block":"vector-register-file","type":"retire","details":"i138 vmacc.vv wrote back"}
+{"cycle":783,"block":"vector-engine","type":"issue","details":"vredsum.vs v7, v12, v15"}
+{"cycle":784,"block":"scalar-fetch","type":"fetch","details":"0x869c vmul.vv v23, v5, v8"}
+{"cycle":785,"block":"vector-register-file","type":"retire","details":"i139 vmax.vv wrote back"}
+{"cycle":785,"block":"vector-command-queue","type":"enq","details":"i141 vmul.vv v23, v5, v8 (bits 0x18d01792)"}
+{"cycle":786,"block":"vector-command-queue","type":"deq","details":"i141 → issue (0 left)"}
+{"cycle":787,"block":"vector-register-file","type":"retire","details":"i140 vredsum.vs wrote back"}
+{"cycle":787,"block":"vector-engine","type":"issue","details":"vmul.vv v23, v5, v8"}
+{"cycle":791,"block":"vector-register-file","type":"retire","details":"i141 vmul.vv wrote back"}
+{"cycle":799,"block":"scalar-fetch","type":"fetch","details":"0x86a8 vand.vv v14, v8, v11"}
+{"cycle":800,"block":"vector-command-queue","type":"enq","details":"i142 vand.vv v14, v8, v11 (bits 0x18e00e96)"}
+{"cycle":801,"block":"vector-command-queue","type":"deq","details":"i142 → issue (0 left)"}
+{"cycle":802,"block":"vector-engine","type":"issue","details":"vand.vv v14, v8, v11"}
+{"cycle":803,"block":"scalar-fetch","type":"fetch","details":"0x86b4 vmax.vv v16, v2, v5"}
+{"cycle":804,"block":"vector-command-queue","type":"enq","details":"i143 vmax.vv v16, v2, v5 (bits 0x18f01091)"}
+{"cycle":805,"block":"vector-command-queue","type":"deq","details":"i143 → issue (0 left)"}
+{"cycle":806,"block":"vector-register-file","type":"retire","details":"i142 vand.vv wrote back"}
+{"cycle":806,"block":"vector-engine","type":"issue","details":"vmax.vv v16, v2, v5"}
+{"cycle":807,"block":"scalar-fetch","type":"fetch","details":"0x86c0 vsub.vv v4, v24, v27"}
+{"cycle":808,"block":"vector-command-queue","type":"enq","details":"i144 vsub.vv v4, v24, v27 (bits 0x190004a8)"}
+{"cycle":809,"block":"vector-command-queue","type":"deq","details":"i144 → issue (0 left)"}
+{"cycle":810,"block":"vector-register-file","type":"retire","details":"i143 vmax.vv wrote back"}
+{"cycle":810,"block":"vector-engine","type":"issue","details":"vsub.vv v4, v24, v27"}
+{"cycle":811,"block":"scalar-fetch","type":"fetch","details":"0x86cc vmacc.vv v4, v18, v21"}
+{"cycle":812,"block":"vector-command-queue","type":"enq","details":"i145 vmacc.vv v4, v18, v21 (bits 0x191004a3)"}
+{"cycle":813,"block":"scalar-fetch","type":"fetch","details":"0x86d8 vmul.vv v25, v29, v0"}
+{"cycle":813,"block":"vector-command-queue","type":"deq","details":"i145 → issue (0 left)"}
+{"cycle":814,"block":"vector-register-file","type":"retire","details":"i144 vsub.vv wrote back"}
+{"cycle":814,"block":"vector-engine","type":"issue","details":"vmacc.vv v4, v18, v21"}
+{"cycle":814,"block":"vector-command-queue","type":"enq","details":"i146 vmul.vv v25, v29, v0 (bits 0x192019af)"}
+{"cycle":815,"block":"scalar-fetch","type":"fetch","details":"0x86e4 vsub.vv v12, v18, v21"}
+{"cycle":815,"block":"vector-command-queue","type":"deq","details":"i146 → issue (0 left)"}
+{"cycle":816,"block":"vector-engine","type":"issue","details":"vmul.vv v25, v29, v0"}
+{"cycle":816,"block":"vector-command-queue","type":"enq","details":"i147 vsub.vv v12, v18, v21 (bits 0x19300ca5)"}
+{"cycle":817,"block":"vector-command-queue","type":"deq","details":"i147 → issue (0 left)"}
+{"cycle":818,"block":"vector-register-file","type":"retire","details":"i145 vmacc.vv wrote back"}
+{"cycle":818,"block":"vector-engine","type":"issue","details":"vsub.vv v12, v18, v21"}
+{"cycle":819,"block":"scalar-fetch","type":"fetch","details":"0x86f0 vredsum.vs v10, v12, v15"}
+{"cycle":820,"block":"vector-register-file","type":"retire","details":"i146 vmul.vv wrote back"}
+{"cycle":820,"block":"vector-command-queue","type":"enq","details":"i148 vredsum.vs v10, v12, v15 (bits 0x19400aa0)"}
+{"cycle":821,"block":"vector-command-queue","type":"deq","details":"i148 → issue (0 left)"}
+{"cycle":822,"block":"vector-register-file","type":"retire","details":"i147 vsub.vv wrote back"}
+{"cycle":822,"block":"vector-engine","type":"issue","details":"vredsum.vs v10, v12, v15"}
+{"cycle":822,"block":"scalar-fetch","type":"fetch","details":"0x86fc vsub.vv v12, v18, v21"}
+{"cycle":823,"block":"vector-command-queue","type":"enq","details":"i149 vsub.vv v12, v18, v21 (bits 0x19500ca7)"}
+{"cycle":824,"block":"vector-command-queue","type":"deq","details":"i149 → issue (0 left)"}
+{"cycle":825,"block":"vector-engine","type":"issue","details":"vsub.vv v12, v18, v21"}
+{"cycle":826,"block":"vector-register-file","type":"retire","details":"i148 vredsum.vs wrote back"}
+{"cycle":827,"block":"scalar-fetch","type":"fetch","details":"0x8708 vsub.vv v9, v25, v28"}
+{"cycle":828,"block":"vector-command-queue","type":"enq","details":"i150 vsub.vv v9, v25, v28 (bits 0x196009af)"}
+{"cycle":829,"block":"vector-register-file","type":"retire","details":"i149 vsub.vv wrote back"}
+{"cycle":829,"block":"vector-command-queue","type":"deq","details":"i150 → issue (0 left)"}
+{"cycle":830,"block":"vector-engine","type":"issue","details":"vsub.vv v9, v25, v28"}
+{"cycle":830,"block":"scalar-fetch","type":"fetch","details":"0x8714 vand.vv v11, v1, v4"}
+{"cycle":831,"block":"vector-command-queue","type":"enq","details":"i151 vand.vv v11, v1, v4 (bits 0x19700b98)"}
+{"cycle":832,"block":"scalar-fetch","type":"fetch","details":"0x8720 vand.vv v21, v7, v10"}
+{"cycle":832,"block":"vector-command-queue","type":"deq","details":"i151 → issue (0 left)"}
+{"cycle":833,"block":"vector-engine","type":"issue","details":"vand.vv v11, v1, v4"}
+{"cycle":833,"block":"vector-command-queue","type":"enq","details":"i152 vand.vv v21, v7, v10 (bits 0x1980159f)"}
+{"cycle":834,"block":"vector-register-file","type":"retire","details":"i150 vsub.vv wrote back"}
+{"cycle":834,"block":"vector-command-queue","type":"deq","details":"i152 → issue (0 left)"}
+{"cycle":835,"block":"vector-engine","type":"issue","details":"vand.vv v21, v7, v10"}
+{"cycle":836,"block":"scalar-fetch","type":"fetch","details":"0x872c vmax.vv v18, v5, v8"}
+{"cycle":837,"block":"vector-register-file","type":"retire","details":"i151 vand.vv wrote back"}
+{"cycle":837,"block":"vector-command-queue","type":"enq","details":"i153 vmax.vv v18, v5, v8 (bits 0x1990129e)"}
+{"cycle":838,"block":"vector-command-queue","type":"deq","details":"i153 → issue (0 left)"}
+{"cycle":839,"block":"vector-register-file","type":"retire","details":"i152 vand.vv wrote back"}
+{"cycle":839,"block":"vector-engine","type":"issue","details":"vmax.vv v18, v5, v8"}
+{"cycle":839,"block":"scalar-fetch","type":"fetch","details":"0x8738 vadd.vv v23, v22, v25"}
+{"cycle":840,"block":"vector-command-queue","type":"enq","details":"i154 vadd.vv v23, v22, v25 (bits 0x19a017b0)"}
+{"cycle":841,"block":"vector-command-queue","type":"deq","details":"i154 → issue (0 left)"}
+{"cycle":842,"block":"vector-engine","type":"issue","details":"vadd.vv v23, v22, v25"}
+{"cycle":843,"block":"vector-register-file","type":"retire","details":"i153 vmax.vv wrote back"}
+{"cycle":844,"block":"scalar-fetch","type":"fetch","details":"0x8744 vmax.vv v10, v14, v17"}
+{"cycle":845,"block":"vector-command-queue","type":"enq","details":"i155 vmax.vv v10, v14, v17 (bits 0x19b00aa9)"}
+{"cycle":846,"block":"vector-register-file","type":"retire","details":"i154 vadd.vv wrote back"}
+{"cycle":846,"block":"vector-command-queue","type":"deq","details":"i155 → issue (0 left)"}
+{"cycle":847,"block":"vector-engine","type":"issue","details":"vmax.vv v10, v14, v17"}
+{"cycle":848,"block":"scalar-fetch","type":"fetch","details":"0x8750 vadd.vv v2, v21, v24"}
+{"cycle":849,"block":"vector-command-queue","type":"enq","details":"i156 vadd.vv v2, v21, v24 (bits 0x19c002b1)"}
+{"cycle":850,"block":"vector-command-queue","type":"deq","details":"i156 → issue (0 left)"}
+{"cycle":851,"block":"vector-register-file","type":"retire","details":"i155 vmax.vv wrote back"}
+{"cycle":851,"block":"vector-engine","type":"issue","details":"vadd.vv v2, v21, v24"}
+{"cycle":853,"block":"scalar-fetch","type":"fetch","details":"0x875c vsll.vi v27, v29, v0"}
+{"cycle":854,"block":"vector-command-queue","type":"enq","details":"i157 vsll.vi v27, v29, v0 (bits 0x19d01bba)"}
+{"cycle":855,"block":"vector-register-file","type":"retire","details":"i156 vadd.vv wrote back"}
+{"cycle":855,"block":"vector-command-queue","type":"deq","details":"i157 → issue (0 left)"}
+{"cycle":856,"block":"vector-engine","type":"issue","details":"vsll.vi v27, v29, v0"}
+{"cycle":858,"block":"scalar-fetch","type":"fetch","details":"0x8768 vredsum.vs v5, v23, v26"}
+{"cycle":859,"block":"vector-command-queue","type":"enq","details":"i158 vredsum.vs v5, v23, v26 (bits 0x19e005b5)"}
+{"cycle":860,"block":"vector-register-file","type":"retire","details":"i157 vsll.vi wrote back"}
+{"cycle":860,"block":"vector-command-queue","type":"deq","details":"i158 → issue (0 left)"}
+{"cycle":861,"block":"vector-engine","type":"issue","details":"vredsum.vs v5, v23, v26"}
+{"cycle":861,"block":"scalar-fetch","type":"fetch","details":"0x8774 vredsum.vs v21, v28, v31"}
+{"cycle":862,"block":"vector-command-queue","type":"enq","details":"i159 vredsum.vs v21, v28, v31 (bits 0x19f015bb)"}
+{"cycle":863,"block":"vector-command-queue","type":"deq","details":"i159 → issue (0 left)"}
+{"cycle":864,"block":"vector-engine","type":"issue","details":"vredsum.vs v21, v28, v31"}
+{"cycle":865,"block":"vector-register-file","type":"retire","details":"i158 vredsum.vs wrote back"}
+{"cycle":865,"block":"scalar-fetch","type":"fetch","details":"0x8780 vsub.vv v7, v24, v27"}
+{"cycle":866,"block":"vector-command-queue","type":"enq","details":"i160 vsub.vv v7, v24, v27 (bits 0x1a0007b8)"}
+{"cycle":867,"block":"vector-command-queue","type":"deq","details":"i160 → issue (0 left)"}
+{"cycle":868,"block":"vector-register-file","type":"retire","details":"i159 vredsum.vs wrote back"}
+{"cycle":868,"block":"vector-engine","type":"issue","details":"vsub.vv v7, v24, v27"}
+{"cycle":870,"block":"scalar-fetch","type":"fetch","details":"0x878c vmax.vv v17, v1, v4"}
+{"cycle":871,"block":"vector-command-queue","type":"enq","details":"i161 vmax.vv v17, v1, v4 (bits 0x1a1011a2)"}
+{"cycle":872,"block":"vector-register-file","type":"retire","details":"i160 vsub.vv wrote back"}
+{"cycle":872,"block":"vector-command-queue","type":"deq","details":"i161 → issue (0 left)"}
+{"cycle":873,"block":"vector-engine","type":"issue","details":"vmax.vv v17, v1, v4"}
+{"cycle":874,"block":"scalar-fetch","type":"fetch","details":"0x8798 vadd.vv v23, v20, v23"}
+{"cycle":875,"block":"vector-command-queue","type":"enq","details":"i162 vadd.vv v23, v20, v23 (bits 0x1a2017b6)"}
+{"cycle":876,"block":"vector-command-queue","type":"deq","details":"i162 → issue (0 left)"}
+{"cycle":877,"block":"vector-register-file","type":"retire","details":"i161 vmax.vv wrote back"}
+{"cycle":877,"block":"vector-engine","type":"issue","details":"vadd.vv v23, v20, v23"}
+{"cycle":878,"block":"scalar-fetch","type":"fetch","details":"0x87a4 vsll.vi v9, v30, v1"}
+{"cycle":879,"block":"vector-command-queue","type":"enq","details":"i163 vsll.vi v9, v30, v1 (bits 0x1a3009c1)"}
+{"cycle":880,"block":"vector-command-queue","type":"deq","details":"i163 → issue (0 left)"}
+{"cycle":881,"block":"vector-register-file","type":"retire","details":"i162 vadd.vv wrote back"}
+{"cycle":881,"block":"vector-engine","type":"issue","details":"vsll.vi v9, v30, v1"}
+{"cycle":885,"block":"vector-register-file","type":"retire","details":"i163 vsll.vi wrote back"}
+{"cycle":893,"block":"scalar-fetch","type":"fetch","details":"0x87b0 vsll.vi v2, v2, v5"}
+{"cycle":894,"block":"vector-command-queue","type":"enq","details":"i164 vsll.vi v2, v2, v5 (bits 0x1a4002a6)"}
+{"cycle":895,"block":"scalar-fetch","type":"fetch","details":"0x87bc vadd.vv v4, v10, v13"}
+{"cycle":895,"block":"vector-command-queue","type":"deq","details":"i164 → issue (0 left)"}
+{"cycle":896,"block":"vector-engine","type":"issue","details":"vsll.vi v2, v2, v5"}
+{"cycle":896,"block":"vector-command-queue","type":"enq","details":"i165 vadd.vv v4, v10, v13 (bits 0x1a5004af)"}
+{"cycle":897,"block":"vector-command-queue","type":"deq","details":"i165 → issue (0 left)"}
+{"cycle":898,"block":"vector-engine","type":"issue","details":"vadd.vv v4, v10, v13"}
+{"cycle":900,"block":"vector-register-file","type":"retire","details":"i164 vsll.vi wrote back"}
+{"cycle":900,"block":"scalar-fetch","type":"fetch","details":"0x87c8 vsub.vv v9, v18, v21"}
+{"cycle":901,"block":"vector-command-queue","type":"enq","details":"i166 vsub.vv v9, v18, v21 (bits 0x1a6009b8)"}
+{"cycle":902,"block":"vector-register-file","type":"retire","details":"i165 vadd.vv wrote back"}
+{"cycle":902,"block":"vector-command-queue","type":"deq","details":"i166 → issue (0 left)"}
+{"cycle":903,"block":"vector-engine","type":"issue","details":"vsub.vv v9, v18, v21"}
+{"cycle":904,"block":"scalar-fetch","type":"fetch","details":"0x87d4 vmul.vv v9, v3, v6"}
+{"cycle":905,"block":"vector-command-queue","type":"enq","details":"i167 vmul.vv v9, v3, v6 (bits 0x1a7009aa)"}
+{"cycle":906,"block":"vector-command-queue","type":"deq","details":"i167 → issue (0 left)"}
+{"cycle":907,"block":"vector-register-file","type":"retire","details":"i166 vsub.vv wrote back"}
+{"cycle":907,"block":"vector-engine","type":"issue","details":"vmul.vv v9, v3, v6"}
+{"cycle":909,"block":"scalar-fetch","type":"fetch","details":"0x87e0 vredsum.vs v1, v29, v0"}
+{"cycle":910,"block":"vector-command-queue","type":"enq","details":"i168 vredsum.vs v1, v29, v0 (bits 0x1a8001c5)"}
+{"cycle":911,"block":"vector-register-file","type":"retire","details":"i167 vmul.vv wrote back"}
+{"cycle":911,"block":"vector-command-queue","type":"deq","details":"i168 → issue (0 left)"}
+{"cycle":912,"block":"vector-engine","type":"issue","details":"vredsum.vs v1, v29, v0"}
+{"cycle":913,"block":"scalar-fetch","type":"fetch","details":"0x87ec vmax.vv v5, v22, v25"}
+{"cycle":914,"block":"vector-command-queue","type":"enq","details":"i169 vmax.vv v5, v22, v25 (bits 0x1a9005bf)"}
+{"cycle":915,"block":"scalar-fetch","type":"fetch","details":"0x87f8 vadd.vv v27, v12, v15"}
+{"cycle":915,"block":"vector-command-queue","type":"deq","details":"i169 → issue (0 left)"}
+{"cycle":916,"block":"vector-register-file","type":"retire","details":"i168 vredsum.vs wrote back"}
+{"cycle":916,"block":"vector-engine","type":"issue","details":"vmax.vv v5, v22, v25"}
+{"cycle":916,"block":"vector-command-queue","type":"enq","details":"i170 vadd.vv v27, v12, v15 (bits 0x1aa01bb6)"}
+{"cycle":917,"block":"vector-command-queue","type":"deq","details":"i170 → issue (0 left)"}
+{"cycle":918,"block":"vector-engine","type":"issue","details":"vadd.vv v27, v12, v15"}
+{"cycle":918,"block":"scalar-fetch","type":"fetch","details":"0x8804 vsll.vi v26, v18, v21"}
+{"cycle":919,"block":"vector-command-queue","type":"enq","details":"i171 vsll.vi v26, v18, v21 (bits 0x1ab01abd)"}
+{"cycle":920,"block":"vector-register-file","type":"retire","details":"i169 vmax.vv wrote back"}
+{"cycle":920,"block":"vector-command-queue","type":"deq","details":"i171 → issue (0 left)"}
+{"cycle":921,"block":"vector-engine","type":"issue","details":"vsll.vi v26, v18, v21"}
+{"cycle":922,"block":"vector-register-file","type":"retire","details":"i170 vadd.vv wrote back"}
+{"cycle":922,"block":"scalar-fetch","type":"fetch","details":"0x8810 vmacc.vv v13, v9, v12"}
+{"cycle":923,"block":"vector-command-queue","type":"enq","details":"i172 vmacc.vv v13, v9, v12 (bits 0x1ac00db5)"}
+{"cycle":924,"block":"vector-command-queue","type":"deq","details":"i172 → issue (0 left)"}
+{"cycle":925,"block":"vector-register-file","type":"retire","details":"i171 vsll.vi wrote back"}
+{"cycle":925,"block":"vector-engine","type":"issue","details":"vmacc.vv v13, v9, v12"}
+{"cycle":927,"block":"scalar-fetch","type":"fetch","details":"0x881c vadd.vv v21, v11, v14"}
+{"cycle":928,"block":"vector-command-queue","type":"enq","details":"i173 vadd.vv v21, v11, v14 (bits 0x1ad015b8)"}
+{"cycle":929,"block":"vector-register-file","type":"retire","details":"i172 vmacc.vv wrote back"}
+{"cycle":929,"block":"scalar-fetch","type":"fetch","details":"0x8828 vsll.vi v13, v21, v24"}
+{"cycle":929,"block":"vector-command-queue","type":"deq","details":"i173 → issue (0 left)"}
+{"cycle":930,"block":"vector-engine","type":"issue","details":"vadd.vv v21, v11, v14"}
+{"cycle":930,"block":"vector-command-queue","type":"enq","details":"i174 vsll.vi v13, v21, v24 (bits 0x1ae00dc3)"}
+{"cycle":931,"block":"vector-command-queue","type":"deq","details":"i174 → issue (0 left)"}
+{"cycle":932,"block":"vector-engine","type":"issue","details":"vsll.vi v13, v21, v24"}
+{"cycle":934,"block":"vector-register-file","type":"retire","details":"i173 vadd.vv wrote back"}
+{"cycle":936,"block":"vector-register-file","type":"retire","details":"i174 vsll.vi wrote back"}
+{"cycle":938,"block":"scalar-fetch","type":"fetch","details":"0x8834 vadd.vv v11, v24, v27"}
+{"cycle":939,"block":"vector-command-queue","type":"enq","details":"i175 vadd.vv v11, v24, v27 (bits 0x1af00bc7)"}
+{"cycle":940,"block":"vector-command-queue","type":"deq","details":"i175 → issue (0 left)"}
+{"cycle":941,"block":"vector-engine","type":"issue","details":"vadd.vv v11, v24, v27"}
+{"cycle":945,"block":"vector-register-file","type":"retire","details":"i175 vadd.vv wrote back"}
+{"cycle":947,"block":"scalar-fetch","type":"fetch","details":"0x8840 vmacc.vv v9, v11, v14"}
+{"cycle":948,"block":"vector-command-queue","type":"enq","details":"i176 vmacc.vv v9, v11, v14 (bits 0x1b0009bb)"}
+{"cycle":949,"block":"vector-command-queue","type":"deq","details":"i176 → issue (0 left)"}
+{"cycle":950,"block":"vector-engine","type":"issue","details":"vmacc.vv v9, v11, v14"}
+{"cycle":950,"block":"scalar-fetch","type":"fetch","details":"0x884c vsll.vi v3, v29, v0"}
+{"cycle":951,"block":"vector-command-queue","type":"enq","details":"i177 vsll.vi v3, v29, v0 (bits 0x1b1003ce)"}
+{"cycle":952,"block":"vector-command-queue","type":"deq","details":"i177 → issue (0 left)"}
+{"cycle":953,"block":"vector-engine","type":"issue","details":"vsll.vi v3, v29, v0"}
+{"cycle":954,"block":"vector-register-file","type":"retire","details":"i176 vmacc.vv wrote back"}
+{"cycle":957,"block":"vector-register-file","type":"retire","details":"i177 vsll.vi wrote back"}
+{"cycle":964,"block":"scalar-fetch","type":"fetch","details":"0x8858 vmax.vv v21, v6, v9"}
+{"cycle":965,"block":"vector-command-queue","type":"enq","details":"i178 vmax.vv v21, v6, v9 (bits 0x1b2015b8)"}
+{"cycle":966,"block":"vector-command-queue","type":"deq","details":"i178 → issue (0 left)"}
+{"cycle":967,"block":"vector-engine","type":"issue","details":"vmax.vv v21, v6, v9"}
+{"cycle":971,"block":"vector-register-file","type":"retire","details":"i178 vmax.vv wrote back"}
+{"cycle":971,"block":"scalar-fetch","type":"fetch","details":"0x8864 vmul.vv v22, v10, v13"}
+{"cycle":972,"block":"vector-command-queue","type":"enq","details":"i179 vmul.vv v22, v10, v13 (bits 0x1b3016bd)"}
+{"cycle":973,"block":"vector-command-queue","type":"deq","details":"i179 → issue (0 left)"}
+{"cycle":974,"block":"vector-engine","type":"issue","details":"vmul.vv v22, v10, v13"}
+{"cycle":978,"block":"vector-register-file","type":"retire","details":"i179 vmul.vv wrote back"}
+{"cycle":1799,"block":"testbench","type":"pass","details":"scoreboard: 180 commands retired in order"}

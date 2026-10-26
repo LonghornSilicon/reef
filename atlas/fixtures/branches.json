@@ -1,0 +1,28 @@
+[
+  {
+    "name": "atlas/vector-dispatch-64b",
+    "commit": "3f9c2a1",
+    "spec": "repo",
+    "overlay": "overlays/vector-dispatch-64b.yaml",
+    "extract": "3f9c2a1",
+    "sample": true,
+    "note": "Sample branch: the core is partly implemented, the vector command path is being widened to 64 bits, and two runs have waveform data."
+  },
+  {
+    "name": "atlas/axi-burst-fix",
+    "commit": "9e1d07b",
+    "spec": "repo",
+    "overlay": "overlays/vector-dispatch-64b.yaml",
+    "extract": "pending",
+    "sample": true,
+    "note": "Sample branch: the RTL extract for this commit is still being built in CI."
+  },
+  {
+    "name": "atlas/empty-spec",
+    "commit": "51c0a3e",
+    "spec": "none",
+    "extract": null,
+    "sample": true,
+    "note": "Sample branch: no architecture/soc.yaml yet."
+  }
+]

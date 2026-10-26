@@ -1,0 +1,17 @@
+{
+ "id": "209",
+ "simulator": "verilator 5.030 · cocotb 1.9.2",
+ "dirty": false,
+ "durationS": 180,
+ "files": [
+  "run.json"
+ ],
+ "branch": "atlas/vector-dispatch-64b",
+ "commit": "b71e0c4",
+ "test": "test_tcm_arbiter",
+ "seed": 2,
+ "cycles": 4200,
+ "status": "passed",
+ "startedAt": "2026-10-25T10:55:00Z",
+ "summary": "Logs expired after 14 days"
+}

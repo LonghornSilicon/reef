@@ -1,0 +1,20 @@
+{
+ "id": "211",
+ "branch": "atlas/vector-dispatch-64b",
+ "commit": "b71e0c4",
+ "test": "test_vector_dispatch_burst",
+ "simulator": "verilator 5.030 · cocotb 1.9.2",
+ "seed": 7,
+ "cycles": 1800,
+ "dirty": false,
+ "status": "passed",
+ "startedAt": "2026-10-25T17:03:00Z",
+ "durationS": 209,
+ "files": [
+  "run.json",
+  "events.jsonl",
+  "signals.json",
+  "transactions.json"
+ ],
+ "summary": "180 vector commands retired"
+}
