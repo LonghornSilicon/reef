@@ -41,8 +41,8 @@ TEST(MathTest, ExpIsWithinOneUlpAcrossItsDomain) {
     for (std::uint32_t bits = first; bits <= last; bits += kStride) {
         const float x = bits_float(bits);
         const auto exact = static_cast<float>(std::exp(static_cast<double>(x)));
-        worst = std::max(worst, std::llabs(float_bits(exp_nonpositive(x)) -
-                                           float_bits(exact)));
+        worst = std::max(worst, std::abs(float_bits(exp_nonpositive(x)) -
+                                         float_bits(exact)));
     }
     EXPECT_LE(worst, 1);
 }

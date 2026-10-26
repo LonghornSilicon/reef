@@ -1,0 +1,59 @@
+name: Coral kernels
+
+# Checks every Coral kernel, and the firmware's whole forward pass, against
+# the C++ reference bit for bit (inference-engine/coral/tools/test.sh).
+# Programs run on coral_sim, reef-perf's Spike driver without the Sparta
+# timing model, which builds in minutes; Spike and Coral's GCC are cached.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inference-engine
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Find the pinned Spike commit
+        id: spike
+        working-directory: .
+        run: echo "commit=$(git rev-parse HEAD:reef-perf/ext/spike)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Spike
+        id: spike-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/coral-sim
+          key: spike-${{ runner.os }}-${{ steps.spike.outputs.commit }}-${{ hashFiles('reef-perf/tools/build_deps.sh') }}
+
+      - name: Fetch Spike's source
+        if: steps.spike-cache.outputs.cache-hit != 'true'
+        working-directory: .
+        run: |
+          git submodule update --init --depth 1 reef-perf/ext/spike
+          sudo apt-get update
+          sudo apt-get install -y device-tree-compiler
+
+      - name: Build Spike and coral_sim
+        run: coral/tools/setup_sim.sh ~/coral-sim
+
+      - name: Restore Coral's GCC
+        id: gcc-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/coral-gcc
+          key: coral-gcc-${{ hashFiles('inference-engine/coral/tools/setup_toolchain.sh') }}
+
+      - name: Install Coral's GCC
+        if: steps.gcc-cache.outputs.cache-hit != 'true'
+        run: coral/tools/setup_toolchain.sh ~/coral-gcc
+
+      - name: Golden tests
+        run: |
+          CORAL_TOOLCHAIN="$HOME/coral-gcc" \
+          CORAL_SIM="$HOME/coral-sim/bin/coral_sim" \
+          coral/tools/test.sh
