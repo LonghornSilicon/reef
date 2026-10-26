@@ -7,9 +7,10 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    # reef-perf's Python; inference-engine's is linted by its own workflow.
     defaults:
       run:
-        working-directory: workloads
+        working-directory: reef-perf
     steps:
       - uses: actions/checkout@v4
 

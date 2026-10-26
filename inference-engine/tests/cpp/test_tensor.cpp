@@ -64,6 +64,7 @@ TEST(SafeArithmeticTest, RejectsNonFiniteFloatResults) {
     EXPECT_THROW(safe_multiply(nan, 1.0F), std::overflow_error);
 }
 
+// Multiplies a [2, 3] by a [3, 2] matrix into the expected [2, 2] result.
 TEST(MatmulTest, MultipliesCompatibleMatrices) {
     const Tensor<float> left{{2, 3}, {1, 2, 3, 4, 5, 6}};
     const Tensor<float> right{{3, 2}, {7, 8, 9, 10, 11, 12}};
@@ -81,6 +82,7 @@ static_assert(std::is_same_v<decltype(matmul<std::int8_t, std::int32_t>(
                                  std::declval<const Tensor<std::int8_t>&>())),
                              Tensor<std::int32_t>>);
 
+// An int32 accumulator holds int8 products and sums that int8 cannot.
 TEST(MatmulTest, ReturnsWiderAccumulatorType) {
     const Tensor<std::int8_t> left{{1, 2}, {100, 100}};
     const Tensor<std::int8_t> right{{2, 1}, {100, 100}};
@@ -91,6 +93,7 @@ TEST(MatmulTest, ReturnsWiderAccumulatorType) {
     EXPECT_EQ(result.values, (std::vector<std::int32_t>{20000}));
 }
 
+// A double accumulator holds a float result past the float range.
 TEST(MatmulTest, AccumulatesFloatInDouble) {
     const Tensor<float> left{{1, 1}, {std::numeric_limits<float>::max()}};
     const Tensor<float> right{{1, 1}, {2}};
@@ -103,6 +106,7 @@ TEST(MatmulTest, AccumulatesFloatInDouble) {
             2.0 * static_cast<double>(std::numeric_limits<float>::max())}));
 }
 
+// An int32 product that overflows throws.
 TEST(MatmulTest, RejectsInt32ProductOverflow) {
     const Tensor<std::int32_t> left{{1, 1}, {1 << 16}};
     const Tensor<std::int32_t> right{{1, 1}, {-(1 << 16)}};
@@ -110,6 +114,7 @@ TEST(MatmulTest, RejectsInt32ProductOverflow) {
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
+// An int8 result that overflows its own type throws.
 TEST(MatmulTest, RejectsInt8ResultOverflow) {
     const Tensor<std::int8_t> left{{1, 1}, {127}};
     const Tensor<std::int8_t> right{{1, 1}, {2}};
@@ -117,6 +122,7 @@ TEST(MatmulTest, RejectsInt8ResultOverflow) {
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
+// A float sum that overflows to +infinity throws.
 TEST(MatmulTest, RejectsFloatResultOverflow) {
     const auto max = std::numeric_limits<float>::max();
     const Tensor<float> left{{1, 2}, {max, max}};
@@ -125,6 +131,7 @@ TEST(MatmulTest, RejectsFloatResultOverflow) {
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
+// A float product that overflows to -infinity throws.
 TEST(MatmulTest, RejectsNegativeFloatResultOverflow) {
     const auto max = std::numeric_limits<float>::max();
     const Tensor<float> left{{1, 1}, {max}};
@@ -133,6 +140,7 @@ TEST(MatmulTest, RejectsNegativeFloatResultOverflow) {
     EXPECT_THROW(matmul(left, right), std::overflow_error);
 }
 
+// Matrices whose inner dimensions differ are rejected.
 TEST(MatmulTest, RejectsIncompatibleDimensions) {
     const Tensor<float> left{{2, 3}, {1, 2, 3, 4, 5, 6}};
     const Tensor<float> right{{2, 2}, {1, 2, 3, 4}};
@@ -140,6 +148,7 @@ TEST(MatmulTest, RejectsIncompatibleDimensions) {
     EXPECT_THROW(matmul(left, right), std::invalid_argument);
 }
 
+// A tensor holding fewer values than its shape needs is rejected.
 TEST(MatmulTest, RejectsInvalidStorage) {
     const Tensor<float> left{{2, 3}, {1, 2}};
     const Tensor<float> right{{3, 2}, {7, 8, 9, 10, 11, 12}};
@@ -147,6 +156,7 @@ TEST(MatmulTest, RejectsInvalidStorage) {
     EXPECT_THROW(matmul(left, right), std::invalid_argument);
 }
 
+// Tensors hold value types other than float.
 TEST(TensorTest, StoresOtherScalarTypes) {
     const Tensor<std::uint8_t> ids{{2}, {1, 2}};
 

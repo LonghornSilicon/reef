@@ -9,6 +9,7 @@
 #include "inference_engine/tensor.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <functional>
@@ -29,12 +30,16 @@ namespace inference_engine {
  * @tparam Scalar Tensor value type.
  */
 template <typename Scalar> struct AttentionWeights {
-    std::size_t num_heads;         ///< Heads that split the model width.
+    std::size_t num_heads{};       ///< Heads that split the model width.
     Tensor<Scalar> query_weights;  ///< [d_model, d_model], no bias.
     Tensor<Scalar> key_weights;    ///< [d_model, d_model], no bias.
     Tensor<Scalar> value_weights;  ///< [d_model, d_model], no bias.
     Tensor<Scalar> output_weights; ///< [d_model, d_model].
     Tensor<Scalar> output_bias;    ///< [d_model].
+    /// Optional W8A8 copies of the query, key, value and output weights, in
+    /// that order. When set, all four projections run through int8 (see
+    /// quant.hpp).
+    std::optional<std::array<QuantizedWeight<Scalar>, 4>> quantized{};
 };
 
 /** Projected query, key, and value tensors for one batch.
@@ -61,6 +66,61 @@ template <typename Scalar> struct KvCache {
     Tensor<Scalar> key;                  ///< [1, heads, cached_len, head_dim].
     Tensor<Scalar> value;                ///< [1, heads, cached_len, head_dim].
 };
+
+/** Mark the keys each query may attend to: causal, optionally windowed.
+ *
+ * Query row r sits at position query_start + r and sees every key up to and
+ * including its own position; with a window, only the last @p window of
+ * those.
+ *
+ * @param num_queries Query rows.
+ * @param num_keys Key positions.
+ * @param query_start Position of the first query.
+ * @param window Optional sliding-window length in positions.
+ * @return [num_queries, num_keys] mask, true where the key is visible.
+ */
+inline Tensor<bool>
+causal_visibility(std::size_t num_queries, std::size_t num_keys,
+                  std::size_t query_start,
+                  std::optional<std::size_t> window = std::nullopt) {
+    Tensor<bool> visible{{num_queries, num_keys},
+                         std::vector<bool>(num_queries * num_keys, false)};
+    for (std::size_t row = 0; row < num_queries; ++row) {
+        const std::size_t position = query_start + row;
+        const std::size_t visible_end = std::min(position + 1, num_keys);
+        const std::size_t window_start =
+            window.has_value() && position + 1 > *window
+                ? position + 1 - *window
+                : 0;
+        for (std::size_t key = window_start; key < visible_end; ++key) {
+            visible.values.at((row * num_keys) + key) = true;
+        }
+    }
+    return visible;
+}
+
+/** Attend one head: masked_softmax(query . key^T) . value.
+ *
+ * Scores are raw dot products, not scaled by 1/sqrt(head_dim). Both
+ * products sum in order over their inner dimension, and masked keys get
+ * probability zero.
+ *
+ * @tparam Scalar Floating-point tensor value type.
+ * @param query Query rows [query_len, head_dim].
+ * @param key Key rows [key_len, head_dim].
+ * @param value Value rows [key_len, head_dim].
+ * @param visible [query_len, key_len] mask from causal_visibility().
+ * @return Context rows [query_len, head_dim].
+ * @throws std::invalid_argument If the shapes disagree or a query row has no
+ * visible key.
+ */
+template <typename Scalar>
+Tensor<Scalar>
+attend_head(const Tensor<Scalar>& query, const Tensor<Scalar>& key,
+            const Tensor<Scalar>& value, const Tensor<bool>& visible) {
+    const Tensor<Scalar> scores = matmul(query, transpose(key, 0, 1));
+    return matmul(masked_softmax(scores, visible), value);
+}
 
 /** Shared attention pipeline with an overridable position-mask policy.
  *
@@ -103,16 +163,7 @@ template <typename Scalar> class Attention {
     [[nodiscard]] virtual Tensor<bool>
     visibility(std::size_t num_queries, std::size_t num_keys,
                std::size_t query_start) const {
-        Tensor<bool> visible{{num_queries, num_keys},
-                             std::vector<bool>(num_queries * num_keys, false)};
-        for (std::size_t row = 0; row < num_queries; ++row) {
-            const std::size_t visible_end =
-                std::min(query_start + row + 1, num_keys);
-            for (std::size_t key = 0; key < visible_end; ++key) {
-                visible.values.at((row * num_keys) + key) = true;
-            }
-        }
-        return visible;
+        return causal_visibility(num_queries, num_keys, query_start);
     }
 
     /// Externally owned projection parameters.
@@ -121,6 +172,26 @@ template <typename Scalar> class Attention {
     KvCache<Scalar>& cache_;
 
   private:
+    /** Apply one projection, through int8 when weights_.quantized is set.
+     *
+     * @param input Rows [length, d_model].
+     * @param index Position in weights_.quantized: 0 query, 1 key, 2 value,
+     *        3 output.
+     * @param weight Float weight of the same projection.
+     * @param bias Optional bias of the same projection.
+     * @return Projected rows [length, d_model].
+     */
+    [[nodiscard]] Tensor<Scalar>
+    project(const Tensor<Scalar>& input, std::size_t index,
+            const Tensor<Scalar>& weight,
+            std::optional<std::reference_wrapper<const Tensor<Scalar>>> bias =
+                std::nullopt) const {
+        if (weights_.quantized.has_value()) {
+            return linear<Scalar>(input, weights_.quantized->at(index), bias);
+        }
+        return linear<Scalar>(input, weight, bias);
+    }
+
     [[nodiscard]] Qkv<Scalar> project_qkv(const Tensor<Scalar>& input) const;
 
     void append_kv_cache(const Tensor<Scalar>& key,
@@ -181,18 +252,8 @@ template <typename Scalar> class LocalAttention : public Attention<Scalar> {
     [[nodiscard]] Tensor<bool>
     visibility(std::size_t num_queries, std::size_t num_keys,
                std::size_t query_start) const override {
-        Tensor<bool> visible =
-            Attention<Scalar>::visibility(num_queries, num_keys, query_start);
-        for (std::size_t row = 0; row < num_queries; ++row) {
-            const std::size_t pos = query_start + row;
-            const std::size_t window_start =
-                (pos + 1 > window_size_) ? pos + 1 - window_size_ : 0;
-            for (std::size_t key = 0; key < std::min(window_start, num_keys);
-                 ++key) {
-                visible.values.at((row * num_keys) + key) = false;
-            }
-        }
-        return visible;
+        return causal_visibility(num_queries, num_keys, query_start,
+                                 window_size_);
     }
 
   private:
@@ -214,15 +275,16 @@ Qkv<Scalar> Attention<Scalar>::project_qkv(const Tensor<Scalar>& input) const {
 
     // Project at full width, then split columns into heads:
     // [length, d_model] -> [1, heads, length, head_dim].
-    const auto split_heads = [&](const Tensor<Scalar>& weight) {
-        const Tensor<Scalar> projected = linear<Scalar>(input, weight);
+    const auto split_heads = [&](std::size_t index,
+                                 const Tensor<Scalar>& weight) {
+        const Tensor<Scalar> projected = project(input, index, weight);
         return transpose(
             reshape(projected, {1, length, weights_.num_heads, head_dim}), 1,
             2);
     };
-    return {split_heads(weights_.query_weights),
-            split_heads(weights_.key_weights),
-            split_heads(weights_.value_weights)};
+    return {split_heads(0, weights_.query_weights),
+            split_heads(1, weights_.key_weights),
+            split_heads(2, weights_.value_weights)};
 }
 
 template <typename Scalar>
@@ -300,13 +362,13 @@ Tensor<Scalar> Attention<Scalar>::forward(const Tensor<Scalar>& input) {
 
     // Merge heads and project to 2-D output rows.
     Tensor<Scalar> swapped = transpose(mixed, 1, 2);
-    const std::size_t batch = swapped.shape[0];
+    [[maybe_unused]] const std::size_t batch = swapped.shape[0];
     assert(batch == 1);
     const std::size_t query_len = swapped.shape[1];
     const std::size_t hidden = swapped.shape[2] * swapped.shape[3];
     const Tensor<Scalar> merged = reshape(swapped, {query_len, hidden});
-    return linear<Scalar>(merged, weights_.output_weights,
-                          std::cref(weights_.output_bias));
+    return project(merged, 3, weights_.output_weights,
+                   std::cref(weights_.output_bias));
 }
 
 template <typename Scalar>
@@ -349,43 +411,23 @@ Tensor<Scalar> Attention<Scalar>::context(const Qkv<Scalar>& qkv) const {
         }
     };
 
-    // Raw scores matmul
-    Tensor<Scalar> scores{
-        {batch, heads, query_len, key_len},
-        std::vector<Scalar>(batch * heads * query_len * key_len, Scalar{0}),
-    };
-
-    for (std::size_t b = 0; b < batch; ++b) {
-        for (std::size_t h = 0; h < heads; ++h) {
-            const Tensor<Scalar> query_slice = head_matrix(query, b, h);
-            const Tensor<Scalar> key_slice = head_matrix(key, b, h);
-            const Tensor<Scalar> head_scores =
-                matmul(query_slice, transpose(key_slice, 0, 1));
-            store_head_matrix(scores, head_scores, b, h);
-        }
-    }
-
-    // Mask and softmax
+    // Every head shares one mask; the queries are the last query_len keys.
     const std::size_t query_start = key_len - query_len;
-    const Tensor<Scalar> probs =
-        masked_softmax(scores, visibility(query_len, key_len, query_start));
+    const Tensor<bool> visible = visibility(query_len, key_len, query_start);
 
-    // Probabilities weighted sum matmul
     Tensor<Scalar> mixed{
         {batch, heads, query_len, head_dim},
         std::vector<Scalar>(batch * heads * query_len * head_dim, Scalar{0}),
     };
-
     for (std::size_t b = 0; b < batch; ++b) {
         for (std::size_t h = 0; h < heads; ++h) {
-            const Tensor<Scalar> probs_slice = head_matrix(probs, b, h);
-            const Tensor<Scalar> value_slice = head_matrix(value, b, h);
-            const Tensor<Scalar> head_mix = matmul(probs_slice, value_slice);
-            store_head_matrix(mixed, head_mix, b, h);
+            store_head_matrix(mixed,
+                              attend_head(head_matrix(query, b, h),
+                                          head_matrix(key, b, h),
+                                          head_matrix(value, b, h), visible),
+                              b, h);
         }
     }
-
-    // Return mixed
     return mixed;
 }
 

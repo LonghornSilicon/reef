@@ -197,6 +197,8 @@ TEST(AttentionTest, CapacityBoundsCache) {
     EXPECT_THROW(attention.forward(make_input(1, 2)), std::length_error);
 }
 
+// forward() rejects input that is not [length, d_model] and leaves the cache
+// empty.
 TEST(AttentionTest, RequiresTwoDimensionalInput) {
     const AttentionWeights<float> weights = identity_weights(2, 1);
     KvCache<float> cache;
@@ -209,6 +211,7 @@ TEST(AttentionTest, RequiresTwoDimensionalInput) {
     EXPECT_TRUE(cache.key.shape.empty());
 }
 
+// forward() rejects a cache whose values do not fill its shape.
 TEST(AttentionTest, RejectsMalformedCache) {
     const AttentionWeights<float> weights = identity_weights(2, 1);
     KvCache<float> cache;
@@ -269,6 +272,8 @@ void expect_prefill_matches_decode(const AttentionWeights<float>& weights,
     }
 }
 
+// Global attention gives the same output whether tokens arrive at once or one
+// at a time.
 TEST(AttentionTest, PrefillMatchesDecodeGlobal) {
     expect_prefill_matches_decode(
         pattern_weights(4, 2),

@@ -27,6 +27,7 @@ float gelu_tanh(float x) {
 
 } // namespace
 
+// forward() computes c_proj(gelu(c_fc(x))) on hand-checkable square weights.
 TEST(MLPTest, ForwardAppliesTwoProjectionsWithGelu) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     const MlpWeights<float> weights{
@@ -48,6 +49,8 @@ TEST(MLPTest, ForwardAppliesTwoProjectionsWithGelu) {
     EXPECT_NEAR(output.values[3], gelu_tanh(4.0F), kTight);
 }
 
+// forward() handles an inner width that differs from the model width, with
+// biases on both projections.
 TEST(MLPTest, ForwardHandlesDifferentWidthsAndNonzeroBiases) {
     // input_size = 2, inner_size = 3, two input rows.
     const MlpWeights<float> weights{
@@ -84,6 +87,7 @@ TEST(MLPTest, ForwardHandlesDifferentWidthsAndNonzeroBiases) {
                 kTight);
 }
 
+// An empty bias tensor means that projection adds no bias.
 TEST(MLPTest, OmitsBiasWhenTheBiasTensorIsEmpty) {
     const MlpWeights<float> weights{
         2,
@@ -103,6 +107,7 @@ TEST(MLPTest, OmitsBiasWhenTheBiasTensorIsEmpty) {
     EXPECT_NEAR(output.values[1], gelu_tanh(2.0F), kTight);
 }
 
+// forward() rejects input that is not [rows, input_size].
 TEST(MLPTest, RejectsInputThatIsNotTwoDimensional) {
     const MlpWeights<float> weights{
         2,
@@ -119,6 +124,7 @@ TEST(MLPTest, RejectsInputThatIsNotTwoDimensional) {
         std::invalid_argument);
 }
 
+// forward() rejects input whose width differs from input_size.
 TEST(MLPTest, RejectsInputWidthMismatch) {
     const MlpWeights<float> weights{
         2,
@@ -135,6 +141,7 @@ TEST(MLPTest, RejectsInputWidthMismatch) {
                  std::invalid_argument);
 }
 
+// forward() rejects weights whose shapes contradict the declared widths.
 TEST(MLPTest, RejectsWeightsThatDoNotMatchTheConfiguredWidths) {
     const MlpWeights<float> weights{
         2,
