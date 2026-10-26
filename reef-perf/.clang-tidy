@@ -1,50 +1,35 @@
-# clang-tidy 21.1.6 is pinned in pyproject.toml and uv.lock for CI.
-# Check sets change between LLVM releases; keep the pin and this file in sync.
+# LLVM naming and llvm-* checks (as in llvm-project's own .clang-tidy), plus
+# two cheap checks for real bugs. Deliberately small: clang-tidy has to parse
+# Sparta, Boost and Spike headers for every file, so every extra check family
+# costs minutes. clang-tidy 21.1.6 is pinned in pyproject.toml/uv.lock.
+#
+# llvm-header-guard is off: it derives guard names from absolute paths, which
+# only works inside the LLVM tree. scripts/check_style.sh checks guards (and
+# file-header banners) instead.
 Checks: >
   -*,
-  bugprone-*,
-  -bugprone-exception-escape,
-  -bugprone-easily-swappable-parameters,
-  clang-analyzer-*,
-  concurrency-*,
-  cppcoreguidelines-*,
-  -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-avoid-c-arrays,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-bounds-constant-array-index,
-  -cppcoreguidelines-pro-type-reinterpret-cast,
-  -cppcoreguidelines-pro-type-vararg,
-  -cppcoreguidelines-owning-memory,
-  -cppcoreguidelines-non-private-member-variables-in-classes,
-  google-explicit-constructor,
-  google-build-using-namespace,
-  google-global-names-in-headers,
-  misc-*,
-  -misc-non-private-member-variables-in-classes,
-  -misc-no-recursion,
-  -misc-include-cleaner,
-  modernize-*,
-  -modernize-use-trailing-return-type,
-  -modernize-avoid-c-arrays,
-  performance-*,
-  readability-*,
-  -readability-magic-numbers,
-  -readability-identifier-length,
-  -readability-uppercase-literal-suffix
+  clang-diagnostic-*,
+  llvm-*,
+  -llvm-header-guard,
+  readability-identifier-naming,
+  bugprone-use-after-move,
+  bugprone-dangling-handle
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*reef-perf/src/csrc/include/.*'
+HeaderFilterRegex: '.*reef-perf/model/.*'
 CheckOptions:
-  readability-identifier-naming.NamespaceCase: lower_case
-  readability-identifier-naming.ClassCase: CamelCase
-  readability-identifier-naming.StructCase: CamelCase
-  readability-identifier-naming.FunctionCase: lower_case
-  readability-identifier-naming.VariableCase: lower_case
-  readability-identifier-naming.ParameterCase: lower_case
-  readability-identifier-naming.PrivateMemberSuffix: _
-  readability-identifier-naming.ConstexprVariableCase: CamelCase
-  readability-identifier-naming.ConstexprVariablePrefix: k
-  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
-  readability-function-cognitive-complexity.Threshold: 25
-  readability-implicit-bool-conversion.AllowPointerConditions: true
-  cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true
-  misc-const-correctness.AnalyzeValues: false
+  - key:   readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key:   readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key:   readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key:   readability-identifier-naming.MemberCase
+    value: CamelCase
+  - key:   readability-identifier-naming.ParameterCase
+    value: CamelCase
+  - key:   readability-identifier-naming.UnionCase
+    value: CamelCase
+  - key:   readability-identifier-naming.VariableCase
+    value: CamelCase
+  - key:   readability-identifier-naming.IgnoreMainLikeFunctions
+    value: 1
