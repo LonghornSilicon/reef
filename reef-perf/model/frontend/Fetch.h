@@ -11,11 +11,10 @@
 /// - up to `fetch_width` instructions every `fetch_interval` cycles, while
 ///   the `ibuf_entries`-entry buffer has room;
 /// - a group ends at any instruction that redirects the PC (taken branch,
-///   jump, trap) or that the predictor predicts taken;
-/// - with `predictor: none` every redirect costs `redirect_penalty` extra
-///   cycles. With `predictor: static_btfn` (M3 predecode,
-///   UncachedFetch.scala:87-100) a correctly predicted taken jump costs
-///   `taken_bubble` and a mispredict costs `mispredict_penalty`.
+///   jump, trap) or that the predictor predicts taken; the next group starts
+///   `redirect_penalty` cycles later if the prediction was wrong. `predictor`
+///   is `none` (nothing predicted taken) or `btfn` (M3's predecode,
+///   UncachedFetch.scala:87-100).
 ///
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +32,6 @@
 
 #include <cstdint>
 #include <deque>
-#include <optional>
 #include <string>
 
 namespace reef_perf {
@@ -51,23 +49,18 @@ public:
     PARAMETER(uint32_t, fetch_interval, 1,
               "Cycles between the starts of two fetch groups")
     PARAMETER(uint32_t, redirect_penalty, 1,
-              "Extra cycles lost after any taken branch/jump before fetching "
-              "again (predictor none)")
+              "Extra cycles after a redirect the predictor did not predict")
     PARAMETER(std::string, predictor, "none",
-              "Branch predictor: none (every redirect costs redirect_penalty) "
-              "or static_btfn (jal and backward branches predicted taken)")
-    PARAMETER(uint32_t, taken_bubble, 0,
-              "Extra cycles after a correctly predicted taken branch/jump "
-              "(static_btfn)")
-    PARAMETER(uint32_t, mispredict_penalty, 1,
-              "Extra cycles after a mispredicted branch/jump or a trap "
-              "(static_btfn)")
+              "Branch predictor: none (nothing predicted taken) or btfn "
+              "(jal and backward branches predicted taken, as on M3)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
   static constexpr const char *name = "fetch";
   // NOLINTEND(readability-identifier-naming)
+  /// Branch predictors fetch can model.
+  enum class PredictorKind { None, Btfn };
 
   /// Creates the unit on \p Node with parameters \p Params.
   Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params);
@@ -77,15 +70,14 @@ public:
 
   /// \returns the taken branches, jumps and traps fetched so far.
   uint64_t getNumRedirects() const { return NumRedirects.get(); }
-
   /// \returns the oldest buffered instruction fetched before \p Now.
   InstRef peek(Cycle Now) const override;
   /// Removes the oldest instruction; its entry refills from \p Now + 1.
   void pop(Cycle Now) override;
   /// \returns true once fetch finished before \p Now and the buffer is empty.
   bool isDrained(Cycle Now) const override;
-  /// \returns BranchResteer if the latest fetch group ended in a redirect or
-  /// a mispredict, and FetchBandwidth otherwise.
+  /// \returns BranchResteer if the latest fetch group ended in a redirect,
+  /// and FetchBandwidth otherwise.
   FrontendStall getStall(Cycle Now) const override;
 
 private:
@@ -95,16 +87,13 @@ private:
   /// \returns the entries fetch may fill at \p Now. Entries the core freed
   /// at \p Now only count from the next cycle.
   uint32_t getFreeEntries(Cycle Now) const;
-  /// \returns the extra cycles before the next group if \p I ends the
-  /// current one, or nullopt if the group continues. Updates the counters.
-  std::optional<uint32_t> getGroupEndPenalty(const Inst &I);
+  /// \returns true if the configured predictor predicts \p I taken.
+  bool isPredictedTaken(const Inst &I) const;
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
   const uint32_t RedirectPenalty;
-  const bool StaticBtfn;
-  const uint32_t TakenBubble;
-  const uint32_t MispredictPenalty;
+  const PredictorKind Predictor;
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
@@ -128,17 +117,10 @@ private:
   sparta::Counter NumRedirects{&unit_stat_set_, "num_redirects",
                                "Taken branches, jumps and traps",
                                sparta::Counter::COUNT_NORMAL};
-  sparta::Counter NumPredictedTaken{
-      &unit_stat_set_, "num_predicted_taken",
-      "Branches/jumps the static predictor predicted taken",
-      sparta::Counter::COUNT_NORMAL};
   sparta::Counter NumMispredicts{
       &unit_stat_set_, "num_mispredicts",
       "Mispredicted branches/jumps and traps (each costs mispredict_penalty)",
       sparta::Counter::COUNT_NORMAL};
-  sparta::Counter NumJalr{&unit_stat_set_, "num_jalr",
-                          "jalr instructions (never predicted)",
-                          sparta::Counter::COUNT_NORMAL};
   sparta::Counter CyclesNoCredit{
       &unit_stat_set_, "cycles_no_credit",
       "Fetch cycles lost because the instruction buffer was full",
