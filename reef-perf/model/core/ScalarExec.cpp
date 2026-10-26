@@ -2,15 +2,34 @@
 
 #include "core/ScalarExec.h"
 
+#include <bit>
 #include <cstdint>
 
 using namespace reef_perf;
+
+static uint32_t getM3DivIterations(const Inst &I) {
+  if (I.Rs2Val == 0)
+    return 32;
+
+  uint32_t Dividend = I.Rs1Val;
+  bool IsSigned = I.Mnemonic == "div" || I.Mnemonic == "rem";
+  if (IsSigned && (Dividend & 0x80000000U))
+    Dividend = ~Dividend + 1U;
+
+  if (Dividend == 0)
+    return 32;
+
+  uint32_t LeadingZeros = std::countl_zero(Dividend);
+  uint32_t Clz = LeadingZeros == 0 ? 0 : LeadingZeros - 1;
+  return 32 - Clz;
+}
 
 ScalarExec::ScalarExec(sparta::TreeNode *Node,
                        const ScalarExecParameterSet *Params)
     : sparta::Unit(Node, name), ALULatency(Params->alu_latency),
       MULLatency(Params->mul_latency), MULOccupancy(Params->mul_occupancy),
       DIVLatency(Params->div_latency), DIVOccupancy(Params->div_occupancy),
+      DIVDataDependent(Params->div_data_dependent), DIVBase(Params->div_base),
       FPULatency(Params->fpu_latency), FPUOccupancy(Params->fpu_occupancy),
       FDIVLatency(Params->fdiv_latency), FDIVOccupancy(Params->fdiv_occupancy),
       ALU("alu", Params->alu_count), MUL("mul", Params->mul_count),
@@ -34,8 +53,13 @@ void ScalarExec::receiveInst(const InstRef &I) {
     break;
   case InstClass::DIV:
     Pool = &DIV;
-    Occupancy = DIVOccupancy;
-    Latency = DIVLatency;
+    if (DIVDataDependent) {
+      Latency = DIVBase + getM3DivIterations(*I);
+      Occupancy = Latency;
+    } else {
+      Latency = DIVLatency;
+      Occupancy = DIVOccupancy;
+    }
     break;
   case InstClass::FP:
     Pool = &FPU;
