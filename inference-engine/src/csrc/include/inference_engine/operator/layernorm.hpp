@@ -17,9 +17,12 @@ namespace inference_engine {
 
 /** Normalize each row over the last dimension, then apply a gain and shift.
  *
- * Matches the workloads reference (workloads/operators/normalization.py):
+ * Matches torch.nn.LayerNorm:
  *   (x - mean) / sqrt(variance + eps) * weight + bias
- * where variance is the mean squared deviation (biased, like torch).
+ * where variance is the mean squared deviation (biased, like torch). The
+ * mean and variance are summed in order over the row, and each output is
+ * ((x - mean) * inv_std) * weight + bias with inv_std = 1 / sqrt(variance +
+ * eps), so a kernel that keeps that order reproduces it bit for bit.
  *
  * @tparam Scalar Floating-point tensor value type.
  * @param input Input shaped [..., width].

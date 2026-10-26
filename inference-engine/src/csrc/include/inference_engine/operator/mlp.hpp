@@ -8,6 +8,7 @@
 #include "inference_engine/operator/linear.hpp"
 #include "inference_engine/tensor.hpp"
 
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -18,7 +19,7 @@ namespace inference_engine {
 
 /** Weights and biases for the two projections of the feed-forward block.
  *
- * Names follow the workloads reference (workloads/models/gpt_neo.py):
+ * Names follow the Hugging Face GPT-Neo checkpoint (h.N.mlp.c_fc/c_proj):
  * c_fc widens the model width to the inner width, c_proj projects it back.
  * Both weights use the layout linear() expects, [out_features, in_features].
  * An empty bias tensor means that projection has no bias.
@@ -38,6 +39,9 @@ template <typename Scalar> struct MlpWeights {
     Tensor<Scalar> c_proj_weight{};
     /// Second projection bias, shaped [input_size], or empty for no bias.
     Tensor<Scalar> c_proj_bias{};
+    /// Optional W8A8 copies of c_fc_weight and c_proj_weight, in that order.
+    /// When set, both projections run through int8 (see quant.hpp).
+    std::optional<std::array<QuantizedWeight<Scalar>, 2>> quantized{};
 };
 
 namespace detail {
@@ -114,11 +118,18 @@ template <typename Scalar> class MLP {
         detail::require_matrix(weights_.c_proj_weight, weights_.input_size,
                                weights_.inner_size, "c_proj_weight");
 
+        const auto project =
+            [this](const Tensor<Scalar>& rows, std::size_t index,
+                   const Tensor<Scalar>& weight, const Tensor<Scalar>& bias) {
+                if (weights_.quantized.has_value()) {
+                    return linear(rows, weights_.quantized->at(index),
+                                  detail::optional_bias(bias));
+                }
+                return linear(rows, weight, detail::optional_bias(bias));
+            };
         const Tensor<Scalar> hidden =
-            gelu(linear(input, weights_.c_fc_weight,
-                        detail::optional_bias(weights_.c_fc_bias)));
-        return linear(hidden, weights_.c_proj_weight,
-                      detail::optional_bias(weights_.c_proj_bias));
+            gelu(project(input, 0, weights_.c_fc_weight, weights_.c_fc_bias));
+        return project(hidden, 1, weights_.c_proj_weight, weights_.c_proj_bias);
     }
 
   private:
