@@ -24,6 +24,7 @@ Tensor<float> wide_weight() {
 
 } // namespace
 
+// Each output feature is the dot product of the input row with one weight row.
 TEST(LinearTest, ProjectsThroughTransposedWeight) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
 
@@ -36,6 +37,7 @@ TEST(LinearTest, ProjectsThroughTransposedWeight) {
     }
 }
 
+// The bias adds one value per output feature to every row.
 TEST(LinearTest, AddsBiasPerOutputFeature) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     const Tensor<float> bias{{3}, {0.5F, -1.0F, 2.0F}};
@@ -50,6 +52,8 @@ TEST(LinearTest, AddsBiasPerOutputFeature) {
     }
 }
 
+// A weight in [in_features, out_features] layout is rejected, not silently
+// transposed.
 TEST(LinearTest, RejectsWeightInTheOppositeLayout) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     // [in_features, out_features] instead of [out_features, in_features].
@@ -59,6 +63,7 @@ TEST(LinearTest, RejectsWeightInTheOppositeLayout) {
     EXPECT_THROW(linear(input, transposed), std::invalid_argument);
 }
 
+// A bias with fewer values than output features is rejected.
 TEST(LinearTest, RejectsBiasOfTheWrongWidth) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     const Tensor<float> bias{{2}, {0.5F, -1.0F}};
@@ -67,6 +72,8 @@ TEST(LinearTest, RejectsBiasOfTheWrongWidth) {
                  std::invalid_argument);
 }
 
+// A bias must be one-dimensional, even when it holds the right number of
+// values.
 TEST(LinearTest, RejectsTwoDimensionalBias) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     const Tensor<float> bias{{1, 3}, {0.5F, -1.0F, 2.0F}};
@@ -75,6 +82,7 @@ TEST(LinearTest, RejectsTwoDimensionalBias) {
                  std::invalid_argument);
 }
 
+// A one-dimensional weight is rejected.
 TEST(LinearTest, RejectsNonMatrixWeight) {
     const Tensor<float> input{{2, 2}, {1.0F, 2.0F, 3.0F, 4.0F}};
     const Tensor<float> vector_weight{{2}, {1.0F, 1.0F}};
@@ -82,6 +90,7 @@ TEST(LinearTest, RejectsNonMatrixWeight) {
     EXPECT_THROW(linear(input, vector_weight), std::invalid_argument);
 }
 
+// An input whose width differs from in_features is rejected.
 TEST(LinearTest, RejectsInputWidthMismatch) {
     const Tensor<float> input{{2, 3}, {1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F}};
 

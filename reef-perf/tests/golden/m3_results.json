@@ -154,7 +154,7 @@
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 0,
+      "stall_rob_full": 1,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }

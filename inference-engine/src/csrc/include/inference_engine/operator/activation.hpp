@@ -4,6 +4,7 @@
  *  @brief Elementwise activations and dimension-aware softmax.
  */
 
+#include "inference_engine/math.hpp"
 #include "inference_engine/tensor.hpp"
 
 #include <algorithm>
@@ -18,11 +19,45 @@
 
 namespace inference_engine {
 
+namespace detail {
+
+/** e^x for x <= 0: the reproducible float version, else the C library's.
+ *
+ * @tparam Scalar Floating-point value type.
+ * @param x Exponent, at most 0.
+ * @return e^x.
+ */
+template <typename Scalar> Scalar exp_of_nonpositive(Scalar x) {
+    if constexpr (std::is_same_v<Scalar, float>) {
+        return exp_nonpositive(x);
+    } else {
+        return std::exp(x);
+    }
+}
+
+/** tanh(x): the reproducible float version, else the C library's.
+ *
+ * @tparam Scalar Floating-point value type.
+ * @param x Input value.
+ * @return tanh(x).
+ */
+template <typename Scalar> Scalar tanh_of(Scalar x) {
+    if constexpr (std::is_same_v<Scalar, float>) {
+        return tanh_float(x);
+    } else {
+        return std::tanh(x);
+    }
+}
+
+} // namespace detail
+
 /** Apply the tanh-approximation GELU elementwise.
  *
- * Uses the gelu_pytorch_tanh form the workloads reference pins (see
- * workloads/operators/activation.py), not the erf form:
+ * Uses the tanh approximation (gelu_new, or gelu_pytorch_tanh), not the
+ * erf form:
  *   0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.044715 * x^3)))
+ * evaluated left to right as written. Float tensors use tanh_float(), so the
+ * result is reproducible bit for bit (see math.hpp).
  *
  * @tparam Scalar Floating-point tensor value type. Integer tensors need an
  * agreed output scale first, so they fail to compile here rather than
@@ -51,7 +86,7 @@ template <typename Scalar> Tensor<Scalar> gelu(const Tensor<Scalar>& input) {
         const Scalar value = input.values[index];
         const Scalar inner =
             kCoefficient * (value + (kCubic * value * value * value));
-        output.values[index] = kHalf * value * (kOne + std::tanh(inner));
+        output.values[index] = kHalf * value * (kOne + detail::tanh_of(inner));
     }
     return output;
 }
@@ -98,7 +133,8 @@ Tensor<Scalar> softmax(const Tensor<Scalar>& input, std::size_t dim) {
             Scalar sum = 0;
             for (std::size_t k = 0; k < axis; ++k) {
                 const std::size_t index = start + (k * stride);
-                const Scalar e = std::exp(input.values.at(index) - m);
+                const Scalar e =
+                    detail::exp_of_nonpositive(input.values.at(index) - m);
                 output.values.at(index) = e;
                 sum += e;
             }
@@ -175,7 +211,8 @@ Tensor<Scalar> masked_softmax(const Tensor<Scalar>& scores,
         for (std::size_t k = 0; k < num_keys; ++k) {
             const std::size_t index = start + k;
             if (visible.values.at(mask_start + k)) {
-                const Scalar e = std::exp(scores.values.at(index) - m);
+                const Scalar e =
+                    detail::exp_of_nonpositive(scores.values.at(index) - m);
                 output.values.at(index) = e;
                 sum += e;
             } else {
