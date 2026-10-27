@@ -21,10 +21,10 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["python/inference_engine"]
+packages = ["reference/python/inference_engine"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["reference/python/tests", "coral/tests"]
 markers = [
     "slow: tests requiring a simulator or long runtime",
     "coral: tests needing Docker, the Coral toolchain, and reef_perf",
@@ -32,7 +32,7 @@ markers = [
 timeout = 300
 
 [tool.ruff]
-src = ["python"]
+src = ["reference/python"]
 line-length = 80
 indent-width = 4
 target-version = "py312"
@@ -51,8 +51,6 @@ select = [
     "RET", # return statement consistency
     "RUF", # Ruff-specific rules
 ]
-[tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

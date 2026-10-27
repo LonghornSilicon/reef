@@ -6,7 +6,7 @@ from pathlib import Path
 from inference_engine.model import PRECISIONS, tell
 
 # inference-engine/, where `cmake -S . -B build` puts build/bin/gpt_neo_cli.
-MODULE_ROOT = Path(__file__).resolve().parents[2]
+MODULE_ROOT = Path(__file__).resolve().parents[3]
 
 
 def main() -> None:

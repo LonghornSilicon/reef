@@ -2,8 +2,8 @@
 
 // GPT-Neo on the Coral core: the kernels stitched into the model.
 //
-// This mirrors GPTNeo in include/inference_engine/model.hpp, one
-// token per step. The reference may process a whole prompt at once; every
+// This mirrors GPTNeo in reference/cpp/include/inference_engine/model.hpp,
+// one token per step. The reference may process a whole prompt at once; every
 // operator treats rows independently, so feeding the prompt one token at a
 // time produces the same bits. coral/tests/test_gpt_neo.cc checks the logits
 // of every step and the generated tokens against the reference.

@@ -3,9 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Host C++: the engine, tools, tests and coral/'s host tools.
-sources=(tools/*.cpp tests/*.cpp coral/host/*.cpp)
-headers=(include/inference_engine/*.hpp include/inference_engine/operator/*.hpp coral/host/*.hpp)
+# Host C++: the reference engine, its tests and CLI, and coral/'s host tools.
+sources=(reference/cpp/*.cpp reference/cpp/tests/*.cpp coral/host/*.cpp)
+headers=(reference/cpp/include/inference_engine/*.hpp reference/cpp/include/inference_engine/operator/*.hpp coral/host/*.hpp)
 # Coral target code and coral_sim: formatted like the rest, but compiled with
 # -Werror by coral/tools/build.sh and setup_sim.sh rather than checked by
 # clang-tidy (they need the RISC-V toolchain or Spike's headers).

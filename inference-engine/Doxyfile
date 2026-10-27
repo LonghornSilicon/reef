@@ -1,6 +1,6 @@
 PROJECT_NAME           = inference_engine
 OUTPUT_DIRECTORY       = build/doxygen
-INPUT                  = include
+INPUT                  = reference/cpp/include
 FILE_PATTERNS          = *.hpp
 RECURSIVE              = YES
 EXTRACT_ALL            = NO

@@ -2,9 +2,9 @@
 
 Everything here is cross-compiled for the CoralNPU M3 core (RV32IMF, Zbb,
 Zve32f, VLEN 128) and runs on `reef_perf` or the chip. The host C++ engine in
-`../include/inference_engine/` is the source of truth. Every kernel
-reproduces one engine function **bit for bit**, and the tests fail if a
-single bit differs.
+`../reference/cpp/include/inference_engine/` is the source of truth. Every
+kernel reproduces one engine function **bit for bit**, and the tests fail if
+a single bit differs.
 
 ```
 coral/
@@ -16,6 +16,7 @@ coral/
   runtime/           crt0.S (start-up, written once), link.ld (M3 highmem map), libc.cc
   firmware/          gpt_neo.cc stitches the kernels into the model; main.cc serves the mailbox
   tests/             golden tests: run a kernel on the core, compare with the engine's output
+                     test_coral.py runs them all (test.sh) from `uv run pytest`
   bench/             reef-perf benchmarks: 8M decode shapes; *_int8 at the original 16x64 shapes
   host/              gen_golden (writes the tests' expected outputs), pack_model (packs weights)
   sim/               coral_sim: Spike without the timing model, for CI
@@ -115,7 +116,8 @@ CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/test
 
 ## Adding or changing a kernel
 
-1. Make sure the engine function exists and is tested under `../tests/`.
+1. Make sure the engine function exists and is tested under
+   `../reference/cpp/tests/`.
 2. Declare the kernel in `kernels.hpp` and name the engine function it
    matches. Implement it in `kernels/`.
 3. Add cases to `host/gen_golden.cpp`. Use odd sizes, so vector strips end

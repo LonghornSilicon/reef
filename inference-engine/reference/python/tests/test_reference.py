@@ -1,8 +1,8 @@
-"""Build the C++ engine, run its tests, and drive it from Python.
+"""Build the reference engine, run its tests, and drive it from Python.
 
-`uv run pytest` runs the whole module: the Google Test suite through CTest,
-GPT-Neo from Python on a tiny random model, the Coral kernels against the
-engine, and lint.
+Runs the Google Test suite through CTest, GPT-Neo from Python on a tiny
+random model, the C++ API documentation build, and lint for the whole
+module. coral/tests/test_coral.py checks the kernels against the engine.
 """
 
 import json
@@ -18,7 +18,7 @@ from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
 
 from inference_engine.model import decode_tokens, encode_text, generate, tell
 
-MODULE_ROOT = Path(__file__).resolve().parents[1]
+MODULE_ROOT = Path(__file__).resolve().parents[3]
 
 HIDDEN = 8
 INNER = 16
@@ -217,14 +217,6 @@ def test_tell_stops_before_end_of_text(
     assert tell(prompt, 10, tmp_path, executable) == decode_tokens(
         ids[:cut], tokenizer
     )
-
-
-@pytest.mark.slow
-@pytest.mark.coral
-@pytest.mark.timeout(1800)
-def test_coral_kernels_match_engine() -> None:
-    """Run every Coral golden test; any bit that differs fails it."""
-    subprocess.run(["bash", "coral/tools/test.sh"], cwd=MODULE_ROOT, check=True)
 
 
 @pytest.mark.slow

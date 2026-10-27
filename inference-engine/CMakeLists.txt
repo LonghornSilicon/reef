@@ -7,12 +7,12 @@ project(inference_engine LANGUAGES CXX)
 # the includes and the standard, and nothing is compiled into a library.
 add_library(inference_engine INTERFACE)
 target_compile_features(inference_engine INTERFACE cxx_std_17)
-target_include_directories(inference_engine INTERFACE include)
+target_include_directories(inference_engine INTERFACE reference/cpp/include)
 # The engine is the bit-exact reference for the Coral kernels, so every float
 # step must round on its own: no compiler-fused multiply-adds.
 target_compile_options(inference_engine INTERFACE -ffp-contract=off)
 
-add_executable(gpt_neo_cli tools/gpt_neo_cli.cpp)
+add_executable(gpt_neo_cli reference/cpp/gpt_neo_cli.cpp)
 target_link_libraries(gpt_neo_cli PRIVATE inference_engine)
 set_target_properties(gpt_neo_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -48,16 +48,16 @@ if(BUILD_TESTING)
     # Every Google Test file links into one binary; CTest still lists each
     # test case on its own.
     add_executable(engine_tests
-        tests/test_attention.cpp
-        tests/test_embedding.cpp
-        tests/test_gpt_neo.cpp
-        tests/test_int8.cpp
-        tests/test_layernorm.cpp
-        tests/test_linear.cpp
-        tests/test_math.cpp
-        tests/test_mlp.cpp
-        tests/test_quant.cpp
-        tests/test_tensor.cpp
+        reference/cpp/tests/test_attention.cpp
+        reference/cpp/tests/test_embedding.cpp
+        reference/cpp/tests/test_gpt_neo.cpp
+        reference/cpp/tests/test_int8.cpp
+        reference/cpp/tests/test_layernorm.cpp
+        reference/cpp/tests/test_linear.cpp
+        reference/cpp/tests/test_math.cpp
+        reference/cpp/tests/test_mlp.cpp
+        reference/cpp/tests/test_quant.cpp
+        reference/cpp/tests/test_tensor.cpp
     )
     target_link_libraries(engine_tests PRIVATE inference_engine GTest::gtest_main)
     include(GoogleTest)

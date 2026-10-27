@@ -33,7 +33,7 @@ Checks: >
   -readability-identifier-length,
   -readability-uppercase-literal-suffix
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*inference-engine/(include|coral/host)/.*'
+HeaderFilterRegex: '.*inference-engine/(reference/cpp/include|coral/host)/.*'
 CheckOptions:
   readability-identifier-naming.NamespaceCase: lower_case
   readability-identifier-naming.ClassCase: CamelCase

@@ -1,18 +1,29 @@
 # Inference Engine
 
-A minimal GPT-Neo inference engine for Reef:
+A minimal GPT-Neo inference engine for Reef, in two parts:
 
-- `include/inference_engine/`: the host C++ engine. It runs TinyStories end
-  to end (`tools/gpt_neo_cli.cpp`) in fp32 or W8A8, and it is the **source
-  of truth** for the arithmetic.
-- `python/inference_engine/`: a Python interface to the engine
-  (`model.py`), for quick runs and sweeps.
+- `reference/`: the host C++ engine, which is the **source of truth** for
+  the arithmetic, and its Python interface.
 - `coral/`: RVV kernels, firmware and benchmarks for the Coral NPU core.
   Each kernel reproduces an engine function bit for bit, and
   `coral/tools/test.sh` fails on any difference. See
   [coral/README.md](coral/README.md).
-- `tests/`: the Google Test cases (`test_*.cpp`) and `test_engine.py`, the
-  one pytest file that builds and runs them along with everything else.
+
+```
+reference/
+  cpp/
+    include/inference_engine/   the engine
+    tests/                      its Google Test cases
+    gpt_neo_cli.cpp             runs TinyStories end to end in fp32 or W8A8
+  python/
+    inference_engine/           Python interface (model.py), for runs and sweeps
+    tests/test_reference.py     pytest: C++ tests, Python interface, lint, docs
+coral/
+  tests/test_coral.py           pytest: every kernel against the engine
+```
+
+Each part keeps its tests beside its code; `uv run pytest` runs both pytest
+files.
 
 ## Requirements
 
@@ -103,22 +114,24 @@ coral/tools/setup_toolchain.sh   # once
 coral/tools/test.sh
 ```
 
-`uv run pytest` runs `coral/tools/test.sh` as its `coral` test.
+`uv run pytest` runs `coral/tools/test.sh` through `coral/tests/test_coral.py`.
 
 ## Contributing
 
 When adding a component, put it in a header under
-`include/inference_engine/` and cover it with Google Test cases in a
-`tests/test_*.cpp`, listed in `engine_tests` in `CMakeLists.txt`. Code that
-runs on the Coral core goes in `coral/` (see its README). Put importable
-Python code in `python/inference_engine/` and add a case to
-`tests/test_engine.py` when Python calls new C++ functionality.
+`reference/cpp/include/inference_engine/` and cover it with Google Test
+cases in a `reference/cpp/tests/test_*.cpp`, listed in `engine_tests` in
+`CMakeLists.txt`. Code that runs on the Coral core goes in `coral/` (see its
+README). Put importable Python code in `reference/python/inference_engine/`
+and add a case to `reference/python/tests/test_reference.py` when Python
+calls new C++ functionality.
 
-Within `python/`, only `__main__.py` and experiments run standalone from the
-command line. Put each experiment, such as a sweep, under
-`python/inference_engine/experiments/` with its own README, `main.py` for
-one artifact, `run.py` for a configured sweep, and `plot.py` for the sweep
-results. Do not add a main function elsewhere in `python/`.
+Within `reference/python/`, only `__main__.py` and experiments run
+standalone from the command line. Put each experiment, such as a sweep,
+under `reference/python/inference_engine/experiments/` with its own README,
+`main.py` for one artifact, `run.py` for a configured sweep, and `plot.py`
+for the sweep results. Do not add a main function elsewhere in
+`reference/python/`.
 
 The following is a growing list of rules that must be checked before a PR is
 complete:
@@ -127,8 +140,8 @@ complete:
    to `nullptr` after `delete`). It never represents an optional value or
    argument; use `std::optional` for those.
 2. New C++ behavior has Google Test coverage, and any new Python-to-C++ path
-   has a case in `tests/test_engine.py`. Mark long-running pytest cases as
-   `slow`.
+   has a case in `reference/python/tests/test_reference.py`. Mark
+   long-running pytest cases as `slow`.
 3. `bash tools/lint.sh` passes. It applies automatic Python fixes and C++
    formatting, then checks both languages. Review its edits before committing.
 4. `uv run pytest` passes. For C++ changes, also run the C++-only build and
@@ -160,7 +173,7 @@ complete:
 10. Every Google Test case has a comment above it saying what it checks.
 11. Add plain `assert`s for internal invariants, alongside the exceptions
     that report bad input.
-12. Headers under `include/` are documented with Doxygen, with every
+12. Headers under `reference/cpp/include/` are documented with Doxygen, with every
     parameter described. Every `NOLINT` has a comment saying why the check
     does not apply.
 13. The PR description follows `.github/pull_request_template.md`, including
