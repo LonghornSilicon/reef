@@ -3,11 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Host C++: the engine, tools, tests and coral/'s host tools. The engine may
-# be header-only, so its source globs may match nothing.
-shopt -s nullglob
-sources=(src/csrc/src/*.cpp src/csrc/src/operator/*.cpp tools/*.cpp tests/cpp/*.cpp coral/host/*.cpp)
-headers=(src/csrc/include/inference_engine/*.hpp src/csrc/include/inference_engine/operator/*.hpp coral/host/*.hpp)
+# Host C++: the engine, tools, tests and coral/'s host tools.
+sources=(tools/*.cpp tests/*.cpp coral/host/*.cpp)
+headers=(include/inference_engine/*.hpp include/inference_engine/operator/*.hpp coral/host/*.hpp)
 # Coral target code and coral_sim: formatted like the rest, but compiled with
 # -Werror by coral/tools/build.sh and setup_sim.sh rather than checked by
 # clang-tidy (they need the RISC-V toolchain or Spike's headers).

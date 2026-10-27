@@ -2,7 +2,7 @@
 
 Everything here is cross-compiled for the CoralNPU M3 core (RV32IMF, Zbb,
 Zve32f, VLEN 128) and runs on `reef_perf` or the chip. The host C++ engine in
-`../src/csrc/include/inference_engine/` is the source of truth. Every kernel
+`../include/inference_engine/` is the source of truth. Every kernel
 reproduces one engine function **bit for bit**, and the tests fail if a
 single bit differs.
 
@@ -115,7 +115,7 @@ CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/test
 
 ## Adding or changing a kernel
 
-1. Make sure the engine function exists and is tested under `tests/cpp/`.
+1. Make sure the engine function exists and is tested under `../tests/`.
 2. Declare the kernel in `kernels.hpp` and name the engine function it
    matches. Implement it in `kernels/`.
 3. Add cases to `host/gen_golden.cpp`. Use odd sizes, so vector strips end

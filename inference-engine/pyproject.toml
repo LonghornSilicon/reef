@@ -21,20 +21,18 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/inference_engine"]
+packages = ["python/inference_engine"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "unit: fast isolated tests",
-    "integration: multiple components",
-    "experiment: end-to-end inference experiments",
     "slow: tests requiring a simulator or long runtime",
     "coral: tests needing Docker, the Coral toolchain, and reef_perf",
 ]
 timeout = 300
 
 [tool.ruff]
+src = ["python"]
 line-length = 80
 indent-width = 4
 target-version = "py312"
