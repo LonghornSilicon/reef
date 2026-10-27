@@ -7,8 +7,10 @@ uv run ruff check --fix .
 uv run ruff format .
 uv run ruff check .
 
-sources=(src/csrc/src/*.cpp src/csrc/src/operator/*.cpp tools/*.cpp tests/cpp/*.cpp)
-headers=(src/csrc/include/inference_engine/*.hpp src/csrc/include/inference_engine/operator/*.hpp)
+# The engine may be header-only, so these globs may match nothing.
+shopt -s nullglob
+sources=(src/csrc/src/*.cpp src/csrc/src/operator/*.cpp tools/*.cpp tests/cpp/*.cpp coral/host/*.cpp)
+headers=(src/csrc/include/inference_engine/*.hpp src/csrc/include/inference_engine/operator/*.hpp coral/host/*.hpp)
 
 uv run clang-format -i "${sources[@]}" "${headers[@]}"
 bash tools/check_cpp.sh

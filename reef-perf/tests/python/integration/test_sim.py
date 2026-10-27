@@ -8,6 +8,7 @@ import pytest
 from reef_perf.sim import SimulationError, run_sim
 
 FETCH_INTERVAL = "top.frontend.params.fetch_interval"
+PREDICTOR = "top.frontend.params.predictor"
 
 
 @pytest.mark.integration
@@ -34,10 +35,24 @@ def test_parameter_override_changes_timing(
     """A -p override reaches the model: halving fetch rate costs cycles."""
     del cpp_build_dir
     elf = microbenchmark_elfs["alu_indep"]
-    fast = run_sim(elf)
+    fast = run_sim(elf, params={FETCH_INTERVAL: 1})
     slow = run_sim(elf, params={FETCH_INTERVAL: 2})
     assert slow.instructions == fast.instructions
     assert slow.cycles > fast.cycles
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_static_prediction_makes_loop_branches_free(
+    cpp_build_dir: Path, microbenchmark_elfs: dict[str, Path]
+) -> None:
+    """With btfn a correctly predicted loop branch costs no extra cycles."""
+    del cpp_build_dir
+    elf = microbenchmark_elfs["branch_tight"]
+    none = run_sim(elf, params={PREDICTOR: "none"})
+    btfn = run_sim(elf, params={PREDICTOR: "btfn"})
+    assert btfn.instructions == none.instructions
+    assert btfn.cycles < none.cycles
 
 
 @pytest.mark.integration
