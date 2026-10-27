@@ -70,11 +70,13 @@ and `tokenizer.json`. TinyStories-28M only has `model.safetensors` on its
 `refs/pr/1` branch:
 
 ```sh
-mkdir -p models/tinystories-28m && cd models/tinystories-28m
-hf=https://huggingface.co/roneneldan/TinyStories-28M/resolve
-curl -fLO "$hf/main/config.json"
-curl -fLO "$hf/main/tokenizer.json"
-curl -fLO "$hf/refs%2Fpr%2F1/model.safetensors"   # 242 MB
+mkdir -p models/tinystories-28m && (
+  cd models/tinystories-28m
+  hf=https://huggingface.co/roneneldan/TinyStories-28M/resolve
+  curl -fLO "$hf/main/config.json"
+  curl -fLO "$hf/main/tokenizer.json"
+  curl -fLO "$hf/refs%2Fpr%2F1/model.safetensors"   # 242 MB
+)
 ```
 
 Text in, text out, through Python: the package tokenizes the prompt, runs
