@@ -22,7 +22,8 @@ top:
     params:
       fetch_width: 4          # 128-bit fetch = 4 instructions
       fetch_interval: 2       # UncachedFetch.scala:194-195: no new fetch while response data is valid (D7)
-      redirect_penalty: 1     # B05: replace with static prediction + penalties
+      redirect_penalty: 2     # Bru.scala:202-212: a redirect the predictor did not predict; measured on microbenchmarks/frontend/ (U1)
+      predictor: btfn         # UncachedFetch.scala:87-100: jal + backward branches predicted taken, free when right; no BTB/RAS (D6)
       ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
   core:
     dispatch:
