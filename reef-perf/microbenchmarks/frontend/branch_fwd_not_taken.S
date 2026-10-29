@@ -1,8 +1,12 @@
 # Control for branch_bwd_not_taken: same loop, but the never-taken branch is
 # forward, so M3 predicts it not taken (correct, no redirect).
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef ITERATIONS
+  .set ITERATIONS, 1000
+.endif
   START
-  li    t6, 1000
+  li    t6, ITERATIONS
   ROI_BEGIN
   .balign 16            # loop at slot 0 of a 16-byte fetch block
 1:

@@ -7,7 +7,9 @@ simulator. Each brackets its loop with `csrr s10, mcycle` / `csrr s11, mcycle`,
 so both report the same region-of-interest cycle count.
 """
 
+import re
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 from reef_perf.sim import MODULE_ROOT
@@ -34,18 +36,22 @@ def list_microbenchmarks() -> list[str]:
     return sorted(path.stem for path in MICROBENCHMARK_DIR.glob("*.S"))
 
 
-def build_microbenchmark(name: str, out_dir: Path) -> Path:
+def build_microbenchmark(
+    name: str, out_dir: Path, params: Mapping[str, int] | None = None
+) -> Path:
     """Assemble and link one microbenchmark.
 
     Args:
         name: Microbenchmark name, e.g. "alu_chain".
         out_dir: Directory for the object file and ELF.
+        params: Optional assembler symbols overriding source defaults.
 
     Returns:
         Path to the ELF.
 
     Raises:
         FileNotFoundError: If the microbenchmark does not exist.
+        ValueError: If an assembler parameter is invalid.
         subprocess.CalledProcessError: If assembling or linking fails.
     """
     source = MICROBENCHMARK_DIR / f"{name}.S"
@@ -53,14 +59,25 @@ def build_microbenchmark(name: str, out_dir: Path) -> Path:
         raise FileNotFoundError(
             f"no microbenchmark named {name!r} in {MICROBENCHMARK_DIR}"
         )
+    params = dict(params or {})
+    for key, value in params.items():
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+            raise ValueError(f"invalid assembler parameter name: {key!r}")
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{key} must be a positive integer, got {value!r}")
     out_dir.mkdir(parents=True, exist_ok=True)
     obj = out_dir / f"{name}.o"
     elf = out_dir / f"{name}.elf"
+    obj.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
             ASSEMBLER,
             f"-march={MARCH}",
             "-mabi=ilp32f",
+            *(
+                f"--defsym={key}={value}"
+                for key, value in sorted(params.items())
+            ),
             "-I",
             str(MICROBENCHMARK_DIR),
             str(source),

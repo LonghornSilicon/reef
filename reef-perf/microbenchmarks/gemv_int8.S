@@ -5,15 +5,25 @@
 #           -> vwredsum.vs (int16 -> int32 sum)  ->  vmv.x.s  ->  sw
 # x (64 B) stays in v4..v7 for the whole kernel. 4 passes over W.
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef PASSES
+  .set PASSES, 4
+.endif
+.ifndef ROWS
+  .set ROWS, 64
+.endif
+.ifndef COLS
+  .set COLS, 64
+.endif
   START
-  li    t6, 4
+  li    t6, PASSES
   ROI_BEGIN
 1:
   la    a0, W
   la    a1, x
   la    a2, y
-  li    a3, 64              # rows
-  li    a4, 64              # K
+  li    a3, ROWS              # rows
+  li    a4, COLS              # K
   vsetvli zero, a4, e8, m4, ta, ma
   vle8.v  v4, (a1)          # x
 2:
@@ -26,7 +36,7 @@
   vsetivli zero, 1, e32, m1, ta, ma
   vmv.x.s  t0, v24
   sw    t0, 0(a2)
-  addi  a0, a0, 64
+  add   a0, a0, a4
   addi  a2, a2, 4
   addi  a3, a3, -1
   bnez  a3, 2b
@@ -37,12 +47,12 @@
 
   .data
   .balign 16
-W: .rept 64 * 16
+W: .rept ROWS * COLS / 4
   .byte 1, 2, 3, 4
   .endr
-x: .rept 16
+x: .rept COLS / 4
   .byte 1, 1, 1, 1
   .endr
   .bss
   .balign 16
-y: .space 64 * 4
+y: .space ROWS * 4
