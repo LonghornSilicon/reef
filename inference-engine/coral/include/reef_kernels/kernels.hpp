@@ -3,12 +3,12 @@
 // Coral M3 kernels: the GPT-Neo operators, vectorized with RVV intrinsics.
 //
 // Each kernel reproduces one host reference function in
-// src/csrc/include/inference_engine/ bit for bit: it performs the same float
-// operations in the same order, so it rounds identically. Integer sums may be
-// reordered freely. coral/tests/ checks every kernel against golden outputs
-// that coral/host/gen_golden.cpp computes with the reference, and fails on
-// any differing bit. A kernel change that the reference does not share fails
-// those tests; change the reference first, then the kernel.
+// reference/cpp/include/inference_engine/ bit for bit: it performs the same
+// float operations in the same order, so it rounds identically. Integer sums
+// may be reordered freely. coral/tests/ checks every kernel against golden
+// outputs that coral/host/gen_golden.cpp computes with the reference, and
+// fails on any differing bit. A kernel change that the reference does not
+// share fails those tests; change the reference first, then the kernel.
 //
 // Kernels only compute: no allocation, no globals, no knowledge of the host
 // or of where data lives. Every pointer is valid for the sizes given.

@@ -1,4 +1,4 @@
-"""Check the Coral kernels against the engine on the simulator."""
+"""Check the Coral kernels against the reference engine on the simulator."""
 
 import subprocess
 from pathlib import Path
@@ -8,7 +8,6 @@ import pytest
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.coral
 @pytest.mark.timeout(1800)

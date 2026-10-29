@@ -3,15 +3,17 @@
 import argparse
 from pathlib import Path
 
-from inference_engine.gpt_neo import PRECISIONS, tell
+from inference_engine.model import PRECISIONS, tell
 
 # inference-engine/, where `cmake -S . -B build` puts build/bin/gpt_neo_cli.
-MODULE_ROOT = Path(__file__).resolve().parents[4]
+MODULE_ROOT = Path(__file__).resolve().parents[3]
 
 
 def main() -> None:
     """Parse the command line and print the story."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="python -m inference_engine", description=__doc__
+    )
     parser.add_argument("prompt", help="text for the model to continue")
     parser.add_argument(
         "--model",

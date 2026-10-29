@@ -1,17 +1,24 @@
-"""Run GPT-Neo through the C++ engine from Python on a tiny random model."""
+"""Build the reference engine, run its tests, and drive it from Python.
+
+Runs the Google Test suite through CTest, GPT-Neo from Python on a tiny
+random model, the C++ API documentation build, and lint for the whole
+module. coral/tests/test_coral.py checks the kernels against the engine.
+"""
 
 import json
 import math
 import random
 import shutil
 import struct
+import subprocess
 from pathlib import Path
 
 import pytest
-from tokenizers import Tokenizer
+from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
 
-from inference_engine.gpt_neo import generate, tell
-from inference_engine.tokenizer import decode_tokens, encode_text
+from inference_engine.model import decode_tokens, encode_text, generate, tell
+
+MODULE_ROOT = Path(__file__).resolve().parents[3]
 
 HIDDEN = 8
 INNER = 16
@@ -21,6 +28,50 @@ PROMPT = [5, 17, 42, 3, 99]
 
 # Tensor name to (shape, values in row-major order).
 Tensors = dict[str, tuple[list[int], list[float]]]
+
+
+@pytest.fixture(scope="session")
+def cpp_build_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Configure and build C++ targets in a temporary directory."""
+    build_dir = tmp_path_factory.mktemp("cpp-build")
+    subprocess.run(
+        ["cmake", "-S", str(MODULE_ROOT), "-B", str(build_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["cmake", "--build", str(build_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return build_dir
+
+
+@pytest.fixture
+def executable(cpp_build_dir: Path) -> Path:
+    """The engine's generation executable."""
+    return cpp_build_dir / "bin" / "gpt_neo_cli"
+
+
+@pytest.fixture(scope="session")
+def tiny_tokenizer(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A small byte-level BPE tokenizer.json, built like GPT-Neo's."""
+    tokenizer = Tokenizer(models.BPE())
+    tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+    tokenizer.decoder = decoders.ByteLevel()
+    trainer = trainers.BpeTrainer(
+        vocab_size=300,
+        special_tokens=["<|endoftext|>"],
+        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+    )
+    tokenizer.train_from_iterator(
+        ["Once upon a time, there was a little girl named Lily."], trainer
+    )
+    path = tmp_path_factory.mktemp("tokenizer") / "tokenizer.json"
+    tokenizer.save(str(path))
+    return path
 
 
 def write_safetensors(path: Path, tensors: Tensors) -> None:
@@ -101,13 +152,14 @@ def write_tiny_model(
     shutil.copy(tokenizer, model_dir / "tokenizer.json")
 
 
-@pytest.fixture
-def executable(cpp_build_dir: Path) -> Path:
-    """The engine's generation executable."""
-    return cpp_build_dir / "bin" / "gpt_neo_cli"
+def test_cpp(cpp_build_dir: Path) -> None:
+    """Run every C++ test through CTest; failures show CTest's output."""
+    subprocess.run(
+        ["ctest", "--test-dir", str(cpp_build_dir), "--output-on-failure"],
+        check=True,
+    )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("precision", ["fp32", "w8a8"])
 def test_generate_returns_new_tokens_from_the_vocabulary(
     tmp_path: Path, tiny_tokenizer: Path, executable: Path, precision: str
@@ -122,7 +174,6 @@ def test_generate_returns_new_tokens_from_the_vocabulary(
     assert generate(PROMPT, 0, tmp_path, executable, precision) == []
 
 
-@pytest.mark.integration
 def test_generate_continues_its_own_output(
     tmp_path: Path, tiny_tokenizer: Path, executable: Path
 ) -> None:
@@ -137,7 +188,6 @@ def test_generate_continues_its_own_output(
     assert rest == generated[3:]
 
 
-@pytest.mark.integration
 def test_generate_reports_engine_errors(
     tmp_path: Path, executable: Path
 ) -> None:
@@ -148,7 +198,6 @@ def test_generate_reports_engine_errors(
         generate(PROMPT, 1, tmp_path, executable)
 
 
-@pytest.mark.integration
 def test_tell_stops_before_end_of_text(
     tmp_path: Path, tiny_tokenizer: Path, executable: Path
 ) -> None:
@@ -168,3 +217,36 @@ def test_tell_stops_before_end_of_text(
     assert tell(prompt, 10, tmp_path, executable) == decode_tokens(
         ids[:cut], tokenizer
     )
+
+
+@pytest.mark.slow
+def test_lint() -> None:
+    """Check Python and C++ lint without modifying source files."""
+    subprocess.run(
+        ["uv", "run", "--locked", "ruff", "check", "."],
+        cwd=MODULE_ROOT,
+        check=True,
+    )
+    subprocess.run(
+        ["uv", "run", "--locked", "ruff", "format", "--check", "."],
+        cwd=MODULE_ROOT,
+        check=True,
+    )
+    subprocess.run(["bash", "tools/check_cpp.sh"], cwd=MODULE_ROOT, check=True)
+
+
+def test_doxygen_builds_without_warnings(tmp_path: Path) -> None:
+    """Generate the C++ API documentation with warnings treated as errors."""
+    output_dir = tmp_path / "doxygen"
+    config = (MODULE_ROOT / "Doxyfile").read_text()
+    config += f'\nOUTPUT_DIRECTORY = "{output_dir}"\n'
+    result = subprocess.run(
+        ["doxygen", "-"],
+        input=config,
+        text=True,
+        cwd=MODULE_ROOT,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert (output_dir / "html" / "index.html").is_file()
