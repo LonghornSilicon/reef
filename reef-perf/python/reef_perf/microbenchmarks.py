@@ -27,7 +27,6 @@ MARCH = "rv32imf_zicsr_zifencei_zve32f"
 """ISA the microbenchmarks are assembled for (Reef M3)."""
 
 
-
 # The assembly sources declare their defaults with .ifndef/.set pairs.
 # Resolve those defaults so partial overrides receive the same safety checks
 # as fully specified sweep configurations.
@@ -40,7 +39,10 @@ DEFAULT_RE = re.compile(
 
 def default_parameters(source: Path) -> dict[str, int]:
     """Read the declared assembler parameter defaults from a benchmark."""
-    return {name: int(value) for name, value in DEFAULT_RE.findall(source.read_text())}
+    return {
+        name: int(value)
+        for name, value in DEFAULT_RE.findall(source.read_text())
+    }
 
 
 def validate_constraints(name: str, params: dict[str, int]) -> None:
@@ -65,11 +67,12 @@ def validate_constraints(name: str, params: dict[str, int]) -> None:
         raise ValueError("load_stream: data exceeds safe DTCM budget")
     if name.startswith("vec_add_") and params["ELEMENTS"] * 12 > 24000:
         raise ValueError("vec_add: data exceeds safe DTCM budget")
-    if name == "vec_memcpy":
-        if params["BYTES"] % 4 or params["BYTES"] * 2 > 24000:
-            raise ValueError(
-                "vec_memcpy: BYTES must be a multiple of 4 and fit DTCM"
-            )
+    if name == "vec_memcpy" and (
+    params["BYTES"] % 4 or params["BYTES"] * 2 > 24000
+):
+        raise ValueError(
+            "vec_memcpy: BYTES must be a multiple of 4 and fit DTCM"
+        )
     # Very large unrolled loops can overflow the 8 KiB instruction memory.
     for param in ("ADDS", "PAIRS", "GROUPS", "MULS", "FMADDS", "DIV_GROUPS"):
         if params.get(param, 0) > 128:
@@ -117,7 +120,9 @@ def build_microbenchmark(
     defaults = default_parameters(source)
     unknown = set(params) - set(defaults)
     if unknown:
-        raise ValueError(f"{name}: unknown assembler parameters: {sorted(unknown)}")
+        raise ValueError(
+            f"{name}: unknown assembler parameters: {sorted(unknown)}"
+        )
     effective_params = {**defaults, **params}
     validate_constraints(name, effective_params)
     out_dir.mkdir(parents=True, exist_ok=True)

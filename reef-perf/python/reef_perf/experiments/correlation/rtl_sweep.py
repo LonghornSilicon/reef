@@ -1,4 +1,4 @@
-"""Generate disjoint train/test RTL cycle datasets from microbenchmark sweeps.
+r"""Generate disjoint train/test RTL cycle datasets from microbenchmark sweeps.
 
 From reef-perf/, after building the M3 verification Verilator executable:
 
@@ -192,7 +192,9 @@ def generate(
         # Stage every requested dataset on the destination filesystem. Neither
         # existing CSV is touched unless *all* builds, RTL runs, and CSV writes
         # have succeeded. TemporaryDirectory cleans up on failure.
-        with tempfile.TemporaryDirectory(prefix=".rtl_sweep_", dir=csv_dir) as staging:
+        with tempfile.TemporaryDirectory(
+            prefix=".rtl_sweep_", dir=csv_dir
+        ) as staging:
             completed = {}
             for split in SPLITS:
                 if not rows[split]:
@@ -214,13 +216,16 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point for compiling and measuring train/test RTL sweeps."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--simulator", type=Path,
+        "--simulator",
+        type=Path,
         help="built M3 verification Verilator executable",
     )
     parser.add_argument("--sweeps", type=Path, default=DEFAULT_SWEEPS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
-        "--csv-dir", type=Path, default=MICROBENCHMARK_DIR,
+        "--csv-dir",
+        type=Path,
+        default=MICROBENCHMARK_DIR,
         help="output directory for tracked RTL CSV datasets",
     )
     parser.add_argument("--split", choices=("both", *SPLITS), default="both")
@@ -228,11 +233,13 @@ def main(argv: list[str] | None = None) -> int:
         "--timeout", type=int, default=600, help="seconds per RTL run"
     )
     parser.add_argument(
-        "--list", action="store_true",
+        "--list",
+        action="store_true",
         help="validate and list configurations without compiling",
     )
     parser.add_argument(
-        "--compile-only", action="store_true",
+        "--compile-only",
+        action="store_true",
         help="build ELF variants but do not run RTL or write CSVs",
     )
     args = parser.parse_args(argv)
@@ -246,8 +253,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{run.split}/{run.id}: {run.params}")
         return 0
     results = generate(
-        runs, args.simulator, args.out, args.timeout,
-        args.compile_only, args.csv_dir,
+        runs,
+        args.simulator,
+        args.out,
+        args.timeout,
+        args.compile_only,
+        args.csv_dir,
     )
     for split, path in results.items():
         count = sum(run.split == split for run in runs)
