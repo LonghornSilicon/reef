@@ -38,6 +38,8 @@ top:
         mul_occupancy: 1
         div_latency: 32         # B12: data-dependent on M3
         div_occupancy: 32
+        div_data_dependent: true # Dvu.scala:90-136: leading-zero early termination
+        div_base: 2              # One setup cycle and one result cycle
         fpu_latency: 3          # B11: fpnew PipeRegs=3; measure
         fpu_occupancy: 1
         fdiv_latency: 12        # B11: measure
@@ -70,9 +72,9 @@ top:
       itcm_latency: 2
       itcm_line_bytes: 16
       itcm_cycles_per_line: 1
-      dtcm_latency: 2         # B13: measure load-to-use
+      dtcm_latency: 5         # B13: measure load-to-use
       dtcm_line_bytes: 16     # 128-bit data bus
-      dtcm_cycles_per_line: 1 # B13: measure
+      dtcm_cycles_per_line: 4 # B13: measure
       axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
       axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
       axi_max_outstanding: 4  # ASSUMPTION; no M3 source

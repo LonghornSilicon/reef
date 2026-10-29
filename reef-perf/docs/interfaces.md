@@ -57,7 +57,7 @@ one **writer**:
 
 | Fields | Written by |
 | --- | --- |
-| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts` | frontend, when the instruction is fetched |
+| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts`, `Rs1Val`, `Rs2Val` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
 | `DispatchCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
