@@ -13,11 +13,16 @@ import csv
 import json
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from reef_perf.experiments.correlation.rtl_trace import measure_log
-from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
+from reef_perf.microbenchmarks import (
+    MICROBENCHMARK_DIR,
+    build_microbenchmark,
+    validate_constraints,
+)
 from reef_perf.sim import MODULE_ROOT
 
 DEFAULT_SWEEPS = MICROBENCHMARK_DIR / "sweeps.json"
@@ -98,39 +103,6 @@ def load_sweeps(path: Path = DEFAULT_SWEEPS) -> list[Run]:
     return runs
 
 
-def validate_constraints(name: str, params: dict[str, int]) -> None:
-    """Prevent invalid VL values, empty pointer chains and DTCM overflow."""
-    if name == "gemv_int8":
-        if params["COLS"] > 64 or params["COLS"] % 4:
-            raise ValueError(
-                "gemv_int8: COLS must be a multiple of 4 in [4, 64]"
-            )
-        bytes_used = (
-            params["ROWS"] * params["COLS"]
-            + params["COLS"]
-            + 4 * params["ROWS"]
-        )
-        if bytes_used > 24000:
-            raise ValueError("gemv_int8: data exceeds safe DTCM budget")
-    if name == "load_chain" and params["NODES"] < 2:
-        raise ValueError("load_chain: NODES must be at least 2")
-    if name == "load_chain" and params["NODES"] * 16 > 24000:
-        raise ValueError("load_chain: data exceeds safe DTCM budget")
-    if name == "load_stream" and params["BLOCKS"] * 32 > 24000:
-        raise ValueError("load_stream: data exceeds safe DTCM budget")
-    if name.startswith("vec_add_") and params["ELEMENTS"] * 12 > 24000:
-        raise ValueError("vec_add: data exceeds safe DTCM budget")
-    if name == "vec_memcpy":
-        if params["BYTES"] % 4 or params["BYTES"] * 2 > 24000:
-            raise ValueError(
-                "vec_memcpy: BYTES must be a multiple of 4 and fit DTCM"
-            )
-    # Very large unrolled loops can overflow the 8 KiB instruction memory.
-    for param in ("ADDS", "PAIRS", "GROUPS", "MULS", "FMADDS", "DIV_GROUPS"):
-        if params.get(param, 0) > 128:
-            raise ValueError(f"{name}: {param} exceeds safe unroll limit (128)")
-
-
 def run_rtl(
     simulator: Path, elf: Path, log: Path, timeout: int
 ) -> tuple[int, int]:
@@ -173,9 +145,6 @@ def generate(
     csv_dir = output if csv_dir is None else csv_dir
     if not compile_only:
         csv_dir.mkdir(parents=True, exist_ok=True)
-        # Do not leave stale results that look like this run's measurements.
-        for split in {run.split for run in runs}:
-            (csv_dir / f"rtl_m3_{split}.csv").unlink(missing_ok=True)
     columns = sorted({key for run in runs for key in run.params})
     fields = [
         "microbenchmark",
@@ -220,18 +189,24 @@ def generate(
 
     result = {}
     if not compile_only:
-        for split in SPLITS:
-            if not rows[split]:
-                continue
-            target = csv_dir / f"rtl_m3_{split}.csv"
-            # A temporary file avoids publishing half a split on failure.
-            temp = target.with_suffix(".csv.tmp")
-            with temp.open("w", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=fields)
-                writer.writeheader()
-                writer.writerows(rows[split])
-            temp.replace(target)
-            result[split] = target
+        # Stage every requested dataset on the destination filesystem. Neither
+        # existing CSV is touched unless *all* builds, RTL runs, and CSV writes
+        # have succeeded. TemporaryDirectory cleans up on failure.
+        with tempfile.TemporaryDirectory(prefix=".rtl_sweep_", dir=csv_dir) as staging:
+            completed = {}
+            for split in SPLITS:
+                if not rows[split]:
+                    continue
+                temp = Path(staging) / f"rtl_m3_{split}.csv"
+                with temp.open("w", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=fields)
+                    writer.writeheader()
+                    writer.writerows(rows[split])
+                completed[split] = temp
+            for split, temp in completed.items():
+                target = csv_dir / f"rtl_m3_{split}.csv"
+                temp.replace(target)
+                result[split] = target
     return result
 
 

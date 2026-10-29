@@ -27,6 +27,55 @@ MARCH = "rv32imf_zicsr_zifencei_zve32f"
 """ISA the microbenchmarks are assembled for (Reef M3)."""
 
 
+
+# The assembly sources declare their defaults with .ifndef/.set pairs.
+# Resolve those defaults so partial overrides receive the same safety checks
+# as fully specified sweep configurations.
+DEFAULT_RE = re.compile(
+    r"^\s*\.ifndef\s+([A-Z][A-Z0-9_]*)\s*\n"
+    r"\s*\.set\s+\1\s*,\s*(\d+)\s*$",
+    re.MULTILINE,
+)
+
+
+def default_parameters(source: Path) -> dict[str, int]:
+    """Read the declared assembler parameter defaults from a benchmark."""
+    return {name: int(value) for name, value in DEFAULT_RE.findall(source.read_text())}
+
+
+def validate_constraints(name: str, params: dict[str, int]) -> None:
+    """Prevent invalid VL values, empty pointer chains and DTCM overflow."""
+    if name == "gemv_int8":
+        if params["COLS"] > 64 or params["COLS"] % 4:
+            raise ValueError(
+                "gemv_int8: COLS must be a multiple of 4 in [4, 64]"
+            )
+        bytes_used = (
+            params["ROWS"] * params["COLS"]
+            + params["COLS"]
+            + 4 * params["ROWS"]
+        )
+        if bytes_used > 24000:
+            raise ValueError("gemv_int8: data exceeds safe DTCM budget")
+    if name == "load_chain" and params["NODES"] < 2:
+        raise ValueError("load_chain: NODES must be at least 2")
+    if name == "load_chain" and params["NODES"] * 16 > 24000:
+        raise ValueError("load_chain: data exceeds safe DTCM budget")
+    if name == "load_stream" and params["BLOCKS"] * 32 > 24000:
+        raise ValueError("load_stream: data exceeds safe DTCM budget")
+    if name.startswith("vec_add_") and params["ELEMENTS"] * 12 > 24000:
+        raise ValueError("vec_add: data exceeds safe DTCM budget")
+    if name == "vec_memcpy":
+        if params["BYTES"] % 4 or params["BYTES"] * 2 > 24000:
+            raise ValueError(
+                "vec_memcpy: BYTES must be a multiple of 4 and fit DTCM"
+            )
+    # Very large unrolled loops can overflow the 8 KiB instruction memory.
+    for param in ("ADDS", "PAIRS", "GROUPS", "MULS", "FMADDS", "DIV_GROUPS"):
+        if params.get(param, 0) > 128:
+            raise ValueError(f"{name}: {param} exceeds safe unroll limit (128)")
+
+
 def list_microbenchmarks() -> list[str]:
     """List the available microbenchmarks.
 
@@ -65,6 +114,12 @@ def build_microbenchmark(
             raise ValueError(f"invalid assembler parameter name: {key!r}")
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise ValueError(f"{key} must be a positive integer, got {value!r}")
+    defaults = default_parameters(source)
+    unknown = set(params) - set(defaults)
+    if unknown:
+        raise ValueError(f"{name}: unknown assembler parameters: {sorted(unknown)}")
+    effective_params = {**defaults, **params}
+    validate_constraints(name, effective_params)
     out_dir.mkdir(parents=True, exist_ok=True)
     obj = out_dir / f"{name}.o"
     elf = out_dir / f"{name}.elf"
