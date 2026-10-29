@@ -7,12 +7,12 @@ project(inference_engine LANGUAGES CXX)
 # the includes and the standard, and nothing is compiled into a library.
 add_library(inference_engine INTERFACE)
 target_compile_features(inference_engine INTERFACE cxx_std_17)
-target_include_directories(inference_engine INTERFACE src/csrc/include)
+target_include_directories(inference_engine INTERFACE reference/cpp/include)
 # The engine is the bit-exact reference for the Coral kernels, so every float
 # step must round on its own: no compiler-fused multiply-adds.
 target_compile_options(inference_engine INTERFACE -ffp-contract=off)
 
-add_executable(gpt_neo_cli tools/gpt_neo_cli.cpp)
+add_executable(gpt_neo_cli reference/cpp/gpt_neo_cli.cpp)
 target_link_libraries(gpt_neo_cli PRIVATE inference_engine)
 set_target_properties(gpt_neo_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -31,5 +31,35 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
-    add_subdirectory(tests/cpp)
+    include(FetchContent)
+    set(_gtest_extra "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+        set(_gtest_extra DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    endif()
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/063de7e9578f82b369302001269680b4b1553359.zip
+        ${_gtest_extra}
+    )
+    set(BUILD_GMOCK OFF CACHE BOOL "Build Google Mock" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "Install Google Test" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    # Every Google Test file links into one binary; CTest still lists each
+    # test case on its own.
+    add_executable(engine_tests
+        reference/cpp/tests/test_attention.cpp
+        reference/cpp/tests/test_embedding.cpp
+        reference/cpp/tests/test_gpt_neo.cpp
+        reference/cpp/tests/test_int8.cpp
+        reference/cpp/tests/test_layernorm.cpp
+        reference/cpp/tests/test_linear.cpp
+        reference/cpp/tests/test_math.cpp
+        reference/cpp/tests/test_mlp.cpp
+        reference/cpp/tests/test_quant.cpp
+        reference/cpp/tests/test_tensor.cpp
+    )
+    target_link_libraries(engine_tests PRIVATE inference_engine GTest::gtest_main)
+    include(GoogleTest)
+    gtest_discover_tests(engine_tests)
 endif()
