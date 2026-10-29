@@ -1,8 +1,12 @@
 # Control for branch_fwd_taken and jalr_chain: same loop, but the jump is a
 # jal, which M3 predicts taken (UncachedFetch.scala:87-100): no redirect.
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef ITERATIONS
+  .set ITERATIONS, 1000
+.endif
   START
-  li    t6, 1000
+  li    t6, ITERATIONS
   ROI_BEGIN
   .balign 16            # loop at slot 0 of a 16-byte fetch block
 1:

@@ -29,3 +29,8 @@ Build one by hand (the sweep doesn't), inside the Docker image:
 mkdir -p build/microbenchmarks/frontend
 uv run python -c "from pathlib import Path; from reef_perf.microbenchmarks import build_microbenchmark; print(build_microbenchmark('frontend/jal_fwd', Path('build/microbenchmarks')))"
 ```
+
+The frontend benchmarks also participate in the optional held-out RTL
+parameter sweep (`../sweeps.json`). Their `ITERATIONS` assembler parameter
+changes loop length while keeping the aligned-loop body and control-flow
+behavior the same; see the parent `../README.md` for execution instructions.

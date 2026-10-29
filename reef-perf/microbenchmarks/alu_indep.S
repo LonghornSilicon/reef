@@ -2,11 +2,18 @@
 # Measures the fetch/dispatch ceiling on straight-line code.
 # M3 RTL expectation: ~2 IPC (fetch delivers 4 instructions every other cycle).
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef ITERATIONS
+  .set ITERATIONS, 1000
+.endif
+.ifndef GROUPS
+  .set GROUPS, 4
+.endif
   START
-  li    t6, 1000
+  li    t6, ITERATIONS
   ROI_BEGIN
 1:
-  .rept 4
+  .rept GROUPS
   addi  a0, a0, 1
   addi  a1, a1, 1
   addi  a2, a2, 1

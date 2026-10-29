@@ -26,3 +26,68 @@ automatically (regenerate the golden file, see
 `tests/python/integration/test_golden.py`).
 
 `reef_perf.microbenchmarks` assembles them with `riscv64-linux-gnu-as`/`ld`.
+
+## Parameterized RTL training and testing sweeps
+
+Every `.S` file (including those in `frontend/`) now has overridable
+assembler constants. The default values reproduce the original workload, so
+ordinary `build_microbenchmark()` calls and the original `rtl_m3.csv` remain
+valid. For example, `alu_chain.S` takes `ITERATIONS` and `ADDS`:
+
+```sh
+riscv64-linux-gnu-as -march=rv32imf_zicsr_zifencei_zve32f -mabi=ilp32f \
+    -I microbenchmarks --defsym=ITERATIONS=750 --defsym=ADDS=12 \
+    microbenchmarks/alu_chain.S -o /tmp/alu_chain.o
+```
+
+`microbenchmarks/sweeps.json` defines two *nonoverlapping* sets of parameters
+for **all 20** benchmarks (15 main and 5 frontend): 40 training configurations
+and 40 held-out testing configurations. Use smaller or larger valid values as
+needed, but keep the two sets disjoint. Values are checked for positivity,
+array/buffer sizes, and GEMV vector-length limits.
+
+### Generate RTL CSVs
+
+Build the M3 verification Verilator simulator in the **CoralNPU** source tree
+at tag `M3-2026-04-27`, as described in
+[`docs/roadmap.md`](../docs/roadmap.md) (ticket B01):
+
+```sh
+cd /path/to/CoralNPU
+bazel build -c opt //tests/verilator_sim:rvv_core_mini_verification_axi_sim
+```
+
+In an environment where `riscv64-linux-gnu-as`, `riscv64-linux-gnu-ld`,
+`uv`, and the resulting simulator executable are accessible (such as the
+Reef Docker environment with the simulator also mounted), run from
+`reef-perf/`:
+
+```sh
+# Inspect all planned configurations; no toolchain or RTL required.
+uv run python -m reef_perf.experiments.correlation.rtl_sweep --list
+
+# Optional assembly/link verification of all 80 parameter configurations.
+uv run python -m reef_perf.experiments.correlation.rtl_sweep --compile-only
+
+# Build + run each ELF on Verilator; extract cycle counts from --instr_trace.
+uv run python -m reef_perf.experiments.correlation.rtl_sweep \
+    --simulator /absolute/path/to/rvv_core_mini_verification_axi_sim
+```
+
+The script writes **`microbenchmarks/rtl_m3_train.csv`** and
+**`microbenchmarks/rtl_m3_test.csv`**, ready to commit with the PR. Each row
+identifies a microbenchmark and variant, its parameters (numeric columns),
+`rtl_roi_cycles`, and `rtl_retired_insts`. Missing parameters are blank.
+The original single-workload `rtl_m3.csv` is kept unchanged for the existing
+correlation experiment. Train/test files intentionally contain multiple rows
+per benchmark and therefore should **not** be passed to the legacy
+`load_rtl_results()` function, which expects one row per benchmark.
+
+Build artifacts and raw simulator traces are saved in ignored
+`results/rtl_sweep/elfs/` and `results/rtl_sweep/logs/`. All runs must complete
+and reach `mpause` before either generated CSV is published. If any assembly,
+Verilator run, or trace validation fails, the script stops with an error rather
+than producing fabricated or partial measurements. Options include
+`--split train`, `--split test`, `--timeout SECONDS`, `--sweeps FILE`,
+`--out DIR`, and `--csv-dir DIR`. Keep the train/test datasets separate when
+using them to calibrate or evaluate `reef_perf`.
