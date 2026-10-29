@@ -34,10 +34,11 @@ TcmModel::TcmModel(std::string Name, uint32_t Latency, uint32_t LineBytes,
 MemResponse TcmModel::access(std::span<const MemAccess> Accesses,
                              Cycle Earliest) {
   MemResponse Response;
-  Response.Occupancy =
-      static_cast<uint64_t>(countDistinctBlocks(Accesses, LineBytes)) *
-      CyclesPerLine;
-  Response.Latency = Latency + Response.Occupancy - 1;
+  // Each distinct line holds its TCM memory port for CyclesPerLine cycles.
+  // The first line completes after Latency; additional lines are serialized.
+  const uint64_t Blocks = countDistinctBlocks(Accesses, LineBytes);
+  Response.Occupancy = Blocks * CyclesPerLine;
+  Response.Latency = Latency + (Blocks - 1) * CyclesPerLine;
   Response.Start = Port.reserve(Earliest, Response.Occupancy);
   return Response;
 }

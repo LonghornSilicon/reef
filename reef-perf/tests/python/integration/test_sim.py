@@ -9,6 +9,7 @@ from reef_perf.sim import SimulationError, run_sim
 
 FETCH_INTERVAL = "top.frontend.params.fetch_interval"
 PREDICTOR = "top.frontend.params.predictor"
+FETCH_BLOCK_BYTES = "top.frontend.params.fetch_block_bytes"
 
 
 @pytest.mark.integration
@@ -53,6 +54,20 @@ def test_static_prediction_makes_loop_branches_free(
     btfn = run_sim(elf, params={PREDICTOR: "btfn"})
     assert btfn.instructions == none.instructions
     assert btfn.cycles < none.cycles
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_aligned_blocks_slow_down_misaligned_loop(
+    cpp_build_dir: Path, microbenchmark_elfs: dict[str, Path]
+) -> None:
+    """alu_indep's loop starts at slot 3, so 16-byte blocks cost a fetch."""
+    del cpp_build_dir
+    elf = microbenchmark_elfs["alu_indep"]
+    free = run_sim(elf, params={FETCH_BLOCK_BYTES: "0"})
+    aligned = run_sim(elf, params={FETCH_BLOCK_BYTES: "16"})
+    assert aligned.instructions == free.instructions
+    assert aligned.cycles > free.cycles
 
 
 @pytest.mark.integration

@@ -167,6 +167,11 @@ void FuncSim::execute(Inst &I) {
   State->log_mem_read.clear();
   State->log_mem_write.clear();
   State->log_reg_write.clear();
+  // Capture operands before Spike updates the destination register.
+  uint32_t Rs1 = (I.Encoding >> 15) & 0x1f;
+  uint32_t Rs2 = (I.Encoding >> 20) & 0x1f;
+  I.Rs1Val = static_cast<uint32_t>(State->XPR[Rs1]);
+  I.Rs2Val = static_cast<uint32_t>(State->XPR[Rs2]);
   Proc->step(1);
   if (State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore)
     throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +

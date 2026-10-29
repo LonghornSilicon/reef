@@ -108,6 +108,7 @@ void ReefSim::bindTree_() {
   FrontendModule.getUnit()->setFuncSim(TheFuncSim.get());
   MemoryModule.getUnit()->setMemoryMap(Regions);
   CoreModule.setMemory(MemoryModule.getUnit());
+  VectorModule.getUnit()->setLsu(CoreModule.getVectorLsu());
   CoreModule.setInstBuffer(FrontendModule.getUnit());
 }
 

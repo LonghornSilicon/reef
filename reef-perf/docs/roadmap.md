@@ -97,7 +97,7 @@ B00 ─┬─ B01 ─ B02 ─ B03     (measurement: do these first, can be paral
 4. Run `build/bin/reef_trace build/microbenchmarks/gemv_int8.elf 60` and match the
    printed instructions to
    `microbenchmarks/gemv_int8.S`.
-5. Change one parameter with `-p` (e.g. `top.vector.params.vec_lanes 1`)
+5. Change one parameter with `-p` (e.g. `top.vector.params.vec_alu_count 1`)
    and explain the change in cycles to a teammate.
 6. Run `uv run pytest` and make sure it passes.
 
@@ -366,6 +366,7 @@ has to do the same for ROI counts to match.
    reason `csr_drain`.
 3. Confirm `retire_width` from the RTL (`RetirementBuffer.scala`: how many
    entries can retire per cycle?). Update `configs/machines/m3.yaml` with the citation.
+   **Done:** 8, the whole buffer, in one cycle.
 
 **Check.** Short-loop microbenchmarks' ROI cycles should shift by a few cycles. The
 drain happens at the ROI edges, not inside the loop.
@@ -454,6 +455,20 @@ the RTL.
 
 #### B14: Vector loads/stores go through the LSU one register at a time (~3–5 days)
 
+**Status.** Done. Vector loads and stores pass through the vector pipeline
+(B16/B18), one uop per register, wait in a 4-entry LSU reservation station,
+and book the core's LSU per register through `VectorLsuInterface`
+(docs/interfaces.md, "Vector → core (LSU)"). From RTL waveforms of
+`vec_add_m1` and `vec_add_m4`: the LSU takes a load register every 4 cycles
+and a store register every 3, plus 1 cycle to move on to the next
+instruction (`lsu_vector_switch_cycles`); uop *i* of a dependent instruction
+waits only for register *i* of its source; and a store frees its scalar
+retirement-buffer entry once its first register's store completes. On the
+correlation test bench (with B04-B06), `vec_add_m1` went from -20.9% to
+-0.1%, `vec_add_m4` from +10.4% to -0.1%, `vec_memcpy` from -1.1% to +0.4%
+and `gemv_loads` from -4.7% to +1.5%. Only unit-stride e32 accesses are
+measured (deviation U6).
+
 **Hardware.**
 - A vector load/store is split per 16-byte vector register. For each register,
   the LSU slot:
@@ -488,6 +503,21 @@ RTL on their memory-bound parts.
 
 #### B15: Model the real vector functional units (~1 week)
 
+**Status.** Done for arithmetic, in `model/vector/Vector.cpp` and
+`VectorPipeline.cpp`: one pool and reservation station per functional unit
+type, M3's uop counts (by EMUL, not `vl`), one vector ROB entry for compares
+and reductions, and latencies from `microbenchmarks/vector_units/` (all
+within 0.3% of the RTL except the small-dividend divides, deviation U5).
+With the fetch fixes B04-B06 applied, `gemv_int8` went from -29.5% to
+-11.2%, and to -7.5% with B14's vector loads. The rest is in the scalar loop
+tail (a branch alone in its dispatch group, the taken-branch redirect).
+
+Instead of a `vec_unified` switch, the organization is configuration: the
+reservation stations, the pools they feed, and the pool each instruction
+group runs on (`vec_stations`, `vec_pools`, `vec_<group>_pool`).
+`configs/machines/m3_unified_vector.yaml`, applied after `m3.yaml`, is the
+old design: two general-purpose lanes behind one shared station.
+
 **Hardware.** The M3 vector backend has separate functional units, each with its
 own reservation station:
 
@@ -518,7 +548,14 @@ RTL, and the per-class microbenchmarks are within 10%.
 
 ---
 
-#### B16: Vector decode and dispatch widths (~1 week)
+#### B16: Vector decode and dispatch widths (~1 week) — done
+
+**Status.** Done, together with B18, in
+`model/vector/VectorPipeline.cpp`: one in-order pipeline that computes each
+instruction's path when it arrives, instead of a separate decode unit (a
+port between stages would only add latency). Vector loads and stores pass
+through it too (B14). Check: `microbenchmarks/vector_units/vmixed_lmul`
+(LMUL=8 and LMUL=1 adds, a `vsetvli` between them) is within 0.1% of the RTL.
 
 **Hardware.** Vector instructions go through their own pipeline:
 
@@ -575,7 +612,20 @@ with mixed LMUL=8 and LMUL=1 ops matches the RTL within 15%.
 
 ---
 
-#### B18: Vector reorder buffer (~2–3 days)
+#### B18: Vector reorder buffer (~2–3 days) — done
+
+**Status.** The vector ROB is modeled with B16 (8 uops, 4 retired per
+cycle), and a vector instruction completes for the core's Rob when its last
+uop retires from it (deviation U8), except a store, which completes with its
+first register (B14). Check: `vdiv_m8_indep` and `vdiv_m8_then_vadd_m8` in
+`microbenchmarks/vector_units/` are within 3.2% of the RTL. They showed that
+the scalar retirement buffer matches vector writes by PC, so a loop's later
+iteration retires when an earlier one with the same PC does. That is an RTL
+bug (RB1 in `rtl_bugs.md` at the top of the Reef repository, fixed upstream
+after M3); the model reproduces it, and `vec_completion_matches_pc: false`
+turns it off. The same waveforms showed that a vector load or store takes a
+scalar LSU queue entry at dispatch, until its first register starts, which
+took `gemv_loads` from +1.5% to -0.6%.
 
 **Hardware.** Besides the 8-entry scalar retirement buffer, the vector backend has
 its own **8-entry** reorder buffer. Long vector ops can fill it and stall new

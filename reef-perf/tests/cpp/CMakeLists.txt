@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 # One directory per module, matching model/<module>/.
 set(REEF_PERF_TESTS
+    common/InstTest
     common/InterfacesTest
     common/ResourcePoolTest
     common/TypesTest

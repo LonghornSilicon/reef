@@ -17,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <ostream>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -64,15 +65,29 @@ struct MemAccess {
   bool IsStore = false; ///< True for a store.
 };
 
+/// Bytes in one vector register (VLEN = 128 on M3).
+inline constexpr uint32_t VectorRegisterBytes = 16;
+
+/// Splits a vector memory instruction's \p Accesses (one per element) into
+/// one group per vector register of \p RegBytes bytes, in element order.
+/// Spike records only active elements, so a masked access groups them as if
+/// they were contiguous. \throws std::invalid_argument if \p RegBytes is 0.
+std::vector<std::span<const MemAccess>>
+splitByRegister(std::span<const MemAccess> Accesses, uint32_t RegBytes);
+
 /// One dynamic instruction and its progress through the timing model.
 struct Inst {
   /// Marks a timing field that has not been set yet.
   static constexpr Cycle Never = std::numeric_limits<Cycle>::max();
 
-  uint64_t Seq = 0;           ///< 0-based dynamic instruction number.
-  Address PC = 0;             ///< Address of the instruction.
-  Address NextPC = 0;         ///< Address executed next (branch outcome).
-  uint32_t Encoding = 0;      ///< Raw 32-bit instruction word.
+  uint64_t Seq = 0;      ///< 0-based dynamic instruction number.
+  Address PC = 0;        ///< Address of the instruction.
+  Address NextPC = 0;    ///< Address executed next (branch outcome).
+  uint32_t Encoding = 0; ///< Raw 32-bit instruction word.
+  uint32_t Rs1Val =
+      0; ///< Value of integer source register rs1 before execution.
+  uint32_t Rs2Val =
+      0; ///< Value of integer source register rs2 before execution.
   std::string Disasm;         ///< Spike's disassembly.
   std::string Mnemonic;       ///< First token of Disasm, e.g. "addi".
   std::vector<MemAccess> Mem; ///< Accesses; one per element for vectors.
@@ -83,12 +98,13 @@ struct Inst {
   std::vector<RegId> Srcs;              ///< Registers read (no x0).
   std::vector<RegId> Dsts;              ///< Registers written (no x0).
 
-  Cycle FetchCycle = 0;           ///< Cycle it was fetched.
-  Cycle DispatchCycle = 0;        ///< Cycle it was dispatched.
-  Cycle IssueCycle = 0;           ///< Cycle its execution started.
-  Cycle ResultReadyCycle = Never; ///< First cycle a dependent may dispatch.
-  Cycle CompleteCycle = Never;    ///< First cycle it may retire.
-  Cycle RetireCycle = 0;          ///< Cycle it retired.
+  Cycle FetchCycle = 0;    ///< Cycle it was fetched.
+  Cycle DispatchCycle = 0; ///< Cycle it was dispatched.
+  Cycle IssueCycle = 0;    ///< Cycle its execution started.
+  /// First cycle a dependent may dispatch.
+  Cycle ResultReadyCycle = Never;
+  Cycle CompleteCycle = Never; ///< First cycle it may retire.
+  Cycle RetireCycle = 0;       ///< Cycle it retired.
 
   /// \returns true for a taken branch, a jump or a trap.
   bool isRedirect() const { return NextPC != PC + 4; }

@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -155,6 +155,7 @@ def run_sim(
     params: Mapping[str, object] | None = None,
     binary: Path | None = None,
     timeout: float | None = None,
+    overlay_configs: Sequence[Path] = (),
 ) -> SimResult:
     """Run one program on the simulator.
 
@@ -165,6 +166,8 @@ def run_sim(
             {"top.frontend.params.fetch_interval": 2}.
         binary: Simulator executable; found with find_binary() by default.
         timeout: Seconds before the run is abandoned.
+        overlay_configs: Configuration files applied after sim_config, in
+            order; each overrides the values it lists.
 
     Returns:
         The simulator's summary.
@@ -179,6 +182,8 @@ def run_sim(
         cmd += ["--json", str(json_path)]
         if sim_config is not None:
             cmd += ["-c", str(Path(sim_config).resolve())]
+        for overlay in overlay_configs:
+            cmd += ["-c", str(Path(overlay).resolve())]
         for key, value in (params or {}).items():
             cmd += ["-p", key, str(value)]
         proc = subprocess.run(
