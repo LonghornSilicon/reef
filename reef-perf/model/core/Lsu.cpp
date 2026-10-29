@@ -11,6 +11,8 @@ using namespace reef_perf;
 
 Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
     : sparta::Unit(Node, name), QueueEntries(Params->lsu_queue_entries),
+      ScalarLatencyOverhead(Params->lsu_scalar_latency_overhead),
+      ScalarOccupancyOverhead(Params->lsu_scalar_occupancy_overhead),
       VectorLoadRegOverhead(Params->lsu_vector_load_reg_overhead),
       VectorStoreRegOverhead(Params->lsu_vector_store_reg_overhead),
       VectorSwitchCycles(Params->lsu_vector_switch_cycles), Pipe("lsu", 1) {
@@ -34,11 +36,15 @@ void Lsu::receiveInst(const InstRef &I) {
   Request.Earliest = Pipe.getNextFree(Now);
   MemResponse Response = Mem->access(Request);
   Cycle Start = Response.Start;
-  Cycle Reserved = Pipe.reserve(Start, Response.Occupancy);
+  // Memory reports the physical transfer. Scalar instructions also traverse
+  // LSU pipeline stages; vector registers add their path delay separately in
+  // accessVectorRegister().
+  Cycle Reserved =
+      Pipe.reserve(Start, Response.Occupancy + ScalarOccupancyOverhead);
   sparta_assert(Reserved == Start, "LSU busy at the memory's start");
   I->IssueCycle = Start;
-  I->ResultReadyCycle = Start + Response.Latency - 1;
-  I->CompleteCycle = Start + Response.Latency;
+  I->ResultReadyCycle = Start + Response.Latency + ScalarLatencyOverhead - 1;
+  I->CompleteCycle = Start + Response.Latency + ScalarLatencyOverhead;
 
   // The instruction leaves the queue when it starts.
   OutCreditsPort.send(1, Start - Now);

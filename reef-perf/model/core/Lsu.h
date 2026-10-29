@@ -44,6 +44,10 @@ public:
     explicit LsuParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, lsu_queue_entries, 4, "LSU queue entries")
+    PARAMETER(uint32_t, lsu_scalar_latency_overhead, 0,
+              "Extra scalar LSU cycles added to memory latency")
+    PARAMETER(uint32_t, lsu_scalar_occupancy_overhead, 0,
+              "Extra cycles a scalar memory instruction holds the LSU")
     PARAMETER(uint32_t, lsu_vector_load_reg_overhead, 0,
               "Extra LSU cycles per vector register of a vector load")
     PARAMETER(uint32_t, lsu_vector_store_reg_overhead, 0,
@@ -76,6 +80,8 @@ private:
   void sendInitialCredits();
 
   const uint32_t QueueEntries;
+  const uint32_t ScalarLatencyOverhead;
+  const uint32_t ScalarOccupancyOverhead;
   const uint32_t VectorLoadRegOverhead;
   const uint32_t VectorStoreRegOverhead;
   const uint32_t VectorSwitchCycles;

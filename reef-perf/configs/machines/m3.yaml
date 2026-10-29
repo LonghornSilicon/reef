@@ -48,6 +48,8 @@ top:
     lsu:
       params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
+        lsu_scalar_latency_overhead: 3   # Scalar LSU pipeline beyond DTCM
+        lsu_scalar_occupancy_overhead: 3 # One scalar memory op every 4 cycles
         lsu_vector_load_reg_overhead: 3   # B14: fit to vle8 microbenchmarks on the
         lsu_vector_store_reg_overhead: 2  # RTL at LMUL 1 and 8 (per register:
                                           # 1 line + 3 load / + 2 store cycles)
@@ -130,9 +132,9 @@ top:
       itcm_latency: 2
       itcm_line_bytes: 16
       itcm_cycles_per_line: 1
-      dtcm_latency: 5         # B13: measure load-to-use
+      dtcm_latency: 2         # Physical DTCM response before LSU path delays
       dtcm_line_bytes: 16     # 128-bit data bus
-      dtcm_cycles_per_line: 4 # B13: measure
+      dtcm_cycles_per_line: 1 # One 128-bit line per cycle
       axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
       axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
       axi_max_outstanding: 4  # ASSUMPTION; no M3 source
