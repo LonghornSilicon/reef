@@ -68,8 +68,8 @@ def validate_constraints(name: str, params: dict[str, int]) -> None:
     if name.startswith("vec_add_") and params["ELEMENTS"] * 12 > 24000:
         raise ValueError("vec_add: data exceeds safe DTCM budget")
     if name == "vec_memcpy" and (
-    params["BYTES"] % 4 or params["BYTES"] * 2 > 24000
-):
+        params["BYTES"] % 4 or params["BYTES"] * 2 > 24000
+    ):
         raise ValueError(
             "vec_memcpy: BYTES must be a multiple of 4 and fit DTCM"
         )
