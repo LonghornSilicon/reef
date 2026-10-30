@@ -28,14 +28,16 @@ fi
 logs="$(mktemp -d)"
 trap 'rm -rf "$logs"' EXIT
 csv="$here/rtl_m3.csv"
-echo "kernel,rtl_roi_cycles,rtl_retired_insts,notes" > "$csv"
+# Replace rtl_m3.csv only once every kernel has run.
+new="$logs/rtl_m3.csv"
+echo "kernel,rtl_roi_cycles,rtl_retired_insts,notes" > "$new"
 for elf in "$here"/elfs/*.elf; do
     name="$(basename "${elf%.elf}")"
     echo "== $name"
     "$sim" --binary "$elf" --backdoor_load --instr_trace > "$logs/$name.log"
     # rtl_trace.py needs only the Python standard library.
     python3 - "$here/../python/reef_perf/experiments/correlation" \
-        "$logs/$name.log" "$name" >> "$csv" <<'EOF'
+        "$logs/$name.log" "$name" >> "$new" <<'EOF'
 import sys
 sys.path.insert(0, sys.argv[1])
 from rtl_trace import measure_log
@@ -43,6 +45,7 @@ roi = measure_log(sys.argv[2])
 note = "" if roi.reached_mpause else "no mpause"
 print(f"{sys.argv[3]},{roi.cycles},{roi.retired_insts},{note}")
 EOF
-    tail -n 1 "$csv"
+    tail -n 1 "$new"
 done
+cp "$new" "$csv"
 echo "wrote $csv"
