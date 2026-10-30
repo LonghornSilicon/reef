@@ -32,8 +32,8 @@ if ! command -v "$cxx" >/dev/null; then
 fi
 
 case "${CORAL_MAP:-highmem}" in
-highmem) out=build/coral; ldscript=coral/runtime/link.ld ;;
-m3) out=build/coral_m3; ldscript=coral/runtime/link_m3.ld ;;
+highmem) out=build/coral; ldscript=coral/runtime/link.ld; map_flags=() ;;
+m3) out=build/coral_m3; ldscript=coral/runtime/link_m3.ld; map_flags=(-DREEF_KERNELS_M3_MAP) ;;
 *)
     echo "unknown CORAL_MAP: $CORAL_MAP" >&2
     exit 1
@@ -47,7 +47,8 @@ arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
 cflags=("${arch[@]}" -std=c++17 -O3 -ffp-contract=off -fno-math-errno
         -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror
-        -Icoral/include -Icoral/tests -Icoral/firmware -Ibuild/coral)
+        -Icoral/include -Icoral/tests -Icoral/firmware -Ibuild/coral
+        ${map_flags[@]+"${map_flags[@]}"})
 ldflags=("${arch[@]}" -nostdlib -nostartfiles -T"$ldscript"
          -Wl,--gc-sections)
 
