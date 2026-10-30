@@ -207,6 +207,8 @@ Requesters call `MemoryInterface::access(MemRequest)` and get a
 | `Earliest` | first cycle the requester's own port is free |
 | `OnFinishMoved` | optional; called with the new finish cycle when a higher-priority requester later takes one of this transfer's TCM cycles |
 
+`MemAccess::Value` holds the value a store writes, from Spike. The memory module uses it for the DMA's registers (`memory/Dma.h`).
+
 | `MemResponse` field | Meaning |
 | --- | --- |
 | `Start` | cycle the transfer starts (≥ `Earliest`) |
@@ -274,8 +276,8 @@ interface unless noted.
   port (`RequesterKind::Matrix`).
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
-  between requesters other than at the TCMs (`memory/Tcm.h`); nothing drives
-  the TCMs' `AxiSlave` or `Debug` requesters yet; the AXI latency and
+  between requesters other than at the TCMs (`memory/Tcm.h`); the DMA (`memory/Dma.h`) is
+  the only `AxiSlave` requester, and nothing drives `Debug`; the AXI latency and
   outstanding limit are assumptions.
   No microbenchmark touches AXI memory yet, because Spike only backs the ITCM and
   DTCM regions.

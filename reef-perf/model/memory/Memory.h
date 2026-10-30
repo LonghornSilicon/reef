@@ -15,6 +15,7 @@
 #include "common/Interfaces.h"
 #include "common/MemoryMap.h"
 #include "common/ResourcePool.h"
+#include "memory/Dma.h"
 #include "memory/MemTiming.h"
 #include "memory/Tcm.h"
 
@@ -48,6 +49,9 @@ public:
     PARAMETER(uint32_t, axi_bytes_per_beat, 32, "AXI data bus width in bytes")
     PARAMETER(uint32_t, axi_max_outstanding, 4,
               "AXI operations in flight at once")
+    PARAMETER(uint32_t, dma_setup_cycles, 20,
+              "Cycles from a DMA GO store to its first beat")
+    PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -71,11 +75,15 @@ public:
   /// \returns itcm, dtcm, axi_data and axi_outstanding.
   std::vector<const ResourcePool *> getPools() const;
 
+  /// \returns the DMA, for its statistics.
+  const Dma &getDma() const { return DMA; }
+
 private:
   std::vector<MemoryRegion> Regions = getDefaultMemoryMap();
   Tcm ITCM;
   Tcm DTCM;
   AxiModel AXI;
+  Dma DMA;
 };
 
 } // namespace reef_perf

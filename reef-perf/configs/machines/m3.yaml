@@ -138,3 +138,7 @@ top:
       axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
       axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
       axi_max_outstanding: 4  # ASSUMPTION; no M3 source
+      # The DMA is not in M3. It does nothing until a program writes its
+      # registers (memory/Dma.h).
+      dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
+      dma_beat_bytes: 16      # CoreAxi.scala: dtcmWidth = axi2DataBits = 128

@@ -180,6 +180,6 @@ void FuncSim::execute(Inst &I) {
   for (const auto &[Addr, Value, Size] : State->log_mem_read)
     I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
   for (const auto &[Addr, Value, Size] : State->log_mem_write)
-    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true});
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true, Value});
   I.Dsts = getWrittenRegs(State->log_reg_write);
 }
