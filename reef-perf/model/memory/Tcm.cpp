@@ -95,7 +95,19 @@ MemResponse Tcm::accessFetch(const MemRequest &Request, uint64_t Occupancy) {
 }
 
 void Tcm::claimForCore(Cycle Start, uint64_t Occupancy) {
-  CoreBusy[Start] = std::max(CoreBusy[Start], Start + Occupancy);
+  // Merge with every booking that overlaps or touches [Start, End), so a
+  // short fetch booking never hides the rest of a longer LSU booking.
+  Cycle Begin = Start;
+  Cycle End = Start + Occupancy;
+  auto It = CoreBusy.upper_bound(Start);
+  if (It != CoreBusy.begin() && std::prev(It)->second >= Start)
+    --It;
+  while (It != CoreBusy.end() && It->first <= End) {
+    Begin = std::min(Begin, It->first);
+    End = std::max(End, It->second);
+    It = CoreBusy.erase(It);
+  }
+  CoreBusy[Begin] = End;
   for (Cycle C = Start; C < Start + Occupancy; ++C)
     if (Owner.contains(C))
       bump(C);

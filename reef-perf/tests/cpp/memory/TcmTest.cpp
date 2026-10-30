@@ -157,4 +157,15 @@ TEST(TcmTest, CountsReadsWritesAndBytesPerRequester) {
   EXPECT_EQ(S.PortCycles, 2U);
 }
 
+TEST(TcmTest, FetchInsideAnLsuBookingKeepsTheWholeBookingBusy) {
+  Tcm ITCM("itcm", 1, 16, 1);
+  // A four-line LSU load holds 10-13; a fetch at 11 must not free 12-13.
+  ITCM.access(getRequest(RequesterKind::LSU,
+                         getAccesses({0x0, 0x10, 0x20, 0x30}, 16), 10));
+  ITCM.access(getRequest(RequesterKind::IFetch, getAccesses({0x100}, 16), 11));
+  MemResponse Dma = ITCM.access(
+      getRequest(RequesterKind::AxiSlave, getAccesses({0x200}, 16, true), 12));
+  EXPECT_EQ(Dma.Start, 14U);
+}
+
 } // namespace
