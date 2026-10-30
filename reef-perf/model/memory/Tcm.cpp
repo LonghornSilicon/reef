@@ -4,6 +4,7 @@
 
 #include "memory/MemTiming.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <stdexcept>
@@ -42,6 +43,8 @@ MemResponse Tcm::access(const MemRequest &Request) {
   for (const MemAccess &Access : Request.Accesses)
     S.Bytes += Access.Size;
   S.PortCycles += Occupancy;
+  if (Request.Requester == RequesterKind::IFetch)
+    return accessFetch(Request, Occupancy);
   return getTcmPriority(Request.Requester) == 0
              ? accessCore(Request, Occupancy)
              : accessLower(Request, Occupancy);
@@ -55,11 +58,27 @@ MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
   Response.Latency = Latency + Occupancy - CyclesPerLine;
   Response.Start = Port.reserve(Request.Earliest, Occupancy);
   statsFor(Request.Requester).WaitCycles += Response.Start - Request.Earliest;
-  CoreBusy[Response.Start] = Response.Start + Occupancy;
-  for (Cycle C = Response.Start; C < Response.Start + Occupancy; ++C)
+  claimForCore(Response.Start, Occupancy);
+  return Response;
+}
+
+MemResponse Tcm::accessFetch(const MemRequest &Request, uint64_t Occupancy) {
+  // Fetch is core traffic, so lower priorities never get its cycles. An LSU
+  // access to the ITCM wins over fetch in the RTL; the LSU books its own port
+  // (Port), so it never waits for fetch, and fetch keeps its own timing.
+  MemResponse Response;
+  Response.Start = Request.Earliest;
+  Response.Occupancy = Occupancy;
+  Response.Latency = Latency + Occupancy - CyclesPerLine;
+  claimForCore(Response.Start, Occupancy);
+  return Response;
+}
+
+void Tcm::claimForCore(Cycle Start, uint64_t Occupancy) {
+  CoreBusy[Start] = std::max(CoreBusy[Start], Start + Occupancy);
+  for (Cycle C = Start; C < Start + Occupancy; ++C)
     if (Owner.contains(C))
       bump(C);
-  return Response;
 }
 
 MemResponse Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy) {

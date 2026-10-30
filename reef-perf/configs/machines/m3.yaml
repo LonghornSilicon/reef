@@ -129,7 +129,7 @@ top:
       mtx_occupancy: 4
   memory:
     params:
-      itcm_latency: 2
+      itcm_latency: 1         # SRAM.scala: the ITCM is the same 1-cycle TCM128 SRAM as the DTCM
       itcm_line_bytes: 16
       itcm_cycles_per_line: 1
       dtcm_latency: 1         # SRAM.scala: read data one cycle after the request; CoreAxi.scala "1-cycle SRAM read latency"

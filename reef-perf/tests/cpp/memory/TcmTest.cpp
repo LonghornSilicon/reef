@@ -122,6 +122,28 @@ TEST(TcmTest, AxiSlaveBumpsDebugButNotTheOtherWayRound) {
   EXPECT_EQ(Later.Start, 12U); // 10 is the DMA's, 11 the first debug write's.
 }
 
+TEST(TcmTest, FetchKeepsTheHostOffItsCycles) {
+  Tcm ITCM("itcm", 1, 16, 1);
+  auto Line = getAccesses({0x0}, 16);
+  // Fetch reads a line every other cycle: 0, 2, 4.
+  for (Cycle C : {0, 2, 4})
+    EXPECT_EQ(ITCM.access(getRequest(RequesterKind::IFetch, Line, C)).Start, C);
+  // A 3-line host write from cycle 0 gets the gaps: 1, 3 and 5.
+  auto Writes = getLineWrites(3);
+  MemResponse Host =
+      ITCM.access(getRequest(RequesterKind::AxiSlave, Writes, 0));
+  EXPECT_EQ(Host.Start, 1U);
+  EXPECT_EQ(Host.Start + Host.Latency, 6U);
+}
+
+TEST(TcmTest, FetchDoesNotDelayTheLsu) {
+  Tcm ITCM("itcm", 1, 16, 1);
+  auto Line = getAccesses({0x0}, 16);
+  ITCM.access(getRequest(RequesterKind::IFetch, Line, 7));
+  // An LSU load from the ITCM wins over fetch in the RTL.
+  EXPECT_EQ(ITCM.access(getRequest(RequesterKind::LSU, Line, 7)).Start, 7U);
+}
+
 TEST(TcmTest, CountsReadsWritesAndBytesPerRequester) {
   Tcm DTCM("dtcm", 1, 16, 1);
   auto Load = getAccesses({0x10000, 0x10004}, 4);

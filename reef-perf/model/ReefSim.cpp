@@ -106,6 +106,7 @@ void ReefSim::bindTree_() {
             Core::InMatrixCredits);
 
   FrontendModule.getUnit()->setFuncSim(TheFuncSim.get());
+  FrontendModule.getUnit()->setMemory(MemoryModule.getUnit());
   MemoryModule.getUnit()->setMemoryMap(Regions);
   MemoryModule.getUnit()->setBootImage(TheFuncSim->getLoadSegments());
   FrontendModule.getUnit()->setStartCycle(

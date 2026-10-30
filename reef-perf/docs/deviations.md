@@ -135,6 +135,7 @@ budget once measurements exist.
 | A4 | Wrong-path fetch modeled as a timed bubble only | Should be close to exact, since the core is in-order |
 | A5 | The DMA (`memory/Dma.h`) is not in M3. It follows the Reef SoC plan (`atlas-soc/docs/dma.md`). Its register address, register layout and `dma_setup_cycles` are assumptions. It models timing only: Spike does not copy the data. A WAIT load gets the finish cycle known when it books. A later core access can still move the finish out | Anything that depends on DMA timing; no RTL to correlate against |
 | A6 | The host's boot load (`memory/Host.h`) times only the ITCM image and the release write, at `host_setup_cycles` + bytes x `host_cycles_per_byte`. Both numbers are assumptions: there is no Reef source for the host link. No arbiter: the core is in reset during boot (`CoreAxiCSR.scala`, `resetReg` starts at 3), so the host has the ITCM to itself. Off by default | Boot time and anything that reloads the ITCM; DTCM data, the prompt and HyperRAM are not modeled yet |
+| A7 | Fetch books its ITCM line every fetch group but keeps its own timing (`fetch_interval`). An LSU load from the ITCM wins the cycle, as in the RTL, but the model does not delay fetch for it. Fetch outside the ITCM is not timed | Programs that load data from the ITCM; code running outside the ITCM |
 
 ## Appendix: changes after M3 (for when the pin moves)
 
