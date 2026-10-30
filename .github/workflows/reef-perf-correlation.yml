@@ -1,5 +1,5 @@
-# Runs the reef-perf microbenchmark suite on every push to a PR that touches
-# reef-perf, and posts the correlation against the M3 RTL as a PR comment
+# Runs the reef-perf microbenchmarks and kernels on every push to a PR that
+# touches reef-perf, and posts the correlation against the M3 RTL as a PR comment
 # (updated in place on later pushes). See
 # reef-perf/python/reef_perf/experiments/correlation/README.md.
 name: reef-perf correlation
@@ -96,6 +96,9 @@ jobs:
           uv run python -m reef_perf.experiments.correlation.main \
               --baseline "$RUNNER_TEMP/base_golden.json" \
               --title "reef-perf correlation at ${HEAD_SHA::7}"
+          # The kernels in kernel_correlation/, same comment.
+          uv run python -m reef_perf.experiments.correlation.kernels \
+              --append results/correlation/report.md
           cat results/correlation/report.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
