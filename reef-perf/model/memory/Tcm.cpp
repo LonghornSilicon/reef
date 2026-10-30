@@ -32,6 +32,8 @@ Tcm::Tcm(std::string Name, uint32_t Latency, uint32_t LineBytes,
       Port(std::move(Name), 1) {}
 
 MemResponse Tcm::access(const MemRequest &Request) {
+  if (getTcmPriority(Request.Requester) != 0)
+    return book(Request).Response;
   const uint64_t Occupancy =
       static_cast<uint64_t>(countDistinctBlocks(Request.Accesses, LineBytes)) *
       CyclesPerLine;
@@ -42,9 +44,27 @@ MemResponse Tcm::access(const MemRequest &Request) {
   for (const MemAccess &Access : Request.Accesses)
     S.Bytes += Access.Size;
   S.PortCycles += Occupancy;
-  return getTcmPriority(Request.Requester) == 0
-             ? accessCore(Request, Occupancy)
-             : accessLower(Request, Occupancy);
+  return accessCore(Request, Occupancy);
+}
+
+Tcm::Booking Tcm::book(const MemRequest &Request) {
+  if (getTcmPriority(Request.Requester) == 0)
+    throw std::invalid_argument("Tcm::book takes lower-priority requests");
+  // Each access is its own port transaction, so beats narrower than a line
+  // still take a port cycle each.
+  uint64_t Occupancy = 0;
+  TcmRequesterStats &S = statsFor(Request.Requester);
+  for (const MemAccess &Access : Request.Accesses) {
+    Occupancy += static_cast<uint64_t>(countDistinctBlocks(
+                     std::span<const MemAccess>(&Access, 1), LineBytes)) *
+                 CyclesPerLine;
+    S.Bytes += Access.Size;
+  }
+  const bool IsWrite =
+      !Request.Accesses.empty() && Request.Accesses.front().IsStore;
+  ++(IsWrite ? S.Writes : S.Reads);
+  S.PortCycles += Occupancy;
+  return accessLower(Request, Occupancy);
 }
 
 MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
@@ -62,7 +82,7 @@ MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
   return Response;
 }
 
-MemResponse Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy) {
+Tcm::Booking Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy) {
   const uint32_t Priority = getTcmPriority(Request.Requester);
   const auto Id = static_cast<uint32_t>(Transfers.size());
   Transfers.push_back({Request.Requester, {}, Request.OnFinishMoved});
@@ -77,7 +97,28 @@ MemResponse Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy) {
   Response.Latency = getFinish(T) - Response.Start;
   statsFor(Request.Requester).WaitCycles +=
       *T.Cycles.rbegin() + 1 - Request.Earliest - Occupancy;
-  return Response;
+  return {Response, Id};
+}
+
+void Tcm::delay(uint32_t Id, Cycle Earliest) {
+  Transfer &T = Transfers[Id];
+  if (T.Cycles.empty() || *T.Cycles.begin() >= Earliest)
+    return;
+  const Cycle OldFinish = getFinish(T);
+  uint64_t Moved = 0;
+  while (!T.Cycles.empty() && *T.Cycles.begin() < Earliest) {
+    Owner.erase(*T.Cycles.begin());
+    T.Cycles.erase(T.Cycles.begin());
+    ++Moved;
+  }
+  const uint32_t Priority = getTcmPriority(T.Requester);
+  for (Cycle C = Earliest; Moved > 0; ++C) {
+    if (isFreeFor(C, Priority)) {
+      take(C, Id);
+      --Moved;
+    }
+  }
+  reportMove(T, OldFinish);
 }
 
 bool Tcm::isCoreBusy(Cycle C) const {
@@ -113,8 +154,12 @@ void Tcm::bump(Cycle C) {
   while (!isFreeFor(Next, Priority))
     ++Next;
   take(Next, Id);
+  reportMove(T, OldFinish);
+}
+
+void Tcm::reportMove(Transfer &T, Cycle OldFinish) {
   const Cycle NewFinish = getFinish(T);
-  S.WaitCycles += NewFinish - OldFinish;
+  statsFor(T.Requester).WaitCycles += NewFinish - OldFinish;
   if (NewFinish != OldFinish && T.OnFinishMoved)
     T.OnFinishMoved(NewFinish);
 }
