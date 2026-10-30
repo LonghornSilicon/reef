@@ -27,6 +27,7 @@
 #include <functional>
 #include <map>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,20 @@ public:
   /// takes its cycles from any lower-priority transfer holding them.
   MemResponse access(const MemRequest &Request);
 
+  /// A lower-priority transfer's timing and the handle delay() takes.
+  struct Booking {
+    MemResponse Response; ///< When the transfer runs.
+    uint32_t Id;          ///< Its handle for delay().
+  };
+
+  /// Books \p Request, which must come from a lower-priority requester, and
+  /// \returns its timing and handle.
+  Booking book(const MemRequest &Request);
+
+  /// Moves every port cycle of transfer \p Id before \p Earliest to the next
+  /// cycles it may use, and reports a new finish through OnFinishMoved.
+  void delay(uint32_t Id, Cycle Earliest);
+
   /// \returns the counters of \p Kind.
   const TcmRequesterStats &getStats(RequesterKind Kind) const;
 
@@ -74,7 +89,7 @@ private:
   };
 
   MemResponse accessCore(const MemRequest &Request, uint64_t Occupancy);
-  MemResponse accessLower(const MemRequest &Request, uint64_t Occupancy);
+  Booking accessLower(const MemRequest &Request, uint64_t Occupancy);
   bool isCoreBusy(Cycle C) const;
   /// \returns whether a requester of \p Priority may take cycle \p C, which
   /// means no core booking and no lower-priority owner of equal or higher
@@ -85,6 +100,8 @@ private:
   /// Takes cycle \p C back from its lower-priority owner and moves that
   /// transfer's port cycle to the next one it may use.
   void bump(Cycle C);
+  /// Calls \p T's OnFinishMoved if its finish is no longer \p OldFinish.
+  void reportMove(Transfer &T, Cycle OldFinish);
   Cycle getFinish(const Transfer &T) const;
   TcmRequesterStats &statsFor(RequesterKind Kind);
 
