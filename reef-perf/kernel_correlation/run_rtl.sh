@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# Runs every kernel ELF in elfs/ on the M3 RTL and writes the region of
-# interest of each to rtl_m3.csv, in the format of
-# microbenchmarks/rtl_m3.csv. Run it on a machine with the CoralNPU
-# simulator built at tag M3-2026-04-27 (commit 72d700ef), with -c opt:
+# Runs each kernel ELF in elfs/ on the M3 RTL. Writes the region of
+# interest (ROI) of each ELF to rtl_m3.csv, in the format of
+# microbenchmarks/rtl_m3.csv. Needs only bash and python3.
+#
+# Run it on a machine that has the CoralNPU simulator, built at tag
+# M3-2026-04-27 (commit 72d700ef) with -c opt:
 #
 #   bazel build -c opt //tests/verilator_sim:rvv_core_mini_verification_axi_sim
 #
+# Usage:
+#
 #   bash reef-perf/kernel_correlation/run_rtl.sh [SIM]
 #
-# SIM defaults to the binary under ~/coralnpu/bazel-bin. The ELFs are built
-# for the M3 as built (8 KB ITCM, 32 KB DTCM): inference-engine's
-# `CORAL_MAP=m3 coral/tools/build.sh bench`. Needs only bash and python3.
+# SIM is the simulator binary. The default is the binary under
+# ~/coralnpu/bazel-bin. The ELFs are for the M3 as built (8 KB ITCM,
+# 32 KB DTCM). Build them with inference-engine's
+# `CORAL_MAP=m3 coral/tools/build.sh bench`.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +33,7 @@ for elf in "$here"/elfs/*.elf; do
     name="$(basename "${elf%.elf}")"
     echo "== $name"
     "$sim" --binary "$elf" --backdoor_load --instr_trace > "$logs/$name.log"
-    # rtl_trace.py uses only the standard library.
+    # rtl_trace.py needs only the Python standard library.
     python3 - "$here/../python/reef_perf/experiments/correlation" \
         "$logs/$name.log" "$name" >> "$csv" <<'EOF'
 import sys

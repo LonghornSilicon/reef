@@ -1,11 +1,11 @@
-/* Memory map for Coral programs on the CoralNPU M3 as built (the default
- * reef_perf map, without --highmem):
+/* Memory map for Coral programs on the CoralNPU M3 as built. This is the
+ * default reef_perf map (no --highmem):
  *   ITCM: 0x00000 - 0x01FFF (8 KB)   code
  *   DTCM: 0x10000 - 0x17FFF (32 KB)  host mailbox, data, bss, stack
- * link.ld is the 1 MB / 1 MB highmem build. build.sh uses this map when
+ * link.ld is the 1 MB / 1 MB highmem map. build.sh uses this map when
  * CORAL_MAP=m3.
- * The mailbox (include/reef_kernels/host_if.hpp) comes first in DTCM so the
- * host can find it at a fixed address.
+ * The mailbox (include/reef_kernels/host_if.hpp) is first in DTCM, so the
+ * host finds it at a fixed address.
  */
 OUTPUT_ARCH(riscv)
 ENTRY(_start)

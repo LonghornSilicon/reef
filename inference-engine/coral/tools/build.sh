@@ -6,10 +6,13 @@
 #
 #   coral/tools/build.sh [tests|bench|firmware]...    (default: all three)
 #
-# CORAL_MAP picks the memory map: highmem (default; 1 MB ITCM and DTCM,
-# runtime/link.ld, into build/coral/) or m3 (the M3 as built: 8 KB ITCM and
-# 32 KB DTCM, runtime/link_m3.ld, into build/coral_m3/). A program that does
-# not fit is reported and skipped, and the script exits non-zero at the end.
+# CORAL_MAP selects the memory map:
+#   highmem  (default) 1 MB ITCM and 1 MB DTCM. Uses runtime/link.ld.
+#            Writes to build/coral/.
+#   m3       The M3 as built: 8 KB ITCM and 32 KB DTCM. Uses
+#            runtime/link_m3.ld. Writes to build/coral_m3/.
+# If a program does not fit, the script reports it and skips it. Then the
+# script exits non-zero at the end.
 #
 # Uses Coral's GCC (toolchain_coralnpu_v2) from $CORAL_TOOLCHAIN/bin, or
 # from PATH. Without it, reruns itself in a linux/amd64 container that
