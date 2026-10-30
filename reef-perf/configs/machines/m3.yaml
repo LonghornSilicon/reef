@@ -26,6 +26,7 @@ top:
       predictor: btfn         # UncachedFetch.scala:87-100: jal + backward branches predicted taken, free when right; no BTB/RAS (D6)
       fetch_block_bytes: 16   # UncachedFetch.scala:56,107-131: one aligned 16-byte line per fetch (--fetchDataBits=128)
       ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
+      min_free_entries: 4     # UncachedFetch.scala:192: insufficientBuffer = bufferSpaces < nValid + fetchInstrSlots
   core:
     dispatch:
       params:

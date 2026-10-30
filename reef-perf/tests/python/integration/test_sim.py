@@ -10,6 +10,7 @@ from reef_perf.sim import SimulationError, run_sim
 FETCH_INTERVAL = "top.frontend.params.fetch_interval"
 PREDICTOR = "top.frontend.params.predictor"
 FETCH_BLOCK_BYTES = "top.frontend.params.fetch_block_bytes"
+MIN_FREE_ENTRIES = "top.frontend.params.min_free_entries"
 
 
 @pytest.mark.integration
@@ -68,6 +69,20 @@ def test_aligned_blocks_slow_down_misaligned_loop(
     aligned = run_sim(elf, params={FETCH_BLOCK_BYTES: "16"})
     assert aligned.instructions == free.instructions
     assert aligned.cycles > free.cycles
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_fetch_waits_for_a_whole_line_of_space(
+    cpp_build_dir: Path, microbenchmark_elfs: dict[str, Path]
+) -> None:
+    """alu_chain fills the buffer; waiting for a whole line costs cycles."""
+    del cpp_build_dir
+    elf = microbenchmark_elfs["alu_chain"]
+    any_room = run_sim(elf, params={MIN_FREE_ENTRIES: 1})
+    whole_line = run_sim(elf, params={MIN_FREE_ENTRIES: 4})
+    assert whole_line.instructions == any_room.instructions
+    assert whole_line.cycles > any_room.cycles
 
 
 @pytest.mark.integration

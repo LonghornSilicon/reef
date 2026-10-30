@@ -8,8 +8,10 @@
 /// (UncachedFetch.scala, InstructionBuffer).
 ///
 /// Super-coarse, deliberately simpler than the M3 RTL:
-/// - up to `fetch_width` instructions every `fetch_interval` cycles, while
-///   the `ibuf_entries`-entry buffer has room;
+/// - up to `fetch_width` instructions every `fetch_interval` cycles;a group
+///   starts only if the `ibuf_entries`-entry buffer has at least
+///   `min_free_entries` free entries (M3: a whole line,
+///   UncachedFetch.scala:192);
 /// - a group ends at any instruction that redirects the PC (taken branch,
 ///   jump, trap) or that the predictor predicts taken; the next group starts
 ///   `redirect_penalty` cycles later if the prediction was wrong. `predictor`
@@ -60,6 +62,8 @@ public:
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
+    PARAMETER(uint32_t, min_free_entries, 1,
+              "Free buffer entries needed to start a fetch group")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -102,6 +106,7 @@ private:
   const PredictorKind Predictor;
   const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
+  const uint32_t MinFreeEntries;
 
   FuncSim *TheFuncSim = nullptr;
   std::deque<InstRef> Ibuf;  // Oldest first.

@@ -36,8 +36,11 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
       FetchBlockBytes(Params->fetch_block_bytes),
-      IbufEntries(Params->ibuf_entries) {
+      IbufEntries(Params->ibuf_entries),
+      MinFreeEntries(Params->min_free_entries) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
+  sparta_assert(MinFreeEntries >= 1 && MinFreeEntries <= IbufEntries,
+                "frontend.min_free_entries must be in [1, ibuf_entries]");
   // The first group is fetched in cycle 1.
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));
 }
@@ -101,7 +104,8 @@ void Fetch::fetchGroup() {
     scheduleFetch(Now);
     return;
   }
-  if (getFreeEntries(Now) == 0) {
+  if (getFreeEntries(Now) < MinFreeEntries) { // check for buffer
+                                              //  space
     ++CyclesNoCredit;
     return; // pop() wakes us up.
   }
@@ -144,6 +148,6 @@ void Fetch::fetchGroup() {
     ++NumGroups;
   }
   NextFetchCycle = Now + FetchInterval + Penalty;
-  if (getFreeEntries(Now) > 0)
+  if (getFreeEntries(Now) >= MinFreeEntries)
     scheduleFetch(NextFetchCycle);
 }
