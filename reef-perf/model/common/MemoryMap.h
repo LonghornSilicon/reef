@@ -36,6 +36,13 @@ struct MemoryRegion {
   }
 };
 
+/// One loaded ELF segment: the bytes the file holds for it (not its zeroed
+/// .bss tail).
+struct LoadSegment {
+  Address Addr = 0;       ///< First byte address.
+  uint32_t FileBytes = 0; ///< Bytes copied from the file.
+};
+
 /// \returns the DMA's register block (memory/Dma.h): external, so its
 /// stores and loads go out through the e-bus. Not in M3; the address is an
 /// assumption.

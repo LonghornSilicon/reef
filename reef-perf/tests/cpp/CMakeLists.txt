@@ -21,6 +21,7 @@ set(REEF_PERF_TESTS
     common/TypesTest
     frontend/InstDecodeTest
     memory/DmaTest
+    memory/HostTest
     memory/MemTimingTest
     memory/TcmTest
     vector/VectorTest

@@ -74,6 +74,10 @@ public:
   /// Connects \p Sim, which must outlive the unit.
   void setFuncSim(FuncSim *Sim) { TheFuncSim = Sim; }
 
+  /// Holds the first fetch until cycle \p Cycles + 1, for a core that leaves
+  /// reset after the host's boot load (memory/Host.h).
+  void setStartCycle(Cycle Cycles) { StartCycle = Cycles; }
+
   /// \returns the taken branches, jumps and traps fetched so far.
   uint64_t getNumRedirects() const { return NumRedirects.get(); }
   /// \returns the oldest buffered instruction fetched before \p Now.
@@ -104,6 +108,7 @@ private:
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
+  Cycle StartCycle = 0;
   std::deque<InstRef> Ibuf;  // Oldest first.
   Cycle FreedCycle = 0;      // Cycle of the latest pop()s ...
   uint32_t FreedAtCycle = 0; // ... and how many entries they freed.

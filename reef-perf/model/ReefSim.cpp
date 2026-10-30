@@ -107,6 +107,9 @@ void ReefSim::bindTree_() {
 
   FrontendModule.getUnit()->setFuncSim(TheFuncSim.get());
   MemoryModule.getUnit()->setMemoryMap(Regions);
+  MemoryModule.getUnit()->setBootImage(TheFuncSim->getLoadSegments());
+  FrontendModule.getUnit()->setStartCycle(
+      MemoryModule.getUnit()->getHost().getBootCycles());
   CoreModule.setMemory(MemoryModule.getUnit());
   VectorModule.getUnit()->setLsu(CoreModule.getVectorLsu());
   CoreModule.setInstBuffer(FrontendModule.getUnit());
@@ -123,6 +126,8 @@ void ReefSim::printSummary(std::ostream &OS) const {
      << getIPC(Insts, Cycles) << "\n"
      << "  taken branches/jumps: "
      << FrontendModule.getUnit()->getNumRedirects() << "\n";
+  if (Cycle Boot = MemoryModule.getUnit()->getHost().getBootCycles())
+    OS << "  boot cycles (host)  : " << Boot << " (included in cycles)\n";
   const std::vector<McycleRead> &Reads = CoreModule.getMcycleReads();
   if (Reads.size() >= 2)
     OS << "  ROI cycles (mcycle) : "
@@ -199,6 +204,9 @@ void ReefSim::writeJSON(std::ostream &OS) const {
      << "  \"ipc\": " << getIPC(Insts, Cycles) << ",\n"
      << "  \"taken_redirects\": " << FrontendModule.getUnit()->getNumRedirects()
      << ",\n";
+  // Only with the host's boot load on, so the golden files keep their keys.
+  if (Cycle Boot = MemoryModule.getUnit()->getHost().getBootCycles())
+    OS << "  \"boot_cycles\": " << Boot << ",\n";
   // The microbenchmarks read mcycle at the start and end of their region of
   // interest; the difference is what the RTL measures.
   // ROI instructions exclude the two reads, as the RTL trace parser does.

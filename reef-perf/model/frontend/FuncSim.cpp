@@ -40,9 +40,10 @@ static T readPOD(const std::vector<char> &Data, size_t Offset) {
   return Value;
 }
 
-/// Loads the PT_LOAD segments of the 32-bit RISC-V ELF \p Path into \p Mem.
-/// \returns the entry point.
-static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
+/// Loads the PT_LOAD segments of the 32-bit RISC-V ELF \p Path into \p Mem
+/// and appends each to \p Segments. \returns the entry point.
+static uint32_t loadELF(const std::string &Path, simif_t &Mem,
+                        std::vector<LoadSegment> &Segments) {
   std::ifstream In(Path, std::ios::binary);
   if (!In)
     throw std::runtime_error("cannot open ELF: " + Path);
@@ -67,6 +68,7 @@ static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
       throw std::runtime_error("truncated ELF segment");
     std::memcpy(Dst, Data.data() + Segment.p_offset, Segment.p_filesz);
     std::memset(Dst + Segment.p_filesz, 0, Segment.p_memsz - Segment.p_filesz);
+    Segments.push_back({Segment.p_paddr, Segment.p_filesz});
   }
   return Header.e_entry;
 }
@@ -124,7 +126,7 @@ FuncSim::FuncSim(const std::string &ElfPath, const SpikeOptions &Options)
   // Commit logging makes Spike record each instruction's memory accesses and
   // register writes; the textual log goes to /dev/null.
   Proc->enable_log_commits();
-  Proc->get_state()->pc = loadELF(ElfPath, Mem);
+  Proc->get_state()->pc = loadELF(ElfPath, Mem, Segments);
 }
 
 InstRef FuncSim::next() {
