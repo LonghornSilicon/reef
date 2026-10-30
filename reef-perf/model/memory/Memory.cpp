@@ -26,7 +26,17 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
               break;
             }
             return nullptr;
-          }) {}
+          }),
+      TheHost(Params->host_boot, Params->host_setup_cycles,
+              Params->host_cycles_per_byte) {}
+
+void Memory::setBootImage(const std::vector<LoadSegment> &Segments) {
+  uint64_t ItcmBytes = 0;
+  for (const LoadSegment &Segment : Segments)
+    if (getRegionKind(Segment.Addr) == RegionKind::ITCM)
+      ItcmBytes += Segment.FileBytes;
+  TheHost.setBootImage(ItcmBytes);
+}
 
 RegionKind Memory::getRegionKind(Address Addr) const {
   for (const MemoryRegion &Region : Regions)

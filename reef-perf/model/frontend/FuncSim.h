@@ -66,6 +66,9 @@ public:
   /// \returns the instructions handed out so far, including `mpause`.
   uint64_t getNumExecuted() const { return NumExecuted; }
 
+  /// \returns the ELF's loaded segments, in file order.
+  const std::vector<LoadSegment> &getLoadSegments() const { return Segments; }
+
 private:
   /// Spike's view of the memory map: flat regions of host RAM. Everything
   /// else is unmapped (Spike raises an access fault); there is no MMIO. The
@@ -107,6 +110,7 @@ private:
   std::string ISA; // Config points into it.
   cfg_t Config;
   FlatMemory Mem;
+  std::vector<LoadSegment> Segments;
   std::unique_ptr<std::FILE, int (*)(std::FILE *)> Log;
   std::ostringstream ConsoleOut;
   std::unique_ptr<processor_t> Proc;

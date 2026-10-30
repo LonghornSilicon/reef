@@ -142,3 +142,8 @@ top:
       # registers (memory/Dma.h).
       dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
       dma_beat_bytes: 16      # CoreAxi.scala: dtcmWidth = axi2DataBits = 128
+      # The host's ITCM load before the core leaves reset (memory/Host.h). Off,
+      # so runs start in cycle 0 as the RTL testbench does (it backdoor-loads).
+      host_boot: false
+      host_setup_cycles: 100  # ASSUMPTION; no Reef source for the host link
+      host_cycles_per_byte: 8 # ASSUMPTION; 1-lane SPI at the core clock

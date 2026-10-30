@@ -258,6 +258,20 @@ map in `common/MemoryMap.h`, the same list Spike is given:
 Today only the LSU calls it. Instruction fetch is still free, and the matrix
 engine does not touch memory yet.
 
+### Memory → frontend (boot)
+
+`ReefSim::bindTree_()` connects them once, before the run. It is a call, not
+a port:
+
+1. `Memory::setBootImage()` gets the ELF's loaded segments
+   (`FuncSim::getLoadSegments()`) and counts the bytes that fall in the ITCM.
+2. The memory module's host (`memory/Host.h`) turns them into boot cycles:
+   `host_setup_cycles` + (bytes + 4) x `host_cycles_per_byte`, or 0 with
+   `host_boot` off.
+3. `Fetch::setStartCycle()` holds the first fetch until then.
+
+The memory module owns the boot timing; the frontend only waits for it.
+
 ## Known simplifications, by module
 
 These are the obvious next steps for each owner. None of them changes an
