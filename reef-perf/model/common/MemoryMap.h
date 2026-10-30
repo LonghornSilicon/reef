@@ -38,9 +38,9 @@ struct MemoryRegion {
 
 /// \returns the DMA's register block (memory/Dma.h): external, so its
 /// stores and loads go out through the e-bus. Not in M3; the address is an
-/// assumption.
+/// assumption, outside the M3 testbench's memory (0x20000000, 4 MB).
 inline MemoryRegion getDmaRegsRegion() {
-  return {0x20000000, 0x20, RegionKind::External};
+  return {0x40000000, 0x20, RegionKind::External};
 }
 
 /// \returns M3's default map: 8 KB ITCM at 0x0, 32 KB DTCM at 0x10000, plus
