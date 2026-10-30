@@ -4,7 +4,7 @@
 # Set LEN to 0 to time the loop alone.
 .include "common.inc"
   START
-  li    s0, 0x20000000        # DMA register block
+  li    s0, 0x40000000        # DMA register block
   la    s1, tile
   la    s2, work
   ROI_BEGIN
