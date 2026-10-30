@@ -22,7 +22,9 @@ inline constexpr std::size_t kHeadDim = 16;
 // (ROI_BEGIN and ROI_END in microbenchmarks/common.inc). roi_begin() reads
 // mcycle into s10. roi_end() reads mcycle into s11. The RTL trace parser
 // uses s11 - s10. reef_perf times the two mcycle reads.
-inline void roi_begin() { asm volatile("csrr s10, mcycle" ::: "s10", "memory"); }
+inline void roi_begin() {
+    asm volatile("csrr s10, mcycle" ::: "s10", "memory");
+}
 inline void roi_end() { asm volatile("csrr s11, mcycle" ::: "s11", "memory"); }
 
 class Fill {
