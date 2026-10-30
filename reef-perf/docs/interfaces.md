@@ -202,9 +202,10 @@ Requesters call `MemoryInterface::access(MemRequest)` and get a
 
 | `MemRequest` field | Meaning |
 | --- | --- |
-| `Requester` | `IFetch`, `LSU` or `Matrix` |
+| `Requester` | `IFetch`, `LSU`, `Matrix`, `AxiSlave` (host or DMA) or `Debug`; sets the TCM arbiter priority |
 | `Accesses` | the bytes accessed (`Inst::Mem`, from Spike) |
 | `Earliest` | first cycle the requester's own port is free |
+| `OnFinishMoved` | optional; called with the new finish cycle when a higher-priority requester later takes one of this transfer's TCM cycles |
 
 | `MemResponse` field | Meaning |
 | --- | --- |
@@ -227,9 +228,13 @@ knows an instruction's result-ready cycle the moment it calls.
 This is simple and fast, and enough while the LSU is the only requester. It
 can't express:
 
-- **arbitration:** two requesters in the same cycle are served in call order,
-  not by priority;
-- **backpressure:** memory can't refuse or delay a request after the call;
+- **arbitration, except at the TCMs:** two requesters in the same cycle are
+  served in call order. The TCMs (`memory/Tcm.h`) arbitrate by M3's fixed
+  priority instead: the core books as before and takes any cycle a
+  lower-priority transfer (AXI slave, debug) already holds; that transfer
+  moves to its next free cycle and hears its new finish cycle through
+  `OnFinishMoved`;
+- **backpressure:** memory can't refuse a request after the call;
 - **out-of-order responses:** each answer is fixed when it is booked.
 
 Modeling any of these means replacing the call with a pair of Sparta ports: a
@@ -269,7 +274,9 @@ interface unless noted.
   port (`RequesterKind::Matrix`).
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
-  between requesters; the AXI latency and outstanding limit are assumptions.
+  between requesters other than at the TCMs (`memory/Tcm.h`); nothing drives
+  the TCMs' `AxiSlave` or `Debug` requesters yet; the AXI latency and
+  outstanding limit are assumptions.
   No microbenchmark touches AXI memory yet, because Spike only backs the ITCM and
   DTCM regions.
 

@@ -21,6 +21,7 @@ set(REEF_PERF_TESTS
     common/TypesTest
     frontend/InstDecodeTest
     memory/MemTimingTest
+    memory/TcmTest
     vector/VectorTest
 )
 foreach(path ${REEF_PERF_TESTS})

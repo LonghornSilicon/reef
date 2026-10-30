@@ -1,10 +1,11 @@
 //===- Memory.h - The memory module -----------------------------*- C++ -*-===//
 ///
 /// \file
-/// The memory module: the ITCM, the DTCM and the AXI master port to off-core
-/// memory (a black box). Other modules reach it through MemoryInterface. An
-/// operation goes to the memory holding its first address, using the same
-/// memory map as Spike; anything outside the ITCM and DTCM goes to AXI.
+/// The memory module: the ITCM, the DTCM (memory/Tcm.h) and the AXI master
+/// port to off-core memory (a black box). Other modules reach it through
+/// MemoryInterface. An operation goes to the memory holding its first address,
+/// using the same memory map as Spike; anything outside the ITCM and DTCM goes
+/// to AXI.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +16,7 @@
 #include "common/MemoryMap.h"
 #include "common/ResourcePool.h"
 #include "memory/MemTiming.h"
+#include "memory/Tcm.h"
 
 #include "sparta/simulation/ParameterSet.hpp"
 #include "sparta/simulation/Unit.hpp"
@@ -71,8 +73,8 @@ public:
 
 private:
   std::vector<MemoryRegion> Regions = getDefaultMemoryMap();
-  TcmModel ITCM;
-  TcmModel DTCM;
+  Tcm ITCM;
+  Tcm DTCM;
   AxiModel AXI;
 };
 

@@ -30,9 +30,9 @@ MemResponse Memory::access(const MemRequest &Request) {
                         : getRegionKind(Request.Accesses.front().Addr);
   switch (Kind) {
   case RegionKind::ITCM:
-    return ITCM.access(Request.Accesses, Request.Earliest);
+    return ITCM.access(Request);
   case RegionKind::DTCM:
-    return DTCM.access(Request.Accesses, Request.Earliest);
+    return DTCM.access(Request);
   case RegionKind::External:
     break;
   }
