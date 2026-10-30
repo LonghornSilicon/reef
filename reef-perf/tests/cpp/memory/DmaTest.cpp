@@ -60,6 +60,48 @@ TEST_F(DmaFixture, SecondTransferStartsAfterTheFirst) {
   EXPECT_EQ(DMA.getFinish(), 44U);     // Beats 42-43.
 }
 
+TEST_F(DmaFixture, QueuedTransferMovesWhenTheOneAheadIsPushedOut) {
+  program(0x80000000, 0x10000, 64, 0); // Beats 20-23, done at 24.
+  program(0x80000000, 0x10100, 32, 0); // Beats 44-45, done at 46.
+  EXPECT_EQ(DMA.getFinish(), 46U);
+  // The core takes 20-23: the first transfer moves to 24-27 and finishes at
+  // 28, so the second starts at 48 and finishes at 50.
+  std::vector<MemAccess> Load = {{0x10200, 16, false, 0}};
+  MemRequest Request;
+  Request.Accesses = Load;
+  for (Cycle C = 20; C < 24; ++C) {
+    Request.Earliest = C;
+    DTCM.access(Request);
+  }
+  EXPECT_EQ(DMA.getFinish(), 50U);
+  EXPECT_EQ(DMA.getStats().BusyCycles, 10U); // 20-28 and 48-50.
+}
+
+TEST_F(DmaFixture, NarrowBeatsTakeOnePortCycleEach) {
+  Tcm Port{"dtcm", 1, 16, 1};
+  Dma Narrow{20, 4,
+             [&Port](Address A) { return A < 0x80000000 ? &Port : nullptr; }};
+  Narrow.writeRegister(DmaSrc, 0x80000000, 0);
+  Narrow.writeRegister(DmaDst, 0x10000, 0);
+  Narrow.writeRegister(DmaLen, 16, 0);
+  Narrow.writeRegister(DmaGo, 1, 0);
+  EXPECT_EQ(Port.getStats(RequesterKind::AxiSlave).PortCycles, 4U);
+  EXPECT_EQ(Narrow.getFinish(), 24U); // Beats 20-23.
+}
+
+TEST_F(DmaFixture, LastBeatCarriesOnlyTheBytesLeft) {
+  Tcm Port{"dtcm", 1, 16, 1};
+  Dma Wide{20, 32,
+           [&Port](Address A) { return A < 0x80000000 ? &Port : nullptr; }};
+  Wide.writeRegister(DmaSrc, 0x80000000, 0);
+  Wide.writeRegister(DmaDst, 0x10000, 0);
+  Wide.writeRegister(DmaLen, 48, 0);
+  Wide.writeRegister(DmaGo, 1, 0);
+  // One 32-byte beat (2 lines) and one 16-byte beat (1 line).
+  EXPECT_EQ(Port.getStats(RequesterKind::AxiSlave).PortCycles, 3U);
+  EXPECT_EQ(Port.getStats(RequesterKind::AxiSlave).Bytes, 48U);
+}
+
 TEST_F(DmaFixture, ZeroLengthDoesNothing) {
   program(0x80000000, 0x10000, 0, 0);
   EXPECT_EQ(DMA.getStats().Transfers, 0U);
