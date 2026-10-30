@@ -135,9 +135,10 @@ top:
       dtcm_latency: 1         # SRAM.scala: read data one cycle after the request; CoreAxi.scala "1-cycle SRAM read latency"
       dtcm_line_bytes: 16     # 128-bit data bus
       dtcm_cycles_per_line: 1 # One 128-bit line per cycle
-      axi_latency: 20         # ASSUMPTION: black-box round trip; no M3 source
+      axi_latency: 2          # Measured: ext_load_chain, 6 cycles per load = 2 + LSU overhead 4. The testbench memory adds no delay (Xbar.h), so this is the e-bus and AXI path only (deviations M3)
       axi_bytes_per_beat: 32  # Parameters.scala:133 axi0DataBits = fetchDataBits = 256
-      axi_max_outstanding: 4  # ASSUMPTION; no M3 source
+      axi_max_outstanding: 1  # Spec: the e-bus is blocking, one access at a time
+      axi_blocking_reads: true # Measured: ext_load_stream 5 cycles per load (waits for the read response), ext_store_stream 4 per store
       # The DMA is not in M3. It does nothing until a program writes its
       # registers (memory/Dma.h).
       dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
