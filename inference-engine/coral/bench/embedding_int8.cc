@@ -21,10 +21,12 @@ int main() {
     }
     fill.int8s(wte, kVocab * kWidth);
     fill.int8s(wpe, kTokens * kWidth);
+    bench::roi_begin();
     for (std::size_t t = 0; t < kTokens; ++t) {
         reef_kernels::embedding_int8(kWidth, ids[t],
                                      static_cast<std::uint32_t>(t), wte, wpe,
                                      y + (t * kWidth));
     }
+    bench::roi_end();
     return 0;
 }

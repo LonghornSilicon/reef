@@ -13,6 +13,8 @@ int main() {
     bench::Fill fill;
     fill.floats(x, bench::kHidden, 2.0F);
     fill.floats(wt, bench::kHidden * bench::kHidden, 0.1F);
+    bench::roi_begin();
     reef_kernels::linear_f32(1, bench::kHidden, bench::kHidden, x, wt, y);
+    bench::roi_end();
     return 0;
 }

@@ -20,6 +20,8 @@ int main() {
         g = static_cast<std::int8_t>(g + 32);
     }
     fill.integers(shift, kWidth, 27);
+    bench::roi_begin();
     reef_kernels::layernorm_int8(kRows, kWidth, x, gain, shift, y);
+    bench::roi_end();
     return 0;
 }
