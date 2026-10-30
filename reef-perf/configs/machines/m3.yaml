@@ -48,8 +48,7 @@ top:
     lsu:
       params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
-        lsu_scalar_latency_overhead: 2   # Scalar LSU pipeline beyond DTCM: 4-cycle
-                                          # load-to-use; an address use adds 1 (Dispatch)
+        lsu_scalar_latency_overhead: 3   # Scalar LSU pipeline beyond DTCM
         lsu_scalar_occupancy_overhead: 3 # One scalar memory op every 4 cycles
         lsu_vector_load_reg_overhead: 3   # B14: fit to vle8 microbenchmarks on the
         lsu_vector_store_reg_overhead: 2  # RTL at LMUL 1 and 8 (per register:
