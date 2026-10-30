@@ -6,7 +6,7 @@
 
 using namespace reef_perf;
 
-/// Bytes of the write to the reset register that releases the core.
+// Bytes of the write to the reset register that releases the core.
 static constexpr uint64_t ReleaseWriteBytes = 4;
 
 Host::Host(bool Enabled, uint32_t SetupCycles, uint32_t CyclesPerByte)
