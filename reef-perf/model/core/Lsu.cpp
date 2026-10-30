@@ -75,9 +75,9 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
     sparta_assert(Result.Start >= Now);
     OutCreditsPort.send(1, Result.Start - Now);
   }
-  // The data is usable at Start + Latency; the LSU hands it over two cycles
-  // earlier (RTL waveform of vec_add_m1: a load is taken in A, its data is
-  // handed back in A + 3 and usable in A + 5).
-  Result.Done = Response.Start + Response.Latency - 2;
+  // The LSU hands the data over the cycle the last line is read, one cycle
+  // before the 1-cycle SRAM's data is usable (RTL waveform of vec_add_m1: a
+  // load is taken in A, its data is handed back in A + 3 and usable in A + 5).
+  Result.Done = Response.Start + Response.Latency - 1;
   return Result;
 }
