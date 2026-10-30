@@ -27,8 +27,9 @@ uint32_t reef_perf::countDistinctBlocks(std::span<const MemAccess> Accesses,
 }
 
 AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
-                   uint32_t MaxOutstanding)
-    : Latency(Latency), BytesPerBeat(BytesPerBeat), Data("axi_data", 1),
+                   uint32_t MaxOutstanding, bool BlockingReads)
+    : Latency(Latency), BytesPerBeat(BytesPerBeat),
+      BlockingReads(BlockingReads), Data("axi_data", 1),
       Outstanding("axi_outstanding", MaxOutstanding) {}
 
 MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
@@ -41,5 +42,9 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
       std::max(Data.getNextFree(Earliest), Outstanding.getNextFree(Earliest));
   Data.reserve(Response.Start, Response.Occupancy);
   Outstanding.reserve(Response.Start, Response.Latency);
+  // A blocking read keeps its requester until the read response is back.
+  const bool IsRead = Accesses.empty() || !Accesses.front().IsStore;
+  if (BlockingReads && IsRead)
+    Response.Occupancy = Response.Latency;
   return Response;
 }
