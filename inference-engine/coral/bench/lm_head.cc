@@ -16,7 +16,9 @@ int main() {
     bench::Fill fill;
     fill.floats(x, bench::kHidden, 2.0F);
     fill.floats(wte, kRows * bench::kHidden, 0.1F);
+    bench::roi_begin();
     reef_kernels::matvec_rows_f32(kRows, bench::kHidden, wte, x, logits);
     next_token = reef_kernels::argmax_f32(kRows, logits);
+    bench::roi_end();
     return 0;
 }

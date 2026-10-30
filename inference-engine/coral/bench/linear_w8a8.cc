@@ -18,7 +18,9 @@ int main() {
     fill.int8s(wt, bench::kHidden * bench::kInner);
     fill.floats(w_scale, bench::kInner, 0.001F);
     fill.floats(bias, bench::kInner, 0.1F);
+    bench::roi_begin();
     reef_kernels::linear_w8a8_bias(1, bench::kHidden, bench::kInner, x, wt,
                                    w_scale, bias, x_q, y);
+    bench::roi_end();
     return 0;
 }

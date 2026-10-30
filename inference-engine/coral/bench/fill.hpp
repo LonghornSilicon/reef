@@ -1,8 +1,8 @@
 #pragma once
 
 // Benchmarks fill their inputs on the core from a fixed seed, then run one
-// kernel once. reef_perf counts the whole program, fill included; use
-// reef-perf's reef_trace to isolate the kernel's instructions.
+// kernel once between roi_begin() and roi_end(). reef_perf's roi_cycles and
+// the RTL trace parser time only that region, so the fill is left out.
 //
 // Float and W8A8 shapes are TinyStories-Instruct-8M decode (one token):
 // hidden 256, MLP inner 1024, 16 heads of 16. The *_int8 benchmarks keep
@@ -17,6 +17,13 @@ namespace bench {
 inline constexpr std::size_t kHidden = 256;
 inline constexpr std::size_t kInner = 1024;
 inline constexpr std::size_t kHeadDim = 16;
+
+// The region of interest, as in reef-perf's microbenchmarks (ROI_BEGIN and
+// ROI_END in microbenchmarks/common.inc): mcycle into s10 at the start and
+// s11 at the end. The RTL trace parser takes s11 - s10; reef_perf times the
+// two mcycle reads.
+inline void roi_begin() { asm volatile("csrr s10, mcycle" ::: "s10", "memory"); }
+inline void roi_end() { asm volatile("csrr s11, mcycle" ::: "s11", "memory"); }
 
 class Fill {
   public:

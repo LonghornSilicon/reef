@@ -18,8 +18,10 @@ int main() {
     fill.floats(q, bench::kHeadDim, 1.0F);
     fill.floats(k, kKeys * bench::kHeadDim, 1.0F);
     fill.floats(v, kKeys * bench::kHeadDim, 1.0F);
+    bench::roi_begin();
     reef_kernels::attention_head_f32(1, kKeys, bench::kHeadDim, kKeys - 1, 0, q,
                                      bench::kHeadDim, k, v, scores, out,
                                      bench::kHeadDim);
+    bench::roi_end();
     return 0;
 }
