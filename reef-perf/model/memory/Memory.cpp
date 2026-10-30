@@ -30,15 +30,25 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
             return nullptr;
           },
           Params->dma_queue_depth),
-      TheHost(Params->host_boot, Params->host_setup_cycles,
-              Params->host_cycles_per_byte) {}
+      TheHost(Params->host_boot, Params->host_boot_data,
+              Params->host_setup_cycles, Params->host_cycles_per_byte) {}
 
 void Memory::setBootImage(const std::vector<LoadSegment> &Segments) {
   uint64_t ItcmBytes = 0;
-  for (const LoadSegment &Segment : Segments)
-    if (getRegionKind(Segment.Addr) == RegionKind::ITCM)
+  uint64_t DataBytes = 0;
+  for (const LoadSegment &Segment : Segments) {
+    switch (getRegionKind(Segment.Addr)) {
+    case RegionKind::ITCM:
       ItcmBytes += Segment.FileBytes;
-  TheHost.setBootImage(ItcmBytes);
+      break;
+    case RegionKind::DTCM:
+      DataBytes += Segment.FileBytes;
+      break;
+    case RegionKind::External:
+      break; // The host does not write external memory in the model.
+    }
+  }
+  TheHost.setBootImage(ItcmBytes, DataBytes);
 }
 
 RegionKind Memory::getRegionKind(Address Addr) const {
