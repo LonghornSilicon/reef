@@ -14,16 +14,22 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
 
 namespace reef_perf {
 
 /// Who is asking the memory module for an access.
 enum class RequesterKind : uint8_t {
-  IFetch, ///< Instruction fetch (not routed through memory yet).
-  LSU,    ///< The core's load/store unit.
-  Matrix  ///< The matrix engine (not routed through memory yet).
+  IFetch,   ///< Instruction fetch (not routed through memory yet).
+  LSU,      ///< The core's load/store unit.
+  Matrix,   ///< The matrix engine (not routed through memory yet).
+  AxiSlave, ///< A host or DMA reaching a TCM through the AXI slave port.
+  Debug     ///< The debug module.
 };
+
+/// The number of RequesterKind values.
+inline constexpr size_t NumRequesterKinds = 5;
 
 /// One memory operation, as a requester hands it to the memory module.
 struct MemRequest {
@@ -33,6 +39,10 @@ struct MemRequest {
   std::span<const MemAccess> Accesses;
   /// First cycle the operation may start (the requester's port is free).
   Cycle Earliest = 0;
+  /// Called with the new finish cycle (Start + Latency) when a
+  /// higher-priority requester later moves part of this transfer. Only TCM
+  /// requesters below the core (AxiSlave, Debug) can be moved.
+  std::function<void(Cycle)> OnFinishMoved;
 };
 
 /// The memory module's answer to a MemRequest.

@@ -36,17 +36,27 @@ struct MemoryRegion {
   }
 };
 
-/// \returns M3's default map: 8 KB ITCM at 0x0, 32 KB DTCM at 0x10000.
+/// \returns the DMA's register block (memory/Dma.h): external, so its
+/// stores and loads go out through the e-bus. Not in M3; the address is an
+/// assumption, outside the M3 testbench's memory (0x20000000, 4 MB).
+inline MemoryRegion getDmaRegsRegion() {
+  return {0x40000000, 0x20, RegionKind::External};
+}
+
+/// \returns M3's default map: 8 KB ITCM at 0x0, 32 KB DTCM at 0x10000, plus
+/// the DMA's register block.
 inline std::vector<MemoryRegion> getDefaultMemoryMap() {
   return {{0x00000000, 0x2000, RegionKind::ITCM},
-          {0x00010000, 0x8000, RegionKind::DTCM}};
+          {0x00010000, 0x8000, RegionKind::DTCM},
+          getDmaRegsRegion()};
 }
 
 /// \returns M3's highmem map: 1 MB ITCM at 0x0, 1 MB DTCM at 0x100000.
 inline std::vector<MemoryRegion> getHighmemMemoryMap() {
   constexpr uint32_t OneMiB = 1024 * 1024;
   return {{0x00000000, OneMiB, RegionKind::ITCM},
-          {0x00100000, OneMiB, RegionKind::DTCM}};
+          {0x00100000, OneMiB, RegionKind::DTCM},
+          getDmaRegsRegion()};
 }
 
 } // namespace reef_perf
