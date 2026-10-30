@@ -41,11 +41,12 @@ void Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
 void Dma::start(Cycle Arrive) {
   if (Len == 0)
     return;
-  const Cycle Begin = std::max(Arrive, Finish) + SetupCycles;
+  const Cycle Begin = std::max(Arrive, getFinish()) + SetupCycles;
   const uint32_t Beats = (Len + BeatBytes - 1) / BeatBytes;
   ++Stats.Transfers;
   Stats.Bytes += Len;
-  Cycle End = Begin;
+  const size_t J = Jobs.size();
+  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}});
 
   // Book each end that is in a TCM: reads at SRC, writes at DST. An end in
   // external memory costs only the setup delay.
@@ -56,23 +57,49 @@ void Dma::start(Cycle Arrive) {
       continue;
     std::vector<MemAccess> Beat;
     Beat.reserve(Beats);
-    for (uint32_t I = 0; I < Beats; ++I)
+    for (uint32_t I = 0; I < Beats; ++I) {
+      const uint32_t Size = std::min(BeatBytes, Len - (I * BeatBytes));
       Beat.push_back(
-          {Base + (I * BeatBytes), static_cast<uint8_t>(BeatBytes), IsStore});
+          {Base + (I * BeatBytes), static_cast<uint8_t>(Size), IsStore});
+    }
     MemRequest Request;
     Request.Requester = RequesterKind::AxiSlave;
     Request.Accesses = Beat;
     Request.Earliest = Begin;
-    // A later core access can push the transfer's last beat out; the
-    // transfer then finishes later.
-    Request.OnFinishMoved = [this](Cycle Moved) {
-      Finish = std::max(Finish, Moved);
+    // A later core access can push this end's last beat out; the transfer
+    // and the ones queued behind it then finish later.
+    const size_t End = Jobs[J].Targets.size();
+    Request.OnFinishMoved = [this, J, End](Cycle Moved) {
+      Jobs[J].EndFinishes[End] = Moved;
+      retime(J);
     };
-    MemResponse Response = Target->access(Request);
-    End = std::max(End, Response.Start + Response.Latency);
+    const Tcm::Booking Booked = Target->book(Request);
+    Jobs[J].Targets.push_back(Target);
+    Jobs[J].Ids.push_back(Booked.Id);
+    Jobs[J].EndFinishes.push_back(Booked.Response.Start +
+                                  Booked.Response.Latency);
   }
-  if (End == Begin)
-    End = Begin + Beats; // External to external: one beat per cycle.
-  Stats.BusyCycles += End - Begin;
-  Finish = End;
+  retime(J);
+}
+
+void Dma::retime(size_t J) {
+  Job &Current = Jobs[J];
+  // External to external: one beat per cycle.
+  const Cycle Finish = Current.EndFinishes.empty()
+                           ? Current.Begin + Current.Beats
+                           : *std::max_element(Current.EndFinishes.begin(),
+                                               Current.EndFinishes.end());
+  Stats.BusyCycles += Finish - Current.Finish;
+  Current.Finish = Finish;
+  if (J + 1 == Jobs.size())
+    return;
+  Job &Next = Jobs[J + 1];
+  const Cycle Begin = std::max(Next.Arrive, Finish) + SetupCycles;
+  if (Begin <= Next.Begin)
+    return;
+  Stats.BusyCycles -= Begin - Next.Begin;
+  Next.Begin = Begin;
+  for (size_t I = 0; I < Next.Targets.size(); ++I)
+    Next.Targets[I]->delay(Next.Ids[I], Begin);
+  retime(J + 1);
 }

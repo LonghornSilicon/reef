@@ -21,8 +21,9 @@
 /// A transfer starts `dma_setup_cycles` after the GO store arrives, or after
 /// the previous transfer finishes (one at a time). It then moves one
 /// `dma_beat_bytes` beat per TCM port cycle the core leaves free; whichever of
-/// SRC and DST is in a TCM is booked there as an AxiSlave requester. Only
-/// timing is modeled: Spike's memory is not copied.
+/// SRC and DST is in a TCM is booked there as an AxiSlave requester. When a
+/// core access pushes a transfer's finish out, every queued transfer behind
+/// it moves too. Only timing is modeled: Spike's memory is not copied.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -34,6 +35,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <vector>
 
 namespace reef_perf {
 
@@ -70,13 +72,26 @@ public:
   void writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive);
 
   /// \returns the cycle the last started transfer finishes, or 0 if none.
-  Cycle getFinish() const { return Finish; }
+  Cycle getFinish() const { return Jobs.empty() ? 0 : Jobs.back().Finish; }
 
   /// \returns the totals so far.
   const DmaStats &getStats() const { return Stats; }
 
 private:
+  /// One started transfer.
+  struct Job {
+    Cycle Arrive;
+    Cycle Begin;
+    Cycle Finish;
+    uint32_t Beats;
+    std::vector<Tcm *> Targets;     // TCMs booked, at most one per end.
+    std::vector<uint32_t> Ids;      // Their Tcm::book handles.
+    std::vector<Cycle> EndFinishes; // When each booked end finishes.
+  };
+
   void start(Cycle Arrive);
+  /// Recomputes job \p J's finish and moves the job behind it if needed.
+  void retime(size_t J);
 
   uint32_t SetupCycles;
   uint32_t BeatBytes;
@@ -84,7 +99,7 @@ private:
   Address Src = 0;
   Address Dst = 0;
   uint32_t Len = 0;
-  Cycle Finish = 0;
+  std::vector<Job> Jobs;
   DmaStats Stats;
 };
 
