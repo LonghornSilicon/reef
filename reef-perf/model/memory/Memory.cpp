@@ -46,6 +46,12 @@ RegionKind Memory::getRegionKind(Address Addr) const {
 }
 
 MemResponse Memory::access(const MemRequest &Request) {
+  // Fetch books only the ITCM; fetch over AXI (outside the ITCM) is not
+  // modeled, as before.
+  if (Request.Requester == RequesterKind::IFetch &&
+      (Request.Accesses.empty() ||
+       getRegionKind(Request.Accesses.front().Addr) != RegionKind::ITCM))
+    return {Request.Earliest, 1, 1};
   // An empty access list (e.g. a vector op with vl = 0) is one DTCM line.
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM

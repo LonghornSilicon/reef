@@ -74,6 +74,11 @@ public:
   /// Connects \p Sim, which must outlive the unit.
   void setFuncSim(FuncSim *Sim) { TheFuncSim = Sim; }
 
+  /// Connects the memory module \p NewMem, where each fetch group books its
+  /// ITCM line. Fetch keeps its own timing (fetch_interval); the booking
+  /// shows other ITCM requesters (host, DMA) the cycles fetch uses.
+  void setMemory(MemoryInterface *NewMem) { Mem = NewMem; }
+
   /// Holds the first fetch until cycle \p Cycles + 1, for a core that leaves
   /// reset after the host's boot load (memory/Host.h).
   void setStartCycle(Cycle Cycles) { StartCycle = Cycles; }
@@ -108,6 +113,7 @@ private:
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
+  MemoryInterface *Mem = nullptr;
   Cycle StartCycle = 0;
   std::deque<InstRef> Ibuf;  // Oldest first.
   Cycle FreedCycle = 0;      // Cycle of the latest pop()s ...

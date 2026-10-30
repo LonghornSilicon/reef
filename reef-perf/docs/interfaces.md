@@ -258,6 +258,16 @@ map in `common/MemoryMap.h`, the same list Spike is given:
 Today only the LSU calls it. Instruction fetch is still free, and the matrix
 engine does not touch memory yet.
 
+### Frontend → memory (fetch)
+
+Each fetch group books its 16-byte ITCM line through
+`MemoryInterface::access()` with `RequesterKind::IFetch`, in the cycle it is
+fetched. Fetch ignores the answer and keeps its own timing
+(`fetch_interval`). The booking marks the cycle as core traffic, so the host
+and the DMA (AXI slave) only get the cycles fetch leaves free. An LSU access to
+the ITCM never waits for fetch, as in the RTL. Fetch outside the ITCM (over
+AXI) is not modeled.
+
 ### Memory → frontend (boot)
 
 `ReefSim::bindTree_()` connects them once, before the run. It is a call, not

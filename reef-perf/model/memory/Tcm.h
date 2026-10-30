@@ -90,6 +90,10 @@ private:
 
   MemResponse accessCore(const MemRequest &Request, uint64_t Occupancy);
   Booking accessLower(const MemRequest &Request, uint64_t Occupancy);
+  MemResponse accessFetch(const MemRequest &Request, uint64_t Occupancy);
+  // Marks Occupancy cycles from Start as core traffic, moving any
+  // lower-priority transfer off them.
+  void claimForCore(Cycle Start, uint64_t Occupancy);
   bool isCoreBusy(Cycle C) const;
   /// \returns whether a requester of \p Priority may take cycle \p C, which
   /// means no core booking and no lower-priority owner of equal or higher
