@@ -13,9 +13,11 @@
 namespace reef_kernels {
 namespace {
 
-// isqrt() and floor_div() from int8.hpp.
+// isqrt() and floor_div() from int8.hpp. isqrt runs once per row; unrolled,
+// its 16 steps would cost 400 bytes of ITCM.
 std::uint32_t isqrt(std::uint32_t value) {
     std::uint32_t root = 0;
+#pragma GCC unroll 1
     for (std::uint32_t bit = 1U << 30U; bit != 0; bit >>= 2U) {
         if (value >= root + bit) {
             value -= root + bit;

@@ -3,6 +3,9 @@
 #   tests/<name>.elf     golden tests (needs build/coral/golden; see test.sh)
 #   bench/<name>.elf     reef-perf benchmarks
 #   firmware/<name>.elf  the firmware
+#   resident.elf         the firmware with every kernel kept: on the chip
+#                        they all share the 8 KiB ITCM, so the build fails
+#                        if this image's code and constants outgrow it
 #
 #   coral/tools/build.sh [tests|bench|firmware]...    (default: all three)
 #
@@ -31,7 +34,8 @@ arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
 cflags=("${arch[@]}" -std=c++17 -O3 -ffp-contract=off -fno-math-errno
         -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror
-        -Icoral/include -Icoral/tests -Icoral/firmware -I"$out")
+        -Icoral/include -Icoral/kernels -Icoral/tests -Icoral/firmware
+        -I"$out")
 ldflags=("${arch[@]}" -nostdlib -nostartfiles -Tcoral/runtime/link.ld
          -Wl,--gc-sections)
 
@@ -82,3 +86,28 @@ for group in "${groups[@]}"; do
         ;;
     esac
 done
+
+# The chip's ITCM (CoralNPU's default map, 0x0/8 KiB) must hold every kernel
+# at once. Link the firmware with all of them kept, and fail when its .text
+# plus .rodata, which CoralNPU's own linker script also places in ITCM,
+# exceeds that.
+itcm_bytes=8192
+nm="${cxx%g++}nm"
+kernels=()
+for object in "${objects[@]}"; do
+    while read -r _ kind symbol; do
+        if [[ "$kind" == T && "$symbol" == _ZN12reef_kernels* ]]; then
+            kernels+=("-Wl,--undefined=$symbol")
+        fi
+    done < <("$nm" "$object")
+done
+"$cxx" "${cflags[@]}" -c coral/firmware/main.cc -o "$out/obj/main.o"
+"$cxx" "${ldflags[@]}" "${kernels[@]}" "${objects[@]}" "$out/obj/main.o" \
+    -lgcc -o "$out/resident.elf"
+resident="$("${cxx%g++}size" -A "$out/resident.elf" |
+    awk '$1 == ".text" || $1 == ".rodata" { sum += $2 } END { print sum }')"
+echo "resident image: $resident of $itcm_bytes ITCM bytes"
+if ((resident > itcm_bytes)); then
+    echo "every kernel together no longer fits in the ITCM" >&2
+    exit 1
+fi

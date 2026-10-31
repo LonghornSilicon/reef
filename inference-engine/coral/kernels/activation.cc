@@ -46,25 +46,6 @@ void gelu_f32(std::size_t n, const float* x, float* y) {
     }
 }
 
-void exp_nonpositive_f32(std::size_t n, const float* x, float* y) {
-    for (std::size_t i = 0; i < n;) {
-        const std::size_t vl = __riscv_vsetvl_e32m4(n - i);
-        __riscv_vse32_v_f32m4(
-            y + i,
-            detail::exp_nonpositive(__riscv_vle32_v_f32m4(x + i, vl), vl), vl);
-        i += vl;
-    }
-}
-
-void tanh_f32(std::size_t n, const float* x, float* y) {
-    for (std::size_t i = 0; i < n;) {
-        const std::size_t vl = __riscv_vsetvl_e32m4(n - i);
-        __riscv_vse32_v_f32m4(
-            y + i, detail::tanh(__riscv_vle32_v_f32m4(x + i, vl), vl), vl);
-        i += vl;
-    }
-}
-
 void gelu_int8(std::size_t n, const std::int8_t* x, const std::int8_t* table,
                std::int8_t* y) {
     constexpr unsigned kSignBit = 0x80;
