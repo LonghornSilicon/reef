@@ -17,6 +17,7 @@
 #include "sparta/app/CommandLineSimulator.hpp"
 #include "sparta/sparta.hpp"
 
+#include <cstdint>
 #include <exception>
 #include <fstream>
 #include <iostream>
@@ -40,6 +41,7 @@ struct Options {
   std::string Elf;              // ELF to run.
   std::string JSONPath;         // Optional JSON summary path.
   std::string ISA = DefaultISA; // ISA string for Spike.
+  uint64_t HeartbeatCycles = 0; // Zero disables progress output.
 };
 
 } // namespace
@@ -59,6 +61,9 @@ static int run(int Argc, char **Argv) {
       "Write the summary as JSON to FILE")(
       "isa", sparta::app::named_value<std::string>("ISA", &Opts.ISA),
       "Spike ISA string (default: Reef M3)")(
+      "heartbeat-cycles",
+      sparta::app::named_value<uint64_t>("N", &Opts.HeartbeatCycles),
+      "Print progress every N simulated cycles (0 disables)")(
       "highmem", "Use the M3 highmem memory map (1 MB ITCM / 1 MB DTCM)",
       "Use the M3 highmem memory map");
 
@@ -69,6 +74,11 @@ static int run(int Argc, char **Argv) {
     std::cerr << "error: --elf is required\n" << Usage;
     return 2;
   }
+
+  if (Opts.HeartbeatCycles > 0)
+    CLI.getSimulationConfiguration().processParameter(
+        "top.core.rob.params.heartbeat_interval",
+        std::to_string(Opts.HeartbeatCycles));
 
   SpikeOptions Spike;
   Spike.ISA = Opts.ISA;

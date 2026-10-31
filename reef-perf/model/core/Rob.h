@@ -19,6 +19,7 @@
 #include "sparta/simulation/Unit.hpp"
 #include "sparta/statistics/Counter.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <vector>
@@ -43,6 +44,8 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, rob_entries, 8, "Retirement buffer entries")
     PARAMETER(uint32_t, retire_width, 4, "Max instructions retired per cycle")
+    PARAMETER(uint64_t, heartbeat_interval, 0,
+              "Cycles between progress heartbeats; 0 disables them")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -70,10 +73,18 @@ public:
 private:
   void receiveInst(const InstRef &I);
   void retireInsts();
+  void printHeartbeat();
   void sendInitialCredits();
 
   const uint32_t RobEntries;
   const uint32_t RetireWidth;
+
+  const Cycle HeartbeatInterval;
+  Cycle LastHeartbeatCycle = 0;
+  uint64_t LastHeartbeatInsts = 0;
+  std::chrono::steady_clock::time_point HeartbeatStart;
+  std::chrono::steady_clock::time_point LastHeartbeatTime;
+
   std::deque<InstRef> Entries; // Oldest first.
   Cycle LastRetireCycle = 0;
   std::vector<McycleRead> McycleReads;
@@ -82,6 +93,9 @@ private:
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};
   sparta::UniqueEvent<> RetireEvent{&unit_event_set_, "ev_retire",
                                     CREATE_SPARTA_HANDLER(Rob, retireInsts)};
+  sparta::UniqueEvent<> HeartbeatEvent{
+      &unit_event_set_, "ev_heartbeat",
+      CREATE_SPARTA_HANDLER(Rob, printHeartbeat)};
   sparta::Counter NumRetired{&unit_stat_set_, "num_retired",
                              "Instructions retired",
                              sparta::Counter::COUNT_NORMAL};
