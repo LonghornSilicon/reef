@@ -1,0 +1,22 @@
+# Files only elaborated when ZVE32F_ON is set (vector FP32). Drop them for -UZVE32F_ON:
+# yosys-slang checks every module in the filelist, even uninstantiated ones, and these do not
+# compile without the FP typedefs. Derived from Verilator --json-only of M3 72d700e with and
+# without ZVE32F_ON (synth define set).
+fpnew_fma_multi.sv
+ct_vfdsu_ctrl.v
+ct_vfdsu_ff1.v
+ct_vfdsu_double.v
+ct_vfdsu_pack.v
+ct_vfdsu_prepare.v
+ct_vfdsu_round.v
+ct_vfdsu_scalar_dp.v
+ct_vfdsu_srt.v
+ct_vfdsu_srt_radix16_bound_table.v
+ct_vfdsu_srt_radix16_with_sqrt.v
+ct_vfdsu_top.v
+fpnew_divsqrt_th_64_multi.sv
+rvv_backend_fdiv_wrapper.sv
+rvv_backend_sqrt7_rec7.sv
+rvv_backend_fma_wrapper.sv
+rvv_backend_fma.sv
+rvv_backend_freduction.sv
