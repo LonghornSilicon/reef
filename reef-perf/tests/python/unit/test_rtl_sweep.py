@@ -211,7 +211,8 @@ def test_generate_preserves_existing_csvs_on_failure(
         patch(
             "reef_perf.experiments.correlation.rtl_sweep.run_rtl",
             side_effect=failed_measure,
-        ),pytest.raises((FileNotFoundError, RuntimeError))
+        ),
+        pytest.raises((FileNotFoundError, RuntimeError)),
     ):
         generate(runs, simulator, tmp_path / "build", csv_dir=csv_dir)
 
