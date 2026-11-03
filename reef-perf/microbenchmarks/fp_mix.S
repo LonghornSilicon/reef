@@ -2,13 +2,20 @@
 # On M3 every F instruction dispatches alone from slot 0, so the integer adds
 # cannot share its cycle.
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef ITERATIONS
+  .set ITERATIONS, 1000
+.endif
+.ifndef GROUPS
+  .set GROUPS, 4
+.endif
   START
-  li    t6, 1000
+  li    t6, ITERATIONS
   fmv.w.x f1, zero
   fmv.w.x f2, zero
   ROI_BEGIN
 1:
-  .rept 4
+  .rept GROUPS
   fadd.s f3, f1, f2
   addi  a0, a0, 1
   addi  a1, a1, 1

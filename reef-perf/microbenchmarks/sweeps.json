@@ -1,0 +1,422 @@
+{
+  "addr_forward": {
+    "train": [
+      {
+        "ITERATIONS": 1000,
+        "PAIRS": 8
+      },
+      {
+        "ITERATIONS": 600,
+        "PAIRS": 4
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750,
+        "PAIRS": 6
+      },
+      {
+        "ITERATIONS": 1200,
+        "PAIRS": 10
+      }
+    ]
+  },
+  "alu_chain": {
+    "train": [
+      {
+        "ITERATIONS": 1000,
+        "ADDS": 16
+      },
+      {
+        "ITERATIONS": 500,
+        "ADDS": 8
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750,
+        "ADDS": 12
+      },
+      {
+        "ITERATIONS": 1250,
+        "ADDS": 20
+      }
+    ]
+  },
+  "alu_indep": {
+    "train": [
+      {
+        "ITERATIONS": 1000,
+        "GROUPS": 4
+      },
+      {
+        "ITERATIONS": 600,
+        "GROUPS": 2
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750,
+        "GROUPS": 3
+      },
+      {
+        "ITERATIONS": 1200,
+        "GROUPS": 5
+      }
+    ]
+  },
+  "branch_group": {
+    "train": [
+      {
+        "ITERATIONS": 1000,
+        "GROUPS": 4
+      },
+      {
+        "ITERATIONS": 600,
+        "GROUPS": 2
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750,
+        "GROUPS": 3
+      },
+      {
+        "ITERATIONS": 1200,
+        "GROUPS": 5
+      }
+    ]
+  },
+  "branch_tight": {
+    "train": [
+      {
+        "ITERATIONS": 5000
+      },
+      {
+        "ITERATIONS": 2500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 3750
+      },
+      {
+        "ITERATIONS": 6000
+      }
+    ]
+  },
+  "div_chain": {
+    "train": [
+      {
+        "ITERATIONS": 200,
+        "DIV_GROUPS": 1
+      },
+      {
+        "ITERATIONS": 100,
+        "DIV_GROUPS": 2
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 150,
+        "DIV_GROUPS": 3
+      },
+      {
+        "ITERATIONS": 250,
+        "DIV_GROUPS": 2
+      }
+    ]
+  },
+  "fp_chain": {
+    "train": [
+      {
+        "ITERATIONS": 500,
+        "FMADDS": 8
+      },
+      {
+        "ITERATIONS": 300,
+        "FMADDS": 4
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 400,
+        "FMADDS": 6
+      },
+      {
+        "ITERATIONS": 600,
+        "FMADDS": 10
+      }
+    ]
+  },
+  "fp_mix": {
+    "train": [
+      {
+        "ITERATIONS": 1000,
+        "GROUPS": 4
+      },
+      {
+        "ITERATIONS": 600,
+        "GROUPS": 2
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750,
+        "GROUPS": 3
+      },
+      {
+        "ITERATIONS": 1200,
+        "GROUPS": 5
+      }
+    ]
+  },
+  "frontend/branch_bwd_not_taken": {
+    "train": [
+      {
+        "ITERATIONS": 1000
+      },
+      {
+        "ITERATIONS": 500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750
+      },
+      {
+        "ITERATIONS": 1500
+      }
+    ]
+  },
+  "frontend/branch_fwd_not_taken": {
+    "train": [
+      {
+        "ITERATIONS": 1000
+      },
+      {
+        "ITERATIONS": 500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750
+      },
+      {
+        "ITERATIONS": 1500
+      }
+    ]
+  },
+  "frontend/branch_fwd_taken": {
+    "train": [
+      {
+        "ITERATIONS": 1000
+      },
+      {
+        "ITERATIONS": 500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750
+      },
+      {
+        "ITERATIONS": 1500
+      }
+    ]
+  },
+  "frontend/jal_fwd": {
+    "train": [
+      {
+        "ITERATIONS": 1000
+      },
+      {
+        "ITERATIONS": 500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750
+      },
+      {
+        "ITERATIONS": 1500
+      }
+    ]
+  },
+  "frontend/jalr_chain": {
+    "train": [
+      {
+        "ITERATIONS": 1000
+      },
+      {
+        "ITERATIONS": 500
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 750
+      },
+      {
+        "ITERATIONS": 1500
+      }
+    ]
+  },
+  "gemv_int8": {
+    "train": [
+      {
+        "PASSES": 4,
+        "ROWS": 64,
+        "COLS": 64
+      },
+      {
+        "PASSES": 2,
+        "ROWS": 32,
+        "COLS": 32
+      }
+    ],
+    "test": [
+      {
+        "PASSES": 3,
+        "ROWS": 48,
+        "COLS": 48
+      },
+      {
+        "PASSES": 5,
+        "ROWS": 24,
+        "COLS": 16
+      }
+    ]
+  },
+  "load_chain": {
+    "train": [
+      {
+        "ITERATIONS": 2000,
+        "NODES": 64
+      },
+      {
+        "ITERATIONS": 1200,
+        "NODES": 32
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 1600,
+        "NODES": 48
+      },
+      {
+        "ITERATIONS": 2400,
+        "NODES": 80
+      }
+    ]
+  },
+  "load_stream": {
+    "train": [
+      {
+        "PASSES": 8,
+        "BLOCKS": 32
+      },
+      {
+        "PASSES": 4,
+        "BLOCKS": 16
+      }
+    ],
+    "test": [
+      {
+        "PASSES": 6,
+        "BLOCKS": 24
+      },
+      {
+        "PASSES": 10,
+        "BLOCKS": 40
+      }
+    ]
+  },
+  "mul_chain": {
+    "train": [
+      {
+        "ITERATIONS": 500,
+        "MULS": 8
+      },
+      {
+        "ITERATIONS": 300,
+        "MULS": 4
+      }
+    ],
+    "test": [
+      {
+        "ITERATIONS": 400,
+        "MULS": 6
+      },
+      {
+        "ITERATIONS": 600,
+        "MULS": 10
+      }
+    ]
+  },
+  "vec_add_m1": {
+    "train": [
+      {
+        "PASSES": 20,
+        "ELEMENTS": 1024
+      },
+      {
+        "PASSES": 12,
+        "ELEMENTS": 512
+      }
+    ],
+    "test": [
+      {
+        "PASSES": 16,
+        "ELEMENTS": 768
+      },
+      {
+        "PASSES": 24,
+        "ELEMENTS": 1280
+      }
+    ]
+  },
+  "vec_add_m4": {
+    "train": [
+      {
+        "PASSES": 20,
+        "ELEMENTS": 1024
+      },
+      {
+        "PASSES": 12,
+        "ELEMENTS": 512
+      }
+    ],
+    "test": [
+      {
+        "PASSES": 16,
+        "ELEMENTS": 768
+      },
+      {
+        "PASSES": 24,
+        "ELEMENTS": 1280
+      }
+    ]
+  },
+  "vec_memcpy": {
+    "train": [
+      {
+        "PASSES": 10,
+        "BYTES": 4096
+      },
+      {
+        "PASSES": 6,
+        "BYTES": 2048
+      }
+    ],
+    "test": [
+      {
+        "PASSES": 8,
+        "BYTES": 3072
+      },
+      {
+        "PASSES": 12,
+        "BYTES": 5120
+      }
+    ]
+  }
+}

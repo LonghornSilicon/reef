@@ -1,13 +1,20 @@
 # Same as vec_add_m1 but LMUL=4 (16 elements/op): fewer, longer vector ops.
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef PASSES
+  .set PASSES, 20
+.endif
+.ifndef ELEMENTS
+  .set ELEMENTS, 1024
+.endif
   START
-  li    t6, 20
+  li    t6, PASSES
   ROI_BEGIN
 1:
   la    a0, vec_a
   la    a1, vec_b
   la    a2, vec_c
-  li    a3, 1024
+  li    a3, ELEMENTS
 2:
   vsetvli t0, a3, e32, m4, ta, ma
   vle32.v v4, (a0)
@@ -27,12 +34,12 @@
 
   .data
   .balign 16
-vec_a: .rept 1024
+vec_a: .rept ELEMENTS
   .word 1
   .endr
-vec_b: .rept 1024
+vec_b: .rept ELEMENTS
   .word 2
   .endr
   .bss
   .balign 16
-vec_c: .space 4096
+vec_c: .space ELEMENTS * 4

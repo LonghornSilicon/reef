@@ -3,8 +3,12 @@
 # iteration. t0 is set before the loop, so the jalr has no data hazard.
 # Control: jal_fwd (same shape, predicted correctly).
 .include "common.inc"
+# Override defaults with assembler --defsym NAME=value.
+.ifndef ITERATIONS
+  .set ITERATIONS, 1000
+.endif
   START
-  li    t6, 1000
+  li    t6, ITERATIONS
   la    t0, 2f
   ROI_BEGIN
   .balign 16            # loop at slot 0 of a 16-byte fetch block
