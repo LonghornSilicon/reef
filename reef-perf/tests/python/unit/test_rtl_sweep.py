@@ -87,10 +87,13 @@ def test_builder_rejects_invalid_partial_overrides(
     tmp_path: Path, name: str, params: dict[str, int], error: str
 ) -> None:
     """Direct callers cannot bypass sweep constraints or mistype symbols."""
-    with patch("reef_perf.microbenchmarks.subprocess.run") as assemble:
-        with pytest.raises(ValueError, match=error):
-            build_microbenchmark(name, tmp_path, params)
-    assemble.assert_not_called()
+    with (
+        patch("reef_perf.microbenchmarks.subprocess.run") as assemble,
+        pytest.raises(ValueError, match=error),
+    ):
+        build_microbenchmark(name, tmp_path, params)
+
+        assemble.assert_not_called()
 
 
 @pytest.mark.unit
@@ -136,6 +139,7 @@ def test_generate_writes_two_csvs(tmp_path: Path) -> None:
 @pytest.mark.unit
 def test_run_rtl_measures_trace(tmp_path: Path) -> None:
     """Harness measures ROI via the trace parser, not log timing."""
+
     def csr(reg: int) -> int:
         return (0xB00 << 20) | (2 << 12) | (reg << 7) | 0x73
 
@@ -194,6 +198,7 @@ def test_generate_preserves_existing_csvs_on_failure(
         if args[2].parent.name == "test":
             if failure == "timeout":
                 import subprocess
+
                 raise subprocess.TimeoutExpired("simulator", 5)
             raise ValueError("RTL did not retire mpause")
         return 100, 20
@@ -206,10 +211,9 @@ def test_generate_preserves_existing_csvs_on_failure(
         patch(
             "reef_perf.experiments.correlation.rtl_sweep.run_rtl",
             side_effect=failed_measure,
-        ),
+        ),pytest.raises((FileNotFoundError, RuntimeError))
     ):
-        with pytest.raises((FileNotFoundError, RuntimeError)):
-            generate(runs, simulator, tmp_path / "build", csv_dir=csv_dir)
+        generate(runs, simulator, tmp_path / "build", csv_dir=csv_dir)
 
     for split, contents in original.items():
         assert (csv_dir / f"rtl_m3_{split}.csv").read_bytes() == contents
@@ -218,7 +222,7 @@ def test_generate_preserves_existing_csvs_on_failure(
 
 @pytest.mark.unit
 def test_generate_replaces_existing_csvs_after_success(tmp_path: Path) -> None:
-    """Successful runs replace both CSVs in an independently selected directory."""
+    """Successful runs replace both CSVs in a custom directory."""
     runs = [
         Run("alu_chain", "train", 0, {"ITERATIONS": 100, "ADDS": 4}),
         Run("alu_chain", "test", 0, {"ITERATIONS": 200, "ADDS": 8}),
@@ -245,5 +249,5 @@ def test_generate_replaces_existing_csvs_after_success(tmp_path: Path) -> None:
     assert set(result) == {"train", "test"}
     for split, expected in (("train", "111"), ("test", "222")):
         with result[split].open(newline="") as handle:
-            assert list(csv.DictReader(handle))[0]["rtl_roi_cycles"] == expected
+            assert next(csv.DictReader(handle))["rtl_roi_cycles"] == expected
     assert not list(csv_dir.glob(".rtl_sweep_*"))
