@@ -14,7 +14,10 @@
 ///   jump, trap) or that the predictor predicts taken; the next group starts
 ///   `redirect_penalty` cycles later if the prediction was wrong. `predictor`
 ///   is `none` (nothing predicted taken) or `btfn` (M3's predecode,
-///   UncachedFetch.scala:87-100).
+///   UncachedFetch.scala:87-100);
+/// - with `fetch_block_bytes` set, a group never crosses an aligned block of
+///   that size: it ends at an instruction whose next PC is in another block
+///   (M3: 16-byte lines, UncachedFetch.scala:56,107-131).
 ///
 //===----------------------------------------------------------------------===//
 
@@ -53,6 +56,9 @@ public:
     PARAMETER(std::string, predictor, "none",
               "Branch predictor: none (nothing predicted taken) or btfn "
               "(jal and backward branches predicted taken, as on M3)")
+    PARAMETER(uint32_t, fetch_block_bytes, 0,
+              "Aligned fetch block in bytes; a group never crosses one "
+              "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
   };
 
@@ -94,6 +100,7 @@ private:
   const uint32_t FetchInterval;
   const uint32_t RedirectPenalty;
   const PredictorKind Predictor;
+  const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
 
   FuncSim *TheFuncSim = nullptr;
