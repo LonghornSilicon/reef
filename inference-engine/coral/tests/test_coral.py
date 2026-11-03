@@ -13,4 +13,6 @@ MODULE_ROOT = Path(__file__).resolve().parents[2]
 @pytest.mark.timeout(1800)
 def test_coral_kernels_match_engine() -> None:
     """Run every Coral golden test; any bit that differs fails it."""
-    subprocess.run(["bash", "coral/tools/test.sh"], cwd=MODULE_ROOT, check=True)
+    subprocess.run(
+        ["bash", "coral/tools/kernel_test.sh"], cwd=MODULE_ROOT, check=True
+    )

@@ -1,7 +1,7 @@
 name: Coral kernels
 
 # Checks every Coral kernel, and the firmware's whole forward pass, against
-# the C++ reference bit for bit (inference-engine/coral/tools/test.sh).
+# the C++ reference bit for bit (inference-engine/coral/tools/kernel_test.sh).
 # Programs run on coral_sim, reef-perf's FuncSim without the Sparta
 # timing model, which builds in minutes; Spike and Coral's GCC are cached.
 
@@ -56,4 +56,4 @@ jobs:
         run: |
           CORAL_TOOLCHAIN="$HOME/coral-gcc" \
           CORAL_SIM="$HOME/coral-sim/bin/coral_sim" \
-          coral/tools/test.sh
+          coral/tools/kernel_test.sh

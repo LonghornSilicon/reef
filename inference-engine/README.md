@@ -6,7 +6,7 @@ A minimal GPT-Neo inference engine for Reef, in two parts:
   the arithmetic, and its Python interface.
 - `coral/`: RVV kernels, firmware and benchmarks for the Coral NPU core.
   Each kernel reproduces an engine function bit for bit, and
-  `coral/tools/test.sh` fails on any difference. See
+  `coral/tools/kernel_test.sh` fails on any difference. See
   [coral/README.md](coral/README.md).
 
 ```
@@ -113,10 +113,11 @@ and `tell()` with text.
 
 ```sh
 coral/tools/setup_toolchain.sh   # once
-coral/tools/test.sh
+coral/tools/kernel_test.sh
 ```
 
-`uv run pytest` runs `coral/tools/test.sh` through `coral/tests/test_coral.py`.
+`uv run pytest` runs `coral/tools/kernel_test.sh` through
+`coral/tests/test_coral.py`.
 
 ## Contributing
 
@@ -151,9 +152,9 @@ complete:
    clang-tidy, and Doxygen in addition to the tests.
 5. The engine is the source of truth for the kernels. A change to a Coral
    kernel, or to any engine function a kernel matches (see
-   `coral/include/reef_kernels/kernels.hpp`), passes `coral/tools/test.sh`
-   (the `coral` pytest case). To change the arithmetic, change the engine
-   first and its tests, then the kernel.
+   `coral/include/reef_kernels/kernels.hpp`), passes
+   `coral/tools/kernel_test.sh` (the `coral` pytest case). To change the
+   arithmetic, change the engine first and its tests, then the kernel.
 6. C++ code is templated on its value type (`Tensor<Scalar>`,
    `GPTNeo<Scalar>`), with a separate accumulator type where sums need more
    range than the inputs (`matmul<std::int8_t, std::int32_t>`). Hard-code
