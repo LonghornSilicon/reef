@@ -146,6 +146,13 @@ appends greedy tokens, sets `status`, and halts with `mpause` (see
   firmware test uses a small random model. Running a real checkpoint needs an
   external-memory region in reef_perf and on the chip, with the weights
   streamed into DTCM.
+- The chip's ITCM is 8 KiB, and it holds every kernel at once. `build.sh`
+  links `build/coral/resident.elf` (the firmware with every kernel kept) and
+  fails if its `.text` plus `.rodata` exceeds 8192 bytes. It is about 6.4 KB
+  today. The M3 has no compressed instructions, so watch for code that `-O3`
+  duplicates: inlined call sites, unrolled scalar loops, and a template
+  instantiated once per variant. Code that only tests need belongs in
+  `tests/`.
 - CI checks correctness only. Cycle counts still need reef_perf (the
   Docker image), so benchmarks are not tracked in CI.
 - `bench/` programs count the input fill as well as the kernel. Use

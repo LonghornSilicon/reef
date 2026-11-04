@@ -44,11 +44,15 @@ class GptNeo {
     template <typename T> const T* at(std::uint32_t offset) const {
         return reinterpret_cast<const T*>(blob_ + offset);
     }
-    void project(const reef_kernels::BlobLinear& weight, std::size_t in,
-                 std::size_t out, const float* x, float* y);
-    void project_bias(const reef_kernels::BlobLinear& weight,
-                      std::uint32_t bias, std::size_t in, std::size_t out,
-                      const float* x, float* y);
+    // Out of line: inlined at each of step()'s call sites they would cost
+    // 500 bytes of ITCM, for one call saved per projection.
+    [[gnu::noinline]] void project(const reef_kernels::BlobLinear& weight,
+                                   std::size_t in, std::size_t out,
+                                   const float* x, float* y);
+    [[gnu::noinline]] void project_bias(const reef_kernels::BlobLinear& weight,
+                                        std::uint32_t bias, std::size_t in,
+                                        std::size_t out, const float* x,
+                                        float* y);
 
     const std::uint8_t* blob_;
     const reef_kernels::BlobHeader* header_;

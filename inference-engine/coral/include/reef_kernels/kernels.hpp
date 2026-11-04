@@ -58,11 +58,6 @@ void layernorm_f32(std::size_t rows, std::size_t width, const float* x,
 // gelu() for float (operator/activation.hpp), elementwise.
 void gelu_f32(std::size_t n, const float* x, float* y);
 
-// exp_nonpositive() and tanh_float() (math.hpp), elementwise. The other
-// kernels use the same vector code; these entry points let tests check it.
-void exp_nonpositive_f32(std::size_t n, const float* x, float* y);
-void tanh_f32(std::size_t n, const float* x, float* y);
-
 // Attention::context() (operator/attention.hpp) for one head:
 // scores q.k^T, masked_softmax() over the visible keys, then probs.v.
 // Query row i sits at position query_start + i and sees keys up to its own
