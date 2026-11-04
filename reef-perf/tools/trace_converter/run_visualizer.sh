@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Converts a `reef_perf --trace` file to a Kanata log and opens it in Konata.
 #
-#   tools/trace_converter/run_visualizer.sh TRACE.tsv [START_PC END_PC]
+#   tools/trace_converter/run_visualizer.sh TRACE.tsv [START_SEQ END_SEQ]
 #
 # Environment:
 #   KONATA   path to konata.sh; without it the script only writes the log
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 if [[ $# -ne 1 && $# -ne 3 ]]; then
-    echo "Usage: $0 TRACE.tsv [START_PC END_PC]" >&2
+    echo "Usage: $0 TRACE.tsv [START_SEQ END_SEQ]" >&2
     exit 1
 fi
 
@@ -21,5 +21,5 @@ shift
 "${root}/${BUILD:-build}/bin/trace_converter" "${trace}" "${log}" "$@"
 
 if [[ -n "${KONATA:-}" ]]; then
-    bash "${KONATA}" "$(realpath "${log}")"
+    bash "${KONATA}" --cli "$(realpath "${log}")"
 fi

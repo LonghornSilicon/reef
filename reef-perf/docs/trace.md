@@ -34,15 +34,14 @@ KONATA=/path/to/konata.sh tools/trace_converter/run_visualizer.sh prog.tsv
 ```
 
 `run_visualizer.sh` writes `prog.log` next to the trace and opens it if
-`KONATA` is set. To cut a long run down, pass a PC range:
+`KONATA` is set. To cut a long run down, pass an inclusive sequence range:
 
 ```sh
-tools/trace_converter/run_visualizer.sh prog.tsv 0x100 0x140
+tools/trace_converter/run_visualizer.sh prog.tsv 0 1
 ```
 
-The log starts at the first event of an instruction at the start PC and ends
-once an instruction at the end PC has been seen and everything in flight has
-retired.
+The sequence numbers are decimal and 0-based, so `0 1` includes the first two
+instructions.
 
 The Kanata stage names are `F` fetch, `D` dispatch, `SCb`/`LSUb`/`Vb`/`Mb`
 the unit queues, `SC`/`LSU`/`V`/`M` execution, `RR` result ready and `C`

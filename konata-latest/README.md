@@ -1,0 +1,217 @@
+# Konata
+
+Konata is an instruction pipeline visualizer for traces in the Onikiri2-Kanata and gem5 O3PipeView
+formats. [Open the live demo](https://shioyadan.github.io/Konata/#name=kanata-sample-2.log.gz).
+
+Since v1.0.0, Konata runs in the browser instead of as an Electron desktop application. Local
+traces remain in the browser and are never uploaded. Konata makes no background network requests
+unless remote loading is explicitly requested, and it can load trace files several gigabytes in
+size.
+
+![demo](https://github.com/shioyadan/Konata/wiki/images/konata.gif)
+
+## Quick start
+
+* No installation is required to use the hosted version. Simply open
+[Konata Web](https://shioyadan.github.io/Konata/) in a Web browser.
+* On a remote server or WSL, use the built-in Web server as follows:
+    ```bash
+    # Download and extract the latest development build.
+    curl -fLO https://shioyadan.github.io/Konata/konata-latest.zip
+    unzip -q konata-latest.zip
+    cd konata-latest
+
+    # On a remote host or WSL, start the launcher.
+    # It starts a local Web server on an available port and runs until Ctrl+C.
+    ./konata.sh trace1.log.zst
+    ```
+
+    Pass up to 10 trace paths to open them in separate tabs.
+
+    The launcher displays:
+
+    ```text
+    Konata URL: http://127.0.0.1:30080/#name=trace1.log.zst
+    SSH tunnel: ssh -L 30080:127.0.0.1:30080 <host>
+    Press Ctrl+C to stop the server.
+    ```
+
+## Usage
+
+### Generate and open a gem5 trace
+
+Generate an O3PipeView trace with gem5's O3 CPU model. This gem5 v25.1 example uses the bundled
+legacy SE script to run an arbitrary binary:
+
+```bash
+./build/ALL/gem5.opt \
+    --debug-flags=O3PipeView,Rename,MemDepUnit,LSQUnit \
+    --debug-file=trace.log \
+    configs/deprecated/example/se.py \
+    --cpu-type=ArmO3CPU --caches --mem-size=512MiB \
+    --cmd=<path-to-binary> --options="<program arguments>" \
+    --maxinsts=<instruction-limit>
+```
+
+- `Rename` adds register dependencies and information used to recover SMT thread IDs.
+- `MemDepUnit` adds memory-completion events, and `LSQUnit` adds load/store addresses.
+- Use only `O3PipeView` for a smaller trace, or `O3PipeView,O3CPUAll` for full troubleshooting.
+- Open `m5out/trace.log` using the Open menu or drag and drop it onto Konata.
+- Compress large traces with Zstandard (`zstd trace.log`); Konata opens `.zst` files directly.
+
+### Toolbar controls
+
+- **Open:** Choose one or more traces, or drag and drop them onto the window.
+- **Recent and Reload:** Reopen a recent trace or reload the current trace after its source file
+  changes. If a change notice appears, choose Reload or Ignore.
+- **Search:** Search the current trace with a regular expression. F3 and Shift+F3 move to the next
+  and previous matches.
+- **Bookmark:** Press `0`–`9` to go to a bookmark. Press Ctrl/Command+`0`–`9` to save the current
+  position and zoom in that slot.
+- **Stats:** Show statistics for the current trace in a resizable dialog.
+- **View:** Change the theme, pipeline colors, dependency arrows, lane layout, flushed-op visibility,
+  and minimum lane heights used for drawing details. Custom colors can be edited from the Custom
+  color scheme.
+- **Zoom:** Change the zoom level. Zoom steps per 2× sets how many steps double or halve the view.
+- **Application log:** Review parser warnings and other messages in a resizable pane at the bottom
+  of the window.
+
+### Canvas and tabs
+
+- Drag the canvas to pan. Use a horizontal trackpad gesture to scroll horizontally.
+- Use the mouse wheel or Up/Down keys to move through instructions vertically.
+- Use Ctrl/Command+wheel, `+`/`-`, or Ctrl/Command+Up/Down to zoom.
+- Double-click to zoom in. Shift+double-click to zoom out. Pinch with two pointers to zoom.
+- Click an instruction label to align its fetch cycle with the left edge.
+- Ctrl/Command+click the pipeline to pin matching vertical and horizontal guides
+  at the start of the selected cycle and instruction row.
+  Matching markers appear in the instruction labels and both navigators.
+  The pipeline tooltip shows signed offsets from the pinned reference as `Cycle` and `Op`;
+  the op offset counts visible instructions.
+  Repeat to move the guides; press Esc to clear them. Modified drags still pan normally.
+  Guides are temporary and cleared when switching tabs.
+- Right-click the pipeline to pin or clear a reference, return to it, copy the clicked
+  instruction's details, or align its fetch cycle with the left edge.
+  Use the arrow keys to choose a menu item and Enter to activate it; Esc closes the menu
+  without clearing the reference. When the pipeline has keyboard focus, Shift+F10 opens
+  the menu at its center.
+- Use Adjust position (the crosshair beside Reset) when the pipeline is outside the viewport.
+  Adjust position preserves the zoom. Reset restores both the position and zoom.
+- Click a tab to switch to it. Middle-click a tab to close it.
+
+### Command palette
+
+F1 or Ctrl/Command+Shift+P opens the command palette, which accepts these commands:
+
+```text
+j  <op ID>    Jump to an operation ID
+jr <RID>      Jump to a retired operation ID
+f  <pattern>  Find a regular expression
+l             Open the file picker
+```
+
+Command palette history, bookmarks, and view settings are saved between browser sessions.
+
+### Trace comparison
+
+Open two traces, select the tab to use as A, and choose Compare. Use A or B to inspect one trace with
+the other as a faint reference. Use Overlay to highlight differences. Dragging in A or B mode moves
+only that trace. Overlay mode moves both traces together. Align to A aligns them using a shared
+retired-operation ID when available.
+
+### Browser limitations
+
+Recent files, reload, and external-change detection require File System Access APIs supported by
+compatible Chromium-based browsers. Other browsers still support file selection and drag and drop.
+Remote traces opened with `konata.sh` can be reloaded manually. Automatic external-change detection
+is not available for them. Loading arbitrary URLs or paths is intentionally disabled.
+
+### Command-line trace inspection (prototype)
+
+Downloaded distributions include `konata-cli.js`. With Node.js 18 or later installed, run:
+
+```bash
+./konata.sh --cli trace.log.zst
+```
+
+This is a line-oriented CLI, not a full-screen TUI. Enter commands such as `show`, `overview`,
+`find stage ID min 3`, `detail id 413`, and `quit`; `help` lists all commands. It keeps the trace and
+inspection state between commands. It supports one Kanata or gem5 O3PipeView trace at a time
+(plain text, gzip, or Zstandard) and keeps the whole trace in memory.
+
+Interactive terminals support Tab completion and session history. Use `help <command>` for details.
+Loading is asynchronous by default; `show` and searches use the available instructions while loading.
+Use `status`, `wait`, or `cancel` to manage it, or `open --sync "path"` to wait.
+
+Commands can also be supplied through standard input. `--jsonl` returns one JSON response per
+command, without prompts:
+
+```bash
+printf 'wait\nshow\nfind stage ID min 3\n' | ./konata.sh --cli --jsonl trace.log.zst
+```
+
+The CLI does not start a browser or Web server and needs no npm packages at runtime. From a source
+checkout, run `make cli-build` first. You can also run the bundle directly with
+`node dist-cli/konata-cli.js trace.log`.
+
+## Distribution and updates
+
+### Update a downloaded copy
+
+```bash
+./konata-latest/konata.sh --update
+```
+
+The script downloads the latest tested development build from Konata Web and updates the extracted
+copy after confirmation.
+When updating an older copy whose launcher did not include CLI support, run `--update` a second
+time to install `konata-cli.js` as well.
+
+### Other ways to run
+
+- **Stable Web version:** Open [Konata Web stable](https://shioyadan.github.io/Konata/stable/).
+- **Latest development Web version:** Open [Konata Web](https://shioyadan.github.io/Konata/).
+- **Versioned releases:** Download a `konata-v*.zip` archive from
+  [GitHub Releases](https://github.com/shioyadan/Konata/releases).
+
+## References
+
+- The [ASPLOS 2018 gem5 tutorial presentation](https://github.com/shioyadan/Konata/wiki/gem5-konata.pdf)
+  provides an introduction to Konata.
+- The [Onikiri2-Kanata format](docs/kanata-log-format.md) represents pipeline behavior in greater
+  detail than the gem5 O3PipeView format.
+
+## Development
+
+Docker is the recommended development environment. Start a shell with the repository mounted at
+`/workspace`:
+
+```bash
+./docker/launch.sh
+```
+
+Run development commands from that shell:
+
+```bash
+make init          # Install dependencies
+make               # Build the development Web application
+make serve         # Start the Web development server
+make production    # Build dist-web/index.html
+make check         # Run the complete verification set
+make benchmark-op-store
+```
+
+All build and test operations are Make targets. npm scripts are not used. `make check` uses Electron
+only to run the Web smoke test in sandboxed Chromium. Electron is not part of the application. To
+work without Docker, install Node.js 22.12 or later and run the same Make targets directly.
+
+See [Deployment and release](docs/releasing.md) for deployment to GitHub Pages and release
+procedures.
+
+## License
+
+Copyright (C) 2016-2026 Ryota Shioya <shioya@ci.i.u-tokyo.ac.jp>
+
+Konata is released under the BSD 3-Clause License. See [LICENSE.md](LICENSE.md).
+The Web application and CLI bundle include third-party packages under their respective licenses. See
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

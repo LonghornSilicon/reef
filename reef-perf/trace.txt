@@ -1,0 +1,41 @@
+     0 00000000 00018117 -> 00000004 vl=0 e8 m8/8 alu         mem=0  auipc   sp, 0x18
+     1 00000004 00010113 -> 00000008 vl=0 e8 m8/8 alu         mem=0  mv      sp, sp
+     2 00000008 000022b7 -> 0000000c vl=0 e8 m8/8 alu         mem=0  lui     t0, 0x2
+     3 0000000c 20028293 -> 00000010 vl=0 e8 m8/8 alu         mem=0  addi    t0, t0, 512
+     4 00000010 3002a073 -> 00000014 vl=0 e8 m8/8 csr         mem=0  csrs    mstatus, t0
+     5 00000014 00400f93 -> 00000018 vl=0 e8 m8/8 alu         mem=0  li      t6, 4
+     6 00000018 b0002d73 -> 0000001c vl=0 e8 m8/8 csr         mem=0  csrr    s10, mcycle
+     7 0000001c 00010517 -> 00000020 vl=0 e8 m8/8 alu         mem=0  auipc   a0, 0x10
+     8 00000020 fe450513 -> 00000024 vl=0 e8 m8/8 alu         mem=0  addi    a0, a0, -28
+     9 00000024 00011597 -> 00000028 vl=0 e8 m8/8 alu         mem=0  auipc   a1, 0x11
+    10 00000028 fdc58593 -> 0000002c vl=0 e8 m8/8 alu         mem=0  addi    a1, a1, -36
+    11 0000002c 00011617 -> 00000030 vl=0 e8 m8/8 alu         mem=0  auipc   a2, 0x11
+    12 00000030 01460613 -> 00000034 vl=0 e8 m8/8 alu         mem=0  addi    a2, a2, 20
+    13 00000034 04000693 -> 00000038 vl=0 e8 m8/8 alu         mem=0  li      a3, 64
+    14 00000038 04000713 -> 0000003c vl=0 e8 m8/8 alu         mem=0  li      a4, 64
+    15 0000003c 0c277057 -> 00000040 vl=0 e8 m8/8 vset        mem=0  vsetvli zero, a4, e8, m4, ta, ma
+    16 00000040 02058207 -> 00000044 vl=64 e8 m32/8 v_load      mem=64  vle8.v  v4, (a1)
+    17 00000044 0c277057 -> 00000048 vl=64 e8 m32/8 vset        mem=0  vsetvli zero, a4, e8, m4, ta, ma
+    18 00000048 02050407 -> 0000004c vl=64 e8 m32/8 v_load      mem=64  vle8.v  v8, (a0)
+    19 0000004c ee822857 -> 00000050 vl=64 e8 m32/8 v_mul       mem=0  vwmul.vv v16, v8, v4
+    20 00000050 0cb77057 -> 00000054 vl=64 e8 m32/8 vset        mem=0  vsetvli zero, a4, e16, m8, ta, ma
+    21 00000054 42006057 -> 00000058 vl=64 e16 m64/8 v_alu       mem=0  vmv.s.x v0, zero
+    22 00000058 c7000c57 -> 0000005c vl=64 e16 m64/8 v_perm      mem=0  vwredsum.vs v24, v16, v0
+    23 0000005c cd00f057 -> 00000060 vl=64 e16 m64/8 vset        mem=0  vsetivli zero, 1, e32, m1, ta, ma
+    24 00000060 438022d7 -> 00000064 vl=1 e32 m8/8 v_to_scalar mem=0  vmv.x.s t0, v24
+    25 00000064 00562023 -> 00000068 vl=1 e32 m8/8 store       mem=1  sw      t0, 0(a2)
+    26 00000068 04050513 -> 0000006c vl=1 e32 m8/8 alu         mem=0  addi    a0, a0, 64
+    27 0000006c 00460613 -> 00000070 vl=1 e32 m8/8 alu         mem=0  addi    a2, a2, 4
+    28 00000070 fff68693 -> 00000074 vl=1 e32 m8/8 alu         mem=0  addi    a3, a3, -1
+    29 00000074 fc0698e3 -> 00000044 vl=1 e32 m8/8 branch      mem=0  bnez    a3, pc - 48
+    30 00000044 0c277057 -> 00000048 vl=1 e32 m8/8 vset        mem=0  vsetvli zero, a4, e8, m4, ta, ma
+    31 00000048 02050407 -> 0000004c vl=64 e8 m32/8 v_load      mem=64  vle8.v  v8, (a0)
+    32 0000004c ee822857 -> 00000050 vl=64 e8 m32/8 v_mul       mem=0  vwmul.vv v16, v8, v4
+    33 00000050 0cb77057 -> 00000054 vl=64 e8 m32/8 vset        mem=0  vsetvli zero, a4, e16, m8, ta, ma
+    34 00000054 42006057 -> 00000058 vl=64 e16 m64/8 v_alu       mem=0  vmv.s.x v0, zero
+    35 00000058 c7000c57 -> 0000005c vl=64 e16 m64/8 v_perm      mem=0  vwredsum.vs v24, v16, v0
+    36 0000005c cd00f057 -> 00000060 vl=64 e16 m64/8 vset        mem=0  vsetivli zero, 1, e32, m1, ta, ma
+    37 00000060 438022d7 -> 00000064 vl=1 e32 m8/8 v_to_scalar mem=0  vmv.x.s t0, v24
+    38 00000064 00562023 -> 00000068 vl=1 e32 m8/8 store       mem=1  sw      t0, 0(a2)
+    39 00000068 04050513 -> 0000006c vl=1 e32 m8/8 alu         mem=0  addi    a0, a0, 64
+# 40 instructions, limit reached

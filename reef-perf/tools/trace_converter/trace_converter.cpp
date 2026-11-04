@@ -4,11 +4,10 @@
 /// Converts the instruction timing trace written by `reef_perf --trace` into a
 /// Kanata log (format 0004), which pipeline viewers such as Konata open.
 ///
-///   trace_converter <trace.tsv> <out.log> [<start_pc> <end_pc>]
+///   trace_converter <trace.tsv> <out.log> [<start_seq> <end_seq>]
 ///
-/// With a PC range, the log starts at the first event of an instruction at
-/// <start_pc>. It stops once an instruction at <end_pc> has been seen and every
-/// instruction in flight has retired. PCs are decimal or 0x-prefixed hex.
+/// With a sequence range, the log includes instructions from <start_seq>
+/// through <end_seq>, inclusive. Sequence numbers are decimal.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -32,7 +31,7 @@ namespace {
 struct TraceEvent {
   Cycle At = 0;
   std::string Activity;
-  std::string Seq;
+  uint64_t Seq = 0;
   Address PC = 0;
   std::string Disasm;
 };
@@ -42,12 +41,8 @@ class KanataWriter {
 public:
   explicit KanataWriter(std::ostream &OS) : OS(OS) { OS << "Kanata\t0004\n"; }
 
-  /// Writes \p Event. If \p OnlyKnown, skips events of instructions that have
-  /// not appeared before.
-  void write(const TraceEvent &Event, bool OnlyKnown);
-
-  /// \returns true while an instruction has been seen but has not retired.
-  bool hasInFlight() const { return InFlight != 0; }
+  /// Writes \p Event.
+  void write(const TraceEvent &Event);
 
   /// \returns the number of instructions written so far.
   size_t getNumInsts() const { return Ids.size(); }
@@ -56,8 +51,7 @@ private:
   void advanceTo(Cycle At);
 
   std::ostream &OS;
-  std::unordered_map<std::string, size_t> Ids; // Seq -> Kanata instruction id.
-  size_t InFlight = 0;
+  std::unordered_map<uint64_t, size_t> Ids; // Seq -> Kanata instruction id.
   uint64_t NextRetireId = 0;
   bool HasCycle = false;
   Cycle CurrentCycle = 0;
@@ -95,21 +89,17 @@ void KanataWriter::advanceTo(Cycle At) {
   CurrentCycle = At;
 }
 
-void KanataWriter::write(const TraceEvent &Event, bool OnlyKnown) {
+void KanataWriter::write(const TraceEvent &Event) {
   auto It = Ids.find(Event.Seq);
-  if (OnlyKnown && It == Ids.end())
-    return;
   advanceTo(Event.At);
 
   if (It == Ids.end()) {
     It = Ids.emplace(Event.Seq, Ids.size()).first;
-    ++InFlight;
     OS << "I\t" << It->second << "\t0\t0\n";
     OS << "L\t" << It->second << "\t0\t" << Event.Disasm << "\n";
   }
   if (Event.Activity == "retire") {
     OS << "R\t" << It->second << "\t" << NextRetireId++ << "\t0\n";
-    --InFlight;
     return;
   }
   OS << "S\t" << It->second << "\t0\t" << getStageName(Event.Activity) << "\n";
@@ -132,7 +122,7 @@ static TraceEvent parseEvent(const std::string &Line) {
   TraceEvent Event;
   Event.At = std::stoull(Fields[0]);
   Event.Activity = Fields[1];
-  Event.Seq = Fields[2];
+  Event.Seq = std::stoull(Fields[2], nullptr, 10);
   Event.PC = static_cast<Address>(std::stoull(Fields[3], nullptr, 16));
   Event.Disasm = Fields[4];
   return Event;
@@ -142,15 +132,18 @@ static TraceEvent parseEvent(const std::string &Line) {
 static int run(int Argc, char **Argv) {
   if (Argc != 3 && Argc != 5) {
     std::cerr << "usage: " << Argv[0]
-              << " <trace.tsv> <out.log> [<start_pc> <end_pc>]\n";
+              << " <trace.tsv> <out.log> [<start_seq> <end_seq>]\n";
     return 2;
   }
   bool Bounded = Argc == 5;
-  Address Start = 0;
-  Address End = 0;
+  uint64_t Start = 0;
+  uint64_t End = 0;
   if (Bounded) {
-    Start = static_cast<Address>(std::stoull(Argv[3], nullptr, 0));
-    End = static_cast<Address>(std::stoull(Argv[4], nullptr, 0));
+    Start = std::stoull(Argv[3], nullptr, 10);
+    End = std::stoull(Argv[4], nullptr, 10);
+    if (Start > End)
+      throw std::runtime_error("start sequence must be less than or equal to "
+                               "end sequence");
   }
 
   std::ifstream In(Argv[1]);
@@ -161,21 +154,15 @@ static int run(int Argc, char **Argv) {
     throw std::runtime_error(std::string("cannot open ") + Argv[2]);
 
   KanataWriter Writer(Out);
-  bool ReachedStart = !Bounded;
-  bool ReachedEnd = false;
   std::string Line;
   std::getline(In, Line); // Header.
   while (std::getline(In, Line)) {
     TraceEvent Event = parseEvent(Line);
-    if (Bounded && Event.PC == Start)
-      ReachedStart = true;
-    if (Bounded && Event.PC == End)
-      ReachedEnd = true;
-    bool Started = Writer.getNumInsts() != 0;
-    if (ReachedEnd && Started && !Writer.hasInFlight())
+    if (Bounded && (Event.Seq < Start || Event.Seq > End))
+      continue;
+    Writer.write(Event);
+    if (Bounded && Event.Seq == End && Event.Activity == "retire")
       break;
-    if (ReachedStart)
-      Writer.write(Event, ReachedEnd && Started);
   }
 
   Out.close();
