@@ -76,11 +76,15 @@ target_link_libraries(reef_perf PRIVATE reef_perf_core)
 
 add_executable(reef_trace tools/reef_trace/reef_trace.cpp)
 target_link_libraries(reef_trace PRIVATE reef_perf_core)
-foreach(tool reef_perf reef_trace)
+
+# Converts a reef_perf --trace file to a Kanata log; needs only common/Types.h.
+add_executable(trace_converter tools/trace_converter/trace_converter.cpp)
+target_include_directories(trace_converter PRIVATE model)
+foreach(tool reef_perf reef_trace trace_converter)
     target_compile_options(${tool} PRIVATE ${REEF_PERF_WARNINGS})
 endforeach()
 
-set_target_properties(reef_perf reef_trace PROPERTIES
+set_target_properties(reef_perf reef_trace trace_converter PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 

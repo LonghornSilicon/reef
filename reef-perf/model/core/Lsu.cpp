@@ -24,6 +24,8 @@ void Lsu::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
 
+  I->ExecQueuedCycle = Now;
+  I->QueuedLoc = "LSU_Buffer";
   MemRequest Request;
   Request.Requester = RequesterKind::LSU;
   Request.Accesses = I->Mem;
@@ -35,6 +37,7 @@ void Lsu::receiveInst(const InstRef &I) {
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Response.Latency - 1;
   I->CompleteCycle = Start + Response.Latency;
+  I->DispatchLoc = "LSU";
 
   // The instruction leaves the queue when it starts.
   OutCreditsPort.send(1, Start - Now);

@@ -22,11 +22,14 @@ void Matrix::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
 void Matrix::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
+  I->ExecQueuedCycle = Now;
+  I->QueuedLoc = "Matrix_Buffer";
 
   Cycle Start = Lanes.reserve(Now, Occupancy);
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + Latency - 1;
   I->CompleteCycle = Start + Latency;
+  I->DispatchLoc = "Matrix";
 
   // The instruction leaves the command queue when it starts.
   OutCreditsPort.send(1, Start - Now);

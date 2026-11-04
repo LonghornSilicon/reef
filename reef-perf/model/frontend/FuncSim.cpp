@@ -18,6 +18,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 using namespace reef_perf;
@@ -110,9 +111,11 @@ char *FuncSim::FlatMemory::addr_to_mem(reg_t PAddr) {
   return nullptr;
 }
 
-FuncSim::FuncSim(const std::string &ElfPath, const SpikeOptions &Options)
+FuncSim::FuncSim(const std::string &ElfPath, const SpikeOptions &Options,
+                 bool RecordTrace)
     : ISA(Options.ISA), Mem(Options.Regions, &Config),
-      Log(std::fopen("/dev/null", "w"), &std::fclose) {
+      Log(std::fopen("/dev/null", "w"), &std::fclose),
+      RecordTrace(RecordTrace) {
   if (!Log)
     throw std::runtime_error("cannot open /dev/null");
   Config.isa = ISA.c_str();
@@ -157,7 +160,46 @@ InstRef FuncSim::next() {
     execute(*I);
   }
   decodeInst(*I);
+  if (RecordTrace)
+    TraceInstructions.push_back(I);
   return I;
+}
+
+void FuncSim::writeTrace(std::ostream &OS) const {
+  struct TraceEvent {
+    Cycle At;
+    uint64_t Seq;
+    uint8_t Order;
+    const Inst *Instruction;
+    const char *Activity;
+  };
+  std::vector<TraceEvent> Events;
+  auto Add = [&Events](const Inst &I, Cycle At, uint8_t Order,
+                       const char *Activity) {
+    if (At != Inst::Never)
+      Events.push_back({At, I.Seq, Order, &I, Activity});
+  };
+  for (const InstRef &I : TraceInstructions) {
+    Add(*I, I->FetchCycle, 0, "fetch");
+    Add(*I, I->DispatchCycle, 1, "dispatch");
+    Add(*I, I->ExecQueuedCycle, 2, I->QueuedLoc.c_str());
+    Add(*I, I->IssueCycle, 3, I->DispatchLoc.c_str());
+    Add(*I, I->ResultReadyCycle, 4, "result_ready");
+    Add(*I, I->CompleteCycle, 5, "complete");
+    Add(*I, I->RetireCycle, 6, "retire");
+  }
+  std::ranges::sort(Events,
+                    [](const TraceEvent &Left, const TraceEvent &Right) {
+                      return std::tie(Left.At, Left.Seq, Left.Order) <
+                             std::tie(Right.At, Right.Seq, Right.Order);
+                    });
+
+  OS << "cycle\tactivity\tseq\tpc\tinstruction\n";
+  for (const TraceEvent &Event : Events) {
+    const Inst &I = *Event.Instruction;
+    OS << Event.At << '\t' << Event.Activity << '\t' << I.Seq << '\t'
+       << toHex(I.PC) << '\t' << I.Disasm << '\n';
+  }
 }
 
 void FuncSim::execute(Inst &I) {

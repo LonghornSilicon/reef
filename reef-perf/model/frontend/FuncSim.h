@@ -47,8 +47,10 @@ struct SpikeOptions {
 class FuncSim {
 public:
   /// Loads the 32-bit RISC-V ELF \p ElfPath into a machine configured by
-  /// \p Options. \throws std::runtime_error if the ELF cannot be loaded.
-  FuncSim(const std::string &ElfPath, const SpikeOptions &Options);
+  /// \p Options. If \p RecordTrace is true, retains instructions for
+  /// writeTrace(). \throws std::runtime_error if the ELF cannot be loaded.
+  FuncSim(const std::string &ElfPath, const SpikeOptions &Options,
+          bool RecordTrace = false);
   /// Not copyable, and so not movable: Spike's processor points into Config
   /// and Mem, which a copy or move would leave behind.
   FuncSim(const FuncSim &) = delete;
@@ -65,6 +67,9 @@ public:
 
   /// \returns the instructions handed out so far, including `mpause`.
   uint64_t getNumExecuted() const { return NumExecuted; }
+
+  /// Writes the recorded instruction milestones to \p OS in cycle order.
+  void writeTrace(std::ostream &OS) const;
 
 private:
   /// Spike's view of the memory map: flat regions of host RAM. Everything
@@ -110,6 +115,8 @@ private:
   std::unique_ptr<std::FILE, int (*)(std::FILE *)> Log;
   std::ostringstream ConsoleOut;
   std::unique_ptr<processor_t> Proc;
+  bool RecordTrace;
+  std::vector<InstRef> TraceInstructions;
   uint64_t NumExecuted = 0;
   bool Halted = false;
 };

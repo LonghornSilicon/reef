@@ -22,6 +22,8 @@ ScalarExec::ScalarExec(sparta::TreeNode *Node,
 void ScalarExec::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
+  I->ExecQueuedCycle = Now;
+  I->QueuedLoc = "ScalarExec_Buffer";
 
   ResourcePool *Pool = &ALU;
   uint64_t Occupancy = 1;
@@ -56,6 +58,7 @@ void ScalarExec::receiveInst(const InstRef &I) {
 
   Cycle Start = Pool->reserve(Now, Occupancy);
   I->IssueCycle = Start;
+  I->DispatchLoc = "ScalarExec";
   I->ResultReadyCycle = Start + Latency - 1;
   I->CompleteCycle = Start + Latency;
 }

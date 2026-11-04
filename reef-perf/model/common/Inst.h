@@ -83,12 +83,15 @@ struct Inst {
   std::vector<RegId> Srcs;              ///< Registers read (no x0).
   std::vector<RegId> Dsts;              ///< Registers written (no x0).
 
-  Cycle FetchCycle = 0;           ///< Cycle it was fetched.
-  Cycle DispatchCycle = 0;        ///< Cycle it was dispatched.
-  Cycle IssueCycle = 0;           ///< Cycle its execution started.
+  Cycle FetchCycle = Never;       ///< Cycle it was fetched.
+  Cycle DispatchCycle = Never;    ///< Cycle it was dispatched.
+  Cycle ExecQueuedCycle = Never;  ///< Cycle it entered its unit's queue.
+  Cycle IssueCycle = Never;       ///< Cycle its execution started.
   Cycle ResultReadyCycle = Never; ///< First cycle a dependent may dispatch.
   Cycle CompleteCycle = Never;    ///< First cycle it may retire.
-  Cycle RetireCycle = 0;          ///< Cycle it retired.
+  Cycle RetireCycle = Never;      ///< Cycle it retired.
+  std::string QueuedLoc;          ///< Queue it waited in, for the timing trace.
+  std::string DispatchLoc;        ///< Unit that executed it, for the trace.
 
   /// \returns true for a taken branch, a jump or a trap.
   bool isRedirect() const { return NextPC != PC + 4; }

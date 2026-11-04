@@ -59,10 +59,10 @@ static void writeTopDown(std::ostream &OS, const TopDownSlots &Slots) {
 }
 
 ReefSim::ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
-                 const SpikeOptions &Options)
+                 const SpikeOptions &Options, bool RecordTrace)
     : sparta::app::Simulation("reef_perf", &Scheduler),
-      TheFuncSim(std::make_unique<FuncSim>(ElfPath, Options)), ElfPath(ElfPath),
-      Regions(Options.Regions) {
+      TheFuncSim(std::make_unique<FuncSim>(ElfPath, Options, RecordTrace)),
+      ElfPath(ElfPath), Regions(Options.Regions) {
   for (Module *M : getModules())
     M->addFactories(*getResourceSet());
 }
@@ -185,6 +185,8 @@ void ReefSim::printSummary(std::ostream &OS) const {
          << "%\n";
   OS << "============================================================\n";
 }
+
+void ReefSim::writeTrace(std::ostream &OS) const { TheFuncSim->writeTrace(OS); }
 
 void ReefSim::writeJSON(std::ostream &OS) const {
   uint64_t Cycles = CoreModule.getLastRetireCycle();

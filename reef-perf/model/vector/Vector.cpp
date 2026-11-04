@@ -34,6 +34,8 @@ void Vector::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
 void Vector::receiveInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
+  I->ExecQueuedCycle = Now;
+  I->QueuedLoc = "Vector_Buffer";
 
   Cycle Start = Now;
   uint64_t InstLatency = VsetLatency;
@@ -49,7 +51,7 @@ void Vector::receiveInst(const InstRef &I) {
   I->IssueCycle = Start;
   I->ResultReadyCycle = Start + InstLatency - 1;
   I->CompleteCycle = Start + InstLatency;
-
+  I->DispatchLoc = "Vector";
   // The instruction leaves the command queue when it starts.
   OutCreditsPort.send(1, Start - Now);
 }

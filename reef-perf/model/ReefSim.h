@@ -40,9 +40,10 @@ class ReefSim : public sparta::app::Simulation {
 public:
   /// Creates a simulation driven by \p Scheduler that runs the RISC-V ELF
   /// \p ElfPath on a machine configured by \p Options.
+  /// If \p RecordTrace is true, retains instructions for a timing trace.
   /// \throws std::runtime_error if the ELF cannot be loaded.
   ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
-          const SpikeOptions &Options);
+          const SpikeOptions &Options, bool RecordTrace = false);
   ~ReefSim() override; ///< Tears down the tree.
 
   /// Writes the human-readable end-of-run summary to \p OS.
@@ -50,6 +51,9 @@ public:
 
   /// Writes the end-of-run summary to \p OS as JSON.
   void writeJSON(std::ostream &OS) const;
+
+  /// Writes the recorded instruction timing trace to \p OS.
+  void writeTrace(std::ostream &OS) const;
 
 private:
   // Sparta's virtual hooks keep Sparta's names.

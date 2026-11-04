@@ -60,7 +60,7 @@ one **writer**:
 | `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
 | `DispatchCycle`, `RetireCycle` | core |
-| `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
+| `ExecQueuedCycle`, `QueuedLoc`, `IssueCycle`, `DispatchLoc`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
 
 Fields and interfaces use the purpose-defined types in `common/Types.h`:
 `Cycle` for points in time (durations stay plain integers), `Address` for
