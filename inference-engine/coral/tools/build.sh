@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Cross-compiles coral/ for the Coral M3 core into build/coral/:
-#   tests/<name>.elf     golden tests (needs build/coral/golden; see test.sh)
+#   tests/<name>.elf     golden tests (needs build/coral/golden; see kernel_test.sh)
 #   bench/<name>.elf     reef-perf benchmarks
 #   firmware/<name>.elf  the firmware
 #

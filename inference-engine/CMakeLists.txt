@@ -19,7 +19,7 @@ set_target_properties(gpt_neo_cli PROPERTIES
 )
 
 # Host tools for coral/: golden outputs for the kernel tests and the packed
-# model the firmware runs. coral/tools/test.sh builds and runs them.
+# model the firmware runs. coral/tools/kernel_test.sh builds and runs them.
 foreach(tool gen_golden pack_model)
     add_executable(${tool} coral/host/${tool}.cpp)
     target_link_libraries(${tool} PRIVATE inference_engine)

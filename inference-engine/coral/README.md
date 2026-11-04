@@ -16,11 +16,11 @@ coral/
   runtime/           crt0.S (start-up, written once), link.ld (M3 highmem map), libc.cc
   firmware/          gpt_neo.cc stitches the kernels into the model; main.cc serves the mailbox
   tests/             golden tests: run a kernel on the core, compare with the engine's output
-                     test_coral.py runs them all (test.sh) from `uv run pytest`
+                     test_coral.py runs them all (kernel_test.sh) from `uv run pytest`
   bench/             reef-perf benchmarks: 8M decode shapes; *_int8 at the original 16x64 shapes
   host/              gen_golden (writes the tests' expected outputs), pack_model (packs weights)
   sim/               coral_sim: Spike without the timing model, for CI
-  tools/             setup_toolchain.sh, setup_sim.sh, build.sh, run.sh, test.sh
+  tools/             setup_toolchain.sh, setup_sim.sh, build.sh, run.sh, kernel_test.sh
 ```
 
 The benchmarks, the tests and the firmware all link the same `kernels/` code.
@@ -64,7 +64,7 @@ the fp32 model, plus a rescaling residual add.
 Changing a kernel's arithmetic without changing the engine fails these tests.
 To change the arithmetic itself, change the engine first: its gtests and the
 Hugging Face comparison judge whether the change is acceptable. Then update
-the kernel until `test.sh` passes again.
+the kernel until `kernel_test.sh` passes again.
 
 Integer sums may run in any order. Float sums must run in the engine's
 order. Lanes that each accumulate over the inner dimension in order are fine,
@@ -83,7 +83,7 @@ coral/tools/setup_toolchain.sh     # Coral's GCC into the coral-toolchain Docker
 Then, from `inference-engine/`:
 
 ```sh
-coral/tools/test.sh                          # golden headers, cross-compile, run every test
+coral/tools/kernel_test.sh                   # golden headers, cross-compile, run every test
 coral/tools/build.sh bench                   # build/coral/bench/*.elf
 coral/tools/run.sh build/coral/bench/linear_w8a8.elf   # reef_perf's cycle summary
 ```
@@ -95,8 +95,8 @@ else `reef_perf` from `$REEF_PERF` or `PATH`, else the reef-perf image.
 
 ## CI
 
-`.github/workflows/coral-kernels.yml` runs `test.sh` on every push and pull
-request, natively on an x86-64 runner:
+`.github/workflows/coral-kernels.yml` runs `kernel_test.sh` on every push and
+pull request, natively on an x86-64 runner:
 
 - `setup_toolchain.sh DIR` installs only GCC, stripped, from the pinned
   archive.
@@ -111,7 +111,7 @@ reproduce CI on any x86-64 Linux box:
 ```sh
 coral/tools/setup_sim.sh ~/coral-sim          # needs the reef-perf/ext/spike submodule
 coral/tools/setup_toolchain.sh ~/coral-gcc
-CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/test.sh
+CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/kernel_test.sh
 ```
 
 ## Adding or changing a kernel
@@ -124,7 +124,7 @@ CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/test
    partway through, and use edge values. Then check them in a
    `tests/test_*.cc`.
 4. Add a benchmark under `bench/` if reef-perf should measure the kernel.
-5. Run `coral/tools/test.sh` and `bash tools/check_cpp.sh` (formatting).
+5. Run `coral/tools/kernel_test.sh` and `bash tools/check_cpp.sh` (formatting).
 
 Before relying on a new test, mutate the kernel once (for example, fuse a
 multiply-add) and confirm that the test fails.
