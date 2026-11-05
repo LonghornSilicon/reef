@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef Vector View</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f27; --muted: #6a7282;
+    --grid: #e3e6ec; --accent: #2563eb; --danger: #dc2626;
+    --danger-fill: rgba(220, 38, 38, 0.13); --tip: #1b1f27; --tip-ink: #f6f7f9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11141a; --panel: #1a1f29; --ink: #e8ebf2; --muted: #8a93a6;
+      --grid: #2a3140; --accent: #6ea0ff; --danger: #ff6b6b;
+      --danger-fill: rgba(255, 107, 107, 0.16); --tip: #e8ebf2; --tip-ink: #11141a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #11141a; --panel: #1a1f29; --ink: #e8ebf2; --muted: #8a93a6;
+    --grid: #2a3140; --accent: #6ea0ff; --danger: #ff6b6b;
+    --danger-fill: rgba(255, 107, 107, 0.16); --tip: #e8ebf2; --tip-ink: #11141a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--grid); border-radius: 8px;
+    padding: 6px 12px; min-width: 130px;
+  }
+  .chip b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .chip span { color: var(--muted); font-size: 12px; }
+  .chip.warn b { color: var(--danger); }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+  button, select {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--grid);
+    border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 84px; }
+  .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 10px 4px; margin-bottom: 12px; }
+  .card h2 { font-size: 13px; margin: 0 0 4px 6px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+  canvas { display: block; width: 100%; cursor: crosshair; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 6px 8px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .now { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .now h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .now ul { margin: 0; padding: 0; list-style: none; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+  .now li { padding: 2px 0; border-bottom: 1px dashed var(--grid); }
+  .now li.idle { color: var(--muted); }
+  .bar { height: 5px; background: var(--grid); border-radius: 3px; margin-top: 3px; }
+  .bar div { height: 100%; border-radius: 3px; background: var(--accent); }
+  #tip {
+    position: fixed; pointer-events: none; display: none; z-index: 5; max-width: 340px;
+    background: var(--tip); color: var(--tip-ink); border-radius: 6px; padding: 7px 10px;
+    font: 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Vector engine view</h1>
+  <p class="sub">Lane occupancy and command-queue credits, rebuilt from the timing trace. Matrix engine not shown.</p>
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <button class="primary" id="play">Play</button>
+    <select id="speed" title="Playback speed">
+      <option value="4">4 cycles/s</option>
+      <option value="15" selected>15 cycles/s</option>
+      <option value="60">60 cycles/s</option>
+      <option value="240">240 cycles/s</option>
+    </select>
+    <button id="zin">Zoom +</button><button id="zout">Zoom &minus;</button><button id="fit">Fit all</button>
+    <button id="theme" title="Toggle light/dark">Theme</button>
+    <span class="spacer"></span>
+    <span class="hint">scroll = zoom · drag = pan · click = place cursor · space = play · &larr;&rarr; = step</span>
+  </div>
+
+  <div class="card">
+    <h2>VECTOR LANES</h2>
+    <div class="legend" id="legend"></div>
+    <canvas id="lanes"></canvas>
+  </div>
+  <div class="card">
+    <h2>COMMAND QUEUE &mdash; FREE CREDITS</h2>
+    <canvas id="credits"></canvas>
+  </div>
+  <div class="card">
+    <h2 id="nowTitle">AT CYCLE</h2>
+    <div class="now" id="now"></div>
+  </div>
+</main>
+<div id="tip"></div>
+
+<script>
+"use strict";
+const DATA = /*DATA*/null;
+const I = {SEQ: 0, PC: 1, DIS: 2, DISP: 3, Q: 4, ISS: 5, RR: 6, RET: 7, LANE: 8, OCC: 9, OK: 10};
+const insts = DATA.insts;
+const NL = DATA.lanes, QE = DATA.queueEntries;
+const GUT = 70;           // Left gutter for row labels.
+const ROW = 34;           // Lane row height.
+const rootEl = document.documentElement;
+
+document.getElementById("title").textContent = "Vector engine view — " + DATA.title;
+if (!insts.length)
+  document.querySelector(".sub").textContent =
+    "This trace has no vector instructions, so there is nothing to show. Try gemv_int8, vec_add_m4 or vec_burst.";
+else if (!insts.some(r => r[I.LANE] !== null))
+  document.querySelector(".sub").textContent =
+    "This trace has only vset instructions on the vector engine. Vector loads and stores run on the LSU, not the lanes.";
+
+// ---- Instruction classes ------------------------------------------------
+const CLASSES = [
+  ["add / sub", /^vf?(w|n)?(add|sub|rsub|adc|sbc|min|max|abs|neg|sat)/],
+  ["multiply / mac", /^vf?(w|n)?(mul|macc|nmacc|madd|msac|msub|nmsac|nmsub|nmadd|fma)/],
+  ["divide / sqrt", /^vf?(div|rdiv|rem|sqrt)/],
+  ["logic / shift", /^v(and|or|xor|not|sll|srl|sra|nsrl|nsra|ms)/],
+  ["move / permute", /^v(mv|fmv|slide|f?slide|rgather|compress|merge|fmerge|sext|zext|id|iota|mfeq|mseq)/],
+  ["reduce / to scalar", /^v(f?red|f?wred|cpop|first)/],
+];
+const PALETTE = {
+  light: ["#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0d9488", "#be185d", "#64748b"],
+  dark:  ["#6ea0ff", "#fbbf24", "#ff7b7b", "#b794ff", "#2dd4bf", "#f472b6", "#94a3b8"],
+};
+function classOf(dis) {
+  const m = dis.split(/\s+/)[0];
+  for (let i = 0; i < CLASSES.length; i++) if (CLASSES[i][1].test(m)) return i;
+  return CLASSES.length;
+}
+const cls = insts.map(r => classOf(r[I.DIS]));
+function isDark() {
+  const t = rootEl.getAttribute("data-theme");
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+const pal = () => PALETTE[isDark() ? "dark" : "light"];
+const css = n => getComputedStyle(rootEl).getPropertyValue(n).trim();
+
+// ---- Derived series -------------------------------------------------------
+const laneInsts = [], vsets = [];
+insts.forEach((r, i) => (r[I.LANE] === null ? vsets : laneInsts).push(i));
+
+// Free credits as steps: freeAt[k] holds from stepAt[k] until stepAt[k+1].
+const stepAt = [0], stepFree = [QE];
+{
+  const ev = [];
+  for (const r of insts) { ev.push([r[I.Q], 1]); ev.push([r[I.ISS], -1]); }
+  ev.sort((a, b) => a[0] - b[0]);
+  let depth = 0, k = 0;
+  while (k < ev.length) {
+    const c = ev[k][0];
+    while (k < ev.length && ev[k][0] === c) depth += ev[k++][1];
+    const free = QE - depth;
+    if (c === stepAt[stepAt.length - 1]) stepFree[stepFree.length - 1] = free;
+    else { stepAt.push(c); stepFree.push(free); }
+  }
+}
+function freeAt(c) {
+  let lo = 0, hi = stepAt.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (stepAt[m] <= c) lo = m; else hi = m - 1; }
+  return stepFree[lo];
+}
+
+const t0 = insts.length ? Math.min(...insts.map(r => r[I.Q])) : 0;
+const t1 = insts.length ? Math.max(...insts.map(r => Math.max(r[I.ISS] + r[I.OCC], r[I.RR] + 1))) : 1;
+const span = Math.max(t1 - t0, 1);
+
+(function stats() {
+  let busy = 0, fullCycles = 0, freeSum = 0, peak = 0;
+  for (const i of laneInsts) busy += insts[i][I.OCC];
+  for (let k = 0; k < stepAt.length; k++) {
+    const end = k + 1 < stepAt.length ? stepAt[k + 1] : t1;
+    const a = Math.max(stepAt[k], t0), b = Math.min(end, t1);
+    if (b <= a) continue;
+    const w = b - a;
+    freeSum += stepFree[k] * w;
+    if (stepFree[k] <= 0) fullCycles += w;
+    peak = Math.max(peak, QE - stepFree[k]);
+  }
+  const chips = [
+    [(100 * busy / (NL * span)).toFixed(1) + "%", "lane utilization"],
+    [peak + " / " + QE, "peak queue depth"],
+    [(100 * fullCycles / span).toFixed(1) + "%", "cycles with 0 credits"],
+    [(freeSum / span).toFixed(2), "avg free credits"],
+    [insts.length + "", "vector instructions"],
+  ];
+  const el = document.getElementById("stats");
+  for (const [v, l] of chips) el.insertAdjacentHTML("beforeend", `<div class="chip"><b>${v}</b><span>${l}</span></div>`);
+  if (DATA.unverified)
+    el.insertAdjacentHTML("beforeend", `<div class="chip warn"><b>${DATA.unverified}</b><span>lane placement unverified</span></div>`);
+})();
+
+function drawLegend() {
+  const names = CLASSES.map(c => c[0]).concat(["other"]), p = pal();
+  document.getElementById("legend").innerHTML =
+    names.map((n, i) => `<span><i style="background:${p[i]}"></i>${n}</span>`).join("") +
+    `<span><i style="background:${css("--danger-fill")};outline:1px solid ${css("--danger")}"></i>queue full (0 credits)</span>`;
+}
+
+// ---- View state -------------------------------------------------------------
+let vx0 = t0 - 2, vx1 = Math.min(t1, t0 + 120);   // Visible cycle window.
+let cursor = t0;
+let playing = false, lastTs = 0;
+const cvL = document.getElementById("lanes"), cvC = document.getElementById("credits");
+const ctxL = cvL.getContext("2d"), ctxC = cvC.getContext("2d");
+const HL = (NL + 1) * ROW + 28, HC = 150;
+let W = 0;
+
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  W = cvL.parentElement.clientWidth - 20;
+  for (const [cv, h] of [[cvL, HL], [cvC, HC]]) {
+    cv.width = W * dpr; cv.height = h * dpr; cv.style.height = h + "px";
+    cv.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  draw();
+}
+const xOf = c => GUT + (c - vx0) / (vx1 - vx0) * (W - GUT - 8);
+const cOf = x => vx0 + (x - GUT) / (W - GUT - 8) * (vx1 - vx0);
+
+function axis(ctx, h) {
+  ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "center";
+  const range = vx1 - vx0;
+  const step = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 50000].find(s => range / s <= 14) || 100000;
+  ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+  for (let c = Math.ceil(vx0 / step) * step; c <= vx1; c += step) {
+    const x = Math.round(xOf(c)) + .5;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 18); ctx.stroke();
+    ctx.fillText(c, x, h - 5);
+  }
+}
+
+function fullShade(ctx, top, bottom) {
+  ctx.fillStyle = css("--danger-fill");
+  for (let k = 0; k < stepAt.length; k++) {
+    if (stepFree[k] > 0) continue;
+    const a = xOf(stepAt[k]), b = xOf(k + 1 < stepAt.length ? stepAt[k + 1] : t1);
+    if (b < GUT || a > W) continue;
+    ctx.fillRect(Math.max(a, GUT), top, Math.min(b, W) - Math.max(a, GUT), bottom - top);
+  }
+}
+
+function cursorLine(ctx, h) {
+  const x = Math.round(xOf(cursor)) + .5;
+  if (x < GUT || x > W) return;
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h - 18); ctx.stroke();
+}
+
+function drawLanes() {
+  const ctx = ctxL, p = pal();
+  ctx.clearRect(0, 0, W, HL);
+  axis(ctx, HL);
+  fullShade(ctx, 0, HL - 18);
+  ctx.fillStyle = css("--ink"); ctx.font = "12px system-ui"; ctx.textAlign = "left";
+  for (let l = 0; l <= NL; l++) {
+    const y = l * ROW;
+    ctx.fillStyle = css("--muted");
+    ctx.fillText(l < NL ? "lane " + l : "vset*", 8, y + ROW / 2 + 4);
+    ctx.strokeStyle = css("--grid");
+    ctx.beginPath(); ctx.moveTo(GUT, y + ROW - .5); ctx.lineTo(W, y + ROW - .5); ctx.stroke();
+  }
+  for (let i = 0; i < insts.length; i++) {
+    const r = insts[i];
+    const lane = r[I.LANE] === null ? NL : r[I.LANE];
+    const end = r[I.ISS] + (r[I.LANE] === null ? 1 : r[I.OCC]);
+    if (end < vx0 || r[I.ISS] > vx1) continue;
+    const x = xOf(r[I.ISS]), w = Math.max(xOf(end) - x, 2), y = lane * ROW + 5;
+    // Result-latency tail, after the lane is free.
+    if (r[I.LANE] !== null && r[I.RR] + 1 > end) {
+      ctx.strokeStyle = p[cls[i]]; ctx.globalAlpha = .45; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + w, y + ROW / 2 - 5); ctx.lineTo(xOf(r[I.RR] + 1), y + ROW / 2 - 5); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = p[cls[i]];
+    ctx.globalAlpha = r[I.OK] ? 1 : .55;
+    ctx.fillRect(x, y, w - 1, ROW - 10);
+    ctx.globalAlpha = 1;
+    if (w > 46) {
+      ctx.fillStyle = "#fff"; ctx.font = "11px ui-monospace, monospace";
+      ctx.save(); ctx.beginPath(); ctx.rect(x, y, w - 1, ROW - 10); ctx.clip();
+      ctx.fillText(r[I.DIS].split(/\s+/)[0], x + 4, y + (ROW - 10) / 2 + 4);
+      ctx.restore();
+    }
+  }
+  cursorLine(ctx, HL);
+}
+
+function drawCredits() {
+  const ctx = ctxC, top = 10, bot = HC - 28, hh = bot - top;
+  ctx.clearRect(0, 0, W, HC);
+  axis(ctx, HC);
+  fullShade(ctx, top, bot);
+  const y = f => bot - hh * f / QE;
+  ctx.fillStyle = css("--muted"); ctx.font = "11px system-ui"; ctx.textAlign = "right";
+  for (const f of [0, QE / 2, QE]) ctx.fillText(f, GUT - 8, y(f) + 4);
+  ctx.strokeStyle = css("--grid");
+  for (const f of [0, QE]) { ctx.beginPath(); ctx.moveTo(GUT, y(f) + .5); ctx.lineTo(W, y(f) + .5); ctx.stroke(); }
+  ctx.beginPath();
+  let started = false, lastX = GUT;
+  for (let k = 0; k < stepAt.length; k++) {
+    const a = xOf(stepAt[k]), b = xOf(k + 1 < stepAt.length ? stepAt[k + 1] : t1);
+    if (b < GUT || a > W) continue;
+    const xa = Math.max(a, GUT), yy = y(stepFree[k]);
+    if (!started) { ctx.moveTo(xa, yy); started = true; } else { ctx.lineTo(xa, y(stepFree[k - 1])); ctx.lineTo(xa, yy); }
+    ctx.lineTo(Math.min(b, W), yy); lastX = Math.min(b, W);
+  }
+  ctx.strokeStyle = css("--accent"); ctx.lineWidth = 2; ctx.stroke();
+  ctx.lineTo(lastX, bot); ctx.lineTo(GUT, bot);
+  ctx.globalAlpha = .12; ctx.fillStyle = css("--accent"); ctx.fill(); ctx.globalAlpha = 1;
+  cursorLine(ctx, HC);
+}
+
+function updateNow() {
+  const c = Math.round(cursor);
+  document.getElementById("nowTitle").textContent = "AT CYCLE " + c + "  —  free credits " + freeAt(c) + " of " + QE;
+  const lanes = new Array(NL).fill(null), queue = [];
+  for (let i = 0; i < insts.length; i++) {
+    const r = insts[i];
+    if (r[I.Q] <= c && c < r[I.ISS]) queue.push(i);
+    if (r[I.LANE] !== null && r[I.ISS] <= c && c < r[I.ISS] + r[I.OCC]) lanes[r[I.LANE]] = i;
+  }
+  queue.sort((a, b) => insts[a][I.Q] - insts[b][I.Q]);
+  const esc = s => s.replace(/[&<>]/g, ch => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[ch]));
+  const p = pal();
+  let h = "<div><h3>Lanes</h3><ul>";
+  lanes.forEach((i, l) => {
+    if (i === null) { h += `<li class="idle">lane ${l}: idle</li>`; return; }
+    const r = insts[i], done = c - r[I.ISS] + 1;
+    h += `<li><span style="color:${p[cls[i]]}">&#9632;</span> lane ${l}: ${esc(r[I.DIS])}` +
+         `<div class="bar"><div style="width:${100 * done / r[I.OCC]}%;background:${p[cls[i]]}"></div></div>` +
+         `<span style="color:var(--muted)">cycle ${done} of ${r[I.OCC]}</span></li>`;
+  });
+  h += "</ul></div><div><h3>Command queue (oldest first)</h3><ul>";
+  if (!queue.length) h += '<li class="idle">empty</li>';
+  for (const i of queue.slice(0, 10)) h += `<li>${esc(insts[i][I.DIS])} <span style="color:var(--muted)">waiting ${c - insts[i][I.Q]}</span></li>`;
+  if (queue.length > 10) h += `<li class="idle">+${queue.length - 10} more</li>`;
+  document.getElementById("now").innerHTML = h + "</ul></div>";
+}
+
+function draw() { drawLanes(); drawCredits(); updateNow(); }
+
+// ---- Interaction ----------------------------------------------------------------
+function setCursor(c) { cursor = Math.min(Math.max(c, t0), t1); draw(); }
+function zoom(f, at) {
+  const a = at === undefined ? (vx0 + vx1) / 2 : at;
+  const lo = Math.max((a - (a - vx0) * f), t0 - 20), hi = Math.min(a + (vx1 - a) * f, t1 + 20);
+  if (hi - lo < 8) return;
+  vx0 = lo; vx1 = hi; draw();
+}
+function pan(dc) {
+  const w = vx1 - vx0;
+  vx0 = Math.min(Math.max(vx0 + dc, t0 - 20), t1 + 20 - w); vx1 = vx0 + w;
+}
+const tip = document.getElementById("tip");
+function hit(ev) {
+  const r = cvL.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+  const lane = Math.floor(y / ROW), c = cOf(x);
+  if (x < GUT || lane > NL) return null;
+  for (let i = 0; i < insts.length; i++) {
+    const q = insts[i], l = q[I.LANE] === null ? NL : q[I.LANE];
+    const end = q[I.ISS] + (q[I.LANE] === null ? 1 : q[I.OCC]);
+    if (l === lane && c >= q[I.ISS] && c < end) return i;
+  }
+  return null;
+}
+function showTip(ev, i) {
+  if (i === null) { tip.style.display = "none"; return; }
+  const r = insts[i], f = v => v === null ? "-" : v;
+  tip.textContent =
+    r[I.DIS] + "\n" + `seq ${r[I.SEQ]}  pc ${r[I.PC]}\n` +
+    `dispatch ${f(r[I.DISP])}  queued ${r[I.Q]}  issue ${r[I.ISS]}\n` +
+    `waited ${r[I.ISS] - r[I.Q]} in queue  result ready ${r[I.RR]}\n` +
+    (r[I.LANE] === null ? "no lane (vset)" : `lane ${r[I.LANE]}  occupies ${r[I.OCC]} cycle(s)`) +
+    (r[I.OK] ? "" : "\nlane placement unverified");
+  tip.style.display = "block";
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - 360) + "px";
+  tip.style.top = ev.clientY + 14 + "px";
+}
+let drag = null;
+for (const cv of [cvL, cvC]) {
+  cv.addEventListener("wheel", e => {
+    e.preventDefault();
+    const x = e.clientX - cv.getBoundingClientRect().left;
+    zoom(e.deltaY > 0 ? 1.25 : 0.8, cOf(x));
+  }, {passive: false});
+  cv.addEventListener("mousedown", e => { drag = {x: e.clientX, moved: false}; });
+  cv.addEventListener("mousemove", e => {
+    const rect = cv.getBoundingClientRect(), x = e.clientX - rect.left;
+    if (drag) {
+      const dx = e.clientX - drag.x;
+      if (Math.abs(dx) > 3) drag.moved = true;
+      if (drag.moved) { pan(-dx / (W - GUT) * (vx1 - vx0)); drag.x = e.clientX; draw(); }
+    } else if (!playing && x >= GUT) setCursor(cOf(x));
+    showTip(e, cv === cvL && !drag ? hit(e) : null);
+  });
+  cv.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  cv.addEventListener("click", e => {
+    if (drag && drag.moved) return;
+    const x = e.clientX - cv.getBoundingClientRect().left;
+    if (x >= GUT) { setPlaying(false); setCursor(cOf(x)); }
+  });
+}
+addEventListener("mouseup", () => { drag = null; });
+
+const playBtn = document.getElementById("play");
+function setPlaying(on) {
+  playing = on; playBtn.textContent = on ? "Pause" : "Play"; lastTs = 0;
+  if (on) { if (cursor >= t1) cursor = t0; requestAnimationFrame(tick); }
+}
+function tick(ts) {
+  if (!playing) return;
+  if (lastTs) cursor += (ts - lastTs) / 1000 * Number(document.getElementById("speed").value);
+  lastTs = ts;
+  if (cursor >= t1) { cursor = t1; setPlaying(false); }
+  const w = vx1 - vx0;
+  if (cursor > vx0 + w * 0.8 || cursor < vx0) { vx0 = cursor - w * 0.25; vx1 = vx0 + w; }
+  draw();
+  if (playing) requestAnimationFrame(tick);
+}
+playBtn.onclick = () => setPlaying(!playing);
+document.getElementById("zin").onclick = () => zoom(0.6);
+document.getElementById("zout").onclick = () => zoom(1.6);
+document.getElementById("fit").onclick = () => { vx0 = t0 - 2; vx1 = t1 + 2; draw(); };
+document.getElementById("theme").onclick = () => {
+  rootEl.setAttribute("data-theme", isDark() ? "light" : "dark"); drawLegend(); draw();
+};
+addEventListener("keydown", e => {
+  if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "ArrowRight") { setPlaying(false); setCursor(Math.round(cursor) + 1); }
+  else if (e.key === "ArrowLeft") { setPlaying(false); setCursor(Math.round(cursor) - 1); }
+  else if (e.key === "+" || e.key === "=") zoom(0.6);
+  else if (e.key === "-") zoom(1.6);
+});
+addEventListener("resize", resize);
+if (matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawLegend(); draw(); });
+
+drawLegend();
+resize();
+</script>
+</body>
+</html>
