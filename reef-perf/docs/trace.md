@@ -33,8 +33,11 @@ build/bin/reef_perf --elf prog.elf --trace prog.tsv
 KONATA=/path/to/konata.sh tools/trace_converter/run_visualizer.sh prog.tsv
 ```
 
-`run_visualizer.sh` writes `prog.log` next to the trace and opens it if
-`KONATA` is set. To cut a long run down, pass an inclusive sequence range:
+`run_visualizer.sh` writes `prog.log` next to the trace. If `KONATA` is set,
+it also starts Konata's local server and opens the browser on it; Ctrl+C stops
+the server. On a remote machine, forward the port that `konata.sh` prints
+(`ssh -L PORT:127.0.0.1:PORT host`) or copy `prog.log` to a machine with a
+browser. To cut a long run down, pass an inclusive sequence range:
 
 ```sh
 tools/trace_converter/run_visualizer.sh prog.tsv 0 1
