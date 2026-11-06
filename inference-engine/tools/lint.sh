@@ -7,8 +7,8 @@ uv run ruff check --fix .
 uv run ruff format .
 uv run ruff check .
 
-sources=(reference/cpp/*.cpp reference/cpp/tests/*.cpp coral/host/*.cpp)
-headers=(reference/cpp/include/inference_engine/*.hpp reference/cpp/include/inference_engine/operator/*.hpp coral/host/*.hpp)
+sources=(reference/cpp/*.cpp reference/cpp/tests/*.cpp coral/host/*.cpp dist-reference/*.cpp dist-reference/tests/*.cpp)
+headers=(reference/cpp/include/inference_engine/*.hpp reference/cpp/include/inference_engine/operator/*.hpp coral/host/*.hpp dist-reference/include/dist_inference/*.hpp)
 
 uv run clang-format -i "${sources[@]}" "${headers[@]}"
 bash tools/check_cpp.sh
