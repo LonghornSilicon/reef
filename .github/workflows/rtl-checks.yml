@@ -43,3 +43,30 @@ jobs:
         if: github.ref_type == 'tag'
         with:
           files: rtl/handoff-toy_counter.tgz
+
+  # src/reef/gen is a build output: regenerate it from the Chisel in src/reef and fail on
+  # any diff, so nobody edits the generated SV by hand.
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CACHE: ${{ github.workspace }}/../bazel-cache
+      MEM: 12g
+      BAZEL_FLAGS: --jobs=4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Bazel's cache only. The key moves with the Bazel inputs and the regen script (which
+      # sets the workspace status; Bazel never rebuilds for a status change alone).
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/../bazel-cache
+          key: coralnpu-bazel-v1-${{ hashFiles('rtl/tools/regen_coralnpu.sh') }}-${{ hashFiles('rtl/src/reef/WORKSPACE', 'rtl/src/reef/.bazelversion', 'rtl/src/reef/rules/**', 'rtl/src/reef/third_party/**') }}
+          restore-keys: coralnpu-bazel-v1-${{ hashFiles('rtl/tools/regen_coralnpu.sh') }}-
+      # The Coral image builds as uid 1000, the runner is 1001, and Bazel leaves its files
+      # read-only: hand the cache to the image, then back so actions/cache can save it.
+      - run: mkdir -p "$CACHE" && sudo chown -R 1000:1000 "$CACHE"
+      - run: rtl/tools/regen_coralnpu.sh --check
+      - run: sudo chown -R "$(id -u):$(id -g)" "$CACHE"
+        if: always()
