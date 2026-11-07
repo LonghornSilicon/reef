@@ -245,7 +245,7 @@ built from the cited RTL behavior.
 | C1 | **Done (2026-11-06).** Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
 | C2 | **Done.** `ITERS`, set with `build_microbenchmark(..., {"ITERS": n})`; the `matrix_diff` experiment builds N and 2N. Give each microbenchmark an iteration count set at build time (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
 | C3 | **Done for the four looping programs** (`microbenchmarks/matrix/rtl_vme.csv`; results below). Waveforms not kept yet. Run them on the RTL and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
-| C4 | **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
+| C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat, so the core's LSU now gives tile beats their own cost (`lsu_tile_cost`, on in `m3_vme.yaml`, off by default), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. Remaining: the matrix-side PLACEHOLDERs, `tile_load_behind_mac` (-12.5%), and `gemm_tile`. **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
 | C5 | **Re-measure the TRACE value** (`mtx_complete_latency`, from checkout `08eadd1c`) at `8a5e1b31`. | From C3 |
 
 #### First per-op results (C3)
@@ -278,6 +278,18 @@ M3's 8):
 | `tile_load` | `vtle8` | 5.0 | 3.44 | +45% |
 | `tile_store` | `vtse8` | 4.38 | 3.56 | +23% |
 | `tile_load_behind_mac` | `vtmmu` + 8 `vtle8` + `lw`, per iteration (after B3) | 44.0 | 32.0 | +38% |
+
+After the LSU tile cost (C4, `docs/lsu-tile-beats.md`), same ROB:
+
+| Program | Op | Model | RTL | Error |
+| --- | --- | --- | --- | --- |
+| `tile_load_burst` | `vtle8`, unrolled | 3.0 | 3.0 | 0% |
+| `tile_store_burst` | `vtse8`, unrolled | 3.06 | 3.0 | +2% |
+| `tile_load32_burst` | `vtle32` (4 beats) | 6.0 | 6.0 | 0% |
+| `tile_store32_burst` | `vtse32` (4 beats) | 6.0 | 6.0 | 0% |
+| `tile_load` | `vtle8`, one branch per row | 4.38 | 3.44 | +27% (frontend) |
+| `tile_store` | `vtse8`, one branch per row | 4.38 | 3.56 | +23% (frontend) |
+| `tile_load_behind_mac` | per iteration | 28.0 | 32.0 | -12.5% |
 
 The ROB matters because a Zvt instruction holds its retirement-buffer entry
 until its tile write lands (`RetirementBuffer.scala:540-549`). With M3's 8

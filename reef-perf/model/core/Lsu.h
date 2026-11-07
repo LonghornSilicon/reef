@@ -55,6 +55,24 @@ public:
     PARAMETER(uint32_t, lsu_vector_switch_cycles, 0,
               "Cycles the slot stays busy after a vector instruction's last "
               "register, loading the next instruction")
+    // Zvt tile beats (VectorLsuRequest::IsTile, sent only by the matrix
+    // module). CoralNPU's LSU charges a tile load or store about 2 cycles
+    // per instruction + 1 per 16-byte beat, much less than a vector register
+    // (docs/lsu-tile-beats.md). With lsu_tile_cost off (the default), a tile
+    // beat costs exactly what a vector register does and the four values
+    // below are ignored, so a core without Zvt, or a config that does not
+    // ask for it, behaves as before. configs/machines/m3_vme.yaml turns it
+    // on.
+    PARAMETER(bool, lsu_tile_cost, false,
+              "Charge Zvt tile beats their own cost (lsu_tile_*) instead of "
+              "the vector-register cost")
+    PARAMETER(uint32_t, lsu_tile_inst_overhead, 0,
+              "Extra LSU cycles on the first beat of a tile load or store")
+    PARAMETER(uint32_t, lsu_tile_beat_overhead, 0,
+              "Extra LSU cycles on every beat of a tile load or store")
+    PARAMETER(uint32_t, lsu_tile_switch_cycles, 0,
+              "Cycles the slot stays busy after a tile instruction's last "
+              "beat")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -85,6 +103,10 @@ private:
   const uint32_t VectorLoadRegOverhead;
   const uint32_t VectorStoreRegOverhead;
   const uint32_t VectorSwitchCycles;
+  const bool TileCost;
+  const uint32_t TileInstOverhead;
+  const uint32_t TileBeatOverhead;
+  const uint32_t TileSwitchCycles;
   MemoryInterface *Mem = nullptr;
   ResourcePool Pipe; // One memory instruction at a time.
 

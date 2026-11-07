@@ -30,6 +30,8 @@ reef_perf --elf x.elf -c configs/machines/m3.yaml \
 | --- | --- | --- | --- |
 | `top.core.rob.params.rob_entries` | M3 8 (`Parameters.scala:95` at the M3 checkout); VME RTL 16 (`Parameters.scala:141`) | A Zvt instruction holds its entry until its tile write lands (`RetirementBuffer.scala:540-549`), so the ROB bounds the MACs in flight. `mac_chain`: 7.0 cycles/MAC with 8 entries, 4.0 (array-bound, matches RTL) with 16. Found in B4, 2026-11-07. | ready |
 | `top.core.lsu.params.lsu_queue_entries` | 4 (`Lsu.scala:835`) | Tile loads and stores use the core's LSU, one 16-byte beat at a time; scalar and vector memory traffic shares it. Not measured for matrix work yet. | ready |
+| `top.core.lsu.params.lsu_tile_cost` and `lsu_tile_*` | Off in the code and `m3.yaml`; on in `m3_vme.yaml` (1 + 0 per beat + 1). VME RTL: 2 cycles per tile instruction + 1 per beat | How fast the LSU moves tile data, and so how much of a GEMM's time goes to operand loads. The vector cost would be 5 cycles per one-beat load against 3 (`docs/lsu-tile-beats.md`). A dedicated matrix port (below) is the structural alternative. | ready |
+| Frontend (fetch, branch redirect) | M3 model vs CoralNPU `8a5e1b31` | A loop with a branch every 5 instructions runs at 4.375 cycles per iteration in the model and about 3.5 on the VME RTL (`tile_load`), so the newer frontend is faster. Matters for kernels with short inner loops. Owner: frontend. | decision (frontend owner) |
 | Tile store holds the LSU | CoralNPU's LSU takes the address and waits for the data (`Lsu.scala:1077-1101`) | The model books the LSU only once data is ready, so it underestimates contention (matrix.md case 5). Matters if matrix stores overlap other memory traffic. | model work |
 
 ## Matrix (owner: matrix)

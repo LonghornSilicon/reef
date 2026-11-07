@@ -183,6 +183,7 @@ through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
 | `Earliest` | first cycle the LSU may take it: it left the vector LSU reservation station |
 | `FirstRegister` | the instruction's first register; its LSU queue entry frees when it starts |
 | `LastRegister` | the instruction's last register; the LSU then takes a cycle to load the next instruction |
+| `IsTile` | a 16-byte beat of a Zvt tile load or store, set only by the matrix module (default false). With `lsu_tile_cost` on, the LSU charges it the `lsu_tile_*` cost instead of the vector-register cost; off, or false, it costs a vector register (`docs/lsu-tile-beats.md`) |
 
 | `VectorLsuResponse` field | Meaning |
 | --- | --- |

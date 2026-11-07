@@ -158,6 +158,7 @@ Matrix::Transfer Matrix::runTileLoad(const Inst &I, Cycle Now,
     VectorLsuRequest Request;
     Request.IsStore = false;
     Request.Accesses = Beats[B];
+    Request.IsTile = true; // The LSU may cost it apart (lsu_tile_cost).
     // The LSU takes a beat once lsu2vme has room for it. The RTL holds the
     // finished beat in the LSU instead; starting it later is the same stall
     // without modeling the LSU's hold.
@@ -198,6 +199,7 @@ Matrix::Transfer Matrix::runTileStore(const Inst &I, Cycle CtrlEarliest) {
     VectorLsuRequest Request;
     Request.IsStore = true;
     Request.Accesses = Beats[B];
+    Request.IsTile = true; // The LSU may cost it apart (lsu_tile_cost).
     Request.Earliest = Read + TileReadLatency;
     Request.FirstRegister = B == 0;
     Request.LastRegister = B + 1 == Beats.size();

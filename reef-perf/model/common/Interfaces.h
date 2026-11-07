@@ -67,6 +67,10 @@ struct VectorLsuRequest {
   Cycle Earliest = 0;
   bool FirstRegister = true; ///< The instruction's first register.
   bool LastRegister = true;  ///< The instruction's last register.
+  /// A 16-byte beat of a Zvt tile load or store, from the matrix module. The
+  /// LSU may cost it differently from a vector register (lsu_tile_cost);
+  /// the vector module leaves it false.
+  bool IsTile = false;
 };
 
 /// The LSU's answer to a VectorLsuRequest.

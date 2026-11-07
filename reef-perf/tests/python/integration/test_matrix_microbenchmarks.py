@@ -24,6 +24,10 @@ EXPECTED_OPS = {
     "mac_indep": {"mac": 200, "move_to_vector": 1},
     "tile_load": {"tile_load": 320, "move_to_vector": 1},
     "tile_store": {"tile_store": 320},
+    "tile_load_burst": {"tile_load": 320, "move_to_vector": 1},
+    "tile_store_burst": {"tile_store": 320},
+    "tile_load32_burst": {"tile_load": 320, "move_to_vector": 1},
+    "tile_store32_burst": {"tile_store": 320},
     "tile_load_behind_mac": {
         "mac": 50,
         "tile_load": 400,
@@ -102,24 +106,24 @@ def test_iters_symbol_sets_the_loop_count(
     assert result.matrix["ops"]["mac"] == 7
 
 
-def _cycles_per_mac(
+def _cycles_per_op(
     name: str,
     iters: int,
-    macs_per_iter: int,
+    ops_per_iter: int,
     tmp_path: Path,
     params: dict[str, object],
 ) -> float:
-    """Per-MAC ROI cost of a MAC loop, by differencing N and 2N iterations.
+    """Per-op ROI cost of a loop, by differencing N and 2N iterations.
 
     Args:
         name: Program name in microbenchmarks/matrix/.
         iters: N.
-        macs_per_iter: MACs in one loop iteration.
+        ops_per_iter: Operations of interest in one loop iteration.
         tmp_path: Directory for the build outputs.
         params: Model parameters (-p overrides), by tree path.
 
     Returns:
-        (ROI(2N) - ROI(N)) / (N * macs_per_iter).
+        (ROI(2N) - ROI(N)) / (N * ops_per_iter).
     """
     rois = []
     for n in (iters, 2 * iters):
@@ -133,7 +137,7 @@ def _cycles_per_mac(
         )
         assert result.roi_cycles is not None
         rois.append(result.roi_cycles)
-    return (rois[1] - rois[0]) / (iters * macs_per_iter)
+    return (rois[1] - rois[0]) / (iters * ops_per_iter)
 
 
 @pytest.mark.integration
@@ -151,11 +155,11 @@ def test_dependent_macs_issue_as_fast_as_independent_ones(
     """
     del cpp_build_dir
     rob: dict[str, object] = {"top.core.rob.params.rob_entries": 16}
-    chain = _cycles_per_mac("mac_chain", 50, 1, tmp_path / "chain", rob)
-    indep = _cycles_per_mac("mac_indep", 50, 4, tmp_path / "indep", rob)
+    chain = _cycles_per_op("mac_chain", 50, 1, tmp_path / "chain", rob)
+    indep = _cycles_per_op("mac_indep", 50, 4, tmp_path / "indep", rob)
     assert chain == pytest.approx(4.0)
     assert indep == pytest.approx(4.0)
-    waiting = _cycles_per_mac(
+    waiting = _cycles_per_op(
         "mac_chain",
         50,
         1,
@@ -187,3 +191,27 @@ def test_overlays_respect_compute_bound(
     # cycles, not ROI cycles: the closing mcycle read issues while MACs are
     # still in flight.
     assert result.cycles >= stats["array_busy_cycles"]
+
+
+@pytest.mark.integration
+def test_tile_beats_take_their_own_lsu_cost(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """m3_vme.yaml charges a tile load 2 cycles + 1 per beat, as the RTL does.
+
+    A vtle32 is 4 beats: 6 cycles on CoralNPU's LSU (rtl_vme.csv). With
+    lsu_tile_cost off, each beat costs a vector register instead (3 + 1, and
+    1 more after the last), 17 cycles.
+    """
+    del cpp_build_dir
+    rob: dict[str, object] = {"top.core.rob.params.rob_entries": 16}
+    tile = _cycles_per_op("tile_load32_burst", 5, 16, tmp_path / "on", rob)
+    vector = _cycles_per_op(
+        "tile_load32_burst",
+        5,
+        16,
+        tmp_path / "off",
+        {**rob, "top.core.lsu.params.lsu_tile_cost": False},
+    )
+    assert tile == pytest.approx(6.0)
+    assert vector == pytest.approx(17.0)

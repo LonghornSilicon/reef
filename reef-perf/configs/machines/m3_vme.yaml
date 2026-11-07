@@ -5,6 +5,9 @@
 # The matrix module's own parameters keep their built-in CoralNPU defaults;
 # array alternatives are overlays in configs/matrix/.
 #
+# It also gives Zvt tile beats their own LSU cost (below). Neither setting
+# changes a program without Zvt instructions.
+#
 # Use it on top of m3.yaml:
 #   reef_perf --elf x.elf -c configs/machines/m3.yaml \
 #       -c configs/machines/m3_vme.yaml [-c configs/matrix/<array>.yaml]
@@ -12,3 +15,17 @@ top:
   frontend:
     params:
       zvt: true
+  core:
+    lsu:
+      params:
+        # Zvt tile beats take their own LSU cost (core/Lsu.h). Only the
+        # matrix module sends tile beats, so with Zvt off, or with
+        # lsu_tile_cost: false, the LSU is exactly M3's. Set false to give
+        # tile beats the vector-register cost (lsu_vector_*) again.
+        # CoralNPU 8a5e1b31 VME RTL: 2 cycles per tile instruction + 1 per
+        # 16-byte beat, loads and stores alike (tile_{load,store}{,32}_burst
+        # in microbenchmarks/matrix/rtl_vme.csv; docs/lsu-tile-beats.md).
+        lsu_tile_cost: true
+        lsu_tile_inst_overhead: 1   # TRACE (sum with switch); split INFER
+        lsu_tile_beat_overhead: 0   # TRACE: 4 beats cost 3 more than 1
+        lsu_tile_switch_cycles: 1   # INFER: as lsu_vector_switch_cycles

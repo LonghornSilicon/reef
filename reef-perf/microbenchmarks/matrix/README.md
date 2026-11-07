@@ -12,6 +12,8 @@ frontend set, they are not part of the M3 correlation report:
 | `mac_chain` | Dependent-MAC rate: `vtmmu` into one accumulator |
 | `mac_indep` | MAC throughput: `vtmmu` rotating over four accumulators |
 | `tile_load`, `tile_store` | `vtle8` / `vtse8` throughput through the LSU |
+| `tile_load_burst`, `tile_store_burst` | `vtle8` / `vtse8` unrolled, 16 per loop branch: the LSU's cost of a one-beat tile instruction, without the frontend |
+| `tile_load32_burst`, `tile_store32_burst` | `vtle32` / `vtse32` unrolled: 4 beats each, which separates the per-instruction from the per-beat cost (`docs/lsu-tile-beats.md`) |
 | `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |
 | `illegal_shapes` | Tile instructions with vl = 0, which retire as no-ops |
