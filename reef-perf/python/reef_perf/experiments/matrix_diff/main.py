@@ -40,14 +40,29 @@ VME_CONFIG = MODULE_ROOT / "configs" / "machines" / "m3_vme.yaml"
 RTL_REFERENCE = MODULE_ROOT / "microbenchmarks" / "matrix" / "rtl_vme.csv"
 """Committed VME RTL measurements, one row per (program, iterations)."""
 
-REFERENCE_CORE_PARAMS = {"top.core.rob.params.rob_entries": 16}
+REFERENCE_CORE_PARAMS: dict[str, object] = {
+    "top.core.rob.params.rob_entries": 16,
+    "top.core.lsu.params.lsu_tile_cost": True,
+    "top.core.lsu.params.lsu_tile_inst_overhead": 1,
+    "top.core.lsu.params.lsu_tile_beat_overhead": 0,
+    "top.core.lsu.params.lsu_tile_switch_cycles": 1,
+}
 """Core settings of the reference RTL that differ from M3.
 
-The VME core is CoralNPU 8a5e1b31, whose retirement buffer has 16 entries
-(Parameters.scala:141); M3's has 8. A Zvt instruction holds its entry until
-its tile write lands, so the ROB size bounds how many MACs are in flight.
-These are core parameters, owned by the core module: they are set here to
-match the reference, not changed in m3.yaml or m3_vme.yaml.
+The VME core is CoralNPU 8a5e1b31, a newer core than M3. Two differences
+matter for matrix work, and both are core parameters, owned by the core
+module: they are set here to match the reference, not in m3.yaml or
+m3_vme.yaml, which stay M3's.
+
+- ROB: its retirement buffer has 16 entries (Parameters.scala:141); M3's
+  has 8. A Zvt instruction holds its entry until its tile write lands, so
+  the ROB size bounds how many MACs are in flight.
+- LSU: its LSU charges a tile load or store 2 cycles per instruction + 1
+  per 16-byte beat (tile_*_burst in rtl_vme.csv); M3's LSU, which the model
+  fits, charges about 4 per beat. lsu_tile_cost gives tile beats that cost
+  (TRACE for the sum; the 1 + 1 split of the 2 is INFER). Vector accesses
+  keep M3's cost, so the vec_*_burst programs are not expected to match the
+  VME RTL (docs/lsu-tile-beats.md).
 """
 
 

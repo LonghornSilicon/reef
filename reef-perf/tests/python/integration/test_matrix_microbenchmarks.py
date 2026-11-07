@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from reef_perf.experiments.matrix_diff.main import REFERENCE_CORE_PARAMS
 from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
 from reef_perf.sim import MODULE_ROOT, SimResult, SimulationError, run_sim
 
@@ -202,21 +203,18 @@ def test_overlays_respect_compute_bound(
 def test_tile_beats_take_their_own_lsu_cost(
     cpp_build_dir: Path, tmp_path: Path
 ) -> None:
-    """m3_vme.yaml charges a tile load 2 cycles + 1 per beat, as the RTL does.
+    """With lsu_tile_cost, a tile load costs 2 cycles + 1 per beat.
 
-    A vtle32 is 4 beats: 6 cycles on CoralNPU's LSU (rtl_vme.csv). With
-    lsu_tile_cost off, each beat costs a vector register instead (3 + 1, and
-    1 more after the last), 17 cycles.
+    A vtle32 is 4 beats: 6 cycles on the VME RTL's LSU (rtl_vme.csv), which
+    REFERENCE_CORE_PARAMS models. m3_vme.yaml keeps M3's LSU, where each beat
+    costs a vector register (3 + 1, and 1 more after the last): 17 cycles,
+    as a 4-register vle8 takes on the M3 RTL.
     """
     del cpp_build_dir
     rob: dict[str, object] = {"top.core.rob.params.rob_entries": 16}
-    tile = _cycles_per_op("tile_load32_burst", 5, 16, tmp_path / "on", rob)
-    vector = _cycles_per_op(
-        "tile_load32_burst",
-        5,
-        16,
-        tmp_path / "off",
-        {**rob, "top.core.lsu.params.lsu_tile_cost": False},
+    tile = _cycles_per_op(
+        "tile_load32_burst", 5, 16, tmp_path / "on", REFERENCE_CORE_PARAMS
     )
+    vector = _cycles_per_op("tile_load32_burst", 5, 16, tmp_path / "off", rob)
     assert tile == pytest.approx(6.0)
     assert vector == pytest.approx(17.0)

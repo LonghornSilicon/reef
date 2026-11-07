@@ -56,13 +56,13 @@ public:
               "Cycles the slot stays busy after a vector instruction's last "
               "register, loading the next instruction")
     // Zvt tile beats (VectorLsuRequest::IsTile, sent only by the matrix
-    // module). CoralNPU's LSU charges a tile load or store about 2 cycles
-    // per instruction + 1 per 16-byte beat, much less than a vector register
-    // (docs/lsu-tile-beats.md). With lsu_tile_cost off (the default), a tile
-    // beat costs exactly what a vector register does and the four values
-    // below are ignored, so a core without Zvt, or a config that does not
-    // ask for it, behaves as before. configs/machines/m3_vme.yaml turns it
-    // on.
+    // module). The newer CoralNPU 8a5e1b31 LSU, the only one with Zvt,
+    // charges a tile load or store 2 cycles per instruction + 1 per 16-byte
+    // beat, much less than M3's LSU charges a vector register
+    // (docs/lsu-tile-beats.md). With lsu_tile_cost off (the default, and in
+    // m3.yaml and m3_vme.yaml), a tile beat costs exactly what a vector
+    // register does and the four values below are ignored, so the LSU stays
+    // M3's. The matrix_diff experiment turns it on to match the VME RTL.
     PARAMETER(bool, lsu_tile_cost, false,
               "Charge Zvt tile beats their own cost (lsu_tile_*) instead of "
               "the vector-register cost")

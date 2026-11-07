@@ -89,7 +89,8 @@ their own cost when asked to.
 | `model/common/Interfaces.h` | `VectorLsuRequest::IsTile`, default false. Only the matrix module sets it (`Matrix::runTileLoad`, `runTileStore`). |
 | `model/core/Lsu.h` | `lsu_tile_cost` (bool, default **false**), `lsu_tile_inst_overhead`, `lsu_tile_beat_overhead`, `lsu_tile_switch_cycles` (default 0). |
 | `model/core/Lsu.cpp` | When `IsTile && lsu_tile_cost`: overhead = `lsu_tile_beat_overhead` on every beat + `lsu_tile_inst_overhead` on the first, and `lsu_tile_switch_cycles` after the last, in place of the vector values. Otherwise unchanged. |
-| `configs/machines/m3_vme.yaml` | `lsu_tile_cost: true`, inst 1, beat 0, switch 1. |
+| `configs/machines/m3_vme.yaml` | `lsu_tile_cost: false` (M3 + Zvt keeps M3's LSU), with the newer LSU's values (inst 1, beat 0, switch 1) listed for `-p top.core.lsu.params.lsu_tile_cost true`. |
+| `python/reef_perf/experiments/matrix_diff/main.py` | `REFERENCE_CORE_PARAMS` turns `lsu_tile_cost` on with those values, next to the 16-entry ROB, so the correlation runs the reference core's LSU. |
 | `docs/interfaces.md` | The new field, in "Vector → core (LSU)". |
 
 With these values a tile instruction of n beats holds the LSU 1 + n + 1
@@ -107,8 +108,9 @@ load costs exactly a vector load and a tile store a vector store less one
 cycle. If that holds on M3's LSU, an M3 tile load would cost what an M3
 vector load does (5 cycles for one beat, 17 for four: `lsu_tile_cost`
 false), and these values would be optimistic by about 40% to 65%. Like the
-16-entry ROB, they describe the reference core. They stay in `m3_vme.yaml` until the core owner decides
-(below).
+16-entry ROB, they describe the reference core, so they are on only for
+correlation (`REFERENCE_CORE_PARAMS`), and `m3_vme.yaml` keeps M3's LSU
+until the core owner decides (below).
 
 **Why M3 does not change.** Three things each keep the M3 path as it was:
 
@@ -148,14 +150,13 @@ settings (6 and 17 cycles per `vtle32`).
    register. Reef's v2 numbers depend on which one Reef's core has. If it
    is the newer one, the vector and scalar fits need redoing against it, and
    the tile cost can follow from the same model.
-2. **Decide where the tile values live.** Two choices:
-   - **For correlation only.** Move them from `m3_vme.yaml` into
-     `REFERENCE_CORE_PARAMS` (`matrix_diff/main.py`), next to the 16-entry
-     ROB, and let `m3_vme.yaml` keep M3's LSU (`lsu_tile_cost` false), so
-     M3 + Zvt prices tile beats like vector registers. This is the honest
-     choice if Reef keeps M3's LSU.
-   - **For Reef**, if Reef takes the newer LSU: keep them in `m3_vme.yaml`
-     or the core's own config, and refit the vector path to match.
+2. **Confirm where the tile values live.** They are now on **for
+   correlation only**: `REFERENCE_CORE_PARAMS` (`matrix_diff/main.py`) turns
+   them on next to the 16-entry ROB, and `m3_vme.yaml` keeps M3's LSU
+   (`lsu_tile_cost` false), so M3 + Zvt prices a tile beat like a vector
+   register. That is right if Reef keeps M3's LSU. If Reef takes the newer
+   LSU, turn them on in `m3_vme.yaml` (or the core's own config) and refit
+   the vector path to match.
 3. **Review the interface change**: the `IsTile` field in
    `VectorLsuRequest` and its row in `docs/interfaces.md`. The store
    difference (1 cycle) is a real tile-specific cost on the newer core, so
