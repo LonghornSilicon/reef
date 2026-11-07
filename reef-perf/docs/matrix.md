@@ -187,12 +187,15 @@ area or energy while their parameters are all zero.
 
 ## Correlating it
 
-1. **Build a VME verification simulator.** In the CoralNPU checkout, add
-   `vme_core_mini_verification_axi_tb` and `..._sim` to
-   `tests/verilator_sim/BUILD`, pointing at the existing
-   `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`.
-   Without `--enableVerification` the trace has no `mcycle` values, so no
-   ROI can be measured (`baseline/ASYNC.md`).
+1. **Build a VME verification simulator.** In a CoralNPU checkout at
+   `8a5e1b31`, `git apply` [`coralnpu_vme_verification.patch`](coralnpu_vme_verification.patch)
+   and `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`
+   (about 20 minutes; the patch header has the steps). It adds the VME
+   test-bench and simulator targets to `tests/verilator_sim/BUILD` and binds
+   the VME-only retirement debug ports in `core_mini_axi_tb.{h,cc}`, without
+   which SystemC stops with "port not bound". Without
+   `--enableVerification` the trace has no `mcycle` values, so no ROI can be
+   measured (`baseline/ASYNC.md`).
 2. **Run `microbenchmarks/matrix/*.S` on it**, measured as roadmap ticket B01
    does, and record the results in `microbenchmarks/matrix/rtl_vme.csv`.
 3. **Take differences.** The model's core is M3's, and the VME build's core
@@ -258,7 +261,7 @@ built from the cited RTL behavior.
 
 | # | Step | Notes |
 | --- | --- | --- |
-| C1 | **Done (2026-11-06).** Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
+| C1 | **Done (2026-11-06);** the CoralNPU changes are in `docs/coralnpu_vme_verification.patch`. Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
 | C2 | **Done.** `ITERS`, set with `build_microbenchmark(..., {"ITERS": n})`; the `matrix_diff` experiment builds N and 2N. Give each microbenchmark an iteration count set at build time (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
 | C3 | **Done for the four looping programs** (`microbenchmarks/matrix/rtl_vme.csv`; results below). Waveforms not kept yet. Run them on the RTL and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
 | C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat. On that core a vector load costs the same and a vector store one cycle more; the model's vector cost is M3's LSU (it matches the M3 RTL), so the gap was mostly the LSU version. The core's LSU now gives tile beats their own cost (`lsu_tile_cost`; off by default and in `m3_vme.yaml`, which keep M3's LSU; on for correlation in `REFERENCE_CORE_PARAMS`), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. **MAC pipeline and command path done** from VME waveforms (`mac_chain`, `tile_load_behind_mac`): `mtx_cmd_latency` 6 → 4, `mtx_pe_pipeline_depth` 6 → 9, the controller starts the cycle after the last MAC's tile write, and a `lsu2vme` beat is popped no earlier than the cycle after its push; `tile_load_behind_mac` now matches (32.0). Remaining: the other matrix-side PLACEHOLDERs and `gemm_tile`. **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
