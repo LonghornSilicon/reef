@@ -78,6 +78,10 @@ BENCHMARKS = (
     DiffBenchmark("tile_store_burst", 20, 16, "vtse8, unrolled"),
     DiffBenchmark("tile_load32_burst", 20, 16, "vtle32 (4 beats)"),
     DiffBenchmark("tile_store32_burst", 20, 16, "vtse32 (4 beats)"),
+    DiffBenchmark("vec_load_burst", 20, 16, "vle8 m1 (1 reg)"),
+    DiffBenchmark("vec_store_burst", 20, 16, "vse8 m1 (1 reg)"),
+    DiffBenchmark("vec_load4_burst", 20, 16, "vle8 m4 (4 regs)"),
+    DiffBenchmark("vec_store4_burst", 20, 16, "vse8 m4 (4 regs)"),
 )
 """The looping matrix microbenchmarks."""
 

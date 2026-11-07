@@ -1,45 +1,83 @@
 # LSU cost of Zvt tile beats
 
 For the core module's owner. The matrix module needs the core's LSU to time
-Zvt tile loads and stores (`vtle*`, `vtse*`). This note shows that CoralNPU's
-LSU charges a tile beat much less than a vector register. It describes the
-stopgap now in the model (option 1, off unless a config turns it on) and the
-investigation that should replace it (method 2). Nothing here changes M3.
+Zvt tile loads and stores (`vtle*`, `vtse*`). This note shows what the
+CoralNPU VME RTL charges for them, why most of the model's error was the LSU
+version rather than anything tile-specific, what is in the model now
+(option 1, off unless a config turns it on), and the investigation that
+should replace it (method 2). Nothing here changes M3.
 
 ## What the RTL does
+
+### Tile and vector beats on the same core
 
 Measured on the CoralNPU `8a5e1b31` VME verification simulator
 (`vme_core_mini_verification_axi_sim`) by differencing N and 2N iterations
 (`python -m reef_perf.experiments.matrix_diff.main`; raw ROIs in
-`microbenchmarks/matrix/rtl_vme.csv`). Each program runs 16 tile
-instructions per loop iteration with no branch between them, so the
-per-instruction cost is the LSU's, not the frontend's:
+`microbenchmarks/matrix/rtl_vme.csv`). Every program runs 16 memory
+instructions per loop iteration with no branch between them, so the cost is
+the LSU's, not the frontend's. The `vec_*_burst` programs have the same
+shape as the `tile_*_burst` ones, with RVV instead of Zvt.
 
-| Program | Instruction | 16-byte beats | RTL cycles per instruction |
+| Access | Tile (Zvt) | RTL | Vector (RVV) | RTL |
+| --- | --- | --- | --- | --- |
+| load, 1 x 16 bytes | `tile_load_burst` (`vtle8`) | 3.0 | `vec_load_burst` (`vle8.v`, m1) | 3.0 |
+| load, 4 x 16 bytes | `tile_load32_burst` (`vtle32`) | 6.0 | `vec_load4_burst` (`vle8.v`, m4) | 6.0 |
+| store, 1 x 16 bytes | `tile_store_burst` (`vtse8`) | 3.0 | `vec_store_burst` (`vse8.v`, m1) | 4.0 |
+| store, 4 x 16 bytes | `tile_store32_burst` (`vtse32`) | 6.0 | `vec_store4_burst` (`vse8.v`, m4) | 7.0 |
+
+Cycles per instruction. On this core:
+
+- **Loads cost 2 cycles per instruction + 1 per 16-byte beat, tile or
+  vector alike.** There is no tile-specific load cost.
+- **Stores cost the same + 1 for a vector store**: 2 + 1 per beat for a
+  tile, 3 + 1 per register for a vector. A tile store's data comes from the
+  matrix controller's `vme2lsu` FIFO, a vector store's from the RVV backend
+  (see method 2), which plausibly explains the extra cycle; not checked.
+
+### The newer LSU is faster than M3's, for every access
+
+The model's LSU parameters are fitted to the **M3** RTL (`lsu_vector_*` in
+B14, `lsu_scalar_*` before). The VME RTL is a newer core. The existing
+vector and scalar microbenchmarks, unchanged, on both RTLs (M3 from
+`microbenchmarks/rtl_m3.csv`; VME measured 2026-11-07 with the same ELFs,
+built by `build_microbenchmark`, retired-instruction counts equal):
+
+| Program | M3 RTL | VME RTL (`8a5e1b31`) | |
 | --- | --- | --- | --- |
-| `tile_load_burst` | `vtle8` | 1 | 3.0 |
-| `tile_store_burst` | `vtse8` | 1 | 3.0 |
-| `tile_load32_burst` | `vtle32` | 4 | 6.0 |
-| `tile_store32_burst` | `vtse32` | 4 | 6.0 |
+| `vec_memcpy` | 18467 | 6721 | 2.7x faster |
+| `vec_add_m4` | 61544 | 28206 | 2.2x faster |
+| `vec_add_m1` | 123025 | 81966 | 1.5x faster |
+| `load_stream` (scalar loads) | 8204 | 6158 | 1.3x faster |
+| `vec_pingpong` | 8505 | 8509 | same |
 
-So a tile load or store costs **2 cycles per instruction + 1 per beat**,
-loads and stores alike. Three beats more cost three cycles more: after the
-first, a beat costs only its DTCM line.
+The `vec_*_burst` programs on both RTLs and on the model's vector path
+(the model runs `m3.yaml` + `m3_vme.yaml`; the M3 RTL is
+`rvv_core_mini_verification_axi_sim` from `~/coralnpu-m3` at `72d700ef`,
+see `baseline/ASYNC.md`):
 
-The model's LSU charged each tile beat what it charges a vector register
-(`model/core/Lsu.cpp`, `accessVectorRegister`), with the `lsu_vector_*`
-values fitted to RTL `vle8`/`vse8` in B14:
+| Program | M3 RTL | Model (M3-fitted LSU) | VME RTL (`8a5e1b31`) |
+| --- | --- | --- | --- |
+| `vec_load_burst` (1 register) | 5.06 | 5.0 | 3.0 |
+| `vec_store_burst` (1 register) | 4.06 | 4.0 | 4.0 |
+| `vec_load4_burst` (4 registers) | 17.0 | 17.0 | 6.0 |
+| `vec_store4_burst` (4 registers) | 13.0 | 13.0 | 7.0 |
 
-| Per beat | Load | Store |
+The model's LSU matches M3 within 1% on programs it was not fitted to. So
+when the model's tile beats were 5 cycles against the VME RTL's 3, the
+comparison was M3's LSU against a newer LSU, not a vector path against a
+tile path.
+
+The M3-fitted cost, per 16-byte register:
+
+| Per register | Load | Store |
 | --- | --- | --- |
 | `lsu_vector_{load,store}_reg_overhead` | 3 | 2 |
 | DTCM line (memory module) | 1 | 1 |
-| `lsu_vector_switch_cycles`, after the instruction's last beat | 1 | 1 |
+| `lsu_vector_switch_cycles`, after the instruction's last register | 1 | 1 |
 
-That is 5 (load) and 4 (store) cycles for a one-beat tile instruction and 17
-and 13 for a four-beat one, against 3 and 6 on the RTL. Those vector values
-are right for vector registers; tile beats take a cheaper path through the
-same LSU.
+The newer LSU instead pays its overhead once per instruction: a 4-register
+access costs 3 more than a 1-register one, not 4 times as much.
 
 ## Option 1: what is in the model now
 
@@ -55,14 +93,29 @@ their own cost when asked to.
 | `docs/interfaces.md` | The new field, in "Vector → core (LSU)". |
 
 With these values a tile instruction of n beats holds the LSU 1 + n + 1
-cycles, which is 3 for one beat and 6 for four, matching all four programs
-above within 2%.
+cycles, which is 3 for one beat and 6 for four, matching the four
+`tile_*_burst` programs within 2%.
+
+**What the values mean, given the comparison above.** They are the
+`8a5e1b31` LSU's cost for a tile access, not "how much cheaper a tile beat
+is than a vector register on M3's LSU". Of the 2-cycle gap on a one-beat
+load (5 against 3), all of it is the LSU version; on a store, one cycle is
+the LSU version and one is the tile path. They are right for correlating
+against the VME RTL. Whether they are right for Reef depends on which LSU
+Reef's core has. No RTL has Zvt on M3's LSU, but on the newer core a tile
+load costs exactly a vector load and a tile store a vector store less one
+cycle. If that holds on M3's LSU, an M3 tile load would cost what an M3
+vector load does (5 cycles for one beat, 17 for four: `lsu_tile_cost`
+false), and these values would be optimistic by about 40% to 65%. Like the
+16-entry ROB, they describe the reference core. They stay in `m3_vme.yaml` until the core owner decides
+(below).
 
 **Why M3 does not change.** Three things each keep the M3 path as it was:
 
 1. `lsu_tile_cost` defaults to false in the code, and `m3.yaml` does not set
    it. With it false, `accessVectorRegister` computes exactly what it did
-   before.
+   before; with it false the tile programs reproduce the model's earlier
+   cycles exactly.
 2. Only the matrix module sets `IsTile`, and the matrix module only receives
    instructions when Zvt is on (`top.frontend.params.zvt`, set by
    `m3_vme.yaml`). Vector and scalar requests never take the new branch.
@@ -83,77 +136,107 @@ settings (6 and 17 cycles per `vtle32`).
 - Latency: only throughput was fitted. When a tile beat's data reaches the
   tile, or a store completes, still follows the vector rule (data usable at
   memory latency − 2 after the access starts).
-- `tile_load_behind_mac` (a MAC, then 8 `vtle8` and a `lw`) now runs 12.5%
-  fast (28.0 against 32.0 cycles per iteration). The FIFO hold (case 6 in
+- `tile_load_behind_mac` (a MAC, then 8 `vtle8` and a `lw`) runs 12.5% fast
+  (28.0 against 32.0 cycles per iteration). The FIFO hold (case 6 in
   `matrix.md`) or the split above may explain it; not investigated.
 
 ## What the core owner is asked to do
 
-1. **Review the interface change**: the `IsTile` field in
-   `VectorLsuRequest` and its row in `docs/interfaces.md`.
-2. **Review `Lsu.h` and `Lsu.cpp`**: the four parameters, their default-off
-   behavior, and their names. The LSU is your module; rename or restructure
-   as you like, as long as the matrix module can still mark a tile beat.
-3. **Decide where the values live.** They are in `m3_vme.yaml` because they
-   only matter with Zvt. If you would rather keep every LSU value in the
-   core's own config, they can move.
-4. **Take method 2** (below), or tell us the RTL reason if you already know
+1. **Decide which LSU Reef models.** The LSU parameters fit M3's RTL; Zvt
+   exists only on the newer core, whose LSU is 1.3x to 2.7x faster on the
+   programs above and charges its overhead per instruction instead of per
+   register. Reef's v2 numbers depend on which one Reef's core has. If it
+   is the newer one, the vector and scalar fits need redoing against it, and
+   the tile cost can follow from the same model.
+2. **Decide where the tile values live.** Two choices:
+   - **For correlation only.** Move them from `m3_vme.yaml` into
+     `REFERENCE_CORE_PARAMS` (`matrix_diff/main.py`), next to the 16-entry
+     ROB, and let `m3_vme.yaml` keep M3's LSU (`lsu_tile_cost` false), so
+     M3 + Zvt prices tile beats like vector registers. This is the honest
+     choice if Reef keeps M3's LSU.
+   - **For Reef**, if Reef takes the newer LSU: keep them in `m3_vme.yaml`
+     or the core's own config, and refit the vector path to match.
+3. **Review the interface change**: the `IsTile` field in
+   `VectorLsuRequest` and its row in `docs/interfaces.md`. The store
+   difference (1 cycle) is a real tile-specific cost on the newer core, so
+   the LSU needs to know a beat is a tile beat in either choice above.
+4. **Review `Lsu.h` and `Lsu.cpp`**: the four parameters, their default-off
+   behavior, and their names. Rename or restructure as you like, as long as
+   the matrix module can still mark a tile beat.
+5. **Take method 2** (below), or tell us the RTL reason if you already know
    it, so the fitted values can be replaced by the mechanism.
-5. **Two related findings for the core and frontend:**
-   - The VME RTL's core is CoralNPU `8a5e1b31`, with a 16-entry retirement
-     buffer (`Parameters.scala:141`); M3 has 8. A Zvt instruction holds its
-     entry until its tile write lands, so with 8 entries the ROB, not the
-     engine, limits a chain of MACs (7.0 cycles per MAC against 4.0). The
-     matrix correlation runs with 16 (`REFERENCE_CORE_PARAMS` in
-     `matrix_diff/main.py`); Reef's ROB size is your call
-     (`docs/sweep-candidates.md`).
+6. **Two related findings for the core and frontend:**
+   - The VME RTL's core has a 16-entry retirement buffer
+     (`Parameters.scala:141`); M3 has 8. A Zvt instruction holds its entry
+     until its tile write lands, so with 8 entries the ROB, not the engine,
+     limits a chain of MACs (7.0 cycles per MAC against 4.0). The matrix
+     correlation runs with 16 (`REFERENCE_CORE_PARAMS`); Reef's ROB size is
+     your call (`docs/sweep-candidates.md`).
    - `tile_load` and `tile_store` take one branch per tile instruction (5
      instructions per loop). With the LSU's cost removed, the model runs that
      loop at 4.375 cycles per iteration, frontend-bound; the RTL runs it at
-     about 3.5. The `8a5e1b31` core's frontend handles this loop faster than
-     the M3 model's. That is the frontend owner's; the matrix correlation
-     uses the unrolled `*_burst` programs to stay clear of it.
+     about 3.5. The newer core's frontend handles this loop faster than the
+     M3 model's. That is the frontend owner's; the matrix correlation uses
+     the unrolled `*_burst` programs to stay clear of it.
 
 ## Method 2: find the mechanism in the RTL
 
-**The question.** CoralNPU's LSU runs tile beats through the same slot as
-RVV registers. Why does a tile instruction cost 2 + 1 per beat when a vector
-register costs about 4 to 5 each?
+**The questions.**
 
-**What the RTL source shows** (`hdl/chisel/src/coralnpu/scalar/Lsu.scala`):
+1. Why does the newer LSU charge 2 per instruction + 1 per register, where
+   M3's charges about 4 per register? This is a difference between two LSU
+   versions, and it covers vector and scalar accesses too.
+2. Why is a tile store 1 cycle per instruction cheaper than a vector store
+   on the newer LSU, when tile and vector loads cost the same?
 
+**What the RTL source shows** (`hdl/chisel/src/coralnpu/scalar/Lsu.scala`
+at `8a5e1b31`):
+
+- Every memory instruction becomes one `LsuUOp` (`:2046`). For a tile, its
+  length comes from the tile element width alone (`:296-302`: 8-bit is one
+  16-byte register, 32-bit is four), so a `vtle32` enters the slot once and
+  the slot walks its four beats.
+- The slot takes the next instruction only when the current one is done
+  (`io.uop.ready := stateFromAction.isDone`, near `:1962`): a cost paid once
+  per instruction.
 - The slot carries an `isVme` flag (set from `LsuOp.isTile`, `:1676`).
-- Store data comes from the `vme2lsu` FIFO for a tile and from the RVV
-  register file for a vector store, and the vector path also waits for the
-  register and mask data to be valid (`:1077-1101`).
+  Store data comes from the `vme2lsu` FIFO for a tile and from the RVV
+  register file for a vector store; the vector path also waits for the
+  register and mask data to be valid (`:1077-1101`). A tile's mask is all
+  ones (`Mux(isVmeInst, true.B, ...)`), so there is no mask to wait for.
 - Load data returns on `vmeWriteback` into `lsu2vme` for a tile and through
-  the RVV writeback for a vector load (`:1916-1943`).
+  the RVV writeback (`lsu2rvv`) for a vector load (`:1902-1918`).
 - There is a tile-specific no-op path (`isTileNoop`, `:2047`).
 
-**Candidate causes** (not checked): the per-register handshakes with the RVV
-backend (`rvv2lsu` in, `lsu2rvv` out) that a tile beat skips; the wait for
-vector register and mask data; how the slot reloads between instructions
-(`LsuSlot.fromLsuUOp`) and between beats of one instruction.
+**Candidate causes** (not checked): for question 1, how the M3 LSU stepped
+through a vector instruction's registers (per-register handshakes with the
+RVV backend, `rvv2lsu` in and `lsu2rvv` out) against the newer slot's
+per-instruction walk; for question 2, the store's wait for RVV register and
+mask data, which a tile store's FIFO data skips.
 
 **How to measure it.**
 
-1. Dump waveforms of `tile_load32_burst` and `vec_add_m4` (or a `vle8`
-   loop) with the VME simulator's `--trace_file <path>.fst` flag (FST;
-   open in GTKWave or Surfer). Use small `ITERS` (`--defsym ITERS=2`) to keep
-   the file small; `matrix_diff build` shows how to build with it.
-2. For each beat or register, record the cycle the slot accepts it, the DTCM
-   request, the data return, and the writeback handshake (`lsu2vme` valid
-   and ready for tiles, the RVV writeback for vectors), plus when the slot
-   takes the next instruction.
-3. Attribute the vector path's extra cycles to those steps.
+1. Dump waveforms of `vec_store_burst` and `tile_store_burst`, and of
+   `vec_load4_burst`, with the VME simulator's `--trace_file <path>.fst` flag
+   (FST; open in GTKWave or Surfer). Use small `ITERS` (`--defsym ITERS=2`)
+   to keep the files small; `matrix_diff build` shows how to build with it.
+   For question 1, run the same `vec_*_burst` ELFs on the M3 RTL simulator
+   (`~/coralnpu-m3/bazel-bin/tests/verilator_sim/rvv_core_mini_verification_axi_sim`,
+   which also takes `--trace_file`) for the old LSU's side; their cycle
+   counts are in the table above.
+2. For each register or beat, record the cycle the slot accepts the
+   instruction, each DTCM request, the data arrival (RVV or `vme2lsu`), the
+   data return or writeback handshake, and when the slot takes the next
+   instruction.
+3. Attribute each extra cycle to one of those steps.
 
-**How to fold it back.** Replace the fitted `lsu_tile_*` values (or the
-`lsu_vector_*` ones too, if the vector fit improves) with parameters named
-after the steps, each tagged RTL or TRACE with its waveform. The matrix side
-does not change: it keeps setting `IsTile`, and `matrix_diff` re-checks the
-four `*_burst` programs plus `gemm_tile`.
+**How to fold it back.** Replace the fitted `lsu_tile_*` values, and the
+`lsu_vector_*` ones if Reef takes the newer LSU, with parameters named after
+the steps, each tagged RTL or TRACE with its waveform. The matrix side does
+not change: it keeps setting `IsTile`, and `matrix_diff` re-checks the
+`tile_*_burst` and `vec_*_burst` programs plus `gemm_tile`.
 
-**Done when** the four `*_burst` programs still match, the
-inst/switch split is set from a waveform rather than guessed, tile-write
-latency is checked against the trace, and `tile_load_behind_mac` is within a
-few percent or its gap is explained.
+**Done when** the eight `*_burst` programs match on the LSU version Reef
+models, the inst/switch split is set from a waveform rather than guessed,
+tile-write latency is checked against the trace, and `tile_load_behind_mac`
+is within a few percent or its gap is explained.

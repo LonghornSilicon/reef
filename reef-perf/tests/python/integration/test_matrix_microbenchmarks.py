@@ -28,6 +28,11 @@ EXPECTED_OPS = {
     "tile_store_burst": {"tile_store": 320},
     "tile_load32_burst": {"tile_load": 320, "move_to_vector": 1},
     "tile_store32_burst": {"tile_store": 320},
+    # Vector references for the *_burst tile programs: no matrix ops.
+    "vec_load_burst": {},
+    "vec_store_burst": {},
+    "vec_load4_burst": {},
+    "vec_store4_burst": {},
     "tile_load_behind_mac": {
         "mac": 50,
         "tile_load": 400,

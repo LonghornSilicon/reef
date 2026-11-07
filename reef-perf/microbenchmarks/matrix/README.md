@@ -14,6 +14,7 @@ frontend set, they are not part of the M3 correlation report:
 | `tile_load`, `tile_store` | `vtle8` / `vtse8` throughput through the LSU |
 | `tile_load_burst`, `tile_store_burst` | `vtle8` / `vtse8` unrolled, 16 per loop branch: the LSU's cost of a one-beat tile instruction, without the frontend |
 | `tile_load32_burst`, `tile_store32_burst` | `vtle32` / `vtse32` unrolled: 4 beats each, which separates the per-instruction from the per-beat cost (`docs/lsu-tile-beats.md`) |
+| `vec_load_burst`, `vec_store_burst`, `vec_load4_burst`, `vec_store4_burst` | The same shapes with RVV (`vle8.v`/`vse8.v` at LMUL 1 and 4): the vector reference for the four tile `*_burst` programs, so the two LSU paths compare on one core. No matrix instructions |
 | `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |
 | `illegal_shapes` | Tile instructions with vl = 0, which retire as no-ops |

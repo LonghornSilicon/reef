@@ -17,3 +17,11 @@ tile_load32_burst,20,1934,1064
 tile_load32_burst,40,3854,2124
 tile_store32_burst,20,1931,1060
 tile_store32_burst,40,3851,2120
+vec_load_burst,20,972,722
+vec_load_burst,40,1932,1442
+vec_store_burst,20,1290,720
+vec_store_burst,40,2570,1440
+vec_load4_burst,20,1930,722
+vec_load4_burst,40,3850,1442
+vec_store4_burst,20,2250,720
+vec_store4_burst,40,4490,1440
