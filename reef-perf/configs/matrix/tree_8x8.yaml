@@ -15,6 +15,7 @@ top:
       mtx_dataflow: weight
       mtx_row_operand: broadcast
       mtx_col_operand: broadcast
+      mtx_mapping: generic           # rows x cols blocks (the Coral rule is Coral's array only)
       mtx_reduction: tree
       mtx_tree_level_latency: 1
       mtx_double_buffer_stationary: true

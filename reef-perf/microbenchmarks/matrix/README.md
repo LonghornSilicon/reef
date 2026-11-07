@@ -15,6 +15,9 @@ frontend set, they are not part of the M3 correlation report:
 | `tile_load_burst`, `tile_store_burst` | `vtle8` / `vtse8` unrolled, 16 per loop branch: the LSU's cost of a one-beat tile instruction, without the frontend |
 | `tile_load32_burst`, `tile_store32_burst` | `vtle32` / `vtse32` unrolled: 4 beats each, which separates the per-instruction from the per-beat cost (`docs/lsu-tile-beats.md`) |
 | `vec_load_burst`, `vec_store_burst`, `vec_load4_burst`, `vec_store4_burst` | The same shapes with RVV (`vle8.v`/`vse8.v` at LMUL 1 and 4): the vector reference for the four tile `*_burst` programs, so the two LSU paths compare on one core. No matrix instructions |
+| `mac_{chain,indep}_tm4`, `mac_chain_tn4`, `mac_indep_tn4`, `mac_indep_tm8tn8` | Partial tiles (held out): the PE-busy count for small tm and tn, and the hitRaw window when the array is busy fewer than 4 cycles |
+| `mac_{chain,indep}_fp32`, `mac_{chain,indep}_bf16` | fp32 `vtfmm.tvv` and bf16 `vtfmm.alt` MACs (held out) |
+| `gemm_multi`, `gemm_longk` | 32 x 32 x 64 and 16 x 16 x 256 int8 GEMMs (held out) |
 | `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |
 | `illegal_shapes` | Tile instructions with vl = 0, which retire as no-ops |

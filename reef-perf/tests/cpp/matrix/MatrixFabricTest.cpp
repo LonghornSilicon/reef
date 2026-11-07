@@ -27,14 +27,30 @@ TEST(MatrixFabricTest, CoralDefaultsOtherTypes) {
   EXPECT_EQ(getMacCost(FabricConfig{}, 16, 16, 2, MatrixType::Bf16).Busy, 4U);
 }
 
-TEST(MatrixFabricTest, CoralPartialTileFollowsTheFormula) {
-  // The formula gives 2 cycles for tm = 8. CoralNPU's PE array takes 4
-  // (zvt_pe_array.sv:216, cntMax00): an open discrepancy (docs/matrix.md).
-  EXPECT_EQ(getMacCost(FabricConfig{}, 8, 16, 4, MatrixType::Int8).Busy, 2U);
+TEST(MatrixFabricTest, CoralPartialTilesFollowThePeArray) {
+  // busy = min(4, ceil(tm / 2)), no tn term (zvt_pe_array.sv:216-217); the
+  // VME RTL takes 4 cycles per independent 8x8 vtmmu (mac_indep_tm8tn8).
+  auto Busy = [](uint32_t TM, uint32_t TN) {
+    return getMacCost(FabricConfig{}, TM, TN, 4, MatrixType::Int8).Busy;
+  };
+  EXPECT_EQ(Busy(1, 16), 1U);
+  EXPECT_EQ(Busy(4, 16), 2U);
+  EXPECT_EQ(Busy(8, 8), 4U);
+  EXPECT_EQ(Busy(16, 4), 4U);
+  EXPECT_EQ(Busy(16, 16), 4U);
+}
+
+TEST(MatrixFabricTest, GenericPartialTileFollowsTheFormula) {
+  FabricConfig F;
+  F.Map = Mapping::Generic;
+  EXPECT_EQ(getMacCost(F, 8, 16, 4, MatrixType::Int8).Busy, 2U);
+  EXPECT_EQ(getMacCost(F, 8, 8, 4, MatrixType::Int8).Busy, 1U);
+  EXPECT_EQ(getMacCost(F, 16, 16, 4, MatrixType::Int8).Busy, 4U);
 }
 
 TEST(MatrixFabricTest, WeightStationarySystolic) {
   FabricConfig F;
+  F.Map = Mapping::Generic;
   F.Rows = 16;
   F.Cols = 16;
   F.MacsPerPeInt8 = 1;
@@ -56,6 +72,7 @@ TEST(MatrixFabricTest, WeightStationarySystolic) {
 
 TEST(MatrixFabricTest, StationaryLoadsWithoutDoubleBuffering) {
   FabricConfig F;
+  F.Map = Mapping::Generic;
   F.Rows = 2;
   F.Cols = 16;
   F.MacsPerPeInt8 = 1;
@@ -68,6 +85,7 @@ TEST(MatrixFabricTest, StationaryLoadsWithoutDoubleBuffering) {
 
 TEST(MatrixFabricTest, AdderTreeDrain) {
   FabricConfig F;
+  F.Map = Mapping::Generic;
   F.Rows = 8;
   F.Cols = 8;
   F.MacsPerPeInt8 = 4;
@@ -101,6 +119,11 @@ TEST(MatrixFabricTest, RejectsBadConfigs) {
   EXPECT_THROW(parseDataflow("row"), std::invalid_argument);
   EXPECT_THROW(parseDelivery("multicast"), std::invalid_argument);
   EXPECT_THROW(parseReduction("ring"), std::invalid_argument);
+  EXPECT_THROW(parseMapping("diagonal"), std::invalid_argument);
+  FabricConfig Ws;
+  Ws.Flow = Dataflow::Weight; // The Coral mapping is output-stationary only.
+  EXPECT_THROW(getMacCost(Ws, 16, 16, 4, MatrixType::Int8),
+               std::invalid_argument);
   EXPECT_EQ(parseDataflow("weight"), Dataflow::Weight);
 }
 

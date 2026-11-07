@@ -96,6 +96,10 @@ public:
               "Delivery of the operand entering each column: broadcast or "
               "forwarded")
     PARAMETER(uint32_t, mtx_hop_latency, 1, "Cycles per PE-to-PE hop")
+    PARAMETER(std::string, mtx_mapping, "coral",
+              "How partial tiles map onto the array: coral (CoralNPU's PE "
+              "array, busy = min(4, ceil(tm/2))) or generic (rows x cols "
+              "blocks)")
     PARAMETER(std::string, mtx_reduction, "in_place",
               "Partial-sum reduction: in_place, chain or tree")
     PARAMETER(uint32_t, mtx_tree_level_latency, 1,

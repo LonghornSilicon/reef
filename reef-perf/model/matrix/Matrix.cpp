@@ -36,6 +36,7 @@ static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   F.DoubleBufferStationary = Params->mtx_double_buffer_stationary;
   F.PipelineAcrossOps = Params->mtx_pipeline_across_ops;
   F.ClockDivider = Params->mtx_fabric_clock_divider;
+  F.Map = parseMapping(Params->mtx_mapping);
   // Fails early on a fabric that cannot run int8.
   getMacCost(F, 1, 1, 1, MatrixType::Int8);
   return F;

@@ -43,6 +43,20 @@ enum class Reduction : uint8_t {
   Tree     ///< An adder tree sums the rows' (and lanes') products.
 };
 
+/// How a tile's rows and columns map onto the array's steps.
+enum class Mapping : uint8_t {
+  /// CoralNPU's PE array: 2 tile rows per step, at most 4 steps, whatever
+  /// tn is (busy = min(4, ceil(tm / 2)); ROWS_PER_CNT and cntMax00,
+  /// zvt_pe_array.sv:216-217). Output-stationary only.
+  Coral,
+  /// Rows and columns tile the array in rows x cols blocks (one step per
+  /// block), the formula in docs/matrix.md; for the sweep's other designs.
+  Generic
+};
+
+/// \returns the Mapping named \p Name ("coral", "generic").
+/// \throws std::invalid_argument for any other name.
+Mapping parseMapping(const std::string &Name);
 /// \returns the Dataflow named \p Name ("output", "weight", "input").
 /// \throws std::invalid_argument for any other name.
 Dataflow parseDataflow(const std::string &Name);
@@ -77,7 +91,8 @@ struct FabricConfig {
   /// Fill, drain and pipeline overlap the next operation, so the array is
   /// busy only for the compute steps.
   bool PipelineAcrossOps = true;
-  uint32_t ClockDivider = 1; ///< Core cycles per fabric cycle.
+  uint32_t ClockDivider = 1;    ///< Core cycles per fabric cycle.
+  Mapping Map = Mapping::Coral; ///< How partial tiles map onto the steps.
 };
 
 /// Timing of one MAC operation, in core cycles.
@@ -92,7 +107,8 @@ struct FabricCost {
 
 /// \returns the timing of a TM x TN x TK MAC with \p Type inputs on \p Config.
 /// \throws std::invalid_argument if the array has no rows, columns or MAC
-/// lanes for \p Type, or ClockDivider is 0.
+/// lanes for \p Type, ClockDivider is 0, or the Coral mapping is used with
+/// a dataflow other than output-stationary.
 FabricCost getMacCost(const FabricConfig &Config, uint32_t TM, uint32_t TN,
                       uint32_t TK, MatrixType Type);
 

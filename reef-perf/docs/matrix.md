@@ -97,6 +97,7 @@ Each parameter is tagged with where its default comes from:
 | `mtx_dataflow` | `output` | DSE | Stationary operand: `output` (C stays; K streams), `weight` (B stays; M streams), `input` (A stays; N streams). |
 | `mtx_row_operand`, `mtx_col_operand` | `broadcast` | DSE | `broadcast` or `forwarded` (one PE per hop: systolic skew). |
 | `mtx_hop_latency` | 1 | DSE | Cycles per PE-to-PE hop. |
+| `mtx_mapping` | `coral` | RTL + TRACE | How a tile maps onto the array's steps. `coral`: CoralNPU's PE array walks the tile's rows two at a time and stops at 4 steps, whatever `tn` is: busy = min(4, ceil(tm/2)) (`ROWS_PER_CNT`, `cntMax00`, `zvt_pe_array.sv:216-217`); output-stationary only. Confirmed by `mac_indep_tm8tn8` and `mac_indep_tn4` (4.0 cycles each on the RTL; `generic` gives 2.0). `generic`: the rows x cols block formula below, for the sweep's other designs (the systolic and tree presets set it). |
 | `mtx_reduction` | `in_place` | DSE | `in_place`, `chain` (partial sums move down columns), `tree` (adder tree). |
 | `mtx_tree_level_latency` | 1 | DSE | Cycles per adder-tree level. |
 | `mtx_pe_pipeline_depth` | 9 | RTL + TRACE | Stages after the last step: `MULBULKPIPENUM` 3 + the `handshake_ff` between multiply and add 1 (`zvt_pe_block.sv`) + `ADDERPIPENUM` 3 (`zvt_pe_array.sv:34-35`) + 2 for the skew registers that feed blocks 1-3 a cycle or two after block 0 (`pipeLa`/`pipeHa0`/`pipeHa1`, `zvt_pe_array.sv`). VME waveform of `mac_chain`: every MAC retires 14 cycles after its first step = 4 busy + 9 + `mtx_complete_latency` 1. Was 6 (multiply + adder only). Whether that is the whole MAC-to-tile path needs a trace. |
@@ -114,7 +115,8 @@ Lanes  = mtx_macs_per_pe_<type>;  KSteps = ceil(TK / Lanes)
 output:  rows <- TM,      cols <- TN,  temporal = KSteps
 weight:  rows <- KSteps,  cols <- TN,  temporal = TM
 input:   rows <- KSteps,  cols <- TM,  temporal = TN
-Passes  = ceil(rows / pe_rows) * ceil(cols / pe_cols)
+Passes  = generic: ceil(rows / pe_rows) * ceil(cols / pe_cols)
+          coral:   min(4, ceil(TM / 2))   (output-stationary; tn does not count)
 Busy    = Passes * temporal  (+ stationary loads: once if double-buffered, else per pass)
 Fill    = (row operand forwarded ? (cols used - 1) * hop : 0) + (col operand forwarded ? (rows used - 1) * hop : 0)
 Drain   = chain: (rows used - 1) * hop;  tree: ceil(log2(rows used * Lanes)) * tree_level_latency
@@ -246,7 +248,7 @@ built from the cited RTL behavior.
 
 | # | Step | Case | Files |
 | --- | --- | --- | --- |
-| B1 | **Coral tile mapping.** A `mtx_mapping` parameter: `coral` (busy = min(4, ceil(tm/2)), no `tn` term, `zvt_pe_array.sv:216`) or `generic` (today's formula, for the sweep presets). `coral` is the default. | 3 | `matrix/MatrixFabric.*`, `configs/matrix/*.yaml` |
+| B1 | **Done.** `mtx_mapping`, default `coral`; `mac_indep_tm8tn8` (2.0 → 4.0) and the new `mac_indep_tn4` (predicted 4.0 before its RTL run) match. **Coral tile mapping.** A `mtx_mapping` parameter: `coral` (busy = min(4, ceil(tm/2)), no `tn` term, `zvt_pe_array.sv:216`) or `generic` (today's formula, for the sweep presets). `coral` is the default. | 3 | `matrix/MatrixFabric.*`, `configs/matrix/*.yaml` |
 | B2 | **Misaligned `vs1`/`vs2` become no-ops** (`rvv_backend_decode_unit_ari.sv:3219-3233`). | 8 | `frontend/FuncSim.cpp` (behind the A1 flag) |
 | B3 | **Done.** `mtx_lsu_fifo_entries`; tile loads and stores run beat by beat through the FIFOs. No change on `tile_load` or `tile_store` (the LSU, at 5 cycles per beat, is slower than the controller, so the FIFOs never fill); `tile_load_behind_mac` exercises them. **2-deep `lsu2vme`/`vme2lsu` FIFOs** between the LSU and the controller (`zvt.sv:163-206`). | 6 | `matrix/Matrix.*` |
 | B4 | **Done.** `mtx_acc_raw_cycles`; `mac_chain` now matches the RTL (4.0 cycles per MAC) with the reference core's 16-entry ROB, which also brings tile load and store to +45% and +23%. **Per-tile MAC hazard.** Replace the whole-group wait with the RTL's comparison against in-flight adder stages (`zvt_pe_array.sv:195-204`). The exact back-to-back timing still needs a trace (C3). | 9 | `matrix/Matrix.*` |
@@ -318,6 +320,28 @@ FIFO pop latency), same ROB and LSU:
 
 Raw ROIs agree within 8 cycles for these programs, so one-time costs line
 up too, but only differences are compared.
+
+#### Held-out programs
+
+Written after calibration, with the model's numbers recorded before each
+RTL run (`microbenchmarks/matrix/heldout_predictions.csv`). Cycles per op:
+
+| Program | Tests | Predicted | RTL |
+| --- | --- | --- | --- |
+| `mac_chain_tm4`, `mac_indep_tm4` | tm 4 (2 busy cycles), dependent / independent | 4.0 / 2.0 | 4.0 / 2.0 |
+| `mac_chain_tn4` | tn 4, dependent | 4.0 | 4.0 |
+| `mac_indep_tm8tn8` | 8 x 8 tile | 2.0 (4.0 after B1) | 4.0 |
+| `mac_indep_tn4` | tn 4, independent (added after B1) | 4.0 | 4.0 |
+| `mac_{chain,indep}_fp32` | fp32 `vtfmm.tvv` | 4.0 / 4.0 | 4.0 / 4.0 |
+| `mac_{chain,indep}_bf16` | bf16 `vtfmm.alt` | 4.0 / 4.0 | 4.0 / 4.0 |
+| `gemm_multi` | 32 x 32 x 64, four accumulators | 2142 | 1378 (+55%) |
+| `gemm_longk` | 16 x 16 x 256 | 2790 | 1672 (+67%) |
+
+The dependent tm-4 chain confirms the 4-cycle hitRaw window when the array
+is busy only 2 cycles (case 9). The GEMM errors are the vector load path,
+as for `gemm_tile` below: with the newer LSU's vector costs approximated,
+`gemm_multi` comes to about +3% and `gemm_longk` to about +11% (0% with a
+32-entry ROB).
 
 #### Held-out check: `gemm_tile`
 
@@ -397,12 +421,13 @@ can answer it.
    not have that rule (a core-module change), so its matrix ROIs miss the
    tail. Until the core models it, compare total work per iteration (step 3)
    or add a dependence on the last result before `ROI_END`.
-3. **Partial tiles (confirmed).** CoralNPU's PE-busy count is
+3. **Partial tiles (settled, B1).** CoralNPU's PE-busy count is
    min(4, ceil(tm/2)), with no `tn` term (`zvt_pe_array.sv:216`). The generic
-   formula gives ceil(tm/8) x ceil(tn/8). Full 16 x 16 tiles agree; smaller
-   ones do not. This needs a Coral-specific mapping option, or acceptance as
-   a known error. The 8 x 8 x 4-lane shape stands in for CoralNPU's 4 blocks
-   of 16 PEs: same peak rate, different mapping.
+   formula gives ceil(tm/8) x ceil(tn/8). `mtx_mapping: coral` (the default)
+   uses CoralNPU's count; the held-out `mac_indep_tm8tn8` and `mac_indep_tn4`
+   confirm it on the RTL. The 8 x 8 x 4-lane shape stands in for CoralNPU's
+   4 blocks of 16 PEs: same peak rate; `mac_utilization` shows the wasted
+   steps of a partial tile.
 4. **Zvt shares the RVV backend on CoralNPU (confirmed).** Its uops are
    dispatched by the RVV dispatch into a Zvt reservation station of 8 uops
    (`rvv_backend_dispatch.sv:498-512`, `rvv_backend.sv:782`). The model gives

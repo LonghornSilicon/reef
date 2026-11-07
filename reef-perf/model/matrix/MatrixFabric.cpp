@@ -29,6 +29,15 @@ Delivery reef_perf::parseDelivery(const std::string &Name) {
                               Name + "' (broadcast, forwarded)");
 }
 
+Mapping reef_perf::parseMapping(const std::string &Name) {
+  if (Name == "coral")
+    return Mapping::Coral;
+  if (Name == "generic")
+    return Mapping::Generic;
+  throw std::invalid_argument("mtx_mapping: unknown value '" + Name +
+                              "' (coral, generic)");
+}
+
 Reduction reef_perf::parseReduction(const std::string &Name) {
   if (Name == "in_place")
     return Reduction::InPlace;
@@ -92,8 +101,19 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
   uint64_t UsedCols = std::min<uint64_t>(Config.Cols, SpatialCols);
 
   FabricCost Cost;
-  Cost.Passes =
-      ceilDiv(SpatialRows, Config.Rows) * ceilDiv(SpatialCols, Config.Cols);
+  if (Config.Map == Mapping::Coral) {
+    if (Config.Flow != Dataflow::Output)
+      throw std::invalid_argument(
+          "mtx_mapping coral models CoralNPU's output-stationary array; use "
+          "mtx_mapping generic with mtx_dataflow weight or input");
+    // The step counter walks the tile's rows two at a time and stops at
+    // PROCESS_DELAY = 4; rows 8-15 run in the upper blocks in parallel, and
+    // tn does not change the count (zvt_pe_array.sv:216-217).
+    Cost.Passes = std::min<uint64_t>(4, ceilDiv(M, 2));
+  } else {
+    Cost.Passes =
+        ceilDiv(SpatialRows, Config.Rows) * ceilDiv(SpatialCols, Config.Cols);
+  }
   Cost.Busy = Cost.Passes * Temporal;
   if (Config.Flow != Dataflow::Output) {
     uint64_t Load = Config.StationaryLoadCycles != 0

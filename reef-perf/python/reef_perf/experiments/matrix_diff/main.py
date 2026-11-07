@@ -104,6 +104,7 @@ BENCHMARKS = (
     DiffBenchmark("mac_indep_tm4", 50, 4, "vtmmu tm4 tn16", True),
     DiffBenchmark("mac_chain_tn4", 200, 1, "dep vtmmu tm16 tn4", True),
     DiffBenchmark("mac_indep_tm8tn8", 50, 4, "vtmmu tm8 tn8", True),
+    DiffBenchmark("mac_indep_tn4", 50, 4, "vtmmu tm16 tn4", True),
     DiffBenchmark("mac_chain_fp32", 200, 1, "dep vtfmm fp32", True),
     DiffBenchmark("mac_indep_fp32", 50, 4, "vtfmm fp32", True),
     DiffBenchmark("mac_chain_bf16", 200, 1, "dep vtfmm bf16", True),

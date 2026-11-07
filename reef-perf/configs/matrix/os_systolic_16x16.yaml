@@ -16,5 +16,6 @@ top:
       mtx_row_operand: forwarded
       mtx_col_operand: forwarded
       mtx_hop_latency: 1
+      mtx_mapping: generic           # rows x cols blocks (the Coral rule is Coral's array only)
       mtx_reduction: in_place
       mtx_pe_pipeline_depth: 1

@@ -34,6 +34,7 @@ EXPECTED_OPS = {
     "mac_indep_tm4": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "mac_chain_tn4": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "mac_indep_tm8tn8": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_indep_tn4": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "mac_chain_fp32": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "mac_indep_fp32": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "mac_chain_bf16": {"mac": 200, "zero": 4, "move_to_vector": 1},

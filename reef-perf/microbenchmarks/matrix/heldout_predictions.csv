@@ -12,3 +12,5 @@ mac_chain_bf16,200,836,1636,613,4.000
 mac_indep_bf16,50,834,1634,313,4.000
 gemm_multi,10,21442,42862,10312,2142.000
 gemm_longk,10,27914,55814,13422,2790.000
+# Added 2026-11-07T09:11:50-06:00 after B1 (mtx_mapping coral), before its RTL run; generic would predict 2.000.
+mac_indep_tn4,50,834,1634,313,4.000

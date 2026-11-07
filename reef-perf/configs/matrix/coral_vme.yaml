@@ -19,6 +19,7 @@ top:
       mtx_dataflow: output          # C accumulates in the tile
       mtx_row_operand: broadcast    # A and B broadcast to the 4 blocks
       mtx_col_operand: broadcast
+      mtx_mapping: coral             # CoralNPU's partial-tile rule (zvt_pe_array.sv:216-217)
       mtx_reduction: in_place
       mtx_pe_pipeline_depth: 9      # RTL + TRACE: mulbulk 3 + handshake_ff 1 + adder 3 + block skew 2; first step to retire is 14 (waveform)
       mtx_accumulate_latency: 0     # PLACEHOLDER

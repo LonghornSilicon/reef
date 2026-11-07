@@ -35,6 +35,8 @@ mac_chain_tn4,200,827,613
 mac_chain_tn4,400,1627,1213
 mac_indep_tm8tn8,50,827,313
 mac_indep_tm8tn8,100,1627,613
+mac_indep_tn4,50,827,313
+mac_indep_tn4,100,1627,613
 mac_chain_fp32,200,827,613
 mac_chain_fp32,400,1627,1213
 mac_indep_fp32,50,827,313
