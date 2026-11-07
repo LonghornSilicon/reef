@@ -1,0 +1,14 @@
+# Turns on the Zvt matrix extension, so programs that use it run on the
+# matrix module. M3 has no matrix engine and its RTL traps on Zvt; CoralNPU
+# builds with VME (8a5e1b31+) run it. The core stays M3's, so only per-op
+# differences, not whole ROIs, compare with the VME RTL (docs/matrix.md).
+# The matrix module's own parameters keep their built-in CoralNPU defaults;
+# array alternatives are overlays in configs/matrix/.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml [-c configs/matrix/<array>.yaml]
+top:
+  frontend:
+    params:
+      zvt: true

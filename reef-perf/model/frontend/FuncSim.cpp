@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -153,10 +154,15 @@ InstRef FuncSim::next() {
     // Spike does not implement mpause: report it without executing it.
     Halted = true;
     I->NextPC = I->PC + 4;
+  } else if (std::optional<ZvtInst> Z =
+                 ZvtEnabled ? decodeZvt(I->Encoding) : std::nullopt) {
+    executeZvt(*I, *Z);
   } else {
     execute(*I);
+    if (ZvtEnabled && isStandardVset(I->Encoding))
+      Zvt = {}; // vset* also clears mtype (RvvFrontEnd.sv:205).
   }
-  decodeInst(*I);
+  decodeInst(*I, ZvtEnabled);
   return I;
 }
 
@@ -182,4 +188,157 @@ void FuncSim::execute(Inst &I) {
   for (const auto &[Addr, Value, Size] : State->log_mem_write)
     I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true});
   I.Dsts = getWrittenRegs(State->log_reg_write);
+}
+
+/// \returns the tile-element bytes for mtype.mtwiden \p MTWiden at SEW
+/// \p SEWBytes: SEW x TWIDEN, TWIDEN = 1, 2, 4 (vtzero's group,
+/// rvv_backend_decode_unit_ari.sv:2735-2752).
+static uint32_t getTileElemBytes(uint32_t SEWBytes, uint32_t MTWiden) {
+  return SEWBytes << (MTWiden == 0 ? 0 : MTWiden - 1);
+}
+
+/// Fills \p I's tile group: \p Tile rounded down to a group of \p ElemBytes
+/// tiles (one tile per element byte; zvt_ctrl.sv forces the base).
+static void setTileGroup(Inst &I, uint32_t Tile, uint32_t ElemBytes) {
+  uint32_t Count = std::clamp<uint32_t>(ElemBytes, 1, 4);
+  I.Mtx.NumTiles = static_cast<uint8_t>(Count);
+  I.Mtx.FirstTile = static_cast<uint8_t>(Tile & ~(Count - 1U) & 0xfU);
+}
+
+void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
+  state_t *State = Proc->get_state();
+  I.Rs1Val = static_cast<uint32_t>(State->XPR[Z.Rs1]);
+  I.Rs2Val = static_cast<uint32_t>(State->XPR[Z.Rs2]);
+  I.Disasm = Z.Name; // Spike's disassembler does not know Zvt.
+  I.NextPC = I.PC + 4;
+  State->pc = I.NextPC; // Spike's minstret does not count Zvt instructions.
+  auto Trap = [&I](const std::string &Why) {
+    throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
+                             "): " + Why);
+  };
+  auto WriteRd = [&](uint32_t Value) {
+    if (Z.Rd == 0)
+      return;
+    State->XPR.write(Z.Rd, Value);
+    I.Dsts = {RegId::x(Z.Rd)};
+  };
+
+  if (isZvtConfig(Z.Kind)) {
+    ZvtConfigEffect E =
+        applyZvtConfig(Z, Zvt, uint32_t{I.SEWBytes} * 8, I.Rs1Val, I.Rs2Val);
+    if (E.Illegal)
+      Trap("mtype is unconfigured (mtwiden = 0)");
+    reg_t Vtype = E.WritesVtype ? E.SpikeVtype : Proc->VU.vtype->read();
+    if (E.SetsVl) {
+      // rd = rs1 = 1 only steers set_vl to "vl = min(AVL, VLMAX)".
+      reg_t Vl = Proc->VU.set_vl(1, 1, E.AVL, Vtype);
+      if (E.RdIsVl)
+        WriteRd(static_cast<uint32_t>(Vl));
+    }
+    if (E.WritesRd)
+      WriteRd(E.RdValue);
+    Zvt = E.Next;
+    return;
+  }
+
+  // Every tile instruction traps on vill and on an unconfigured mtype: the
+  // arithmetic, moves and vtzero in the RVV front end (RvvFrontEnd.sv
+  // :624-633), tile loads and stores in scalar decode (Decode.scala:573-579,
+  // :1052-1073). vtdiscard needs only a legal vtype (Decode.scala:601-607).
+  if (Proc->VU.vill)
+    Trap("vtype is illegal (vill)");
+  if (Z.Kind != ZvtKind::VtDiscard && Zvt.MTWiden == 0)
+    Trap("mtype is unconfigured (mtwiden = 0)");
+
+  uint32_t VL = I.VL;
+  uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
+  // Shapes the RVV backend decoder rejects retire as no-ops without reaching
+  // the matrix engine (rvv_backend_decode_unit.sv:92-96): vl = 0, misaligned
+  // tile groups, vtmm with tm, tn or tk of 0 or a mismatched type
+  // configuration (rvv_backend_decode_unit_ari.sv:3072, :3211-3216,
+  // :3317-3320, :3605, :3717-3722; _lsu.sv:3387-3393).
+  auto MakeNop = [&I] {
+    I.Mtx = {};
+    I.Mtx.Op = MatrixOp::Nop;
+    I.Mtx.NumTiles = 0;
+  };
+  auto Misaligned = [](uint32_t Tile, uint32_t Count) {
+    return (Tile & (Count - 1U)) != 0;
+  };
+  switch (Z.Kind) {
+  case ZvtKind::VtZero: {
+    uint32_t Count = getTileElemBytes(I.SEWBytes, Zvt.MTWiden);
+    if ((Z.Rd & 1U) != 0 || Misaligned(Z.Rd >> 1, Count)) {
+      MakeNop();
+      break;
+    }
+    I.Mtx.Op = MatrixOp::Zero;
+    setTileGroup(I, Z.Rd >> 1, Count);
+    break;
+  }
+  case ZvtKind::VtDiscard:
+    I.Mtx.Op = MatrixOp::Discard;
+    I.Mtx.NumTiles = static_cast<uint8_t>(NumTiles);
+    break;
+  case ZvtKind::VtMvTV:
+  case ZvtKind::VtMvVT: {
+    if (VL == 0) {
+      MakeNop();
+      break;
+    }
+    bool ToTile = Z.Kind == ZvtKind::VtMvTV;
+    I.Mtx.Op = ToTile ? MatrixOp::MoveToTile : MatrixOp::MoveToVector;
+    I.Mtx.ElemBytes = I.SEWBytes;
+    I.Mtx.TN = static_cast<uint8_t>(std::min(VL, TileEdge));
+    setTileGroup(I, getTileSlice(I.Rs1Val).Tile, I.SEWBytes);
+    if (!ToTile) // vd: SEW8/16/32 -> 1/2/4 registers (LMUL 1/2/4).
+      for (uint32_t K = 0; K < EMUL && Z.Rd + K < RegId::NumPerFile; ++K)
+        I.Dsts.push_back(RegId::v(Z.Rd + K));
+    break;
+  }
+  case ZvtKind::VtLoad:
+  case ZvtKind::VtStore: {
+    if (VL == 0) {
+      MakeNop();
+      break;
+    }
+    bool IsStore = Z.Kind == ZvtKind::VtStore;
+    I.Mtx.Op = IsStore ? MatrixOp::TileStore : MatrixOp::TileLoad;
+    I.Mtx.ElemBytes = Z.EEWBytes;
+    // vl is clamped to the tile edge (Lsu.scala:328); unit stride from rs1.
+    uint32_t Elems = std::min(VL, TileEdge);
+    I.Mtx.TN = static_cast<uint8_t>(Elems);
+    setTileGroup(I, getTileSlice(I.Rs2Val).Tile, Z.EEWBytes);
+    for (uint32_t E = 0; E < Elems; ++E)
+      I.Mem.push_back({I.Rs1Val + E * Z.EEWBytes, Z.EEWBytes, IsStore});
+    break;
+  }
+  case ZvtKind::VtMM: {
+    // Legal configurations (rvv_backend_decode_unit_ari.sv:2472-2492,
+    // :3039-3055): int8 {SEW8, x4}; bf16 {SEW16, x2, altfmt}; fp32 {SEW32,
+    // x1, no altfmt}.
+    bool TypeOk = !Z.Float ? I.SEWBytes == 1 && Zvt.MTWiden == 3
+                  : I.SEWBytes == 2
+                      ? Zvt.MTWiden == 2 && Zvt.AltFmt
+                      : I.SEWBytes == 4 && Zvt.MTWiden == 1 && !Zvt.AltFmt;
+    // OPEN: vs1/vs2 register alignment (ari.sv:3219-3233) is not checked.
+    if (!TypeOk || Zvt.TM == 0 || VL == 0 || Zvt.TK == 0 ||
+        Misaligned(Z.Rd >> 1, 4)) {
+      MakeNop();
+      break;
+    }
+    I.Mtx.Op = MatrixOp::Mac;
+    I.Mtx.TM = static_cast<uint8_t>(Zvt.TM);
+    I.Mtx.TN = static_cast<uint8_t>(std::min(VL, TileEdge));
+    I.Mtx.TK = static_cast<uint8_t>(Zvt.TK);
+    I.Mtx.Type = !Z.Float          ? MatrixType::Int8
+                 : I.SEWBytes == 2 ? MatrixType::Bf16
+                                   : MatrixType::Fp32;
+    I.Mtx.ElemBytes = 4;
+    setTileGroup(I, Z.Rd >> 1, 4); // The accumulator has 32-bit elements.
+    break;
+  }
+  default:
+    break;
+  }
 }
