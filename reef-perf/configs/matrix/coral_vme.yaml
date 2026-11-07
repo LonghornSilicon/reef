@@ -7,7 +7,7 @@ top:
   matrix:
     params:
       mtx_queue_entries: 4          # PLACEHOLDER: Zvt RS holds 8 uops (ZVT_RS_DEPTH), = 2 vtmm
-      mtx_cmd_latency: 6            # PLACEHOLDER: not measured
+      mtx_cmd_latency: 4            # TRACE: dispatch to first MAC step is 6 = 4 + 2 issue cycles (mac_chain waveform)
       mtx_uops_per_cycle: 3         # RVV dispatch, 3 uops/cycle
       mtx_complete_latency: 1       # vmeRt -> retire, 1 cycle (08eadd1c trace)
       mtx_num_arrays: 1
@@ -20,7 +20,7 @@ top:
       mtx_row_operand: broadcast    # A and B broadcast to the 4 blocks
       mtx_col_operand: broadcast
       mtx_reduction: in_place
-      mtx_pe_pipeline_depth: 6      # INFER: MULBULKPIPENUM 3 + ADDERPIPENUM 3 (zvt_pe_array.sv:34-35)
+      mtx_pe_pipeline_depth: 9      # RTL + TRACE: mulbulk 3 + handshake_ff 1 + adder 3 + block skew 2; first step to retire is 14 (waveform)
       mtx_accumulate_latency: 0     # PLACEHOLDER
       mtx_acc_raw_cycles: 4         # hitRaw: MULBULKPIPENUM + 1 (zvt_pe_array.sv:195-207)
       mtx_pipeline_across_ops: true # PLACEHOLDER: not measured

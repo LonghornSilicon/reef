@@ -83,7 +83,7 @@ Each parameter is tagged with where its default comes from:
 | Parameter | Default | Tag | Meaning |
 | --- | --- | --- | --- |
 | `mtx_queue_entries` | 4 | PLACEHOLDER | Matrix command-queue entries, counted in instructions. CoralNPU's Zvt reservation station holds 8 uops (`ZVT_RS_DEPTH`, `rvv_backend_define.svh:201`): 2 vtmm or 8 vtzero (open case 4). |
-| `mtx_cmd_latency` | 6 | PLACEHOLDER | Cycles from the unit receiving an instruction to issuing its uops. On CoralNPU this is the RVV front end, decode and dispatch. |
+| `mtx_cmd_latency` | 4 | TRACE | Cycles from the unit receiving an instruction to issuing its uops. On CoralNPU this is the RVV front end, decode and dispatch. VME waveform of `mac_chain`: a MAC into an idle engine starts its first step 6 cycles after the core dispatches it = 4 + 2 issue cycles (4 uops at 3 per cycle). Was a PLACEHOLDER 6. |
 | `mtx_uops_per_cycle` | 3 | RTL | Uops issued per cycle (`DISPATCH3` → `NUM_DP_UOP = 3`, `RvvCore.scala:639`). |
 | `mtx_complete_latency` | 1 | TRACE | Result written to retirement (vtmmu: `vmeRt` at 20, retired at 21). |
 
@@ -99,7 +99,7 @@ Each parameter is tagged with where its default comes from:
 | `mtx_hop_latency` | 1 | DSE | Cycles per PE-to-PE hop. |
 | `mtx_reduction` | `in_place` | DSE | `in_place`, `chain` (partial sums move down columns), `tree` (adder tree). |
 | `mtx_tree_level_latency` | 1 | DSE | Cycles per adder-tree level. |
-| `mtx_pe_pipeline_depth` | 6 | INFER | Stages after the last step: `MULBULKPIPENUM` 3 + `ADDERPIPENUM` 3 (`zvt_pe_array.sv:34-35`). Whether that is the whole MAC-to-tile path needs a trace. |
+| `mtx_pe_pipeline_depth` | 9 | RTL + TRACE | Stages after the last step: `MULBULKPIPENUM` 3 + the `handshake_ff` between multiply and add 1 (`zvt_pe_block.sv`) + `ADDERPIPENUM` 3 (`zvt_pe_array.sv:34-35`) + 2 for the skew registers that feed blocks 1-3 a cycle or two after block 0 (`pipeLa`/`pipeHa0`/`pipeHa1`, `zvt_pe_array.sv`). VME waveform of `mac_chain`: every MAC retires 14 cycles after its first step = 4 busy + 9 + `mtx_complete_latency` 1. Was 6 (multiply + adder only). Whether that is the whole MAC-to-tile path needs a trace. |
 | `mtx_accumulate_latency` | 0 | PLACEHOLDER | Extra read-modify-write of the accumulator tile. |
 | `mtx_acc_raw_cycles` | 4 | RTL | Cycles after a MAC starts until a MAC into the same tile may start. CoralNPU's hitRaw holds a MAC's first step while the previous MAC's first step is in multiply stages 1-3 (`MULBULKPIPENUM` + 1, `zvt_pe_array.sv:195-207`). Matches `mac_chain` (4.0 cycles per dependent MAC). 0 makes a MAC wait for the earlier MAC's tile write, for arrays that cannot forward the accumulator. Only after a MAC: after vtzero, a move or a tile load, a MAC waits for the write. |
 | `mtx_stationary_load_cycles` | 0 | DSE | Load time per pass for weight/input stationary; 0 means one PE row per cycle. |
@@ -138,7 +138,7 @@ the `PROCESS_DELAY = 4` counter in the RTL.
 | `mtx_tile_write_latency` | 1 | PLACEHOLDER | Last load beat to tile written. |
 | `mtx_tile_read_latency` | 1 | PLACEHOLDER | Tile read before a store's first beat. |
 | `mtx_lsu_fifo_entries` | 2 | RTL | Entries in each FIFO between the LSU and the controller: `lsu2vme` for tile loads, `vme2lsu` for tile stores (`multi_fifo` `DEPTH 2`, `zvt.sv:163-206`). A load's LSU half runs at most this many beats ahead of the controller; a store's controller stalls when the LSU is this many beats behind. A push may share a cycle with the pop that frees its entry. The RTL holds a finished load beat in the LSU until the FIFO has room; the model starts the beat late instead (INFER: same stall, the LSU's hold not modeled). |
-| `mtx_ctrl_waits_for_array_drain` | true | RTL | vtzero, vtmv.\*, vtle and vtse wait for `!peBusy` (`zvt_ctrl.sv:105-106, :130-134`). |
+| `mtx_ctrl_waits_for_array_drain` | true | RTL + TRACE | vtzero, vtmv.\*, vtle and vtse wait for `!peBusy` (`zvt_ctrl.sv:105-106, :130-134`), and start the cycle after the last MAC's tile write (VME waveform of `tile_load_behind_mac`: `peBusy` falls 13 cycles after the MAC's first step, the first pop is at 14). |
 
 Tile loads and stores use the core's LSU, one 16-byte beat per uop
 (`rvv_backend_decode_unit_lsu.sv:3048-3070`), with the LSU's own
@@ -199,7 +199,21 @@ area or energy while their parameters are all zero.
    Calibrate the PLACEHOLDER parameters from: `mac_chain` (MAC latency),
    `mac_indep` (MAC occupancy), `tile_load` and `tile_store` (beat path), and
    `gemm_tile` (vector to matrix to vector).
-4. **Cross-check the non-Coral presets** against a cycle-level array
+4. **When a difference does not explain itself, read a waveform.** Build
+   the program with a small `ITERS` (`build_microbenchmark(..., {"ITERS":
+   4})`), run the VME simulator with `--trace_file w.fst`, and convert it
+   with `fst2vcd`. Under
+   `VVmeCoreMiniVerificationAxi.core.VmeCoreMiniVerificationAxi.core`, the
+   signals used so far: `clock`; `score.dispatch.io_rvv_<k>_{valid,ready,bits_pc}`
+   (dispatch to the RVV backend); `io_debug_rb_inst_<k>_{valid,bits_pc}`
+   (retirement); `rvvCore.rvvCoreWrapper.core.backend.vme.zvtPeArray.{canStart,cnt,hitRaw}`
+   (MAC steps); `...vme.peBusy`; `...vme.{uop_lsu2vme_vld,uop_lsu2vme_rdy}`
+   (LSU push) and `...vme.{vmelsuresVld,vmelsuresRdy}` (controller pop);
+   `score.lsu.slot.io_uop_{valid,ready}` (the LSU slot taking an
+   instruction). Sample on the rising edge of `clock`. This is how the MAC
+   pipeline (14 cycles from first step to retire) and the command path (6
+   cycles from dispatch to first step) were measured.
+5. **Cross-check the non-Coral presets** against a cycle-level array
    simulator or an RTL prototype, GEMM shape by GEMM shape, before using them
    in the sweep.
 
@@ -245,7 +259,7 @@ built from the cited RTL behavior.
 | C1 | **Done (2026-11-06).** Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
 | C2 | **Done.** `ITERS`, set with `build_microbenchmark(..., {"ITERS": n})`; the `matrix_diff` experiment builds N and 2N. Give each microbenchmark an iteration count set at build time (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
 | C3 | **Done for the four looping programs** (`microbenchmarks/matrix/rtl_vme.csv`; results below). Waveforms not kept yet. Run them on the RTL and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
-| C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat. On that core a vector load costs the same and a vector store one cycle more; the model's vector cost is M3's LSU (it matches the M3 RTL), so the gap was mostly the LSU version. The core's LSU now gives tile beats their own cost (`lsu_tile_cost`; off by default and in `m3_vme.yaml`, which keep M3's LSU; on for correlation in `REFERENCE_CORE_PARAMS`), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. Remaining: the matrix-side PLACEHOLDERs, `tile_load_behind_mac` (-12.5%), and `gemm_tile`. **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
+| C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat. On that core a vector load costs the same and a vector store one cycle more; the model's vector cost is M3's LSU (it matches the M3 RTL), so the gap was mostly the LSU version. The core's LSU now gives tile beats their own cost (`lsu_tile_cost`; off by default and in `m3_vme.yaml`, which keep M3's LSU; on for correlation in `REFERENCE_CORE_PARAMS`), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. **MAC pipeline and command path done** from VME waveforms (`mac_chain`, `tile_load_behind_mac`): `mtx_cmd_latency` 6 → 4, `mtx_pe_pipeline_depth` 6 → 9, the controller starts the cycle after the last MAC's tile write, and a `lsu2vme` beat is popped no earlier than the cycle after its push; `tile_load_behind_mac` now matches (32.0). Remaining: the other matrix-side PLACEHOLDERs and `gemm_tile`. **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
 | C5 | **Re-measure the TRACE value** (`mtx_complete_latency`, from checkout `08eadd1c`) at `8a5e1b31`. | From C3 |
 
 #### First per-op results (C3)
@@ -290,6 +304,20 @@ After the LSU tile cost (C4, `docs/lsu-tile-beats.md`), same ROB:
 | `tile_load` | `vtle8`, one branch per row | 4.38 | 3.44 | +27% (frontend) |
 | `tile_store` | `vtse8`, one branch per row | 4.38 | 3.56 | +23% (frontend) |
 | `tile_load_behind_mac` | per iteration | 28.0 | 32.0 | -12.5% |
+
+After the waveform fixes (C4: command path, MAC pipeline, controller drain,
+FIFO pop latency), same ROB and LSU:
+
+| Program | Op | Model | RTL | Error |
+| --- | --- | --- | --- | --- |
+| `mac_chain` | dependent `vtmmu` | 4.0 | 4.0 | 0% |
+| `mac_indep` | independent `vtmmu` | 4.0 | 4.0 | 0% |
+| `tile_load_behind_mac` | per iteration | 32.0 | 32.0 | 0% |
+| `tile_{load,store}_burst` | one beat | 3.0 / 3.0 | 3.0 / 3.0 | 0% |
+| `tile_{load,store}32_burst` | four beats | 6.0 / 6.0 | 6.0 / 6.0 | 0% |
+
+Raw ROIs agree within 8 cycles for these programs, so one-time costs line
+up too, but only differences are compared.
 
 The ROB matters because a Zvt instruction holds its retirement-buffer entry
 until its tile write lands (`RetirementBuffer.scala:540-549`). With M3's 8
@@ -360,7 +388,11 @@ can answer it.
    cycle the instruction reaches the matrix module, limited by the 2-deep
    `lsu2vme` FIFO (`mtx_lsu_fifo_entries`). The RTL holds a finished beat in
    the LSU while the FIFO is full; the model delays the beat's start instead,
-   so the LSU is free for other work a little earlier than on the RTL.
+   so the LSU is free for other work a little earlier than on the RTL. A
+   beat is popped no earlier than the cycle after its push (the FIFO's
+   count is a register, `multi_fifo.sv:107`; seen in the waveform).
+   `tile_load_behind_mac`, which fills the FIFO behind a MAC, matches the
+   RTL exactly, so the hold approximation costs nothing there.
 7. **`vtdiscard`** waits for all matrix work. It does not dispatch alone
    from slot 0 (`Decode.scala:197`), and does not wait for an empty
    retirement buffer, idle RVV and idle LSU (`:601-607`).

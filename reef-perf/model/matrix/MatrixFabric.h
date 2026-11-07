@@ -67,7 +67,7 @@ struct FabricConfig {
   uint32_t HopLatency = 1;                   ///< Cycles per PE-to-PE hop.
   Reduction Reduce = Reduction::InPlace;     ///< Where partial sums add.
   uint32_t TreeLevelLatency = 1;             ///< Cycles per adder-tree level.
-  uint32_t PipelineDepth = 6;     ///< PE pipeline stages after the last step.
+  uint32_t PipelineDepth = 9;     ///< PE pipeline stages after the last step.
   uint32_t AccumulateLatency = 0; ///< Extra read-modify-write of C.
   /// Cycles to load the stationary operand per pass; 0 means one PE row per
   /// cycle (the rows used). Output-stationary arrays load nothing.

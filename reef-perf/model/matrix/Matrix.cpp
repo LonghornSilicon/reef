@@ -169,9 +169,12 @@ Matrix::Transfer Matrix::runTileLoad(const Inst &I, Cycle Now,
     Request.LastRegister = B + 1 == Beats.size();
     Cycle Data = Lsu->accessVectorRegister(Request).Done;
     // The controller pops one beat per cycle and writes it to the tile
-    // (isLsu2Vme, zvt_ctrl.sv:106).
+    // (isLsu2Vme, zvt_ctrl.sv:106), no earlier than the cycle after the LSU
+    // pushed it: the FIFO's count is a register (multi_fifo.sv:107), and on
+    // the VME RTL a beat pushed in cycle t is popped in t + 1.
     Cycle Pop = Ctrl.reserve(
-        std::max({CtrlEarliest, Data, B == 0 ? Cycle{0} : T.CtrlLast + 1}), 1);
+        std::max({CtrlEarliest, Data + 1, B == 0 ? Cycle{0} : T.CtrlLast + 1}),
+        1);
     if (B == 0)
       T.CtrlFirst = Pop;
     T.CtrlLast = Pop;
@@ -247,8 +250,11 @@ void Matrix::executeInst(const InstRef &I) {
   bool UsesCtrl = M.Op == MatrixOp::Zero || M.Op == MatrixOp::MoveToTile ||
                   M.Op == MatrixOp::MoveToVector ||
                   M.Op == MatrixOp::TileLoad || M.Op == MatrixOp::TileStore;
+  // The controller acts the cycle after the last MAC's tile write: on the
+  // VME RTL, peBusy falls 13 cycles after a MAC's first step and the first
+  // tile-load pop behind it comes at 14 (waveform of tile_load_behind_mac).
   if (UsesCtrl && CtrlWaitsForDrain)
-    Earliest = std::max(Earliest, ArrayDrain);
+    Earliest = std::max(Earliest, ArrayDrain + 1);
   Cycle Start = Earliest;
   Cycle Done = Earliest;
   uint64_t SliceSubtiles =

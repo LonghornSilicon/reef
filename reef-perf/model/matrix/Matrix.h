@@ -74,7 +74,7 @@ public:
         : sparta::ParameterSet(Node) {}
     // Core interface and command path.
     PARAMETER(uint32_t, mtx_queue_entries, 4, "Matrix command queue entries")
-    PARAMETER(uint32_t, mtx_cmd_latency, 6,
+    PARAMETER(uint32_t, mtx_cmd_latency, 4,
               "Cycles from receiving an instruction to issuing its uops")
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
     PARAMETER(uint32_t, mtx_complete_latency, 1,
@@ -100,7 +100,7 @@ public:
               "Partial-sum reduction: in_place, chain or tree")
     PARAMETER(uint32_t, mtx_tree_level_latency, 1,
               "Cycles per adder-tree level")
-    PARAMETER(uint32_t, mtx_pe_pipeline_depth, 6,
+    PARAMETER(uint32_t, mtx_pe_pipeline_depth, 9,
               "PE pipeline stages after the last compute step")
     PARAMETER(uint32_t, mtx_accumulate_latency, 0,
               "Extra cycles to read, add and write the accumulator")

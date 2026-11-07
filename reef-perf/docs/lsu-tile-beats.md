@@ -138,9 +138,11 @@ settings (6 and 17 cycles per `vtle32`).
 - Latency: only throughput was fitted. When a tile beat's data reaches the
   tile, or a store completes, still follows the vector rule (data usable at
   memory latency − 2 after the access starts).
-- `tile_load_behind_mac` (a MAC, then 8 `vtle8` and a `lw`) runs 12.5% fast
-  (28.0 against 32.0 cycles per iteration). The FIFO hold (case 6 in
-  `matrix.md`) or the split above may explain it; not investigated.
+- `tile_load_behind_mac` (a MAC, then 8 `vtle8` and a `lw`) ran 12.5% fast
+  until its waveform showed the cause was on the matrix side (MAC pipeline
+  depth, command path, controller drain, FIFO pop latency; `matrix.md`, C4).
+  It now matches, so the 1 + 1 split does not show there; it is still a
+  guess.
 
 ## What the core owner is asked to do
 
@@ -259,5 +261,4 @@ not change: it keeps setting `IsTile`, and `matrix_diff` re-checks the
 
 **Done when** the eight `*_burst` programs match on the LSU version Reef
 models, the inst/switch split is set from a waveform rather than guessed,
-tile-write latency is checked against the trace, and `tile_load_behind_mac`
-is within a few percent or its gap is explained.
+and tile-write latency is checked against the trace.

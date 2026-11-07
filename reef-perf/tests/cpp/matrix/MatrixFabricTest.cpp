@@ -17,7 +17,7 @@ TEST(MatrixFabricTest, CoralDefaultsFullTile) {
   EXPECT_EQ(C.Passes, 4U);
   EXPECT_EQ(C.Busy, 4U);
   EXPECT_EQ(C.Occupancy, 4U);
-  EXPECT_EQ(C.Latency, 4U + 6U); // + PipelineDepth
+  EXPECT_EQ(C.Latency, 4U + 9U); // + PipelineDepth
   EXPECT_EQ(C.UsefulMacs, 1024U);
   EXPECT_EQ(C.CapacityMacs, 1024U);
 }
@@ -88,7 +88,7 @@ TEST(MatrixFabricTest, PipelineAcrossOpsAndClockDivider) {
   F.PipelineAcrossOps = false;
   F.ClockDivider = 2;
   FabricCost C = getMacCost(F, 16, 16, 4, MatrixType::Int8);
-  EXPECT_EQ(C.Latency, 2U * 10U);
+  EXPECT_EQ(C.Latency, 2U * 13U);
   EXPECT_EQ(C.Occupancy, C.Latency);
   EXPECT_EQ(C.Busy, 8U);
 }
