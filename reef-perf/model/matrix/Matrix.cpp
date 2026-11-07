@@ -46,7 +46,9 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       CmdLatency(Params->mtx_cmd_latency),
       UopsPerCycle(Params->mtx_uops_per_cycle),
       CompleteLatency(Params->mtx_complete_latency), Fabric(getFabric(Params)),
-      NumArrays(Params->mtx_num_arrays), ZeroCycles(Params->mtx_zero_cycles),
+      NumArrays(Params->mtx_num_arrays),
+      AccRawCycles(Params->mtx_acc_raw_cycles),
+      ZeroCycles(Params->mtx_zero_cycles),
       MoveCyclesPerUop(Params->mtx_move_cycles_per_uop),
       MoveLatency(Params->mtx_move_latency),
       TileWriteLatency(Params->mtx_tile_write_latency),
@@ -110,20 +112,19 @@ Cycle Matrix::getVectorSourcesReady(const Inst &I) const {
   return Ready;
 }
 
-Cycle Matrix::getTilesReady(const Inst &I) const {
-  Cycle Ready = 0;
+Cycle Matrix::getTilesReady(const Inst &I, const std::array<Cycle, 16> &Ready) {
+  Cycle Latest = 0;
   for (uint32_t T = I.Mtx.FirstTile;
-       T < uint32_t{I.Mtx.FirstTile} + I.Mtx.NumTiles && T < TileReady.size();
-       ++T)
-    Ready = std::max(Ready, TileReady.at(T));
-  return Ready;
+       T < uint32_t{I.Mtx.FirstTile} + I.Mtx.NumTiles && T < Ready.size(); ++T)
+    Latest = std::max(Latest, Ready.at(T));
+  return Latest;
 }
 
-void Matrix::setTilesReady(const Inst &I, Cycle Ready) {
+void Matrix::setTilesReady(const Inst &I, std::array<Cycle, 16> &Tiles,
+                           Cycle Ready) {
   for (uint32_t T = I.Mtx.FirstTile;
-       T < uint32_t{I.Mtx.FirstTile} + I.Mtx.NumTiles && T < TileReady.size();
-       ++T)
-    TileReady.at(T) = Ready;
+       T < uint32_t{I.Mtx.FirstTile} + I.Mtx.NumTiles && T < Tiles.size(); ++T)
+    Tiles.at(T) = Ready;
 }
 
 Cycle Matrix::bookBeats(const Inst &I, Cycle Earliest) {
@@ -172,7 +173,13 @@ void Matrix::executeInst(const InstRef &I) {
   // zvt_pe_array.sv:209), vtzero after its counter (zvt_ctrl.sv:613), loads,
   // stores and moves after one controller cycle per uop.
   const MatrixInfo &M = I->Mtx;
-  Cycle Earliest = std::max({CmdDone, getTilesReady(*I), HeadFree});
+  // A MAC reads its accumulator from the pipeline, so after another MAC
+  // into the same tile it waits only for TileMacReady: hitRaw stalls the
+  // first step while the earlier MAC's first step is in the multiply stages
+  // (zvt_pe_array.sv:195-207).
+  Cycle TilesReady =
+      getTilesReady(*I, M.Op == MatrixOp::Mac ? TileMacReady : TileReady);
+  Cycle Earliest = std::max({CmdDone, TilesReady, HeadFree});
   // Every controller op except a MAC waits for the array to drain (!peBusy:
   // zvt_ctrl.sv:105-106, :130-134).
   bool UsesCtrl = M.Op == MatrixOp::Zero || M.Op == MatrixOp::MoveToTile ||
@@ -190,7 +197,9 @@ void Matrix::executeInst(const InstRef &I) {
     Start = Arrays.reserve(Earliest, Cost.Occupancy);
     Done = Start + Cost.Latency;
     HeadFree = Start + Cost.Busy;
-    setTilesReady(*I, Done);
+    setTilesReady(*I, TileReady, std::max(Done, getTilesReady(*I, TileReady)));
+    setTilesReady(*I, TileMacReady,
+                  AccRawCycles == 0 ? Done : Start + AccRawCycles);
     ArrayDrain = std::max(ArrayDrain, Done);
     Stats.UsefulMacs += Cost.UsefulMacs;
     Stats.CapacityMacs += Cost.CapacityMacs;
@@ -206,7 +215,8 @@ void Matrix::executeInst(const InstRef &I) {
     Start = Ctrl.reserve(Earliest, ZeroCycles);
     Done = Start + ZeroCycles;
     HeadFree = Done;
-    setTilesReady(*I, Done);
+    setTilesReady(*I, TileReady, Done);
+    setTilesReady(*I, TileMacReady, Done);
     Stats.SubtileWrites += uint64_t{M.NumTiles} * 16; // 16 x 16 bytes each.
     break;
   case MatrixOp::MoveToTile:
@@ -216,7 +226,8 @@ void Matrix::executeInst(const InstRef &I) {
     HeadFree = Start + Busy;
     Done = HeadFree + MoveLatency;
     if (M.Op == MatrixOp::MoveToTile) {
-      setTilesReady(*I, Done);
+      setTilesReady(*I, TileReady, Done);
+      setTilesReady(*I, TileMacReady, Done);
       Stats.SubtileWrites += SliceSubtiles;
     } else {
       for (RegId Reg : I->Dsts)
@@ -235,7 +246,8 @@ void Matrix::executeInst(const InstRef &I) {
     Start = Ctrl.reserve(std::max(Earliest, FirstWrite), Uops);
     HeadFree = Start + Uops;
     Done = Start + Uops - 1 + TileWriteLatency;
-    setTilesReady(*I, Done);
+    setTilesReady(*I, TileReady, Done);
+    setTilesReady(*I, TileMacReady, Done);
     Stats.SubtileWrites += SliceSubtiles;
     break;
   }

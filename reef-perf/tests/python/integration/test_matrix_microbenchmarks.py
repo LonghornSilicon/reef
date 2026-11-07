@@ -1,9 +1,10 @@
 """The Zvt microbenchmarks run on the matrix module and give consistent results.
 
-There are no RTL numbers for them yet (docs/matrix.md), so these tests check
-the model against itself: every program runs without a deadlock, the matrix
-module executes the expected instructions, and results respect bounds that
-hold for any array design.
+Most of these tests check the model against itself: every program runs
+without a deadlock, the matrix module executes the expected instructions, and
+results respect bounds that hold for any array design. The RTL comparison is
+the matrix_diff experiment (microbenchmarks/matrix/rtl_vme.csv); the MAC rate
+it measured is pinned here too.
 """
 
 from pathlib import Path
@@ -95,20 +96,67 @@ def test_iters_symbol_sets_the_loop_count(
     assert result.matrix["ops"]["mac"] == 7
 
 
+def _cycles_per_mac(
+    name: str,
+    iters: int,
+    macs_per_iter: int,
+    tmp_path: Path,
+    params: dict[str, object],
+) -> float:
+    """Per-MAC ROI cost of a MAC loop, by differencing N and 2N iterations.
+
+    Args:
+        name: Program name in microbenchmarks/matrix/.
+        iters: N.
+        macs_per_iter: MACs in one loop iteration.
+        tmp_path: Directory for the build outputs.
+        params: Model parameters (-p overrides), by tree path.
+
+    Returns:
+        (ROI(2N) - ROI(N)) / (N * macs_per_iter).
+    """
+    rois = []
+    for n in (iters, 2 * iters):
+        out = tmp_path / f"{name}_{n}"
+        (out / "matrix").mkdir(parents=True)
+        elf = build_microbenchmark(f"matrix/{name}", out, {"ITERS": n})
+        result = run_sim(
+            elf,
+            params=params,
+            overlay_configs=(VME_CONFIG,),
+        )
+        assert result.roi_cycles is not None
+        rois.append(result.roi_cycles)
+    return (rois[1] - rois[0]) / (iters * macs_per_iter)
+
+
 @pytest.mark.integration
-def test_mac_chain_is_slower_than_independent_macs(
+def test_dependent_macs_issue_as_fast_as_independent_ones(
     cpp_build_dir: Path, tmp_path: Path
 ) -> None:
-    """Dependent MACs take longer than the same MACs on rotating tiles.
+    """A MAC into the tile the previous MAC writes need not wait for it.
 
-    MACs into one accumulator wait for each other; MACs rotating over four
-    accumulators overlap.
+    On CoralNPU, hitRaw only holds a MAC while the previous MAC's first step
+    is in the multiply stages, so a chain into one tile runs at the array's
+    rate (4 cycles per full int8 tile, microbenchmarks/matrix/rtl_vme.csv).
+    The ROB is the reference core's 16 entries; with M3's 8, the ROB limits
+    the chain instead. With mtx_acc_raw_cycles 0, a MAC waits for the tile
+    write and the chain is slower.
     """
     del cpp_build_dir
-    chain = _run("mac_chain", tmp_path)
-    indep = _run("mac_indep", tmp_path)
-    assert chain.roi_cycles is not None and indep.roi_cycles is not None
-    assert chain.roi_cycles > indep.roi_cycles
+    rob: dict[str, object] = {"top.core.rob.params.rob_entries": 16}
+    chain = _cycles_per_mac("mac_chain", 50, 1, tmp_path / "chain", rob)
+    indep = _cycles_per_mac("mac_indep", 50, 4, tmp_path / "indep", rob)
+    assert chain == pytest.approx(4.0)
+    assert indep == pytest.approx(4.0)
+    waiting = _cycles_per_mac(
+        "mac_chain",
+        50,
+        1,
+        tmp_path / "waiting",
+        {**rob, "top.matrix.params.mtx_acc_raw_cycles": 0},
+    )
+    assert waiting > chain
 
 
 @pytest.mark.integration

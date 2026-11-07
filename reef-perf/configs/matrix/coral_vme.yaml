@@ -22,6 +22,7 @@ top:
       mtx_reduction: in_place
       mtx_pe_pipeline_depth: 6      # INFER: MULBULKPIPENUM 3 + ADDERPIPENUM 3 (zvt_pe_array.sv:34-35)
       mtx_accumulate_latency: 0     # PLACEHOLDER
+      mtx_acc_raw_cycles: 4         # hitRaw: MULBULKPIPENUM + 1 (zvt_pe_array.sv:195-207)
       mtx_pipeline_across_ops: true # PLACEHOLDER: not measured
       mtx_zero_cycles: 4            # PROCESS_DELAY (zvt_ctrl.sv:435-445, :613)
       mtx_move_cycles_per_uop: 1    # PLACEHOLDER

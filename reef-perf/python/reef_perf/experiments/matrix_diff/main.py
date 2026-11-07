@@ -40,6 +40,16 @@ VME_CONFIG = MODULE_ROOT / "configs" / "machines" / "m3_vme.yaml"
 RTL_REFERENCE = MODULE_ROOT / "microbenchmarks" / "matrix" / "rtl_vme.csv"
 """Committed VME RTL measurements, one row per (program, iterations)."""
 
+REFERENCE_CORE_PARAMS = {"top.core.rob.params.rob_entries": 16}
+"""Core settings of the reference RTL that differ from M3.
+
+The VME core is CoralNPU 8a5e1b31, whose retirement buffer has 16 entries
+(Parameters.scala:141); M3's has 8. A Zvt instruction holds its entry until
+its tile write lands, so the ROB size bounds how many MACs are in flight.
+These are core parameters, owned by the core module: they are set here to
+match the reference, not changed in m3.yaml or m3_vme.yaml.
+"""
+
 
 @dataclass(frozen=True)
 class DiffBenchmark:
@@ -101,7 +111,10 @@ def _write(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 def model(out: Path) -> None:
-    """Run every built ELF on the model with m3.yaml + m3_vme.yaml."""
+    """Run every built ELF on the model.
+
+    The machine is m3.yaml + m3_vme.yaml with REFERENCE_CORE_PARAMS.
+    """
     from reef_perf.sim import run_sim
 
     rows: list[dict[str, object]] = []
@@ -110,6 +123,7 @@ def model(out: Path) -> None:
             result = run_sim(
                 _elf(out, bench, iters),
                 sim_config=DEFAULT_SIM_CONFIG,
+                params=REFERENCE_CORE_PARAMS,
                 overlay_configs=(VME_CONFIG,),
             )
             rows.append(

@@ -101,6 +101,7 @@ Each parameter is tagged with where its default comes from:
 | `mtx_tree_level_latency` | 1 | DSE | Cycles per adder-tree level. |
 | `mtx_pe_pipeline_depth` | 6 | INFER | Stages after the last step: `MULBULKPIPENUM` 3 + `ADDERPIPENUM` 3 (`zvt_pe_array.sv:34-35`). Whether that is the whole MAC-to-tile path needs a trace. |
 | `mtx_accumulate_latency` | 0 | PLACEHOLDER | Extra read-modify-write of the accumulator tile. |
+| `mtx_acc_raw_cycles` | 4 | RTL | Cycles after a MAC starts until a MAC into the same tile may start. CoralNPU's hitRaw holds a MAC's first step while the previous MAC's first step is in multiply stages 1-3 (`MULBULKPIPENUM` + 1, `zvt_pe_array.sv:195-207`). Matches `mac_chain` (4.0 cycles per dependent MAC). 0 makes a MAC wait for the earlier MAC's tile write, for arrays that cannot forward the accumulator. Only after a MAC: after vtzero, a move or a tile load, a MAC waits for the write. |
 | `mtx_stationary_load_cycles` | 0 | DSE | Load time per pass for weight/input stationary; 0 means one PE row per cycle. |
 | `mtx_double_buffer_stationary` | false | DSE | Load the next pass's operand during this pass. |
 | `mtx_pipeline_across_ops` | true | PLACEHOLDER | Fill, drain and pipeline overlap the next MAC. |
@@ -233,7 +234,7 @@ built from the cited RTL behavior.
 | B1 | **Coral tile mapping.** A `mtx_mapping` parameter: `coral` (busy = min(4, ceil(tm/2)), no `tn` term, `zvt_pe_array.sv:216`) or `generic` (today's formula, for the sweep presets). `coral` is the default. | 3 | `matrix/MatrixFabric.*`, `configs/matrix/*.yaml` |
 | B2 | **Misaligned `vs1`/`vs2` become no-ops** (`rvv_backend_decode_unit_ari.sv:3219-3233`). | 8 | `frontend/FuncSim.cpp` (behind the A1 flag) |
 | B3 | **2-deep `lsu2vme`/`vme2lsu` FIFOs** between the LSU and the controller (`zvt.sv:163-206`). | 6 | `matrix/Matrix.*` |
-| B4 | **Per-tile MAC hazard.** Replace the whole-group wait with the RTL's comparison against in-flight adder stages (`zvt_pe_array.sv:195-204`). The exact back-to-back timing still needs a trace (C3). | 9 | `matrix/Matrix.*` |
+| B4 | **Done.** `mtx_acc_raw_cycles`; `mac_chain` now matches the RTL (4.0 cycles per MAC) with the reference core's 16-entry ROB, which also brings tile load and store to +45% and +23%. **Per-tile MAC hazard.** Replace the whole-group wait with the RTL's comparison against in-flight adder stages (`zvt_pe_array.sv:195-204`). The exact back-to-back timing still needs a trace (C3). | 9 | `matrix/Matrix.*` |
 | B5 | **`vtdiscard` inside the engine.** Only the matrix-side rules. Dispatching alone and waiting for an empty retirement buffer are core rules and stay open. | 7 | `matrix/Matrix.*` |
 
 ### C. Correlate against the VME RTL
@@ -264,6 +265,23 @@ model's wait for the previous MAC's tile write (busy + 6-stage pipeline) is
 wrong: this settles case 9's direction, and B4 should let a MAC accumulate
 into a tile still in the pipeline. The tile load/store path is about twice too
 slow, which is calibration (C4).
+
+After B4, with the reference core's ROB (`REFERENCE_CORE_PARAMS` in
+`matrix_diff/main.py`: 16 entries, CoralNPU `Parameters.scala:141`, against
+M3's 8):
+
+| Program | Op | Model | RTL | Error |
+| --- | --- | --- | --- | --- |
+| `mac_chain` | dependent `vtmmu` | 4.0 | 4.0 | 0% |
+| `mac_indep` | independent `vtmmu` | 4.0 | 4.0 | 0% |
+| `tile_load` | `vtle8` | 5.0 | 3.44 | +45% |
+| `tile_store` | `vtse8` | 4.38 | 3.56 | +23% |
+
+The ROB matters because a Zvt instruction holds its retirement-buffer entry
+until its tile write lands (`RetirementBuffer.scala:540-549`). With M3's 8
+entries, only about 2.7 `mac_chain` iterations fit, and the chain runs at
+7.0 cycles per MAC, limited by the ROB, not the engine. Which ROB Reef's core
+has is the core owner's call; the matrix numbers above assume 16.
 
 ### D. Configurable for the sweep
 
@@ -332,10 +350,12 @@ can answer it.
    (`rvv_backend_decode_unit_ari.sv:3219-3233`) should be a no-op; the model
    times it as a MAC. Whether the scalar LSU still takes a queue entry for a
    vl = 0 tile load or store is also untraced (the model takes none).
-9. **The hitRaw rule.** The model makes a MAC wait for its whole 4-tile
-   accumulator group to be written. CoralNPU compares the destination tile
-   index against in-flight adder stages (`zvt_pe_array.sv:195-204`). Exact
-   back-to-back behavior needs a trace.
+9. **The hitRaw rule (settled, B4).** CoralNPU holds a MAC only while the
+   previous MAC into the same tile group has its first step in the multiply
+   stages (`zvt_pe_array.sv:195-207`), so dependent MACs start 4 cycles apart
+   (`mtx_acc_raw_cycles`). For a full tile that equals the array's busy time,
+   so `mac_chain` cannot tell whether the window is 4 or less; partial tiles
+   (busy 1 or 2 cycles) would, and are not measured yet.
 10. **Tile data is not computed.** Programs whose control flow depends on
     matrix results take the wrong path. Spike's `minstret` does not count
     Zvt instructions. `mstatus.MS` is not modeled, so a program that turns

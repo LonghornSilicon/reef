@@ -21,7 +21,9 @@
 ///
 /// A tile scoreboard holds, per architectural tile, the cycle its last write
 /// lands; an instruction waits for every tile of its group (1, 2 or 4 tiles
-/// by element width). Tile contents are not modeled.
+/// by element width). A MAC into a tile whose last writer was a MAC waits
+/// only `mtx_acc_raw_cycles` after that MAC started, as CoralNPU's hitRaw
+/// check does. Tile contents are not modeled.
 ///
 /// All timing values not cited in docs/matrix.md are placeholders.
 ///
@@ -101,6 +103,9 @@ public:
               "PE pipeline stages after the last compute step")
     PARAMETER(uint32_t, mtx_accumulate_latency, 0,
               "Extra cycles to read, add and write the accumulator")
+    PARAMETER(uint32_t, mtx_acc_raw_cycles, 4,
+              "Cycles after a MAC starts until a MAC into the same tile may "
+              "start (0: wait until the first MAC's tile write lands)")
     PARAMETER(uint32_t, mtx_stationary_load_cycles, 0,
               "Cycles to load the stationary operand per pass (0: one PE "
               "row per cycle)")
@@ -184,9 +189,11 @@ private:
   static uint32_t getUops(const Inst &I);
   /// \returns the first cycle every vector register \p I reads is ready.
   Cycle getVectorSourcesReady(const Inst &I) const;
-  /// \returns the cycle every tile of \p I's group is written.
-  Cycle getTilesReady(const Inst &I) const;
-  void setTilesReady(const Inst &I, Cycle Ready);
+  /// \returns the latest entry of \p Ready over \p I's tile group.
+  static Cycle getTilesReady(const Inst &I, const std::array<Cycle, 16> &Ready);
+  /// Sets \p I's tile group to \p Ready in \p Tiles.
+  static void setTilesReady(const Inst &I, std::array<Cycle, 16> &Tiles,
+                            Cycle Ready);
   /// Runs \p I's 16-byte beats through the LSU, the first no earlier than
   /// \p Earliest. \returns the last beat's done cycle.
   Cycle bookBeats(const Inst &I, Cycle Earliest);
@@ -197,6 +204,7 @@ private:
   const uint32_t CompleteLatency;
   const FabricConfig Fabric;
   const uint32_t NumArrays;
+  const uint32_t AccRawCycles;
   const uint32_t ZeroCycles;
   const uint32_t MoveCyclesPerUop;
   const uint32_t MoveLatency;
@@ -215,7 +223,8 @@ private:
   VectorLsuInterface *Lsu = nullptr;
   const VectorRegisterInterface *VectorRegs = nullptr;
 
-  std::array<Cycle, 16> TileReady{};                // Per tile mt0-mt15.
+  std::array<Cycle, 16> TileReady{};    // Per tile mt0-mt15.
+  std::array<Cycle, 16> TileMacReady{}; // A MAC into the tile may start.
   std::array<Cycle, RegId::NumPerFile> OwnVReady{}; // vtmv.v.t results.
   Cycle LastCmdStart = 0;                           // In-order uop issue.
   Cycle HeadFree = 0;   // The controller's head uop is released.
