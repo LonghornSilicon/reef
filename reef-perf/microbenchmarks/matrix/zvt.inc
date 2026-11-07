@@ -36,6 +36,12 @@
 .macro VTMMU rdfield, vs2, vs1
   .insn r 0x77, 0, 0x79, \rdfield, \vs1, \vs2
 .endm
+# vtfmm.tvv mt<tile>, vs2, vs1 (fp32 x fp32 -> fp32). For bf16 x bf16 ->
+# fp32 (vtfmm.alt) pass rdfield = tile << 1 | 1 (vme_test_utils.h,
+# ZvtMatmulFpWord).
+.macro VTFMM rdfield, vs2, vs1
+  .insn r 0x77, 1, 0x79, \rdfield, \vs1, \vs2
+.endm
 # vtmv.v.t vd, rs1 (rs1 = TSS).
 .macro VTMV_VT vd, rs1
   .insn r 0x57, 6, 0x21, \vd, \rs1, x31
@@ -62,5 +68,8 @@
 .equ MTYPE_I8_I32, (16 << 10) | (4 << 5) | 3  # tm 16, tk 4, x4: int8 MAC
 .equ MTYPE_E32,    (16 << 10) | (1 << 5) | 1  # tm 16, tk 1, x1: 32-bit tiles
 .equ MTYPE_E8,     (16 << 10) | (0 << 5) | 1  # tm 16, x1: 8-bit tiles
+.equ MTYPE_F32_F32, (16 << 10) | (1 << 5) | 1 # tm 16, tk 1, x1: fp32 MAC
+.equ MTYPE_BF16_F32, (16 << 10) | (2 << 5) | 2 # tm 16, tk 2, x2: bf16 MAC
 .equ VTYPE_E8,  0                             # SEW8 (LMUL derived)
+.equ VTYPE_BF16, (1 << 8) | (1 << 3)          # SEW16 + altfmt (LMUL derived)
 .equ VTYPE_E32, (2 << 3)                      # SEW32 (LMUL derived)

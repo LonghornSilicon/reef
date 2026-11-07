@@ -1,0 +1,14 @@
+# Model predictions for the held-out programs, recorded 2026-11-07T09:04:22
+# before any RTL run. Model: akul/matrix_engine 7737226 + these programs; m3.yaml + m3_vme.yaml
+# + matrix_diff REFERENCE_CORE_PARAMS. cycles_per_op = (ROI(2N) - ROI(N)) / (N * ops_per_iter).
+name,n,roi_n,roi_2n,instructions_n,cycles_per_op
+mac_chain_tm4,200,834,1634,613,4.000
+mac_indep_tm4,50,436,836,313,2.000
+mac_chain_tn4,200,834,1634,613,4.000
+mac_indep_tm8tn8,50,435,835,313,2.000
+mac_chain_fp32,200,836,1636,613,4.000
+mac_indep_fp32,50,834,1634,313,4.000
+mac_chain_bf16,200,836,1636,613,4.000
+mac_indep_bf16,50,834,1634,313,4.000
+gemm_multi,10,21442,42862,10312,2142.000
+gemm_longk,10,27914,55814,13422,2790.000

@@ -75,12 +75,14 @@ class DiffBenchmark:
         iters: N, the default ITERS; the second build uses 2N.
         ops_per_iter: Matrix operations of interest per loop iteration.
         op: What one operation is, for the report.
+        held_out: Written after calibration; nothing is fitted to it.
     """
 
     name: str
     iters: int
     ops_per_iter: int
     op: str
+    held_out: bool = False
 
 
 BENCHMARKS = (
@@ -89,7 +91,7 @@ BENCHMARKS = (
     DiffBenchmark("tile_load", 20, 16, "vtle8"),
     DiffBenchmark("tile_store", 20, 16, "vtse8"),
     DiffBenchmark("tile_load_behind_mac", 50, 1, "vtmmu + 8 vtle8 + lw"),
-    DiffBenchmark("gemm_tile", 10, 1, "16x16x64 GEMM (held out)"),
+    DiffBenchmark("gemm_tile", 10, 1, "16x16x64 GEMM", held_out=True),
     DiffBenchmark("tile_load_burst", 20, 16, "vtle8, unrolled"),
     DiffBenchmark("tile_store_burst", 20, 16, "vtse8, unrolled"),
     DiffBenchmark("tile_load32_burst", 20, 16, "vtle32 (4 beats)"),
@@ -98,6 +100,16 @@ BENCHMARKS = (
     DiffBenchmark("vec_store_burst", 20, 16, "vse8 m1 (1 reg)"),
     DiffBenchmark("vec_load4_burst", 20, 16, "vle8 m4 (4 regs)"),
     DiffBenchmark("vec_store4_burst", 20, 16, "vse8 m4 (4 regs)"),
+    DiffBenchmark("mac_chain_tm4", 200, 1, "dep vtmmu tm4 tn16", True),
+    DiffBenchmark("mac_indep_tm4", 50, 4, "vtmmu tm4 tn16", True),
+    DiffBenchmark("mac_chain_tn4", 200, 1, "dep vtmmu tm16 tn4", True),
+    DiffBenchmark("mac_indep_tm8tn8", 50, 4, "vtmmu tm8 tn8", True),
+    DiffBenchmark("mac_chain_fp32", 200, 1, "dep vtfmm fp32", True),
+    DiffBenchmark("mac_indep_fp32", 50, 4, "vtfmm fp32", True),
+    DiffBenchmark("mac_chain_bf16", 200, 1, "dep vtfmm bf16", True),
+    DiffBenchmark("mac_indep_bf16", 50, 4, "vtfmm bf16", True),
+    DiffBenchmark("gemm_multi", 10, 1, "32x32x64 GEMM", True),
+    DiffBenchmark("gemm_longk", 10, 1, "16x16x256 GEMM", True),
 )
 """The looping matrix microbenchmarks."""
 
@@ -222,6 +234,7 @@ def compare(out: Path) -> None:
             {
                 "name": bench.name,
                 "op": bench.op,
+                "held_out": bench.held_out,
                 "model_cycles_per_op": round(costs["model"], 3),
                 "rtl_cycles_per_op": round(costs["rtl"], 3),
                 "error_pct": round(

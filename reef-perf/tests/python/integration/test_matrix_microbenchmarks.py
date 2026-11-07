@@ -29,6 +29,17 @@ EXPECTED_OPS = {
     "tile_store_burst": {"tile_store": 320},
     "tile_load32_burst": {"tile_load": 320, "move_to_vector": 1},
     "tile_store32_burst": {"tile_store": 320},
+    # Held out (written after calibration).
+    "mac_chain_tm4": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_indep_tm4": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_chain_tn4": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_indep_tm8tn8": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_chain_fp32": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_indep_fp32": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_chain_bf16": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "mac_indep_bf16": {"mac": 200, "zero": 4, "move_to_vector": 1},
+    "gemm_multi": {"mac": 64, "zero": 4, "move_to_vector": 64},
+    "gemm_longk": {"mac": 64, "zero": 1, "move_to_vector": 16},
     # Vector references for the *_burst tile programs: no matrix ops.
     "vec_load_burst": {},
     "vec_store_burst": {},
