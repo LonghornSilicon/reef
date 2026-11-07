@@ -29,7 +29,7 @@ The core has several units and its own `Module` subclass.
 ## Rules
 
 1. **Modules connect only through public ports, `InstBufferInterface`,
-   `VectorLsuInterface` and `MemoryInterface`.** Each
+   `VectorLsuInterface`, `VectorRegisterInterface` and `MemoryInterface`.** Each
    module lists its public ports as constants, e.g.
    `Core::OutVector` or `Vector::InInsts`. `ReefSim::bindTree_()` binds them; nothing else
    reaches into another module's units.
@@ -302,6 +302,72 @@ Today only the LSU calls it. Instruction fetch is still free, and the matrix
 engine reaches memory through the LSU, as CoralNPU's does; a dedicated
 matrix memory port (`RequesterKind::Matrix`) is not modeled yet.
 
+## Matrix-engine edits to other modules (for review)
+
+The matrix engine needed small changes outside `matrix/`. This section lists
+every one, so each owner can review the part in their module. They share
+three properties:
+
+- **Off for M3.** Each fires only for a Zvt instruction, a request from the
+  matrix module, or a parameter that defaults off. Zvt itself is off unless
+  `top.frontend.params.zvt` is true ([`configs/machines/m3_vme.yaml`](../configs/machines/m3_vme.yaml)); with
+  it off a Zvt word traps in Spike, as on the M3 RTL.
+- **Golden unchanged.** [`tests/golden/m3_results.json`](../tests/golden/m3_results.json) is the same as on the
+  branch base (`5393b2f`), so no M3 cycle or stall count moved.
+- **Additive.** No existing behavior was removed. Where a rule changed
+  (Dispatch, below), it is a rule that only ever applied to matrix writers.
+
+Branch `akul/matrix_engine`, against `yuvesh-kernel-integration` (`5393b2f`).
+
+### Frontend ([`frontend/`](../model/frontend/))
+
+| File | Change | Fires when | Verified by |
+| --- | --- | --- | --- |
+| [`Fetch.h`](../model/frontend/Fetch.h), [`Fetch.cpp`](../model/frontend/Fetch.cpp) | Parameter `zvt` (default false), passed to `FuncSim` in `setFuncSim`. | Always read; it changes nothing while false. | `ZvtTest.InstDecodeIgnoresZvtWhenOff`, `test_zvt_traps_without_vme_config` |
+| [`FuncSim.h`](../model/frontend/FuncSim.h), [`FuncSim.cpp`](../model/frontend/FuncSim.cpp) | With `zvt` on, `next()` looks for a Zvt encoding before Spike; a Zvt word runs in `executeZvt` (mset* configuration and `rd` writes, traps where the RTL traps, the shapes the RTL retires as no-ops, operand values for the timing model). A standard `vset*` also clears mtype (`RvvFrontEnd.sv:205`). | Only with `zvt` on, and only for Zvt words (and the mtype clear on `vset*`). | Matrix microbenchmarks (`EXPECTED_OPS`), `ZvtTest` |
+| [`InstDecode.h`](../model/frontend/InstDecode.h), [`InstDecode.cpp`](../model/frontend/InstDecode.cpp) | `decodeInst(Inst &, bool Zvt = false)`: with Zvt on, a Zvt word gets class `MATRIX` (`VSET` for mset*) and its sources, per the RTL's uop operand offsets. | Only with `zvt` on. | `ZvtTest.InstDecodeClassifiesZvt` |
+| [`Zvt.h`](../model/frontend/Zvt.h), [`Zvt.cpp`](../model/frontend/Zvt.cpp) (new) | Zvt encodings (spec v0.4 at CoralNPU `8a5e1b31`) and the mset* semantics. | Called only from the two rows above. | `ZvtTest` |
+
+mset* are vector configuration on CoralNPU (the RVV front end runs them), so
+they reach the vector module as `VSET` instructions. The vector module's
+code is unchanged for them.
+
+### Core ([`core/`](../model/core/))
+
+| File | Change | Fires when | Verified by |
+| --- | --- | --- | --- |
+| [`Dispatch.cpp`](../model/core/Dispatch.cpp) | A tile load or store (`vtle*`, `vtse*`) also needs an LSU credit, as CoralNPU sends it to the LSU at dispatch; the LSU frees it when the first beat starts ("Core → matrix"). | A `MATRIX` instruction whose `Mtx.Op` is a tile load or store. | `tile_*` microbenchmarks |
+| [`Dispatch.cpp`](../model/core/Dispatch.cpp) | Vector registers written by a matrix instruction (`vtmv.v.t`): a reader waits only for the writer's own cycle, a second matrix writer does not wait, a vector writer still waits for the matrix result ("Matrix → vector"). Vector registers written by vector instructions are still not tracked in Dispatch, as before. | Only when a vector register's last writer is a matrix instruction. | `test_vtmv_readers_do_not_stall_dispatch`, `gemm_tile` |
+| [`Lsu.h`](../model/core/Lsu.h), [`Lsu.cpp`](../model/core/Lsu.cpp) | `lsu_tile_cost` (default false) and `lsu_tile_inst_overhead`, `lsu_tile_beat_overhead`, `lsu_tile_switch_cycles`: a tile beat's own cost in place of the vector-register cost. Off in `m3.yaml` and `m3_vme.yaml`; on only in `matrix_diff`'s `REFERENCE_CORE_PARAMS` (`docs/lsu-tile-beats.md`). | Only for a request with `IsTile` and `lsu_tile_cost` true. | `test_tile_beats_take_their_own_lsu_cost` |
+
+[`configs/machines/m3_vme.yaml`](../configs/machines/m3_vme.yaml) sets `top.core.lsu.params.lsu_tile_*` with
+`lsu_tile_cost: false`. `m3.yaml`'s core section is unchanged.
+
+Open items for the core owner are in [`lsu-tile-beats.md`](lsu-tile-beats.md), "What the core
+owner is asked to do": which LSU and ROB Reef has, the vector load path, and
+the `vtdiscard` interlock.
+
+### Vector ([`vector/`](../model/vector/))
+
+| File | Change | Fires when | Verified by |
+| --- | --- | --- | --- |
+| [`Vector.h`](../model/vector/Vector.h) | `Vector` implements `VectorRegisterInterface`: `getRegisterReady` returns its scoreboard entry (the matrix module waits for vector writers of its operands) and `setRegisterReady` records a matrix write (the later of it and the entry). | Called only by the matrix module. | `gemm_tile`, matrix microbenchmarks |
+
+### Common ([`common/`](../model/common/))
+
+| File | Change | Fires when | Verified by |
+| --- | --- | --- | --- |
+| [`Inst.h`](../model/common/Inst.h), [`Inst.cpp`](../model/common/Inst.cpp) | `MatrixOp`, `MatrixType`, `MatrixInfo`, `Inst::Mtx` (default `MatrixOp::None`), `getMatrixOpName`. | Filled in only for `MATRIX` instructions. | `InstTest`, matrix microbenchmarks |
+| [`Interfaces.h`](../model/common/Interfaces.h) | New `VectorRegisterInterface` (`getRegisterReady`, `setRegisterReady`); new `VectorLsuRequest::IsTile`, default false. | Only the matrix module calls the first or sets the second. | As above |
+
+### Top level and build
+
+| File | Change | Fires when |
+| --- | --- | --- |
+| [`ReefSim.h`](../model/ReefSim.h), [`ReefSim.cpp`](../model/ReefSim.cpp) | Binds the matrix module to the core's LSU (`setLsu`) and to the vector module's scoreboard (`setVectorRegisters`), and writes its statistics as the last JSON object, `"matrix"`. | Wiring always; the matrix module does nothing without Zvt instructions. The JSON block is new; existing keys are unchanged. |
+| [`CMakeLists.txt`](../CMakeLists.txt), [`tests/cpp/CMakeLists.txt`](../tests/cpp/CMakeLists.txt) | Build `frontend/Zvt.cpp`, `matrix/MatrixFabric.cpp`, `ZvtTest` and `MatrixFabricTest`. | Build only. |
+| [`configs/machines/m3.yaml`](../configs/machines/m3.yaml) | The matrix module's own section (`top.matrix.params`), rule 4. | Matrix only. |
+
 ## Known simplifications, by module
 
 These are the obvious next steps for each owner. None of them changes an
@@ -315,10 +381,11 @@ interface unless noted.
 - **Vector:** the divider's time doesn't depend on its operands; a load or
   store has one uop per register its accesses touch, whatever its EMUL; only
   unit-stride e32 loads and stores at LMUL 1 and 4 are measured.
-- **Matrix:** see docs/matrix.md, "Open cases". The main ones: most timing
-  values are placeholders until a VME verification simulator gives RTL
-  numbers; Zvt uops do not compete with vector uops for the RVV dispatch
-  they share on CoralNPU; no dedicated memory port.
+- **Matrix:** see docs/matrix.md, "Open cases". The main ones: Zvt uops do
+  not compete with vector uops for the RVV dispatch they share on CoralNPU;
+  no dedicated memory port; the core's `vtdiscard` interlock is not modeled.
+  The Coral engine is correlated against the VME RTL (docs/matrix.md,
+  "Correlating it").
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
   between requesters; the AXI latency and outstanding limit are assumptions.

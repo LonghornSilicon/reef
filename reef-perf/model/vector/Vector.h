@@ -207,11 +207,12 @@ public:
     return Pipeline.getPools();
   }
 
-  /// \returns the first cycle a uop reading v\p Index may start.
+  /// Records a matrix write of v\p Index (vtmv.v.t), readable from \p Ready.
   /// Only the matrix module calls this; vector-only programs never do.
   void setRegisterReady(unsigned Index, Cycle Ready) override {
     RegReady.at(Index) = std::max(RegReady.at(Index), Ready);
   }
+  /// \returns the first cycle a uop reading v\p Index may start.
   Cycle getRegisterReady(unsigned Index) const override {
     return RegReady.at(Index);
   }
