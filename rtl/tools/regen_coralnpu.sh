@@ -20,6 +20,10 @@ set -euo pipefail
 RTL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOP=RvvCoreMiniAxi
 TARGET=//hdl/chisel/src/coralnpu:rvv_core_mini_axi_cc_library_emit_verilog
+# Coral revision the core reports in its kscm0-4 CSRs (CoralNPUScmInfo, from Bazel's
+# workspace status). Pinned to the M3 commit: the SV must not depend on the reef commit,
+# or gen/ could never match.
+SCM_REVISION=72d700ef724669163e1b6f88e8622676ef6b0a74
 # M3-2026-04-27 release asset RvvCoreMiniAxi.sv. Unmodified M3 Chisel reproduces it exactly.
 M3_SHA256=74d3bc7e3295353fd879f70a513f7c3fde79912010a1f62f08d815fbcd6f4ff4
 GEN=src/reef/gen
@@ -57,18 +61,21 @@ fi
 mkdir -p "$CACHE" "$tmp/ws" "$tmp/out"
 cp -a "$src/." "$tmp/ws/"
 rm -rf "$tmp/ws/gen" "$tmp"/ws/bazel-*
+# M3's .bazelrc runs utils/get_workspace_status.sh, which reads git; the copy has no git.
+printf '#!/bin/sh\necho CORALNPU_BUILD_GIT_VERSION %s\n' "$SCM_REVISION" >"$tmp/ws/.reef_workspace_status"
+chmod +x "$tmp/ws/.reef_workspace_status"
 chmod -R a+rwX "$tmp"
-chmod a+rwx "$CACHE"
+chmod a+rwx "$CACHE" 2>/dev/null || true  # CI hands it to uid 1000 beforehand
 
-# --workspace_status_command: M3's .bazelrc runs utils/get_workspace_status.sh, which needs
-# a git checkout of coralnpu. The emitted SV does not contain the git revision.
+# Bazel never reruns an action because only the volatile workspace status changed, so a
+# cache that once built with another revision keeps it. Use a cache only this script fills.
 docker run --rm --memory="$MEM" --memory-swap="$MEM" \
     -v "$tmp/ws":/home/builder/coralnpu \
     -v "$CACHE":/home/builder/.cache/bazel \
     -v "$tmp/out":/out \
     -w /home/builder/coralnpu "$IMAGE" bash -c "
         set -e
-        bazel build $BAZEL_FLAGS --workspace_status_command=/bin/true $TARGET
+        bazel build $BAZEL_FLAGS --workspace_status_command=/home/builder/coralnpu/.reef_workspace_status $TARGET
         cp -L bazel-bin/hdl/chisel/src/coralnpu/$TOP.sv /out/$TOP.sv"
 
 sv="$tmp/out/$TOP.sv"
