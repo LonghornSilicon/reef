@@ -165,9 +165,7 @@ public:
 
   /// Connects the vector module's register scoreboard \p Regs, which must
   /// outlive the unit.
-  void setVectorRegisters(const VectorRegisterInterface *Regs) {
-    VectorRegs = Regs;
-  }
+  void setVectorRegisters(VectorRegisterInterface *Regs) { VectorRegs = Regs; }
 
   /// \returns the command path, the MAC arrays and the controller.
   std::vector<const ResourcePool *> getPools() const {
@@ -240,7 +238,7 @@ private:
   ResourcePool Arrays; // MAC arrays.
   ResourcePool Ctrl;   // Controller: vtzero, moves, tile writes from loads.
   VectorLsuInterface *Lsu = nullptr;
-  const VectorRegisterInterface *VectorRegs = nullptr;
+  VectorRegisterInterface *VectorRegs = nullptr;
 
   std::array<Cycle, 16> TileReady{};    // Per tile mt0-mt15.
   std::array<Cycle, 16> TileMacReady{}; // A MAC into the tile may start.

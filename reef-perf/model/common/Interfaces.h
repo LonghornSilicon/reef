@@ -103,6 +103,13 @@ struct VectorRegisterInterface {
 
   /// \returns the first cycle a reader of vector register v\p Index may start.
   virtual Cycle getRegisterReady(unsigned Index) const = 0;
+
+  /// Records that the matrix module writes v\p Index (vtmv.v.t), readable
+  /// from cycle \p Ready on. Vector instructions that arrive in a later
+  /// cycle wait for it inside the vector module, as CoralNPU's RVV backend
+  /// resolves the dependence; Dispatch keeps readers out of the writer's own
+  /// cycle (docs/interfaces.md, "Matrix → vector").
+  virtual void setRegisterReady(unsigned Index, Cycle Ready) = 0;
 };
 
 /// Why the frontend had no instruction for the core in a cycle, for top-down

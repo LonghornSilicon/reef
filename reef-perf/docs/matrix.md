@@ -237,7 +237,7 @@ Every step has to pass the same checks:
 | --- | --- | --- | --- | --- |
 | A1 | **Done.** Zvt opt-in flag (case 16): `top.frontend.params.zvt`, default off; `configs/machines/m3_vme.yaml` turns it on. With it off, `FuncSim` and `decodeInst` never call `decodeZvt`, so an M3 run takes exactly the old code path, and a Zvt word traps in Spike as it would on the M3 RTL. | `frontend/Fetch.*`, `frontend/FuncSim.*`, `frontend/InstDecode.*`, `configs/machines/m3_vme.yaml` | frontend | Golden unchanged; `ZvtTest.InstDecodeIgnoresZvtWhenOff`; `test_zvt_traps_without_vme_config` |
 | A2 | **Done for `mac_chain`, `mac_indep`, `tile_load`; not possible for `tile_store`, `gemm_tile`.** End each matrix ROI on the last result (case 2). Before `ROI_END`, each microbenchmark reads back a result that depends on the last matrix op (for example `vtmv.v.t` and then `vmv.x.s`), so neither the model nor the RTL closes the ROI early. This changes no core rule. | `microbenchmarks/matrix/*.S` | none | ROIs include the tail; `test_matrix_microbenchmarks.py` updated |
-| A3 | **List every edit to another module's file** in `interfaces.md` with the condition it fires under (a Zvt instruction, or a matrix writer), for review. | `docs/interfaces.md` | frontend, core, vector, common | Review |
+| A3 | (Add: `VectorRegisterInterface::setRegisterReady` in `vector/Vector.h`, and Dispatch's matrix-to-vector RAW and WAW rules, from `gemm_tile`.) **List every edit to another module's file** in `interfaces.md` with the condition it fires under (a Zvt instruction, or a matrix writer), for review. | `docs/interfaces.md` | frontend, core, vector, common | Review |
 
 ### B. Mirror CoralNPU's engine (from RTL source; no measurement needed)
 
@@ -318,6 +318,35 @@ FIFO pop latency), same ROB and LSU:
 
 Raw ROIs agree within 8 cycles for these programs, so one-time costs line
 up too, but only differences are compared.
+
+#### Held-out check: `gemm_tile`
+
+One 16x16x64 int8 GEMM (16 k-steps of 8 `vle8` + `vtmmu`, then 16 rows of
+`vtmv.v.t` + `vse32`), never used for fitting. Per GEMM, by differencing
+10 and 20 GEMMs:
+
+| Model setting | Model | RTL |
+| --- | --- | --- |
+| `REFERENCE_CORE_PARAMS` (vector accesses on M3's LSU) | 870 | 520 |
+| + vector loads at the newer LSU's 3 cycles, `vse32` (4 registers) bracketed at 5 and 9 (RTL 7) | 539 to 595, about 567 | 520 |
+| + a 32-entry ROB | 486 to 550, about 518 | 520 |
+
+The matrix side matches the waveform: a MAC starts 3 cycles after its last
+operand's writeback, retires 14 cycles after its first step, and the
+read-back rows are paced by the store. The rest is the vector load path:
+M3's LSU in throughput (5 cycles per `vle8` against 3), and in latency, which
+keeps each MAC in the 16-entry ROB 3 cycles longer than on the RTL. A
+k-step is 19 instructions, so that stalls dispatch for 3 cycles per k-step
+(48 per GEMM); a 32-entry ROB hides it. Both are the core owner's
+(`docs/lsu-tile-beats.md`). The approximate vector costs above are not in
+`REFERENCE_CORE_PARAMS`: the LSU's vector parameters cannot express a
+per-instruction overhead, so they cannot match one- and four-register
+accesses at once.
+
+Running it found one matrix-interface bug: Dispatch held a vector reader of
+a `vtmv.v.t` result until the result was ready, so each read-back row took
+13 cycles against the RTL's 7. That rule now lives in the vector module
+(interfaces.md, "Matrix → vector").
 
 The ROB matters because a Zvt instruction holds its retirement-buffer entry
 until its tile write lands (`RetirementBuffer.scala:540-549`). With M3's 8
@@ -426,7 +455,9 @@ can answer it.
 15. **Same-cycle WAR on vector registers.** If a younger vector instruction,
     dispatched in the same cycle, overwrites a register an older matrix
     instruction reads, the matrix instruction waits for the younger write
-    (interfaces.md, "Vector → matrix").
+    (interfaces.md, "Vector → matrix"). The other direction, a vector
+    reader of a `vtmv.v.t` result, now waits inside the vector module
+    (interfaces.md, "Matrix → vector").
 16. **Zvt is off by default (settled, step A1).** It runs only with
     `m3_vme.yaml` (`top.frontend.params.zvt`). On a VME build the RTL also routes
     some standard OPMVV funct6 111100 encodings (the vwmaccu family) to the

@@ -89,6 +89,7 @@ BENCHMARKS = (
     DiffBenchmark("tile_load", 20, 16, "vtle8"),
     DiffBenchmark("tile_store", 20, 16, "vtse8"),
     DiffBenchmark("tile_load_behind_mac", 50, 1, "vtmmu + 8 vtle8 + lw"),
+    DiffBenchmark("gemm_tile", 10, 1, "16x16x64 GEMM (held out)"),
     DiffBenchmark("tile_load_burst", 20, 16, "vtle8, unrolled"),
     DiffBenchmark("tile_store_burst", 20, 16, "vtse8, unrolled"),
     DiffBenchmark("tile_load32_burst", 20, 16, "vtle32 (4 beats)"),

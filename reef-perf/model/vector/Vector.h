@@ -208,6 +208,10 @@ public:
   }
 
   /// \returns the first cycle a uop reading v\p Index may start.
+  /// Only the matrix module calls this; vector-only programs never do.
+  void setRegisterReady(unsigned Index, Cycle Ready) override {
+    RegReady.at(Index) = std::max(RegReady.at(Index), Ready);
+  }
   Cycle getRegisterReady(unsigned Index) const override {
     return RegReady.at(Index);
   }

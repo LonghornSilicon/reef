@@ -218,3 +218,20 @@ def test_tile_beats_take_their_own_lsu_cost(
     vector = _cycles_per_op("tile_load32_burst", 5, 16, tmp_path / "off", rob)
     assert tile == pytest.approx(6.0)
     assert vector == pytest.approx(17.0)
+
+
+@pytest.mark.integration
+def test_vtmv_readers_do_not_stall_dispatch(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """A vector reader of a vtmv.v.t result waits in the vector module.
+
+    gemm_tile reads each result row back with vtmv.v.t into v4 and vse32 from
+    v4. On the RTL the core keeps dispatching while the RVV backend resolves
+    the dependence; Dispatch only keeps a reader out of the writer's own
+    cycle, and a second vtmv into v4 does not wait for the first.
+    """
+    del cpp_build_dir
+    result = _run("gemm_tile", tmp_path)
+    assert result.dispatch["stall_waw_hazard"] == 0
+    assert result.instructions == result.functional_instructions

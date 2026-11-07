@@ -9,6 +9,8 @@ tile_store,20,1145,1720
 tile_store,40,2285,3440
 tile_load_behind_mac,50,1622,1013
 tile_load_behind_mac,100,3222,2013
+gemm_tile,10,5215,4302
+gemm_tile,20,10415,8602
 tile_load_burst,20,974,1064
 tile_load_burst,40,1934,2124
 tile_store_burst,20,971,1060

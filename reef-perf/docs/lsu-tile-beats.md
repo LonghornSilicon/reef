@@ -168,7 +168,13 @@ settings (6 and 17 cycles per `vtle32`).
    the matrix module can still mark a tile beat.
 5. **Take method 2** (below), or tell us the RTL reason if you already know
    it, so the fitted values can be replaced by the mechanism.
-6. **Two related findings for the core and frontend:**
+6. **Vector load latency.** `gemm_tile` (matrix.md, "Held-out check")
+   shows that even with the newer LSU's vector load throughput, the
+   model's vector loads take longer from dispatch to writeback than the
+   RTL's, enough to keep a 19-instruction k-step's MAC in the 16-entry ROB
+   3 cycles too long. That fits the load handshake skip (`3ca02cc6`); it
+   is part of question 1 below.
+7. **Two related findings for the core and frontend:**
    - The VME RTL's core has a 16-entry retirement buffer
      (`Parameters.scala:141`); M3 has 8. A Zvt instruction holds its entry
      until its tile write lands, so with 8 entries the ROB, not the engine,

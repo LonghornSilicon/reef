@@ -299,8 +299,12 @@ void Matrix::executeInst(const InstRef &I) {
       Stats.SubtileWrites += SliceSubtiles;
     } else {
       for (RegId Reg : I->Dsts)
-        if (Reg.getFile() == RegFile::V)
+        if (Reg.getFile() == RegFile::V) {
           OwnVReady.at(Reg.getIndex()) = Done;
+          // Vector readers wait for it in the vector module.
+          if (VectorRegs)
+            VectorRegs->setRegisterReady(Reg.getIndex(), Done);
+        }
       Stats.SubtileReads += SliceSubtiles;
     }
     break;

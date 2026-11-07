@@ -222,6 +222,29 @@ matrix module reads it. One known gap: a younger vector instruction
 dispatched in the same cycle that overwrites a register an older matrix
 instruction reads makes the matrix instruction wait for the younger write.
 
+### Matrix → vector (register scoreboard)
+
+`vtmv.v.t` writes a vector register from the matrix module.
+`VectorRegisterInterface::setRegisterReady(Index, Ready)` records that write
+in the vector module's scoreboard (the later of it and what is already
+there), so a vector instruction that reads the register waits for it inside
+the vector module, as CoralNPU's RVV backend resolves the dependence. The
+matrix module calls it in the Tick phase of the cycle it times the `vtmv`;
+the vector module implements it, and vector-only programs never call it.
+
+Dispatch keeps the rest of the rule. A reader of a matrix-written vector
+register may not dispatch in the writer's own cycle, because the vector
+module would book it in PortUpdate before the matrix module records the
+write. A second matrix writer of the same register (`vtmv.v.t` after
+`vtmv.v.t`) does not wait at all, because the matrix module runs them in
+order. A vector writer after a matrix writer still waits for the matrix
+result (WAW), as before.
+
+Until 2026-11-07 Dispatch held every reader until the matrix result was
+ready. That kept the vector module untouched, but stalled the in-order core
+behind each `vtmv` → `vse32` pair, which the RTL does not do: `gemm_tile`'s
+read-back rows took 13 cycles each against the RTL's 7.
+
 ### Anything → memory
 
 Requesters call `MemoryInterface::access(MemRequest)` and get a

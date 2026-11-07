@@ -2,11 +2,18 @@
 # following vme_matmul_test.cc: clear the accumulator, then 16 times load A
 # and B (4 k-rows each) with vle8.v and vtmmu; finally 16 x (vtmv.v.t, vse32).
 # Exercises vector-register dependencies into and out of the matrix module.
+# The whole GEMM runs ITERS (1) times; matrix_diff builds N and 2N. It is
+# the held-out check: no parameter is fitted to it.
 .include "common.inc"
 .include "matrix/zvt.inc"
+.ifndef ITERS
+  .equ ITERS, 1          # GEMM count; override with --defsym ITERS=<n>
+.endif
   START
   MS_ON
+  li    s2, ITERS
   ROI_BEGIN
+0:
   li    a0, MTYPE_E32
   li    a1, VTYPE_E32
   MSETMTYPE a0, a1
@@ -58,6 +65,12 @@
   addi  a0, a0, 1
   addi  t6, t6, -1
   bnez  t6, 2b
+  addi  s2, s2, -1
+  bnez  s2, 0b
+  # Read the last row back so ROI_END waits for it (the vse32 cannot be
+  # waited for, open case 2).
+  vmv.x.s t0, v4
+  add   t1, t0, t0
   ROI_END
   END
 
