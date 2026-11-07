@@ -73,6 +73,7 @@ BENCHMARKS = (
     DiffBenchmark("mac_indep", 50, 4, "independent vtmmu"),
     DiffBenchmark("tile_load", 20, 16, "vtle8"),
     DiffBenchmark("tile_store", 20, 16, "vtse8"),
+    DiffBenchmark("tile_load_behind_mac", 50, 1, "vtmmu + 8 vtle8 + lw"),
 )
 """The looping matrix microbenchmarks."""
 

@@ -29,4 +29,5 @@ top:
       mtx_move_latency: 1           # PLACEHOLDER
       mtx_tile_write_latency: 1     # PLACEHOLDER
       mtx_tile_read_latency: 1      # PLACEHOLDER
+      mtx_lsu_fifo_entries: 2       # lsu2vme / vme2lsu DEPTH 2 (zvt.sv:163-206)
       mtx_ctrl_waits_for_array_drain: true  # !peBusy (zvt_ctrl.sv:105-106, :130-134)

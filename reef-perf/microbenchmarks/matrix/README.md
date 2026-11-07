@@ -9,21 +9,22 @@ frontend set, they are not part of the M3 correlation report:
 
 | Microbenchmark | Measures |
 | --- | --- |
-| `mac_chain` | MAC latency: dependent `vtmmu` into one accumulator |
+| `mac_chain` | Dependent-MAC rate: `vtmmu` into one accumulator |
 | `mac_indep` | MAC throughput: `vtmmu` rotating over four accumulators |
 | `tile_load`, `tile_store` | `vtle8` / `vtse8` throughput through the LSU |
+| `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |
 | `illegal_shapes` | Tile instructions with vl = 0, which retire as no-ops |
 
 Run them with Zvt on: `-c configs/machines/m3.yaml -c
 configs/machines/m3_vme.yaml`. With `m3.yaml` alone they trap, as on M3.
 
-`mac_chain`, `mac_indep`, `tile_load` and `tile_store` take their loop count
+The looping programs (all but `gemm_tile` and `illegal_shapes`) take their loop count
 from the `ITERS` assembler symbol (`--defsym ITERS=<n>`), so the
 `matrix_diff` experiment can build N and 2N and take the per-op difference.
 `microbenchmarks/matrix/rtl_vme.csv` holds those programs' ROIs on the
-CoralNPU `8a5e1b31` VME verification simulator, at N and 2N. The first three
-end by reading their last result back into a scalar, so the model's `ROI_END`
+CoralNPU `8a5e1b31` VME verification simulator, at N and 2N. All but
+`tile_store` end by reading their last result back into a scalar, so the model's `ROI_END`
 waits for it; `tile_store` and `gemm_tile` end on a store, which the model
 cannot wait for (docs/matrix.md, open case 2).
 

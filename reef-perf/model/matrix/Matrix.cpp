@@ -53,6 +53,7 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       MoveLatency(Params->mtx_move_latency),
       TileWriteLatency(Params->mtx_tile_write_latency),
       TileReadLatency(Params->mtx_tile_read_latency),
+      LsuFifoEntries(Params->mtx_lsu_fifo_entries),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
@@ -60,9 +61,9 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       EnergyPerSubtile(Params->mtx_energy_per_subtile_access_pj),
       EnergyPerBeat(Params->mtx_energy_per_mem_beat_pj), Cmd("matrix_cmd", 1),
       Arrays("matrix_array", Params->mtx_num_arrays), Ctrl("matrix_ctrl", 1) {
-  if (QueueEntries == 0 || UopsPerCycle == 0)
-    throw std::invalid_argument(
-        "mtx_queue_entries and mtx_uops_per_cycle must be at least 1");
+  if (QueueEntries == 0 || UopsPerCycle == 0 || LsuFifoEntries == 0)
+    throw std::invalid_argument("mtx_queue_entries, mtx_uops_per_cycle and "
+                                "mtx_lsu_fifo_entries must be at least 1");
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Matrix, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Matrix, sendInitialCredits));
@@ -127,26 +128,85 @@ void Matrix::setTilesReady(const Inst &I, std::array<Cycle, 16> &Tiles,
     Tiles.at(T) = Ready;
 }
 
-Cycle Matrix::bookBeats(const Inst &I, Cycle Earliest) {
-  sparta_assert(Lsu, "the core's LSU was not connected to the matrix module");
+/// \returns \p I's 16-byte beats, in order.
+static std::vector<std::span<const MemAccess>> getBeats(const Inst &I) {
   std::vector<std::span<const MemAccess>> Beats =
       splitByRegister(I.Mem, SubtileBytes);
   if (Beats.empty())
     Beats.emplace_back(I.Mem);
-  Cycle Done = Earliest;
+  return Beats;
+}
+
+Cycle Matrix::getFifoFree(const std::deque<Cycle> &Pops) const {
+  // A push may share a cycle with the pop that frees its entry
+  // (multi_fifo.sv:112, entry_count_now).
+  return Pops.size() < LsuFifoEntries ? 0 : Pops.front();
+}
+
+void Matrix::recordPop(std::deque<Cycle> &Pops, Cycle When) const {
+  Pops.push_back(When);
+  if (Pops.size() > LsuFifoEntries)
+    Pops.pop_front();
+}
+
+Matrix::Transfer Matrix::runTileLoad(const Inst &I, Cycle Now,
+                                     Cycle CtrlEarliest) {
+  sparta_assert(Lsu, "the core's LSU was not connected to the matrix module");
+  std::vector<std::span<const MemAccess>> Beats = getBeats(I);
+  Transfer T;
   for (size_t B = 0; B < Beats.size(); ++B) {
     VectorLsuRequest Request;
-    Request.IsStore = I.Mtx.Op == MatrixOp::TileStore;
+    Request.IsStore = false;
     Request.Accesses = Beats[B];
-    Request.Earliest = Earliest;
+    // The LSU takes a beat once lsu2vme has room for it. The RTL holds the
+    // finished beat in the LSU instead; starting it later is the same stall
+    // without modeling the LSU's hold.
+    Request.Earliest = std::max(Now, getFifoFree(LoadFifoPops));
     // Dispatch gave the instruction an LSU queue entry; the LSU frees it
     // when the first beat starts.
     Request.FirstRegister = B == 0;
     Request.LastRegister = B + 1 == Beats.size();
-    Done = std::max(Done, Lsu->accessVectorRegister(Request).Done);
+    Cycle Data = Lsu->accessVectorRegister(Request).Done;
+    // The controller pops one beat per cycle and writes it to the tile
+    // (isLsu2Vme, zvt_ctrl.sv:106).
+    Cycle Pop = Ctrl.reserve(
+        std::max({CtrlEarliest, Data, B == 0 ? Cycle{0} : T.CtrlLast + 1}), 1);
+    if (B == 0)
+      T.CtrlFirst = Pop;
+    T.CtrlLast = Pop;
+    recordPop(LoadFifoPops, Pop);
   }
   Stats.MemBeats += Beats.size();
-  return Done;
+  return T;
+}
+
+Matrix::Transfer Matrix::runTileStore(const Inst &I, Cycle CtrlEarliest) {
+  sparta_assert(Lsu, "the core's LSU was not connected to the matrix module");
+  std::vector<std::span<const MemAccess>> Beats = getBeats(I);
+  Transfer T;
+  for (size_t B = 0; B < Beats.size(); ++B) {
+    // The controller reads one beat per cycle and pushes it into vme2lsu
+    // TileReadLatency later, once the FIFO has room (isVme2Lsu,
+    // zvt_ctrl.sv:105).
+    Cycle Free = getFifoFree(StoreFifoPops);
+    Cycle Room = Free > TileReadLatency ? Free - TileReadLatency : 0;
+    Cycle Read = Ctrl.reserve(
+        std::max({CtrlEarliest, Room, B == 0 ? Cycle{0} : T.CtrlLast + 1}), 1);
+    if (B == 0)
+      T.CtrlFirst = Read;
+    T.CtrlLast = Read;
+    VectorLsuRequest Request;
+    Request.IsStore = true;
+    Request.Accesses = Beats[B];
+    Request.Earliest = Read + TileReadLatency;
+    Request.FirstRegister = B == 0;
+    Request.LastRegister = B + 1 == Beats.size();
+    VectorLsuResponse Response = Lsu->accessVectorRegister(Request);
+    recordPop(StoreFifoPops, Response.Start);
+    T.LsuDone = std::max(T.LsuDone, Response.Done);
+  }
+  Stats.MemBeats += Beats.size();
+  return T;
 }
 
 void Matrix::executeInst(const InstRef &I) {
@@ -239,25 +299,27 @@ void Matrix::executeInst(const InstRef &I) {
   }
   case MatrixOp::TileLoad: {
     // The LSU half was dispatched with the instruction (CoralNPU sends tile
-    // loads to the LSU and the RVV backend at once), so it may start now.
-    // The controller writes one beat per cycle, the last once it arrives.
-    Cycle LastData = bookBeats(*I, Now);
-    Cycle FirstWrite = LastData > Uops - 1 ? LastData - (Uops - 1) : 0;
-    Start = Ctrl.reserve(std::max(Earliest, FirstWrite), Uops);
-    HeadFree = Start + Uops;
-    Done = Start + Uops - 1 + TileWriteLatency;
+    // loads to the LSU and the RVV backend at once), so it may start now;
+    // the 2-deep lsu2vme FIFO (zvt.sv:163-206) keeps it at most that many
+    // beats ahead of the controller.
+    Transfer T = runTileLoad(*I, Now, Earliest);
+    Start = T.CtrlFirst;
+    HeadFree = T.CtrlLast + 1;
+    Done = T.CtrlLast + TileWriteLatency;
     setTilesReady(*I, TileReady, Done);
     setTilesReady(*I, TileMacReady, Done);
     Stats.SubtileWrites += SliceSubtiles;
     break;
   }
-  case MatrixOp::TileStore:
-    // The controller reads one beat per cycle into the vme2lsu path.
-    Start = Ctrl.reserve(Earliest, Uops);
-    HeadFree = Start + Uops;
-    Done = bookBeats(*I, Start + TileReadLatency);
+  case MatrixOp::TileStore: {
+    // The controller stalls when the LSU is LsuFifoEntries beats behind.
+    Transfer T = runTileStore(*I, Earliest);
+    Start = T.CtrlFirst;
+    HeadFree = T.CtrlLast + 1;
+    Done = T.LsuDone;
     Stats.SubtileReads += SliceSubtiles;
     break;
+  }
   case MatrixOp::Discard:
     // Waits for every matrix result; CoralNPU also waits for an empty
     // retirement buffer and an idle LSU, which is not modeled.

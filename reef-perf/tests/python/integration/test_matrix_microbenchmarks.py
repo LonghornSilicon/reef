@@ -24,6 +24,12 @@ EXPECTED_OPS = {
     "mac_indep": {"mac": 200, "move_to_vector": 1},
     "tile_load": {"tile_load": 320, "move_to_vector": 1},
     "tile_store": {"tile_store": 320},
+    "tile_load_behind_mac": {
+        "mac": 50,
+        "tile_load": 400,
+        "zero": 1,
+        "move_to_vector": 1,
+    },
     "gemm_tile": {"mac": 16, "zero": 1, "move_to_vector": 16},
     "illegal_shapes": {"nop": 2},
 }

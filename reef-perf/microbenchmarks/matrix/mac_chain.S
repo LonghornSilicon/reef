@@ -1,6 +1,7 @@
 # ITERS (200) dependent vtmmu into the same accumulator (mt0-mt3): each
-# waits for the previous one's write (hitRaw, zvt_pe_array.sv:196-207). Measures MAC
-# latency. Operands v8..v22 are never loaded: tile contents are not timed.
+# waits until the previous one's first step leaves the multiply stages
+# (hitRaw, zvt_pe_array.sv:195-207), not for its write. Measures the
+# dependent-MAC rate. Operands v8..v22 are never loaded: tile contents are not timed.
 .include "common.inc"
 .include "matrix/zvt.inc"
 .ifndef ITERS

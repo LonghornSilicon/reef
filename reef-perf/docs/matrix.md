@@ -137,6 +137,7 @@ the `PROCESS_DELAY = 4` counter in the RTL.
 | `mtx_move_latency` | 1 | PLACEHOLDER | Last move uop to result written. |
 | `mtx_tile_write_latency` | 1 | PLACEHOLDER | Last load beat to tile written. |
 | `mtx_tile_read_latency` | 1 | PLACEHOLDER | Tile read before a store's first beat. |
+| `mtx_lsu_fifo_entries` | 2 | RTL | Entries in each FIFO between the LSU and the controller: `lsu2vme` for tile loads, `vme2lsu` for tile stores (`multi_fifo` `DEPTH 2`, `zvt.sv:163-206`). A load's LSU half runs at most this many beats ahead of the controller; a store's controller stalls when the LSU is this many beats behind. A push may share a cycle with the pop that frees its entry. The RTL holds a finished load beat in the LSU until the FIFO has room; the model starts the beat late instead (INFER: same stall, the LSU's hold not modeled). |
 | `mtx_ctrl_waits_for_array_drain` | true | RTL | vtzero, vtmv.\*, vtle and vtse wait for `!peBusy` (`zvt_ctrl.sv:105-106, :130-134`). |
 
 Tile loads and stores use the core's LSU, one 16-byte beat per uop
@@ -233,7 +234,7 @@ built from the cited RTL behavior.
 | --- | --- | --- | --- |
 | B1 | **Coral tile mapping.** A `mtx_mapping` parameter: `coral` (busy = min(4, ceil(tm/2)), no `tn` term, `zvt_pe_array.sv:216`) or `generic` (today's formula, for the sweep presets). `coral` is the default. | 3 | `matrix/MatrixFabric.*`, `configs/matrix/*.yaml` |
 | B2 | **Misaligned `vs1`/`vs2` become no-ops** (`rvv_backend_decode_unit_ari.sv:3219-3233`). | 8 | `frontend/FuncSim.cpp` (behind the A1 flag) |
-| B3 | **2-deep `lsu2vme`/`vme2lsu` FIFOs** between the LSU and the controller (`zvt.sv:163-206`). | 6 | `matrix/Matrix.*` |
+| B3 | **Done.** `mtx_lsu_fifo_entries`; tile loads and stores run beat by beat through the FIFOs. No change on `tile_load` or `tile_store` (the LSU, at 5 cycles per beat, is slower than the controller, so the FIFOs never fill); `tile_load_behind_mac` exercises them. **2-deep `lsu2vme`/`vme2lsu` FIFOs** between the LSU and the controller (`zvt.sv:163-206`). | 6 | `matrix/Matrix.*` |
 | B4 | **Done.** `mtx_acc_raw_cycles`; `mac_chain` now matches the RTL (4.0 cycles per MAC) with the reference core's 16-entry ROB, which also brings tile load and store to +45% and +23%. **Per-tile MAC hazard.** Replace the whole-group wait with the RTL's comparison against in-flight adder stages (`zvt_pe_array.sv:195-204`). The exact back-to-back timing still needs a trace (C3). | 9 | `matrix/Matrix.*` |
 | B5 | **`vtdiscard` inside the engine.** Only the matrix-side rules. Dispatching alone and waiting for an empty retirement buffer are core rules and stay open. | 7 | `matrix/Matrix.*` |
 
@@ -276,6 +277,7 @@ M3's 8):
 | `mac_indep` | independent `vtmmu` | 4.0 | 4.0 | 0% |
 | `tile_load` | `vtle8` | 5.0 | 3.44 | +45% |
 | `tile_store` | `vtse8` | 4.38 | 3.56 | +23% |
+| `tile_load_behind_mac` | `vtmmu` + 8 `vtle8` + `lw`, per iteration (after B3) | 44.0 | 32.0 | +38% |
 
 The ROB matters because a Zvt instruction holds its retirement-buffer entry
 until its tile write lands (`RetirementBuffer.scala:540-549`). With M3's 8
@@ -342,9 +344,11 @@ can answer it.
    waits idle for the data (`Lsu.scala:1077-1101`). The model books the LSU
    only once the data is ready, so it underestimates LSU contention. How
    long the hold lasts needs a trace.
-6. **Tile loads start at once.** The LSU half starts the cycle the
-   instruction reaches the matrix module. The 2-deep `lsu2vme`/`vme2lsu`
-   FIFOs (`zvt.sv:163-206`) are not modeled.
+6. **Tile loads start at once (settled, B3).** The LSU half starts the
+   cycle the instruction reaches the matrix module, limited by the 2-deep
+   `lsu2vme` FIFO (`mtx_lsu_fifo_entries`). The RTL holds a finished beat in
+   the LSU while the FIFO is full; the model delays the beat's start instead,
+   so the LSU is free for other work a little earlier than on the RTL.
 7. **`vtdiscard`** waits for all matrix work. It does not dispatch alone
    from slot 0 (`Decode.scala:197`), and does not wait for an empty
    retirement buffer, idle RVV and idle LSU (`:601-607`).

@@ -46,6 +46,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -127,6 +128,9 @@ public:
               "Cycles from a tile load's last data beat to the tile write")
     PARAMETER(uint32_t, mtx_tile_read_latency, 1,
               "Cycles to read a tile slice for a store")
+    PARAMETER(uint32_t, mtx_lsu_fifo_entries, 2,
+              "Entries in each FIFO between the LSU and the controller "
+              "(lsu2vme for tile loads, vme2lsu for tile stores)")
     PARAMETER(bool, mtx_ctrl_waits_for_array_drain, true,
               "vtzero, moves, tile loads and stores wait until no MAC is "
               "in flight")
@@ -194,9 +198,23 @@ private:
   /// Sets \p I's tile group to \p Ready in \p Tiles.
   static void setTilesReady(const Inst &I, std::array<Cycle, 16> &Tiles,
                             Cycle Ready);
-  /// Runs \p I's 16-byte beats through the LSU, the first no earlier than
-  /// \p Earliest. \returns the last beat's done cycle.
-  Cycle bookBeats(const Inst &I, Cycle Earliest);
+  /// Controller and LSU timing of one tile load or store.
+  struct Transfer {
+    Cycle CtrlFirst = 0; ///< The controller's first beat.
+    Cycle CtrlLast = 0;  ///< The controller's last beat.
+    Cycle LsuDone = 0;   ///< The LSU finished the last beat (stores).
+  };
+  /// Runs tile load \p I, its LSU half free to start at \p Now and its
+  /// controller half at \p CtrlEarliest, beat by beat through lsu2vme.
+  Transfer runTileLoad(const Inst &I, Cycle Now, Cycle CtrlEarliest);
+  /// Runs tile store \p I from \p CtrlEarliest, beat by beat through
+  /// vme2lsu.
+  Transfer runTileStore(const Inst &I, Cycle CtrlEarliest);
+  /// \returns the first cycle the FIFO whose recent pops are \p Pops has a
+  /// free entry.
+  Cycle getFifoFree(const std::deque<Cycle> &Pops) const;
+  /// Records a pop at \p Cycle in \p Pops.
+  void recordPop(std::deque<Cycle> &Pops, Cycle When) const;
 
   const uint32_t QueueEntries;
   const uint32_t CmdLatency;
@@ -210,6 +228,7 @@ private:
   const uint32_t MoveLatency;
   const uint32_t TileWriteLatency;
   const uint32_t TileReadLatency;
+  const uint32_t LsuFifoEntries;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;
@@ -230,6 +249,9 @@ private:
   Cycle HeadFree = 0;   // The controller's head uop is released.
   Cycle LastDone = 0;   // Latest result of any instruction.
   Cycle ArrayDrain = 0; // Latest MAC result.
+  // Pop cycles of the last LsuFifoEntries beats through each FIFO.
+  std::deque<Cycle> LoadFifoPops;  // lsu2vme: the controller pops.
+  std::deque<Cycle> StoreFifoPops; // vme2lsu: the LSU pops.
   MatrixStats Stats;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
