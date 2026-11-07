@@ -91,7 +91,7 @@ def lint(
 ) -> tuple[str, str]:
     """Run verilator and verible lint. Return (status, report text).
 
-    Verible only sees src/, like check.sh. ext/ is upstream code.
+    Verible skips src/reef/ (Coral, upstream code), like check.sh.
     """
     parts: list[str] = []
     ok = True
@@ -113,7 +113,14 @@ def lint(
         f"--top-module {target['top']}\nexit {v.returncode}\n{v.stderr}"
     )
     ok &= v.returncode == 0
-    ours = [s for s in sources if s.startswith("src/")]
+    ours = [
+        s
+        for s in sources
+        if s.startswith("src/") and not s.startswith("src/reef/")
+    ]
+    if not ours:
+        parts.append("verible-verilog-lint: no files outside src/reef/\n")
+        return ("pass" if ok else "fail"), "\n".join(parts)
     vl = run(
         ["verible-verilog-lint", "--rules_config=.rules.verible_lint", *ours]
     )

@@ -26,7 +26,7 @@ indent-width = 4
 target-version = "py312"
 # Inside Docker the repo's .git is not mounted, so Ruff cannot apply
 # .gitignore; exclude third-party and build directories explicitly.
-extend-exclude = ["ext", "build", "out"]
+extend-exclude = ["src/reef", "build", "out"]
 
 [tool.ruff.lint]
 select = [

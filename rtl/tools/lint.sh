@@ -3,7 +3,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-find src \( -name '*.sv' -o -name '*.svh' \) -print0 | xargs -0 verible-verilog-format --inplace
+find src -path src/reef -prune -o \( -name '*.sv' -o -name '*.svh' \) -print0 |
+    xargs -0 verible-verilog-format --inplace
 uv run ruff check --fix tools tests
 uv run ruff format tools tests
 
