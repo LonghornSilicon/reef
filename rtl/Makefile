@@ -9,6 +9,9 @@ FILELIST := filelists/$(TARGET).f
 REEF_BUILD_DIR ?= build
 SIM_DIR := $(REEF_BUILD_DIR)/sim/$(TARGET)
 SYNTH_DIR := $(REEF_BUILD_DIR)/synth/$(TARGET)
+# The target's defines and models (tools/target_args.py), only worked out when used.
+ARGS = $(shell uv run python tools/target_args.py $(TARGET))
+SLANG_ARGS = $(shell uv run python tools/target_args.py $(TARGET) --tool slang)
 
 .PHONY: lint check sim synth-check export clean
 
@@ -23,14 +26,14 @@ TB := $(shell find src -name '$(TOP)_tb.sv')
 sim:
 	mkdir -p $(SIM_DIR)
 	verilator --binary --timing -Wall --timescale 1ns/1ps \
-	    -Mdir $(SIM_DIR) -o $(TOP)_tb \
+	    -Mdir $(SIM_DIR) -o $(TOP)_tb .rules.verilator.vlt $(ARGS) \
 	    -f $(FILELIST) $(TB) --top-module $(TOP)_tb
 	$(SIM_DIR)/$(TOP)_tb
 
 synth-check:
 	mkdir -p $(SYNTH_DIR)
 	yosys -q -l $(SYNTH_DIR)/yosys.log -p \
-	    "plugin -i slang; read_slang -f $(FILELIST); synth -top $(TOP); check -assert; tee -q -o $(SYNTH_DIR)/stat.txt stat"
+	    "plugin -i slang; read_slang --single-unit -f $(FILELIST) $(SLANG_ARGS) --top $(TOP); synth -top $(TOP); check -assert; tee -q -o $(SYNTH_DIR)/stat.txt stat"
 	cat $(SYNTH_DIR)/stat.txt
 
 export:

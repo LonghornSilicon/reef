@@ -1,0 +1,16 @@
+name: coral_m3
+top: RvvCoreMiniAxi
+description: >-
+  CoralNPU M3-2026-04-27 RvvCoreMiniAxi, the bare core: src/reef/gen generated from the
+  Chisel in src/reef, upstream Sram.v and ClockGate.sv. The only change on top of M3 is the
+  FPU PipeRegs fix in FloatCore.scala. This is the baseline arch, DV and PD cite.
+filelist: filelists/coral_m3.f
+defines: [USE_GENERIC, TB_SUPPORT, VLEN_128, ZVE32F_ON, SYNTHESIS]
+include_dirs: [src/common, src/reef/gen]
+constraints: constraints/coral_m3.sdc
+clocks:
+  - {name: clk, port: io_aclk, period_ns: 20.0}
+macros: []
+technology_hint: open
+status: frozen
+owner: ajychien
