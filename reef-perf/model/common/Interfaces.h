@@ -89,6 +89,18 @@ struct VectorLsuInterface {
   accessVectorRegister(const VectorLsuRequest &Request) = 0;
 };
 
+/// The vector module's register scoreboard as the matrix module sees it.
+/// Zvt instructions read vector registers (vtmm operands, vtmv.t.v); the
+/// matrix module asks when the last vector writer's result is ready. It asks
+/// in the Tick phase, after every instruction dispatched in the same cycle
+/// has reached the vector module (ports deliver in PortUpdate).
+struct VectorRegisterInterface {
+  virtual ~VectorRegisterInterface() = default; ///< Never owned by matrix.
+
+  /// \returns the first cycle a reader of vector register v\p Index may start.
+  virtual Cycle getRegisterReady(unsigned Index) const = 0;
+};
+
 /// Why the frontend had no instruction for the core in a cycle, for top-down
 /// accounting (docs/topdown.md).
 enum class FrontendStall : uint8_t {

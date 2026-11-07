@@ -19,6 +19,21 @@ static bool isVectorMemory(const Inst &I) {
   return I.Class == InstClass::V_LOAD || I.Class == InstClass::V_STORE;
 }
 
+/// \returns true for a Zvt tile load or store, which CoralNPU sends to the
+/// LSU as well as to the RVV backend at dispatch (Decode.scala, VTLOAD and
+/// VTSTORE).
+static bool isMatrixMemory(const Inst &I) {
+  return I.Mtx.Op == MatrixOp::TileLoad || I.Mtx.Op == MatrixOp::TileStore;
+}
+
+/// \returns true if Dispatch tracks \p Reg, last written by \p Writer.
+/// The vector module tracks vector registers that vector instructions
+/// write; Dispatch tracks the ones the matrix module writes (vtmv.v.t), so
+/// their readers wait for the matrix result.
+static bool isTracked(RegId Reg, const InstRef &Writer) {
+  return Writer && (Reg.getFile() != RegFile::V || Writer->isMatrix());
+}
+
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
   case StallReason::IbufEmpty:
@@ -121,8 +136,7 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   // A register hazard is blamed on the unit producing the register.
   for (RegId Reg : I->Srcs) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Reg.getFile() != RegFile::V && Writer &&
-        Writer->ResultReadyCycle > Now) {
+    if (isTracked(Reg, Writer) && Writer->ResultReadyCycle > Now) {
       Why = StallReason::Raw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -134,8 +148,7 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     // one cycle before a load result is ready. RAW dependencies still wait
     // for ResultReadyCycle.
     const Cycle WawAdvance = Writer && Writer->Class == InstClass::LOAD ? 1 : 0;
-    if (Reg.getFile() != RegFile::V && Writer &&
-        Writer->ResultReadyCycle > Now + WawAdvance) {
+    if (isTracked(Reg, Writer) && Writer->ResultReadyCycle > Now + WawAdvance) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -174,7 +187,7 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
   // A vector load or store also takes an LSU queue entry, which the LSU
   // frees when the instruction's first register starts (RTL waveform of
   // gemv_loads).
-  if (isVectorMemory(*I) && LsuCredits == 0) {
+  if ((isVectorMemory(*I) || isMatrixMemory(*I)) && LsuCredits == 0) {
     Why = StallReason::LsuFull;
     Blamed = ExecTarget::LSU;
     return false;
@@ -199,6 +212,8 @@ void Dispatch::sendToTarget(const InstRef &I) {
     break;
   case ExecTarget::Matrix:
     --MtxCredits;
+    if (isMatrixMemory(*I))
+      --LsuCredits; // Freed by the LSU when the first beat starts.
     OutMatrixPort.send(I);
     break;
   }
