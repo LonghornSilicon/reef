@@ -285,6 +285,8 @@ has is the core owner's call; the matrix numbers above assume 16.
 
 ### D. Configurable for the sweep
 
+What to sweep, across modules, is collected in `sweep-candidates.md`.
+
 | # | Step | Verified by |
 | --- | --- | --- |
 | D1 | **Test every preset:** each `configs/matrix/*.yaml` loads on top of `vme.yaml` and runs `gemm_tile`. | New pytest |
