@@ -1,6 +1,11 @@
-# 16 rows of tile 0 stored with vtse8, 20 times (320 stores).
+# 16 rows of tile 0 stored with vtse8, ITERS (20) times (320 stores). It
+# ends on a store, which the model's ROI_END does not wait for (open case 2):
+# compare it by differencing, not by whole ROI.
 .include "common.inc"
 .include "matrix/zvt.inc"
+.ifndef ITERS
+  .equ ITERS, 20         # loop count; override with --defsym ITERS=<n>
+.endif
   START
   MS_ON
   li    a0, MTYPE_E8
@@ -8,7 +13,7 @@
   MSETMTYPE a0, a1
   li    a0, 16
   MSETTN x0, a0
-  li    t6, 20
+  li    t6, ITERS
   ROI_BEGIN
 1:
   la    a4, buf

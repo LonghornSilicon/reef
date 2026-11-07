@@ -1,6 +1,9 @@
 # ILLUSTRATIVE, NOT VALIDATED: an 8x8 array of 4-wide dot-product PEs with
 # weights stationary, activations broadcast along rows and an adder tree
 # summing each column.
+# Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml -c configs/matrix/tree_8x8.yaml
 top:
   matrix:
     params:

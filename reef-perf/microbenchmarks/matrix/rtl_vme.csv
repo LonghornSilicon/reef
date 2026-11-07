@@ -1,0 +1,9 @@
+name,iters,roi_cycles,roi_instructions
+mac_chain,200,824,610
+mac_chain,400,1624,1210
+mac_indep,50,825,311
+mac_indep,100,1625,611
+tile_load,20,1118,1724
+tile_load,40,2218,3444
+tile_store,20,1145,1720
+tile_store,40,2285,3440

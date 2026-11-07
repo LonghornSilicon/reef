@@ -1,6 +1,8 @@
 # CoralNPU's Zvt engine at 8a5e1b31: the matrix module's built-in defaults,
 # written out so a sweep can start from them. Sources: docs/matrix.md.
-# Use: reef_perf -c configs/machines/m3.yaml -c configs/matrix/coral_vme.yaml
+# Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml -c configs/matrix/coral_vme.yaml
 top:
   matrix:
     params:

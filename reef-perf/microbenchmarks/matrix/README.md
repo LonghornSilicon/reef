@@ -18,11 +18,14 @@ frontend set, they are not part of the M3 correlation report:
 Run them with Zvt on: `-c configs/machines/m3.yaml -c
 configs/machines/m3_vme.yaml`. With `m3.yaml` alone they trap, as on M3.
 
-There are no RTL numbers yet (no `rtl_vme.csv`). To get them, build a VME
-*verification* simulator (`vme_core_mini_verification_axi_sim`; docs/matrix.md)
-and measure each ELF as roadmap ticket B01 does. Until then
-`tests/python/integration/test_matrix_microbenchmarks.py` only checks that
-they run and that the model's results are self-consistent.
+`mac_chain`, `mac_indep`, `tile_load` and `tile_store` take their loop count
+from the `ITERS` assembler symbol (`--defsym ITERS=<n>`), so the
+`matrix_diff` experiment can build N and 2N and take the per-op difference.
+`microbenchmarks/matrix/rtl_vme.csv` holds those programs' ROIs on the
+CoralNPU `8a5e1b31` VME verification simulator, at N and 2N. The first three
+end by reading their last result back into a scalar, so the model's `ROI_END`
+waits for it; `tile_store` and `gemm_tile` end on a store, which the model
+cannot wait for (docs/matrix.md, open case 2).
 
 The operands of `vtmmu` in `mac_chain` and `mac_indep` are never loaded: the
 model does not time tile or register contents. On the RTL that is also fine;

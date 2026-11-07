@@ -220,7 +220,7 @@ Every step has to pass the same checks:
 | # | Step | Touches | Owner sign-off | Verified by |
 | --- | --- | --- | --- | --- |
 | A1 | **Done.** Zvt opt-in flag (case 16): `top.frontend.params.zvt`, default off; `configs/machines/m3_vme.yaml` turns it on. With it off, `FuncSim` and `decodeInst` never call `decodeZvt`, so an M3 run takes exactly the old code path, and a Zvt word traps in Spike as it would on the M3 RTL. | `frontend/Fetch.*`, `frontend/FuncSim.*`, `frontend/InstDecode.*`, `configs/machines/m3_vme.yaml` | frontend | Golden unchanged; `ZvtTest.InstDecodeIgnoresZvtWhenOff`; `test_zvt_traps_without_vme_config` |
-| A2 | **End each matrix ROI on the last result (case 2).** Before `ROI_END`, each microbenchmark reads back a result that depends on the last matrix op (for example `vtmv.v.t` and then `vmv.x.s`), so neither the model nor the RTL closes the ROI early. This changes no core rule. | `microbenchmarks/matrix/*.S` | none | ROIs include the tail; `test_matrix_microbenchmarks.py` updated |
+| A2 | **Done for `mac_chain`, `mac_indep`, `tile_load`; not possible for `tile_store`, `gemm_tile`.** End each matrix ROI on the last result (case 2). Before `ROI_END`, each microbenchmark reads back a result that depends on the last matrix op (for example `vtmv.v.t` and then `vmv.x.s`), so neither the model nor the RTL closes the ROI early. This changes no core rule. | `microbenchmarks/matrix/*.S` | none | ROIs include the tail; `test_matrix_microbenchmarks.py` updated |
 | A3 | **List every edit to another module's file** in `interfaces.md` with the condition it fires under (a Zvt instruction, or a matrix writer), for review. | `docs/interfaces.md` | frontend, core, vector, common | Review |
 
 ### B. Mirror CoralNPU's engine (from RTL source; no measurement needed)
@@ -240,11 +240,30 @@ built from the cited RTL behavior.
 
 | # | Step | Notes |
 | --- | --- | --- |
-| C1 | **Build the VME verification simulator.** In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
-| C2 | **Give each microbenchmark an iteration count set at build time** (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
-| C3 | **Run them on the RTL** and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
+| C1 | **Done (2026-11-06).** Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
+| C2 | **Done.** `ITERS`, set with `build_microbenchmark(..., {"ITERS": n})`; the `matrix_diff` experiment builds N and 2N. Give each microbenchmark an iteration count set at build time (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
+| C3 | **Done for the four looping programs** (`microbenchmarks/matrix/rtl_vme.csv`; results below). Waveforms not kept yet. Run them on the RTL and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
 | C4 | **Calibrate the PLACEHOLDERs** from the per-iteration differences, in the order `mac_indep`, `mac_chain`, `tile_load`, `tile_store`. `gemm_tile` is the held-out check. Retag each value TRACE with its benchmark. | Matrix parameters only |
 | C5 | **Re-measure the TRACE value** (`mtx_complete_latency`, from checkout `08eadd1c`) at `8a5e1b31`. | From C3 |
+
+#### First per-op results (C3)
+
+`python -m reef_perf.experiments.matrix_diff.main compare`, model defaults
+against CoralNPU `8a5e1b31`, `(ROI(2N) - ROI(N)) / ops`:
+
+| Program | Op | Model | RTL | Error |
+| --- | --- | --- | --- | --- |
+| `mac_chain` | dependent `vtmmu` | 10.0 | 4.0 | +150% |
+| `mac_indep` | independent `vtmmu` | 4.125 | 4.0 | +3.1% |
+| `tile_load` | `vtle8` | 6.19 | 3.44 | +80% |
+| `tile_store` | `vtse8` | 7.25 | 3.56 | +104% |
+
+Instruction counts match the RTL exactly. MAC throughput is right. Dependent
+MACs on the RTL issue every 4 cycles, as fast as independent ones, so the
+model's wait for the previous MAC's tile write (busy + 6-stage pipeline) is
+wrong: this settles case 9's direction, and B4 should let a MAC accumulate
+into a tile still in the pipeline. The tile load/store path is about twice too
+slow, which is calibration (C4).
 
 ### D. Configurable for the sweep
 
@@ -345,3 +364,33 @@ can answer it.
     :506-509`), a CoralNPU decode collision the model does not reproduce.
 17. **Fill, drain and tree formulas** are analytic and unchecked for any
     setting but CoralNPU's.
+
+    
+    
+0. Commit what's pending. The N/2N work is still uncommitted: ITERS, the readbacks, matrix_diff, rtl_vme.csv, the doc updates and the preset comments. I'd make it one commit: "reef-perf: N/2N matrix measurement against the VME RTL". The 13 inference-engine/coral/bench files stay out, as before.
+
+1. B4: per-tile MAC hazard. This is the biggest error (mac_chain +150%). Replace the wait for the previous MAC's full latency with the RTL's rule: compare against the adder stages still in flight (zvt_pe_array.sv:195-204). The change is in Matrix.cpp. Re-run matrix_diff. mac_chain should come down to about 4 cycles per MAC, and mac_indep must stay at about 4.
+
+2. Tile load/store path: B3, then C4 and C5.
+- B3 is a structural fix: add the 2-deep lsu2vme/vme2lsu FIFOs from zvt.sv.
+- C4: once the structure matches, calibrate the PLACEHOLDER values against tile_load (+80%) and tile_store (+104%). Retag each calibrated value TRACE. gemm_tile is the held-out check, so don't tune against it.
+- C5: re-measure mtx_complete_latency on the current CoralNPU commit.
+
+3. Remaining CoralNPU behaviors, all inside the matrix code:
+- B1: a mtx_mapping: coral option for how a tile maps onto the array;
+- B2: misaligned vs1/vs2 become no-ops;
+- B5: matrix-side vtdiscard.
+
+4. A3: review list. In docs/interfaces.md, list every edit to another module's file and the condition it fires under. The frontend, core, vector and common owners need this to sign off.
+
+5. Sweep readiness (D). The v2 spec is due Dec 6.
+- D1: test that every preset loads and runs gemm_tile.
+- D2: invalid parameters give errors that name the parameter.
+- D3: a sweep script that runs a grid of -p overrides and writes a CSV.
+- D4: check the non-Coral formulas against a reference before trusting their numbers.
+
+6. Ship.
+- Save the CoralNPU testbench patch as docs/coralnpu_vme_verification.patch, so others can rebuild the VME sim.
+- git push -u origin akul/matrix_engine.
+- Open a draft PR with base yuvesh-kernel-integration.
+- Get sign-off from the module owners.

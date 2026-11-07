@@ -19,9 +19,9 @@ VME_CONFIG = MODULE_ROOT / "configs" / "machines" / "m3_vme.yaml"
 """Turns Zvt on; applied after m3.yaml, before any array overlay."""
 
 EXPECTED_OPS = {
-    "mac_chain": {"mac": 200, "zero": 1},
-    "mac_indep": {"mac": 200},
-    "tile_load": {"tile_load": 320},
+    "mac_chain": {"mac": 200, "zero": 1, "move_to_vector": 1},
+    "mac_indep": {"mac": 200, "move_to_vector": 1},
+    "tile_load": {"tile_load": 320, "move_to_vector": 1},
     "tile_store": {"tile_store": 320},
     "gemm_tile": {"mac": 16, "zero": 1, "move_to_vector": 16},
     "illegal_shapes": {"nop": 2},
@@ -81,6 +81,18 @@ def test_matrix_microbenchmark_runs(
     for op, count in EXPECTED_OPS[name].items():
         assert ops[op] == count, (name, op)
     assert sum(ops.values()) == sum(EXPECTED_OPS[name].values())
+
+
+@pytest.mark.integration
+def test_iters_symbol_sets_the_loop_count(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """--defsym ITERS changes the loop count, as matrix_diff relies on."""
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    elf = build_microbenchmark("matrix/mac_chain", tmp_path, {"ITERS": 7})
+    result = run_sim(elf, overlay_configs=(VME_CONFIG,))
+    assert result.matrix["ops"]["mac"] == 7
 
 
 @pytest.mark.integration

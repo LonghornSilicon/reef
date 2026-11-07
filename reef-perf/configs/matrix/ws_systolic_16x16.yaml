@@ -2,6 +2,9 @@
 # scalar MAC PEs. B (weights) is preloaded one row per cycle, double
 # buffered; A streams in from the left and partial sums move down columns.
 # Check against a cycle-level systolic simulator before trusting it.
+# Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml -c configs/matrix/ws_systolic_16x16.yaml
 top:
   matrix:
     params:
