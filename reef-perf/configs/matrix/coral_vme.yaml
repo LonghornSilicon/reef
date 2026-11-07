@@ -1,0 +1,29 @@
+# CoralNPU's Zvt engine at 8a5e1b31: the matrix module's built-in defaults,
+# written out so a sweep can start from them. Sources: docs/matrix.md.
+# Use: reef_perf -c configs/machines/m3.yaml -c configs/matrix/coral_vme.yaml
+top:
+  matrix:
+    params:
+      mtx_queue_entries: 4          # PLACEHOLDER: Zvt RS holds 8 uops (ZVT_RS_DEPTH), = 2 vtmm
+      mtx_cmd_latency: 6            # PLACEHOLDER: not measured
+      mtx_uops_per_cycle: 3         # RVV dispatch, 3 uops/cycle
+      mtx_complete_latency: 1       # vmeRt -> retire, 1 cycle (08eadd1c trace)
+      mtx_num_arrays: 1
+      mtx_pe_rows: 8                # NUM_PE = TE*TE*COMPRATIO = 64
+      mtx_pe_cols: 8                #   (rvv_backend_define.svh:212-222)
+      mtx_macs_per_pe_int8: 4       # 4 int8 per 32-bit PE lane (K word)
+      mtx_macs_per_pe_bf16: 2       # 2 bf16 per lane (KMAX = 2)
+      mtx_macs_per_pe_fp32: 1       # 1 fp32 per lane (KMAX = 1)
+      mtx_dataflow: output          # C accumulates in the tile
+      mtx_row_operand: broadcast    # A and B broadcast to the 4 blocks
+      mtx_col_operand: broadcast
+      mtx_reduction: in_place
+      mtx_pe_pipeline_depth: 6      # INFER: MULBULKPIPENUM 3 + ADDERPIPENUM 3 (zvt_pe_array.sv:34-35)
+      mtx_accumulate_latency: 0     # PLACEHOLDER
+      mtx_pipeline_across_ops: true # PLACEHOLDER: not measured
+      mtx_zero_cycles: 4            # PROCESS_DELAY (zvt_ctrl.sv:435-445, :613)
+      mtx_move_cycles_per_uop: 1    # PLACEHOLDER
+      mtx_move_latency: 1           # PLACEHOLDER
+      mtx_tile_write_latency: 1     # PLACEHOLDER
+      mtx_tile_read_latency: 1      # PLACEHOLDER
+      mtx_ctrl_waits_for_array_drain: true  # !peBusy (zvt_ctrl.sv:105-106, :130-134)

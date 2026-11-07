@@ -21,6 +21,7 @@ set(REEF_PERF_TESTS
     common/TypesTest
     frontend/InstDecodeTest
     frontend/ZvtTest
+    matrix/MatrixFabricTest
     memory/MemTimingTest
     vector/VectorTest
 )

@@ -1,0 +1,20 @@
+# ILLUSTRATIVE, NOT VALIDATED: a 16x16 weight-stationary systolic array of
+# scalar MAC PEs. B (weights) is preloaded one row per cycle, double
+# buffered; A streams in from the left and partial sums move down columns.
+# Check against a cycle-level systolic simulator before trusting it.
+top:
+  matrix:
+    params:
+      mtx_pe_rows: 16
+      mtx_pe_cols: 16
+      mtx_macs_per_pe_int8: 1
+      mtx_macs_per_pe_bf16: 1
+      mtx_macs_per_pe_fp32: 1
+      mtx_dataflow: weight
+      mtx_row_operand: forwarded
+      mtx_col_operand: forwarded
+      mtx_hop_latency: 1
+      mtx_reduction: chain
+      mtx_stationary_load_cycles: 0   # one PE row per cycle
+      mtx_double_buffer_stationary: true
+      mtx_pe_pipeline_depth: 1

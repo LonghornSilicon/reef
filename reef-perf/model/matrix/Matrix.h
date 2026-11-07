@@ -1,14 +1,29 @@
-//===- Matrix.h - The matrix module (stub) ----------------------*- C++ -*-===//
+//===- Matrix.h - The matrix module -----------------------------*- C++ -*-===//
 ///
 /// \file
-/// The matrix module: a stub with the vector module's interface (instructions
-/// in, command-queue credits out). It executes every instruction Dispatch
-/// routes to ExecTarget::Matrix. No matrix ISA exists yet, so nothing decodes
-/// to InstClass::MATRIX and the module sees no traffic; it is here so the
-/// core-matrix interface can be built and tested first.
+/// The matrix module: a Zvt matrix engine. Executes every instruction
+/// Dispatch routes to ExecTarget::Matrix (vtzero, vtdiscard, vtmv.*, vtle*,
+/// vtse*, vtmm*; Inst::Mtx says which). mset* are vector configuration and go
+/// to the vector module.
 ///
-/// Stub behavior: `mtx_lanes` lanes, each busy `mtx_occupancy` cycles per
-/// instruction, with a flat `mtx_latency`. All values are placeholders.
+/// Each instruction goes through:
+///  1. the command path: `mtx_cmd_latency` cycles, then its uops issue at
+///     `mtx_uops_per_cycle`, in program order, once the vector registers it
+///     reads are ready (CoralNPU sends Zvt uops through the RVV backend's
+///     in-order dispatch);
+///  2. its execution resource, in program order (the next instruction starts
+///     once this one releases the controller's head): the MAC array pool
+///     (`mtx_num_arrays` arrays, timed by MatrixFabric) for vtmm, the
+///     controller for vtzero and moves, and the core's LSU, one 16-byte beat
+///     at a time, for tile loads and stores;
+///  3. completion: `mtx_complete_latency` cycles after the tile (or vector
+///     register, or memory) is written, the core's Rob may retire it.
+///
+/// A tile scoreboard holds, per architectural tile, the cycle its last write
+/// lands; an instruction waits for every tile of its group (1, 2 or 4 tiles
+/// by element width). Tile contents are not modeled.
+///
+/// All timing values not cited in docs/matrix.md are placeholders.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -16,17 +31,35 @@
 #define REEF_PERF_MATRIX_MATRIX_H
 
 #include "common/Inst.h"
+#include "common/Interfaces.h"
 #include "common/ResourcePool.h"
+#include "matrix/MatrixFabric.h"
 
+#include "sparta/events/PayloadEvent.hpp"
 #include "sparta/ports/DataPort.hpp"
 #include "sparta/simulation/ParameterSet.hpp"
 #include "sparta/simulation/Unit.hpp"
 #include "sparta/statistics/Counter.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace reef_perf {
+
+/// End-of-run matrix statistics, for the JSON summary.
+struct MatrixStats {
+  /// Instructions executed, by MatrixOp.
+  std::array<uint64_t, static_cast<size_t>(MatrixOp::NumOps)> Ops{};
+  uint64_t UsefulMacs = 0;      ///< Sum of TM * TN * TK.
+  uint64_t CapacityMacs = 0;    ///< MACs the arrays could have done.
+  uint64_t ArrayBusyCycles = 0; ///< Fabric busy cycles, summed.
+  uint64_t MemBeats = 0;        ///< 16-byte LSU beats for tile loads/stores.
+  uint64_t SubtileReads = 0;    ///< 16-byte tile reads (coarse count).
+  uint64_t SubtileWrites = 0;   ///< 16-byte tile writes (coarse count).
+};
 
 /// The matrix module. Tree location: top.matrix.
 class Matrix : public sparta::Unit {
@@ -36,10 +69,71 @@ public:
   struct MatrixParameterSet : public sparta::ParameterSet {
     explicit MatrixParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
+    // Core interface and command path.
     PARAMETER(uint32_t, mtx_queue_entries, 4, "Matrix command queue entries")
-    PARAMETER(uint32_t, mtx_lanes, 1, "Matrix execution lanes")
-    PARAMETER(uint32_t, mtx_latency, 8, "Matrix op latency")
-    PARAMETER(uint32_t, mtx_occupancy, 4, "Cycles a matrix op holds its lane")
+    PARAMETER(uint32_t, mtx_cmd_latency, 6,
+              "Cycles from receiving an instruction to issuing its uops")
+    PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
+    PARAMETER(uint32_t, mtx_complete_latency, 1,
+              "Cycles from the result being written to the core seeing the "
+              "instruction complete")
+    // Compute fabric (MatrixFabric).
+    PARAMETER(uint32_t, mtx_num_arrays, 1, "Independent MAC arrays")
+    PARAMETER(uint32_t, mtx_pe_rows, 8, "PE rows per array")
+    PARAMETER(uint32_t, mtx_pe_cols, 8, "PE columns per array")
+    PARAMETER(uint32_t, mtx_macs_per_pe_int8, 4, "int8 MACs per PE per cycle")
+    PARAMETER(uint32_t, mtx_macs_per_pe_bf16, 2, "bf16 MACs per PE per cycle")
+    PARAMETER(uint32_t, mtx_macs_per_pe_fp32, 1, "fp32 MACs per PE per cycle")
+    PARAMETER(std::string, mtx_dataflow, "output",
+              "Stationary operand: output, weight or input")
+    PARAMETER(std::string, mtx_row_operand, "broadcast",
+              "Delivery of the operand entering each row: broadcast or "
+              "forwarded")
+    PARAMETER(std::string, mtx_col_operand, "broadcast",
+              "Delivery of the operand entering each column: broadcast or "
+              "forwarded")
+    PARAMETER(uint32_t, mtx_hop_latency, 1, "Cycles per PE-to-PE hop")
+    PARAMETER(std::string, mtx_reduction, "in_place",
+              "Partial-sum reduction: in_place, chain or tree")
+    PARAMETER(uint32_t, mtx_tree_level_latency, 1,
+              "Cycles per adder-tree level")
+    PARAMETER(uint32_t, mtx_pe_pipeline_depth, 6,
+              "PE pipeline stages after the last compute step")
+    PARAMETER(uint32_t, mtx_accumulate_latency, 0,
+              "Extra cycles to read, add and write the accumulator")
+    PARAMETER(uint32_t, mtx_stationary_load_cycles, 0,
+              "Cycles to load the stationary operand per pass (0: one PE "
+              "row per cycle)")
+    PARAMETER(bool, mtx_double_buffer_stationary, false,
+              "Load the next pass's stationary operand during this pass")
+    PARAMETER(bool, mtx_pipeline_across_ops, true,
+              "Fill, drain and pipeline overlap the next operation")
+    PARAMETER(uint32_t, mtx_fabric_clock_divider, 1,
+              "Core cycles per fabric cycle")
+    // Tile storage and data movement.
+    PARAMETER(uint32_t, mtx_zero_cycles, 4,
+              "Cycles vtzero holds the "
+              "controller")
+    PARAMETER(uint32_t, mtx_move_cycles_per_uop, 1,
+              "Controller cycles per vtmv uop")
+    PARAMETER(uint32_t, mtx_move_latency, 1,
+              "Cycles after a move's last uop until its result is written")
+    PARAMETER(uint32_t, mtx_tile_write_latency, 1,
+              "Cycles from a tile load's last data beat to the tile write")
+    PARAMETER(uint32_t, mtx_tile_read_latency, 1,
+              "Cycles to read a tile slice for a store")
+    PARAMETER(bool, mtx_ctrl_waits_for_array_drain, true,
+              "vtzero, moves, tile loads and stores wait until no MAC is "
+              "in flight")
+    // Cost, for weighing designs; 0 leaves the estimate out of the summary.
+    PARAMETER(double, mtx_area_per_pe_um2, 0.0, "Area of one PE (um^2)")
+    PARAMETER(double, mtx_tile_storage_area_um2, 0.0,
+              "Area of the tile storage (um^2)")
+    PARAMETER(double, mtx_energy_per_mac_pj, 0.0, "Energy per useful MAC (pJ)")
+    PARAMETER(double, mtx_energy_per_subtile_access_pj, 0.0,
+              "Energy per 16-byte tile read or write (pJ)")
+    PARAMETER(double, mtx_energy_per_mem_beat_pj, 0.0,
+              "Energy per 16-byte memory beat (pJ)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -52,22 +146,90 @@ public:
   static constexpr const char *OutCredits = "ports.out_credits";
 
   /// Creates the unit on \p Node with parameters \p Params.
+  /// \throws std::invalid_argument for an unknown dataflow, delivery or
+  /// reduction name, or a zero-sized resource.
   Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params);
 
-  /// \returns {matrix}, for the end-of-run summary.
-  std::vector<const ResourcePool *> getPools() const { return {&Lanes}; }
+  /// Connects the core's LSU \p NewLsu, which runs tile loads and stores and
+  /// must outlive the unit.
+  void setLsu(VectorLsuInterface *NewLsu) { Lsu = NewLsu; }
+
+  /// Connects the vector module's register scoreboard \p Regs, which must
+  /// outlive the unit.
+  void setVectorRegisters(const VectorRegisterInterface *Regs) {
+    VectorRegs = Regs;
+  }
+
+  /// \returns the command path, the MAC arrays and the controller.
+  std::vector<const ResourcePool *> getPools() const {
+    return {&Cmd, &Arrays, &Ctrl};
+  }
+
+  /// \returns the end-of-run statistics.
+  const MatrixStats &getStats() const { return Stats; }
+
+  /// \returns the area estimate in um^2, or a negative value if no area
+  /// parameter is set.
+  double getAreaUm2() const;
+
+  /// \returns the energy estimate in pJ, or a negative value if no energy
+  /// parameter is set.
+  double getEnergyPj() const;
 
 private:
   void receiveInst(const InstRef &I);
+  void executeInst(const InstRef &I);
   void sendInitialCredits();
+  /// \returns the uops CoralNPU splits \p I into.
+  static uint32_t getUops(const Inst &I);
+  /// \returns the first cycle every vector register \p I reads is ready.
+  Cycle getVectorSourcesReady(const Inst &I) const;
+  /// \returns the cycle every tile of \p I's group is written.
+  Cycle getTilesReady(const Inst &I) const;
+  void setTilesReady(const Inst &I, Cycle Ready);
+  /// Runs \p I's 16-byte beats through the LSU, the first no earlier than
+  /// \p Earliest. \returns the last beat's done cycle.
+  Cycle bookBeats(const Inst &I, Cycle Earliest);
 
   const uint32_t QueueEntries;
-  const uint32_t Latency;
-  const uint32_t Occupancy;
-  ResourcePool Lanes;
+  const uint32_t CmdLatency;
+  const uint32_t UopsPerCycle;
+  const uint32_t CompleteLatency;
+  const FabricConfig Fabric;
+  const uint32_t NumArrays;
+  const uint32_t ZeroCycles;
+  const uint32_t MoveCyclesPerUop;
+  const uint32_t MoveLatency;
+  const uint32_t TileWriteLatency;
+  const uint32_t TileReadLatency;
+  const bool CtrlWaitsForDrain;
+  const double AreaPerPe;
+  const double TileStorageArea;
+  const double EnergyPerMac;
+  const double EnergyPerSubtile;
+  const double EnergyPerBeat;
+
+  ResourcePool Cmd;    // Uop issue into the engine.
+  ResourcePool Arrays; // MAC arrays.
+  ResourcePool Ctrl;   // Controller: vtzero, moves, tile writes from loads.
+  VectorLsuInterface *Lsu = nullptr;
+  const VectorRegisterInterface *VectorRegs = nullptr;
+
+  std::array<Cycle, 16> TileReady{};                // Per tile mt0-mt15.
+  std::array<Cycle, RegId::NumPerFile> OwnVReady{}; // vtmv.v.t results.
+  Cycle LastCmdStart = 0;                           // In-order uop issue.
+  Cycle HeadFree = 0;   // The controller's head uop is released.
+  Cycle LastDone = 0;   // Latest result of any instruction.
+  Cycle ArrayDrain = 0; // Latest MAC result.
+  MatrixStats Stats;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};
+  // Instructions arrive in PortUpdate; they are timed in Tick, after the
+  // vector module has booked every instruction dispatched in the same cycle.
+  sparta::PayloadEvent<InstRef, sparta::SchedulingPhase::Tick> ExecuteEvent{
+      &unit_event_set_, "ev_execute",
+      CREATE_SPARTA_HANDLER_WITH_DATA(Matrix, executeInst, InstRef)};
   sparta::Counter NumExecuted{&unit_stat_set_, "num_executed",
                               "Matrix instructions executed",
                               sparta::Counter::COUNT_NORMAL};

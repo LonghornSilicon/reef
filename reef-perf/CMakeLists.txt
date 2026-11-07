@@ -62,6 +62,7 @@ add_library(reef_perf_core STATIC
     model/vector/VectorPipeline.cpp
 
     model/matrix/Matrix.cpp
+    model/matrix/MatrixFabric.cpp
 
     model/memory/MemTiming.cpp
     model/memory/Memory.cpp
