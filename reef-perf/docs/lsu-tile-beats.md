@@ -209,11 +209,31 @@ at `8a5e1b31`):
   the RVV writeback (`lsu2rvv`) for a vector load (`:1902-1918`).
 - There is a tile-specific no-op path (`isTileNoop`, `:2047`).
 
-**Candidate causes** (not checked): for question 1, how the M3 LSU stepped
-through a vector instruction's registers (per-register handshakes with the
-RVV backend, `rvv2lsu` in and `lsu2rvv` out) against the newer slot's
-per-instruction walk; for question 2, the store's wait for RVV register and
-mask data, which a tile store's FIFO data skips.
+**Where to start: the CoralNPU commits between M3 and `8a5e1b31`.** In
+`~/coralnpu-pinned`, `git log 72d700ef..8a5e1b31 --
+hdl/chisel/src/coralnpu/scalar/Lsu.scala` lists the LSU's history since M3.
+Three changes match the measured costs. The matching is from the commit
+messages and the cost shapes, not from waveforms:
+
+| Commit | What it says | What it would explain |
+| --- | --- | --- |
+| `15425970` "Initial implementation of LsuV3"; `0b2924d8` "Switch to LsuV3"; `d57a9342` "Decommission LsuV2" | LsuV3 "redesigns the LSU to improve pipelining within the same instruction". M3 runs LsuV2. | Question 1: the newer LSU takes a whole instruction as one operation and streams its 16-byte registers one per cycle, so its overhead is paid once per instruction (about 2 cycles + 1 per register) instead of per register (about 4 each on M3). A 4-register load goes from 17 cycles to 6. |
+| `3ca02cc6` "LSU skip handshake" (fixed in `ae57d1bd`) | "Skip vector data handshake for US (including WR and Mask) and CS loads. This allows LSU to start and complete bus tx before RVV starts asking." | Question 1 for loads: a one-register load goes from 5 to 3. Question 2: the skip covers loads only, so a vector store still waits for its data from the RVV backend (one cycle more than a load), while a tile store's data comes from the matrix controller's `vme2lsu` FIFO and costs the same as a load. |
+| `76418e1a` "Precompute bus transaction size and offset during instruction initialization"; `912ba1b5` "Speculatively evaluate next rowAddr and leadIndex in LsuSuperSlot" | Timing work inside the LsuV3 slot. | Probably what keeps one register per cycle inside an instruction; not tied to a cycle. |
+
+The VME tile path itself came in with `e37e48fd` ("Wire VME LSU load and
+store channels"), `e2e1d8ab` and `27d00090` ("Implement VME tile
+load/store"), after LsuV3, which is why no RTL has Zvt on M3's LsuV2. The
+LsuV3 message also lists "add a second super slot to improve pipelining
+between instructions" as later work; `57375f85` ("prepare for dual execution
+slots") suggests it is not in `8a5e1b31`, so the model's one-slot LSU still
+holds. Check both in the waveform.
+
+**Candidate causes** (not checked): for question 1, LsuV2 stepping through
+a vector instruction's registers with per-register handshakes with the RVV
+backend (`rvv2lsu` in, `lsu2rvv` out), against LsuV3's per-instruction walk
+and the load handshake skip above; for question 2, the store's wait for RVV
+register and mask data, which a tile store's FIFO data skips.
 
 **How to measure it.**
 
