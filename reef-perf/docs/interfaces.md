@@ -366,6 +366,7 @@ the `vtdiscard` interlock.
 | --- | --- | --- |
 | [`ReefSim.h`](../model/ReefSim.h), [`ReefSim.cpp`](../model/ReefSim.cpp) | Binds the matrix module to the core's LSU (`setLsu`) and to the vector module's scoreboard (`setVectorRegisters`), and writes its statistics as the last JSON object, `"matrix"`. | Wiring always; the matrix module does nothing without Zvt instructions. The JSON block is new; existing keys are unchanged. |
 | [`CMakeLists.txt`](../CMakeLists.txt), [`tests/cpp/CMakeLists.txt`](../tests/cpp/CMakeLists.txt) | Build `frontend/Zvt.cpp`, `matrix/MatrixFabric.cpp`, `ZvtTest` and `MatrixFabricTest`. | Build only. |
+| [`inference-engine/coral/tools/setup_sim.sh`](../../inference-engine/coral/tools/setup_sim.sh) | Compiles `frontend/Zvt.cpp` into `coral_sim` with `FuncSim.cpp` and `InstDecode.cpp`, which now call it. The script lists reef-perf sources by hand, so without it the Coral kernels' `golden` CI job fails to link. | Build only; `coral_sim` keeps Zvt off. |
 | [`configs/machines/m3.yaml`](../configs/machines/m3.yaml) | The matrix module's own section (`top.matrix.params`), rule 4. | Matrix only. |
 
 ## Known simplifications, by module
