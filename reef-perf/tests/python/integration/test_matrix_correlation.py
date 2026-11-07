@@ -67,17 +67,21 @@ KNOWN_GAP = {
 _BY_NAME = {bench.name: bench for bench in BENCHMARKS}
 
 
-def _rtl_cost(bench: DiffBenchmark) -> float:
+def _rtl_rows(bench: DiffBenchmark) -> list[dict[str, str]]:
     with RTL_REFERENCE.open() as f:
         rows = {(r["name"], int(r["iters"])): r for r in csv.DictReader(f)}
-    n = bench.iters
-    roi = [int(rows[(bench.name, k)]["roi_cycles"]) for k in (n, 2 * n)]
-    return (roi[1] - roi[0]) / (n * bench.ops_per_iter)
+    return [rows[(bench.name, k)] for k in (bench.iters, 2 * bench.iters)]
+
+
+def _rtl_cost(bench: DiffBenchmark) -> float:
+    roi = [int(row["roi_cycles"]) for row in _rtl_rows(bench)]
+    return (roi[1] - roi[0]) / (bench.iters * bench.ops_per_iter)
 
 
 def _model_cost(bench: DiffBenchmark, tmp_path: Path) -> float:
+    rtl_insts = [int(row["roi_instructions"]) for row in _rtl_rows(bench)]
     roi = []
-    for n in (bench.iters, 2 * bench.iters):
+    for n, insts in zip((bench.iters, 2 * bench.iters), rtl_insts, strict=True):
         out = tmp_path / str(n)
         (out / "matrix").mkdir(parents=True)
         elf = build_microbenchmark(f"matrix/{bench.name}", out, {"ITERS": n})
@@ -86,6 +90,12 @@ def _model_cost(bench: DiffBenchmark, tmp_path: Path) -> float:
         )
         assert result.instructions == result.functional_instructions
         assert result.roi_cycles is not None
+        # Same work on both sides, or the cycle comparison means nothing (a
+        # stale rtl_vme.csv row or a changed program).
+        assert result.roi_instructions == insts, (
+            f"{bench.name} at {n}: model {result.roi_instructions}, RTL "
+            f"{insts} instructions; re-run matrix_diff rtl --record"
+        )
         roi.append(result.roi_cycles)
     return (roi[1] - roi[0]) / (bench.iters * bench.ops_per_iter)
 

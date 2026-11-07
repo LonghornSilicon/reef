@@ -223,6 +223,21 @@ def compare(out: Path) -> None:
     model_rows = _read(out / "model.csv")
     rtl_path = out / "rtl.csv"
     rtl_rows = _read(rtl_path if rtl_path.is_file() else RTL_REFERENCE)
+    mismatched = [
+        f"{bench.name} at {iters}: model "
+        f"{model_rows[(bench.name, iters)]['roi_instructions']}, RTL "
+        f"{rtl_rows[(bench.name, iters)]['roi_instructions']} instructions"
+        for bench in BENCHMARKS
+        for iters in _variants(bench)
+        if model_rows[(bench.name, iters)]["roi_instructions"]
+        != rtl_rows[(bench.name, iters)]["roi_instructions"]
+    ]
+    if mismatched:
+        # Different work on the two sides: a stale RTL row or a changed
+        # program. Re-run the rtl step (with --record for the reference).
+        raise SystemExit(
+            "model and RTL ran different ROIs:\n  " + "\n  ".join(mismatched)
+        )
     rows: list[dict[str, object]] = []
     for bench in BENCHMARKS:
         n, n2 = _variants(bench)

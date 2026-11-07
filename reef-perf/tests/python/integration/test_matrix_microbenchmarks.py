@@ -254,3 +254,28 @@ def test_vtmv_readers_do_not_stall_dispatch(
     result = _run("gemm_tile", tmp_path)
     assert result.dispatch["stall_waw_hazard"] == 0
     assert result.instructions == result.functional_instructions
+
+
+@pytest.mark.integration
+def test_more_arrays_overlap_independent_macs(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """With mtx_num_arrays 2, MACs into different tiles run side by side.
+
+    One array (CoralNPU) takes 4 cycles per independent full-tile MAC. With
+    two, the controller hands each MAC to a free array, so the rate nearly
+    halves. It cannot beat the command path (4 uops at 3 per cycle, 2 cycles
+    per MAC); the core's ROB and the matrix queue add a little on top.
+    """
+    del cpp_build_dir
+    rob: dict[str, object] = {"top.core.rob.params.rob_entries": 16}
+    one = _cycles_per_op("mac_indep", 50, 4, tmp_path / "one", rob)
+    two = _cycles_per_op(
+        "mac_indep",
+        50,
+        4,
+        tmp_path / "two",
+        {**rob, "top.matrix.params.mtx_num_arrays": 2},
+    )
+    assert one == pytest.approx(4.0)
+    assert 2.0 <= two < 0.6 * one

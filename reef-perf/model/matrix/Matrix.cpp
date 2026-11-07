@@ -265,7 +265,12 @@ void Matrix::executeInst(const InstRef &I) {
     FabricCost Cost = getMacCost(Fabric, M.TM, M.TN, M.TK, M.Type);
     Start = Arrays.reserve(Earliest, Cost.Occupancy);
     Done = Start + Cost.Latency;
-    HeadFree = Start + Cost.Busy;
+    // CoralNPU's one array holds the controller's head until its compute
+    // steps end (canStart && cntCr). With more arrays the controller hands
+    // the MAC to a free one and moves on the next cycle, so MACs on
+    // different arrays overlap; the Arrays pool limits them (an assumption
+    // for the sweep, no RTL).
+    HeadFree = NumArrays == 1 ? Start + Cost.Busy : Start + 1;
     setTilesReady(*I, TileReady, std::max(Done, getTilesReady(*I, TileReady)));
     setTilesReady(*I, TileMacReady,
                   AccRawCycles == 0 ? Done : Start + AccRawCycles);
