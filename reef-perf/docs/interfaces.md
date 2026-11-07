@@ -10,7 +10,7 @@ page and both sides of the interface together.
 | Frontend | `top.frontend` | `frontend/` | TBD |
 | Core (scalar pipeline) | `top.core` | `core/` | TBD |
 | Vector engine | `top.vector` | `vector/` | TBD |
-| Matrix engine | `top.matrix` | `matrix/` | TBD |
+| Matrix engine | `top.matrix` | `matrix/` | Akul Laddha |
 | Interconnect / memory | `top.memory` | `memory/` | TBD |
 
 The terms module, unit, pool, port and interface are defined in
@@ -57,7 +57,7 @@ one **writer**:
 
 | Fields | Written by |
 | --- | --- |
-| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts`, `Rs1Val`, `Rs2Val` | frontend, when the instruction is fetched |
+| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts`, `Rs1Val`, `Rs2Val`, `Mtx` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
 | `DispatchCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
@@ -69,15 +69,24 @@ file and an index, with `getDense()` for arrays indexed by register.
 
 Within the frontend, `Mem` and `Dsts` come straight from Spike's commit log
 (exact); `Class` and `Srcs` are decoded from the encoding, because Spike does
-not log register reads.
+not log register reads. Zvt (matrix) instructions are the exception: Spike
+does not know them, so when `top.frontend.params.zvt` is on (it is off by
+default, and on in `configs/machines/m3_vme.yaml`) the frontend runs them
+itself (`frontend/Zvt.h`) and
+synthesizes `Mem` (unit-stride tile loads and stores), `Dsts` (`rd` of
+`msettn`/`msettm`/`msettk`, `vd` of `vtmv.v.t`) and `Mtx`, the matrix
+details: op, tile group, `tm`/`tn`/`tk`, element type (docs/matrix.md).
 
 `ResultReadyCycle` and `CompleteCycle` are `Inst::Never` until their
 writer sets them. Readers must treat `Never` as "not yet": Dispatch stalls a
 dependent instruction, and the Rob keeps waiting.
 
-Dispatch doesn't wait for vector registers, as on M3, whose scalar
-scoreboards cover only x and f. Only vector instructions read and write them,
-so the vector module tracks them itself, one register at a time.
+Dispatch doesn't wait for vector registers written by vector instructions,
+as on M3, whose scalar scoreboards cover only x and f; the vector module
+tracks those itself, one register at a time. Dispatch does track vector
+registers that a matrix instruction (`vtmv.v.t`) writes, so their readers
+wait until the matrix module has timed it. Matrix instructions that read
+vector registers ask the vector module through `VectorRegisterInterface`.
 
 **Who executes what** is decided by `getExecTarget()` (`common/Interfaces.h`):
 
@@ -86,7 +95,7 @@ so the vector module tracks them itself, one register at a time.
 | `Scalar` | `core.scalar_exec` | ALU, branch, jump, MUL, DIV, CSR, fence, system, FP, FP divide, unknown |
 | `LSU` | `core.lsu` | scalar and FP loads and stores |
 | `Vector` | `vector` | every vector instruction: `vset*`, arithmetic, permutes, vector-to-scalar moves, loads and stores. Loads and stores reach `core.lsu` through `VectorLsuInterface`; one LSU serves both, as on M3 |
-| `Matrix` | `matrix` | `MATRIX` (nothing decodes to it until the matrix ISA exists) |
+| `Matrix` | `matrix` | `MATRIX`: Zvt `vtzero`, `vtdiscard`, `vtmv.*`, `vtle*`, `vtse*`, `vtmm*`. Tile loads and stores reach `core.lsu` through `VectorLsuInterface`. The Zvt `mset*` instructions are `VSET` and go to `vector` |
 
 ### Timing conventions
 
@@ -195,6 +204,23 @@ core's point of view:
 | `Core::OutMatrix` → `Matrix::InInsts` | `InstRef` | instructions routed to `MATRIX` |
 | `Matrix::OutCredits` → `Core::InMatrixCredits` | `uint32_t` | free command-queue entries |
 
+A tile load or store also takes an LSU queue entry at dispatch, as CoralNPU
+sends `VTLOAD`/`VTSTORE` to the LSU (Decode.scala), so Dispatch needs a
+matrix and an LSU credit for it. The matrix module books the LSU one 16-byte
+beat at a time through `VectorLsuInterface` (the same calls as the vector
+module); the LSU frees the queue entry when the first beat starts.
+
+### Vector → matrix (register scoreboard)
+
+`VectorRegisterInterface::getRegisterReady(Index)` returns the first cycle a
+reader of `v<Index>` may start, as the vector module recorded it. The matrix
+module times each instruction in the Tick phase of the cycle it arrives, so
+every vector instruction dispatched in the same cycle (delivered in
+PortUpdate) has already been booked. The vector module implements it; the
+matrix module reads it. One known gap: a younger vector instruction
+dispatched in the same cycle that overwrites a register an older matrix
+instruction reads makes the matrix instruction wait for the younger write.
+
 ### Anything → memory
 
 Requesters call `MemoryInterface::access(MemRequest)` and get a
@@ -249,7 +275,8 @@ map in `common/MemoryMap.h`, the same list Spike is given:
 | anything else | — | `memory` (AXI): data channel, outstanding limit, fixed black-box latency |
 
 Today only the LSU calls it. Instruction fetch is still free, and the matrix
-engine does not touch memory yet.
+engine reaches memory through the LSU, as CoralNPU's does; a dedicated
+matrix memory port (`RequesterKind::Matrix`) is not modeled yet.
 
 ## Known simplifications, by module
 
@@ -264,9 +291,10 @@ interface unless noted.
 - **Vector:** the divider's time doesn't depend on its operands; a load or
   store has one uop per register its accesses touch, whatever its EMUL; only
   unit-stride e32 loads and stores at LMUL 1 and 4 are measured.
-- **Matrix:** everything. The ISA encoding, an opaque-op extension in Spike,
-  operands from vector registers (a vector → matrix interface) and a memory
-  port (`RequesterKind::Matrix`).
+- **Matrix:** see docs/matrix.md, "Open cases". The main ones: most timing
+  values are placeholders until a VME verification simulator gives RTL
+  numbers; Zvt uops do not compete with vector uops for the RVV dispatch
+  they share on CoralNPU; no dedicated memory port.
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
   between requesters; the AXI latency and outstanding limit are assumptions.
