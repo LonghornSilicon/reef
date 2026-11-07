@@ -41,6 +41,13 @@ EXPECTED_OPS = {
     "mac_indep_bf16": {"mac": 200, "zero": 4, "move_to_vector": 1},
     "gemm_multi": {"mac": 64, "zero": 4, "move_to_vector": 64},
     "gemm_longk": {"mac": 64, "zero": 1, "move_to_vector": 16},
+    "vtmm_misaligned": {"mac": 100, "nop": 200, "zero": 1, "move_to_vector": 1},
+    "vtdiscard_after_mac": {
+        "mac": 50,
+        "discard": 50,
+        "zero": 1,
+        "move_to_vector": 1,
+    },
     # Vector references for the *_burst tile programs: no matrix ops.
     "vec_load_burst": {},
     "vec_store_burst": {},

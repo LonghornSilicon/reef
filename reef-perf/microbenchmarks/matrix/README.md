@@ -17,6 +17,8 @@ frontend set, they are not part of the M3 correlation report:
 | `vec_load_burst`, `vec_store_burst`, `vec_load4_burst`, `vec_store4_burst` | The same shapes with RVV (`vle8.v`/`vse8.v` at LMUL 1 and 4): the vector reference for the four tile `*_burst` programs, so the two LSU paths compare on one core. No matrix instructions |
 | `mac_{chain,indep}_tm4`, `mac_chain_tn4`, `mac_indep_tn4`, `mac_indep_tm8tn8` | Partial tiles (held out): the PE-busy count for small tm and tn, and the hitRaw window when the array is busy fewer than 4 cycles |
 | `mac_{chain,indep}_fp32`, `mac_{chain,indep}_bf16` | fp32 `vtfmm.tvv` and bf16 `vtfmm.alt` MACs (held out) |
+| `vtmm_misaligned` | `vtmmu` with misaligned operands, which retire as no-ops, next to one with odd but aligned operands (held out, B2) |
+| `vtdiscard_after_mac` | `vtmmu` + `vtdiscard`: the core's vtdiscard interlock, which the model does not have (held out, B5) |
 | `gemm_multi`, `gemm_longk` | 32 x 32 x 64 and 16 x 16 x 256 int8 GEMMs (held out) |
 | `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |

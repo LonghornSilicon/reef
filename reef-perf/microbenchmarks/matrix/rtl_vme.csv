@@ -47,5 +47,9 @@ mac_indep_bf16,50,826,313
 mac_indep_bf16,100,1626,613
 gemm_multi,10,13795,10312
 gemm_multi,20,27575,20622
+vtmm_misaligned,100,624,512
+vtmm_misaligned,200,1224,1012
+vtdiscard_after_mac,50,1225,212
+vtdiscard_after_mac,100,2425,412
 gemm_longk,10,16735,13422
 gemm_longk,20,33455,26842

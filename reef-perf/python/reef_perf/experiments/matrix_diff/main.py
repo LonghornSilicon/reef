@@ -110,6 +110,8 @@ BENCHMARKS = (
     DiffBenchmark("mac_chain_bf16", 200, 1, "dep vtfmm bf16", True),
     DiffBenchmark("mac_indep_bf16", 50, 4, "vtfmm bf16", True),
     DiffBenchmark("gemm_multi", 10, 1, "32x32x64 GEMM", True),
+    DiffBenchmark("vtmm_misaligned", 100, 1, "2 no-op vtmmu + 1 MAC", True),
+    DiffBenchmark("vtdiscard_after_mac", 50, 1, "vtmmu + vtdiscard", True),
     DiffBenchmark("gemm_longk", 10, 1, "16x16x256 GEMM", True),
 )
 """The looping matrix microbenchmarks."""

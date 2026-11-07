@@ -42,6 +42,12 @@
 .macro VTFMM rdfield, vs2, vs1
   .insn r 0x77, 1, 0x79, \rdfield, \vs1, \vs2
 .endm
+# vtdiscard: vs2 = 11100, rs1 = rd = 0 (RvvDecode.scala:305-311). Sets
+# mstatus.MS to Initial; the core dispatches it only once everything older
+# has finished (Decode.scala:601-607).
+.macro VTDISCARD
+  .insn r 0x57, 6, 0x21, x0, x0, x28
+.endm
 # vtmv.v.t vd, rs1 (rs1 = TSS).
 .macro VTMV_VT vd, rs1
   .insn r 0x57, 6, 0x21, \vd, \rs1, x31

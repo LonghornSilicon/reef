@@ -249,10 +249,10 @@ built from the cited RTL behavior.
 | # | Step | Case | Files |
 | --- | --- | --- | --- |
 | B1 | **Done.** `mtx_mapping`, default `coral`; `mac_indep_tm8tn8` (2.0 → 4.0) and the new `mac_indep_tn4` (predicted 4.0 before its RTL run) match. **Coral tile mapping.** A `mtx_mapping` parameter: `coral` (busy = min(4, ceil(tm/2)), no `tn` term, `zvt_pe_array.sv:216`) or `generic` (today's formula, for the sweep presets). `coral` is the default. | 3 | `matrix/MatrixFabric.*`, `configs/matrix/*.yaml` |
-| B2 | **Misaligned `vs1`/`vs2` become no-ops** (`rvv_backend_decode_unit_ari.sv:3219-3233`). | 8 | `frontend/FuncSim.cpp` (behind the A1 flag) |
+| B2 | **Done.** `FuncSim` checks `vs1`/`vs2` alignment by element width (int8: register bits 2:1 = 0; bf16: bits 2 and 0; fp32: bits 1:0) and retires a misaligned `vtmm` as a no-op. `vtmm_misaligned` (held out): no traps on the RTL, op counts as predicted, 6.25 against 6.0 cycles per iteration (+4%, the ROB-bound loop, not the no-ops). **Misaligned `vs1`/`vs2` become no-ops** (`rvv_backend_decode_unit_ari.sv:3219-3233`). | 8 | `frontend/FuncSim.cpp` (behind the A1 flag) |
 | B3 | **Done.** `mtx_lsu_fifo_entries`; tile loads and stores run beat by beat through the FIFOs. No change on `tile_load` or `tile_store` (the LSU, at 5 cycles per beat, is slower than the controller, so the FIFOs never fill); `tile_load_behind_mac` exercises them. **2-deep `lsu2vme`/`vme2lsu` FIFOs** between the LSU and the controller (`zvt.sv:163-206`). | 6 | `matrix/Matrix.*` |
 | B4 | **Done.** `mtx_acc_raw_cycles`; `mac_chain` now matches the RTL (4.0 cycles per MAC) with the reference core's 16-entry ROB, which also brings tile load and store to +45% and +23%. **Per-tile MAC hazard.** Replace the whole-group wait with the RTL's comparison against in-flight adder stages (`zvt_pe_array.sv:195-204`). The exact back-to-back timing still needs a trace (C3). | 9 | `matrix/Matrix.*` |
-| B5 | **`vtdiscard` inside the engine.** Only the matrix-side rules. Dispatching alone and waiting for an empty retirement buffer are core rules and stay open. | 7 | `matrix/Matrix.*` |
+| B5 | **Done (matrix side).** `vtdiscard` no longer holds the controller; it completes after every older matrix result. `vtdiscard_after_mac` (held out) shows the core interlock it still lacks: 24.0 cycles per iteration on the RTL, 5.5 in the model (case 7). **`vtdiscard` inside the engine.** Only the matrix-side rules. Dispatching alone and waiting for an empty retirement buffer are core rules and stay open. | 7 | `matrix/Matrix.*` |
 
 ### C. Correlate against the VME RTL
 
@@ -335,6 +335,8 @@ RTL run (`microbenchmarks/matrix/heldout_predictions.csv`). Cycles per op:
 | `mac_{chain,indep}_fp32` | fp32 `vtfmm.tvv` | 4.0 / 4.0 | 4.0 / 4.0 |
 | `mac_{chain,indep}_bf16` | bf16 `vtfmm.alt` | 4.0 / 4.0 | 4.0 / 4.0 |
 | `gemm_multi` | 32 x 32 x 64, four accumulators | 2142 | 1378 (+55%) |
+| `vtmm_misaligned` | two misaligned `vtmmu` (no-ops) + one with odd, aligned operands, per iteration (added after B2) | 6.25 | 6.0 (+4%) |
+| `vtdiscard_after_mac` | `vtmmu` + `vtdiscard`, per iteration (added after B5; the core interlock is not modeled) | 5.48 | 24.0 (-77%) |
 | `gemm_longk` | 16 x 16 x 256 | 2790 | 1672 (+67%) |
 
 The dependent tm-4 chain confirms the 4-cycle hitRaw window when the array
@@ -447,13 +449,24 @@ can answer it.
    count is a register, `multi_fifo.sv:107`; seen in the waveform).
    `tile_load_behind_mac`, which fills the FIFO behind a MAC, matches the
    RTL exactly, so the hold approximation costs nothing there.
-7. **`vtdiscard`** waits for all matrix work. It does not dispatch alone
-   from slot 0 (`Decode.scala:197`), and does not wait for an empty
-   retirement buffer, idle RVV and idle LSU (`:601-607`).
-8. **vtmm register alignment is not checked.** A misaligned `vs1`/`vs2`
-   (`rvv_backend_decode_unit_ari.sv:3219-3233`) should be a no-op; the model
-   times it as a MAC. Whether the scalar LSU still takes a queue entry for a
-   vl = 0 tile load or store is also untraced (the model takes none).
+7. **`vtdiscard` (matrix side settled, B5; core side open).** The engine
+   never sees it: the RVV decoder rejects its encoding and retires it
+   (`rvv_backend_decode_unit_ari.sv:3600-3607`), so it does not hold the
+   controller; the model keeps only the engine's share of the core's
+   interlock (complete after every older matrix result). Its real cost is
+   the core's: it dispatches alone from slot 0 (`Decode.scala:197`) and only
+   with an empty retirement buffer, the RVV backend idle and the LSU idle
+   (`:601-607`), and it sets `mstatus.MS` to Initial (`Csr.scala:632`).
+   Not modeled; `vtdiscard_after_mac` measures it: 24.0 cycles per
+   `vtmmu` + `vtdiscard` on the RTL against the model's 5.5. Kernels issue
+   it rarely (between kernels or on a context switch).
+8. **vtmm register alignment (settled, B2).** A `vtmm` whose `vs1` or `vs2`
+   is misaligned for its element width retires as a no-op
+   (`rvv_backend_decode_unit_ari.sv:3219-3233`, `rvv_backend_decode.sv:54-62`);
+   `FuncSim` applies the same check, and `vtmm_misaligned` confirms it on the
+   RTL. For int8 the check is register bits 2:1, so odd registers such as v9
+   are legal. Whether the scalar LSU still takes a queue entry for a vl = 0
+   tile load or store is untraced (the model takes none).
 9. **The hitRaw rule (settled, B4).** CoralNPU holds a MAC only while the
    previous MAC into the same tile group has its first step in the multiply
    stages (`zvt_pe_array.sv:195-207`), so dependent MACs start 4 cycles apart

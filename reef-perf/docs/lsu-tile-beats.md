@@ -174,7 +174,12 @@ settings (6 and 17 cycles per `vtle32`).
    RTL's, enough to keep a 19-instruction k-step's MAC in the 16-entry ROB
    3 cycles too long. That fits the load handshake skip (`3ca02cc6`); it
    is part of question 1 below.
-7. **Two related findings for the core and frontend:**
+7. **`vtdiscard`'s dispatch interlock** (`Decode.scala:197`, `:601-607`):
+   it dispatches alone, with an empty retirement buffer, the RVV backend
+   idle and the LSU idle. Not modeled in Dispatch. `vtdiscard_after_mac`
+   measures it on the VME RTL: 24.0 cycles per `vtmmu` + `vtdiscard`
+   against the model's 5.5 (matrix.md, case 7).
+8. **Two related findings for the core and frontend:**
    - The VME RTL's core has a 16-entry retirement buffer
      (`Parameters.scala:141`); M3 has 8. A Zvt instruction holds its entry
      until its tile write lands, so with 8 entries the ROB, not the engine,

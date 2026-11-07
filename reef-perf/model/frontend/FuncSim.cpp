@@ -254,8 +254,9 @@ void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
   uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
   // Shapes the RVV backend decoder rejects retire as no-ops without reaching
   // the matrix engine (rvv_backend_decode_unit.sv:92-96): vl = 0, misaligned
-  // tile groups, vtmm with tm, tn or tk of 0 or a mismatched type
-  // configuration (rvv_backend_decode_unit_ari.sv:3072, :3211-3216,
+  // tile groups, vtmm with tm, tn or tk of 0, a mismatched type
+  // configuration or misaligned vs1/vs2 (rvv_backend_decode_unit_ari.sv:3072,
+  // :3211-3216, :3219-3233,
   // :3317-3320, :3605, :3717-3722; _lsu.sv:3387-3393).
   auto MakeNop = [&I] {
     I.Mtx = {};
@@ -321,9 +322,23 @@ void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
                   : I.SEWBytes == 2
                       ? Zvt.MTWiden == 2 && Zvt.AltFmt
                       : I.SEWBytes == 4 && Zvt.MTWiden == 1 && !Zvt.AltFmt;
-    // OPEN: vs1/vs2 register alignment (ari.sv:3219-3233) is not checked.
+    // vs1 and vs2 must be aligned for their element width, or the decoder
+    // rejects the vtmm and it retires as a no-op (check_vme_vs{1,2}_align,
+    // rvv_backend_decode_unit_ari.sv:3219-3233, :3789-3791): int8 needs
+    // register bits 2:1 = 0 (v0, v1, v8, v9, ...), bf16 bits 2 and 0 = 0
+    // (v0, v2, v8, v10, ...), fp32 bits 1:0 = 0 (v0, v4, v8, ...).
+    auto OperandOk = [&I](uint32_t Reg) {
+      switch (I.SEWBytes) {
+      case 1:
+        return (Reg & 0b110U) == 0;
+      case 2:
+        return (Reg & 0b101U) == 0;
+      default:
+        return (Reg & 0b011U) == 0;
+      }
+    };
     if (!TypeOk || Zvt.TM == 0 || VL == 0 || Zvt.TK == 0 ||
-        Misaligned(Z.Rd >> 1, 4)) {
+        Misaligned(Z.Rd >> 1, 4) || !OperandOk(Z.Rs1) || !OperandOk(Z.Rs2)) {
       MakeNop();
       break;
     }

@@ -14,3 +14,7 @@ gemm_multi,10,21442,42862,10312,2142.000
 gemm_longk,10,27914,55814,13422,2790.000
 # Added 2026-11-07T09:11:50-06:00 after B1 (mtx_mapping coral), before its RTL run; generic would predict 2.000.
 mac_indep_tn4,50,834,1634,313,4.000
+# Added 2026-11-07T09:20:19-06:00 after B2 (misaligned vtmm operands are no-ops), before its RTL run.
+vtmm_misaligned,100,649,1274,512,6.250
+# Added 2026-11-07T09:22:57-06:00 after B5 (matrix side only; the core interlock is not modeled), before its RTL run.
+vtdiscard_after_mac,50,298,572,212,5.480

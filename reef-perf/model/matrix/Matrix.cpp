@@ -334,11 +334,15 @@ void Matrix::executeInst(const InstRef &I) {
     break;
   }
   case MatrixOp::Discard:
-    // Waits for every matrix result; CoralNPU also waits for an empty
-    // retirement buffer and an idle LSU, which is not modeled.
-    Start = std::max(Earliest, LastDone);
-    Done = Start + 1;
-    HeadFree = Done;
+    // The engine does nothing with vtdiscard: the RVV decoder rejects its
+    // encoding (no check_special case under VWRXUNARY0,
+    // rvv_backend_decode_unit_ari.sv:3600-3607) and retires it, so it never
+    // holds the controller. Its waiting is the core's dispatch interlock
+    // (empty retirement buffer, RVV idle, LSU idle; Decode.scala:601-607).
+    // The engine's share of "RVV idle" is kept: it completes no earlier
+    // than every older matrix result. The rest is a core rule, not modeled.
+    Start = std::max(CmdDone, LastDone);
+    Done = Start;
     break;
   case MatrixOp::Nop:
     // Retired by the RVV decoder; it never reaches the engine.
