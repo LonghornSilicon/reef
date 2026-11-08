@@ -70,6 +70,34 @@ TEST(AxiModelTest, BlockingReadsDoNotHoldAWrite) {
   EXPECT_EQ(AXI.access(Store, 0).Occupancy, 1U); // Only its one beat.
 }
 
+TEST(ExtMemModelTest, WithoutARateTheLinkAddsNothing) {
+  ExtMemModel Ext(26, 0);
+  EXPECT_FALSE(Ext.isTimed());
+  EXPECT_EQ(Ext.transfer(64, 10), 10U);
+}
+
+TEST(ExtMemModelTest, FirstByteLatencyThenBytesAtTheRate) {
+  // 26 cycles to the first byte, then 64 bytes at 1 B/cycle: 10 + 90.
+  ExtMemModel Ext(26, 1.0);
+  EXPECT_EQ(Ext.transfer(64, 10), 100U);
+}
+
+TEST(ExtMemModelTest, OperationsShareOneLink) {
+  ExtMemModel Ext(26, 1.0);
+  EXPECT_EQ(Ext.transfer(64, 10), 100U);
+  EXPECT_EQ(Ext.transfer(64, 20), 190U); // Waits for the first.
+}
+
+TEST(ExtMemModelTest, FractionalRateRoundsUp) {
+  // 16 bytes at 2.64 B/cycle (132 MB/s at 50 MHz) is 6.06, so 7 cycles.
+  ExtMemModel Ext(0, 2.64);
+  EXPECT_EQ(Ext.transfer(16, 0), 7U);
+}
+
+TEST(ExtMemModelTest, NegativeRateThrows) {
+  EXPECT_THROW(ExtMemModel(0, -1.0), std::invalid_argument);
+}
+
 TEST(MemoryRegionTest, ContainsIsHalfOpen) {
   MemoryRegion DTCM{
       .Start = 0x10000, .Length = 0x8000, .Kind = RegionKind::DTCM};

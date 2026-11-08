@@ -42,6 +42,9 @@ public:
   /// data channel and an outstanding slot. \returns the timing.
   MemResponse access(std::span<const MemAccess> Accesses, Cycle Earliest);
 
+  /// \returns true if a read holds its requester until its response.
+  bool hasBlockingReads() const { return BlockingReads; }
+
   /// \returns {axi_data, axi_outstanding}, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const {
     return {&Data, &Outstanding};
@@ -53,6 +56,34 @@ private:
   bool BlockingReads;
   ResourcePool Data;        // One beat per cycle.
   ResourcePool Outstanding; // Each entry held until its operation is done.
+};
+
+/// The off-chip memory behind the SoC bus (HyperRAM or QSPI flash): one link
+/// that each operation holds for `Latency` cycles to its first byte, then
+/// for its bytes at `BytesPerCycle`. The core's e-bus accesses and the DMA
+/// share the link. A rate of 0 means no link model: the M3 testbench's
+/// memory, which adds no delay (tests/systemc/Xbar.h).
+class ExtMemModel {
+public:
+  /// Creates the link. \throws std::invalid_argument if \p BytesPerCycle is
+  /// negative.
+  ExtMemModel(uint32_t Latency, double BytesPerCycle);
+
+  /// \returns true if the link is modeled (a nonzero rate).
+  bool isTimed() const { return BytesPerCycle > 0; }
+
+  /// Books the link to move \p Bytes, starting no earlier than \p Earliest.
+  /// \returns the cycle after the last byte moves, or \p Earliest if the
+  /// link is not modeled.
+  Cycle transfer(uint64_t Bytes, Cycle Earliest);
+
+  /// \returns the link, for the end-of-run summary.
+  const ResourcePool &getLink() const { return Link; }
+
+private:
+  uint32_t Latency;
+  double BytesPerCycle;
+  ResourcePool Link;
 };
 
 } // namespace reef_perf

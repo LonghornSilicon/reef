@@ -3,6 +3,7 @@
 #include "memory/MemTiming.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
@@ -47,4 +48,19 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
   if (BlockingReads && IsRead)
     Response.Occupancy = Response.Latency;
   return Response;
+}
+
+ExtMemModel::ExtMemModel(uint32_t Latency, double BytesPerCycle)
+    : Latency(Latency), BytesPerCycle(BytesPerCycle), Link("ext_mem_link", 1) {
+  if (BytesPerCycle < 0)
+    throw std::invalid_argument("ext_mem_bytes_per_cycle must be at least 0");
+}
+
+Cycle ExtMemModel::transfer(uint64_t Bytes, Cycle Earliest) {
+  if (!isTimed())
+    return Earliest;
+  const auto DataCycles = static_cast<uint64_t>(
+      std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
+  const uint64_t Occupancy = Latency + std::max<uint64_t>(DataCycles, 1);
+  return Link.reserve(Earliest, Occupancy) + Occupancy;
 }
