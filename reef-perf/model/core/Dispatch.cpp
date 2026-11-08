@@ -19,6 +19,20 @@ static bool isVectorMemory(const Inst &I) {
   return I.Class == InstClass::V_LOAD || I.Class == InstClass::V_STORE;
 }
 
+/// \returns true if \p I reads \p Reg from the register file's flops, without
+/// write forwarding: a load or store address (rs1), scalar store data (rs2) or
+/// a jalr target (Decode.scala:347-361, usesRs1Regd and usesRs2Regd).
+static bool readsRegistered(const Inst &I, RegId Reg) {
+  if (Reg.getFile() != RegFile::X)
+    return false;
+  const unsigned Rs1 = (I.Encoding >> 15) & 31;
+  const unsigned Rs2 = (I.Encoding >> 20) & 31;
+  const bool IsJalr = (I.Encoding & 0x7f) == 0x67;
+  if ((I.isMemory() || IsJalr) && Reg.getIndex() == Rs1)
+    return true;
+  return I.Class == InstClass::STORE && Reg.getIndex() == Rs2;
+}
+
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
   case StallReason::IbufEmpty:
@@ -118,11 +132,12 @@ void Dispatch::scheduleDispatch() {
 
 bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
                            ExecTarget &Blamed) const {
-  // A register hazard is blamed on the unit producing the register.
+  // A register hazard is blamed on the unit producing the register. A
+  // registered read sees the value one cycle after a forwarded read.
   for (RegId Reg : I->Srcs) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
     if (Reg.getFile() != RegFile::V && Writer &&
-        Writer->ResultReadyCycle > Now) {
+        Writer->ResultReadyCycle + (readsRegistered(*I, Reg) ? 1 : 0) > Now) {
       Why = StallReason::Raw;
       Blamed = getExecTarget(*Writer);
       return false;
