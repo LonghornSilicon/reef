@@ -46,6 +46,10 @@ RegionKind Memory::getRegionKind(Address Addr) const {
 }
 
 MemResponse Memory::access(const MemRequest &Request) {
+  // No request starts before the current cycle, so older bookings are done.
+  const Cycle Now = getClock()->currentCycle();
+  ITCM.forgetBefore(Now);
+  DTCM.forgetBefore(Now);
   // An empty access list (e.g. a vector op with vl = 0) is one DTCM line.
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM

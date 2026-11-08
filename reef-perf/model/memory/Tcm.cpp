@@ -4,6 +4,7 @@
 
 #include "memory/MemTiming.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <stdexcept>
@@ -121,6 +122,23 @@ void Tcm::delay(uint32_t Id, Cycle Earliest) {
   reportMove(T, OldFinish);
 }
 
+void Tcm::forgetBefore(Cycle Before) {
+  // Core bookings never overlap, so their ends rise with their starts.
+  while (!CoreBusy.empty() && CoreBusy.begin()->second <= Before)
+    CoreBusy.erase(CoreBusy.begin());
+  // Transfers finish in order; stop at the first one still running.
+  while (FirstLive < Transfers.size()) {
+    Transfer &T = Transfers[FirstLive];
+    if (!T.Cycles.empty() && *T.Cycles.rbegin() >= Before)
+      break;
+    for (Cycle C : T.Cycles)
+      Owner.erase(C);
+    T.Cycles.clear();
+    T.OnFinishMoved = nullptr;
+    ++FirstLive;
+  }
+}
+
 bool Tcm::isCoreBusy(Cycle C) const {
   auto It = CoreBusy.upper_bound(C);
   return It != CoreBusy.begin() && std::prev(It)->second > C;
@@ -150,7 +168,10 @@ void Tcm::bump(Cycle C) {
   TcmRequesterStats &S = statsFor(T.Requester);
   ++S.BumpedCycles;
   const uint32_t Priority = getTcmPriority(T.Requester);
-  Cycle Next = C + 1;
+  // The cycles between C and the transfer's last beat are its own or the
+  // core's, so start past the tail instead of walking them one by one.
+  Cycle Next =
+      T.Cycles.empty() ? C + 1 : std::max(C + 1, *T.Cycles.rbegin() + 1);
   while (!isFreeFor(Next, Priority))
     ++Next;
   take(Next, Id);
