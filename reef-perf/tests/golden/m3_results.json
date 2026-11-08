@@ -5,7 +5,7 @@
     "cycles": 32010,
     "taken_redirects": 999,
     "dispatch": {
-      "cycles_with_dispatch": 9006,
+      "cycles_with_dispatch": 9007,
       "stall_ibuf_empty": 1,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
