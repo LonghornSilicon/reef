@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Coral Architecture Atlas",
+      "type": "shell",
+      "command": "python3 scripts/build.py",
+      "group": {"kind": "build", "isDefault": true},
+      "problemMatcher": []
+    }
+  ]
+}
