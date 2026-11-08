@@ -7,10 +7,11 @@ cd "$(dirname "$0")/.."
 # dist-reference/.
 sources=(reference/cpp/*.cpp reference/cpp/tests/*.cpp coral/host/*.cpp dist-reference/*.cpp dist-reference/tests/*.cpp)
 headers=(reference/cpp/include/inference_engine/*.hpp reference/cpp/include/inference_engine/operator/*.hpp coral/host/*.hpp dist-reference/include/dist_inference/*.hpp)
-# Coral target code and coral_sim: formatted like the rest, but compiled with
-# -Werror by coral/tools/build.sh and setup_sim.sh rather than checked by
-# clang-tidy (they need the RISC-V toolchain or Spike's headers).
-coral=(coral/include/reef_kernels/*.hpp coral/kernels/* coral/runtime/*.cc coral/firmware/* coral/tests/*.cc coral/tests/*.hpp coral/bench/* coral/sim/*.cpp)
+# Coral target code, coral_sim and dist-coral/: formatted like the rest, but
+# compiled with -Werror by coral/tools/build.sh, setup_sim.sh and
+# dist-coral/tools/build_sim.sh rather than checked by clang-tidy (they need
+# the RISC-V toolchain or Spike's headers).
+coral=(coral/include/reef_kernels/*.hpp coral/kernels/* coral/runtime/*.cc coral/firmware/* coral/tests/*.cc coral/tests/*.hpp coral/bench/* coral/sim/*.cpp dist-coral/include/dist_coral/*.hpp dist-coral/firmware/* dist-coral/host/*.hpp dist-coral/sim/*.cpp)
 
 uv run clang-format --dry-run --Werror "${sources[@]}" "${headers[@]}" "${coral[@]}"
 

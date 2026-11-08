@@ -3,8 +3,9 @@
 #   tests/<name>.elf     golden tests (needs build/coral/golden; see test.sh)
 #   bench/<name>.elf     reef-perf benchmarks
 #   firmware/<name>.elf  the firmware
+#   dist/tp_rank.elf     one rank of tensor-parallel GPT-Neo (dist-coral/)
 #
-#   coral/tools/build.sh [tests|bench|firmware]...    (default: all three)
+#   coral/tools/build.sh [tests|bench|firmware|dist]...  (default: all four)
 #
 # Uses Coral's GCC (toolchain_coralnpu_v2) from $CORAL_TOOLCHAIN/bin, or
 # from PATH. Without it, reruns itself in a linux/amd64 container that
@@ -31,7 +32,8 @@ arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
 cflags=("${arch[@]}" -std=c++17 -O3 -ffp-contract=off -fno-math-errno
         -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror
-        -Icoral/include -Icoral/tests -Icoral/firmware -I"$out")
+        -Icoral/include -Icoral/tests -Icoral/firmware -Idist-coral/include
+        -I"$out")
 ldflags=("${arch[@]}" -nostdlib -nostartfiles -Tcoral/runtime/link.ld
          -Wl,--gc-sections)
 
@@ -56,7 +58,7 @@ link() {
 }
 
 groups=("$@")
-[[ ${#groups[@]} -gt 0 ]] || groups=(tests bench firmware)
+[[ ${#groups[@]} -gt 0 ]] || groups=(tests bench firmware dist)
 for group in "${groups[@]}"; do
     case "$group" in
     tests)
@@ -75,6 +77,12 @@ for group in "${groups[@]}"; do
         if [[ -f coral/firmware/main.cc ]]; then
             link coral/firmware/main.cc "$out/firmware/gpt_neo.elf"
         fi
+        ;;
+    dist)
+        "$cxx" "${cflags[@]}" -c dist-coral/firmware/tp_rank.cc \
+            -o "$out/obj/tp_rank.o"
+        objects+=("$out/obj/tp_rank.o")
+        link dist-coral/firmware/tp_main.cc "$out/dist/tp_rank.elf"
         ;;
     *)
         echo "unknown group: $group" >&2

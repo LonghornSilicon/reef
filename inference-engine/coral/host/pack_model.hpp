@@ -24,8 +24,12 @@ namespace coral_host {
 /// Appends aligned arrays to a growing blob and returns their offsets.
 class BlobWriter {
   public:
-    /// Reserves room for the header at offset 0.
-    BlobWriter() : bytes_(sizeof(reef_kernels::BlobHeader)) { align(); }
+    /// Reserves room for a header of @p header_bytes at offset 0.
+    explicit BlobWriter(
+        std::size_t header_bytes = sizeof(reef_kernels::BlobHeader))
+        : bytes_(header_bytes) {
+        align();
+    }
 
     /// Appends raw values and returns where they start.
     template <typename T> std::uint32_t append(const std::vector<T>& values) {
