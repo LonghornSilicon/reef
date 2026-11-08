@@ -71,6 +71,31 @@ const char *reef_perf::getClassName(InstClass Class) {
   return "unknown";
 }
 
+const char *reef_perf::getMatrixOpName(MatrixOp Op) {
+  switch (Op) {
+  case MatrixOp::Zero:
+    return "zero";
+  case MatrixOp::Discard:
+    return "discard";
+  case MatrixOp::MoveToTile:
+    return "move_to_tile";
+  case MatrixOp::MoveToVector:
+    return "move_to_vector";
+  case MatrixOp::TileLoad:
+    return "tile_load";
+  case MatrixOp::TileStore:
+    return "tile_store";
+  case MatrixOp::Mac:
+    return "mac";
+  case MatrixOp::Nop:
+    return "nop";
+  case MatrixOp::None:
+  case MatrixOp::NumOps:
+    break;
+  }
+  return "none";
+}
+
 std::ostream &reef_perf::operator<<(std::ostream &OS, const Inst &I) {
   return OS << "#" << I.Seq << " 0x" << std::hex << I.PC << std::dec << " "
             << I.Disasm;
