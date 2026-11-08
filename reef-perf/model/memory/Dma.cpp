@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -61,13 +62,20 @@ void Dma::start(Cycle Arrive) {
   // Book each end that is in a TCM: reads at SRC, writes at DST. An end in
   // external memory books the link, or costs only the setup delay when the
   // link is not modeled.
+  // When each beat's bytes have come in over the link, for an external SRC.
+  std::vector<Cycle> Ready;
   for (const auto &[Base, IsStore] :
        {std::pair{Src, false}, std::pair{Dst, true}}) {
     Tcm *Target = FindTcm(Base);
     if (!Target) {
-      if (Ext && Ext->isTimed())
-        Jobs[J].ExtFinish =
+      if (Ext && Ext->isTimed()) {
+        const ExtMemModel::Slot Link =
             Ext->transfer(Len, std::max(Jobs[J].ExtFinish, Begin));
+        Jobs[J].ExtFinish = Link.Done;
+        for (uint32_t I = 0; !IsStore && I < Beats; ++I)
+          Ready.push_back(Ext->getReady(
+              Link, std::min<uint64_t>(Len, (I + 1) * uint64_t{BeatBytes})));
+      }
       continue;
     }
     std::vector<MemAccess> Beat;
@@ -88,7 +96,10 @@ void Dma::start(Cycle Arrive) {
       Jobs[J].EndFinishes[End] = Moved;
       retime(J);
     };
-    const Tcm::Booking Booked = Target->book(Request);
+    // A DST beat waits for its bytes; a SRC read does not wait for the link.
+    const Tcm::Booking Booked =
+        Target->book(Request, IsStore ? std::span<const Cycle>(Ready)
+                                      : std::span<const Cycle>());
     Jobs[J].Targets.push_back(Target);
     Jobs[J].Ids.push_back(Booked.Id);
     Jobs[J].EndFinishes.push_back(Booked.Response.Start +

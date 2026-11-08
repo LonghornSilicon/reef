@@ -39,6 +39,10 @@ RegionKind Memory::getRegionKind(Address Addr) const {
 }
 
 MemResponse Memory::access(const MemRequest &Request) {
+  // No request starts before the current cycle, so older bookings are done.
+  const Cycle Now = getClock()->currentCycle();
+  ITCM.forgetBefore(Now);
+  DTCM.forgetBefore(Now);
   // An empty access list (e.g. a vector op with vl = 0) is one DTCM line.
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM
@@ -85,8 +89,11 @@ MemResponse Memory::addExtMemTime(const MemRequest &Request,
   const bool Blocking =
       AXI.hasBlockingReads() &&
       (Request.Accesses.empty() || !Request.Accesses.front().IsStore);
-  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start);
-  Response.Latency += LinkDone - Response.Start;
+  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start).Done;
+  const uint64_t Extra = LinkDone - Response.Start;
+  // The operation keeps its outstanding slot until the link is done too.
+  AXI.extend(Response.Start + Response.Latency, Extra);
+  Response.Latency += Extra;
   if (Blocking)
     Response.Occupancy = Response.Latency;
   return Response;

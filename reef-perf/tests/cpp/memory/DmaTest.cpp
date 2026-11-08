@@ -125,17 +125,32 @@ struct DmaLinkFixture : public DmaFixture {
 };
 
 TEST_F(DmaLinkFixture, ExternalEndIsBoundByTheLink) {
-  // Begin 120; the link takes 26 + 64 cycles, so 210, well after the DTCM
-  // beats (done at 124).
+  // Begin 120; the first byte at 146, then 16 bytes every 16 cycles. Each
+  // DTCM beat waits for its bytes: 162, 178, 194 and 210, usable at 211.
   programLink(0x20000000, 0x10000, 64, 100);
-  EXPECT_EQ(LinkDMA.getFinish(), 210U);
+  EXPECT_EQ(LinkDMA.getFinish(), 211U);
   EXPECT_EQ(Ext.getLink().getBusyCycles(), 90U);
 }
 
+TEST_F(DmaLinkFixture, CoreAccessWhileBytesArriveBumpsABeat) {
+  programLink(0x20000000, 0x10000, 64, 100); // Beats 162, 178, 194, 210.
+  std::vector<MemAccess> Load = {{0x10100, 4, false, 0}};
+  MemRequest Request;
+  Request.Accesses = Load;
+  Request.Earliest = 178; // The second beat's cycle.
+  EXPECT_EQ(DTCM.access(Request).Start, 178U);
+  // The beat takes the free cycle after it, so the finish holds.
+  EXPECT_EQ(DTCM.getStats(RequesterKind::AxiSlave).BumpedCycles, 1U);
+  EXPECT_EQ(LinkDMA.getFinish(), 211U);
+  Request.Earliest = 210; // The last beat's cycle.
+  DTCM.access(Request);
+  EXPECT_EQ(LinkDMA.getFinish(), 212U);
+}
+
 TEST_F(DmaLinkFixture, QueuedTransferWaitsForTheLink) {
-  programLink(0x20000000, 0x10000, 32, 0); // Link 20-78.
-  programLink(0x20000000, 0x10100, 32, 5); // Begin 98, link 98-156.
-  EXPECT_EQ(LinkDMA.getFinish(), 156U);
+  programLink(0x20000000, 0x10000, 32, 0); // Link 20-78, beats 62 and 78.
+  programLink(0x20000000, 0x10100, 32, 5); // Begin 99, link 99-157.
+  EXPECT_EQ(LinkDMA.getFinish(), 158U);      // Last beat at 157.
 }
 
 TEST_F(DmaLinkFixture, TcmToTcmDoesNotUseTheLink) {

@@ -4,8 +4,11 @@
 
 #include "memory/MemTiming.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -47,7 +50,10 @@ MemResponse Tcm::access(const MemRequest &Request) {
   return accessCore(Request, Occupancy);
 }
 
-Tcm::Booking Tcm::book(const MemRequest &Request) {
+Tcm::Booking Tcm::book(const MemRequest &Request,
+                       std::span<const Cycle> Ready) {
+  if (!Ready.empty() && Ready.size() != Request.Accesses.size())
+    throw std::invalid_argument("Tcm::book needs one ready cycle per access");
   if (getTcmPriority(Request.Requester) == 0)
     throw std::invalid_argument("Tcm::book takes lower-priority requests");
   // Each access is its own port transaction, so beats narrower than a line
@@ -64,7 +70,7 @@ Tcm::Booking Tcm::book(const MemRequest &Request) {
       !Request.Accesses.empty() && Request.Accesses.front().IsStore;
   ++(IsWrite ? S.Writes : S.Reads);
   S.PortCycles += Occupancy;
-  return accessLower(Request, Occupancy);
+  return accessLower(Request, Occupancy, Ready);
 }
 
 MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
@@ -82,13 +88,31 @@ MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
   return Response;
 }
 
-Tcm::Booking Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy) {
+Tcm::Booking Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy,
+                              std::span<const Cycle> Ready) {
   const uint32_t Priority = getTcmPriority(Request.Requester);
   const auto Id = static_cast<uint32_t>(Transfers.size());
   Transfers.push_back({Request.Requester, {}, Request.OnFinishMoved});
-  for (Cycle C = Request.Earliest; Transfers[Id].Cycles.size() < Occupancy; ++C)
-    if (isFreeFor(C, Priority))
-      take(C, Id);
+  if (Ready.empty()) {
+    for (Cycle C = Request.Earliest; Transfers[Id].Cycles.size() < Occupancy;
+         ++C)
+      if (isFreeFor(C, Priority))
+        take(C, Id);
+  } else {
+    // Each access waits for its data, then takes the next free cycles.
+    Cycle C = Request.Earliest;
+    for (size_t I = 0; I < Request.Accesses.size(); ++I) {
+      C = std::max(C, Ready[I]);
+      uint64_t Need = static_cast<uint64_t>(countDistinctBlocks(
+                          Request.Accesses.subspan(I, 1), LineBytes)) *
+                      CyclesPerLine;
+      for (; Need > 0; ++C)
+        if (isFreeFor(C, Priority)) {
+          take(C, Id);
+          --Need;
+        }
+    }
+  }
 
   const Transfer &T = Transfers[Id];
   MemResponse Response;
@@ -121,6 +145,23 @@ void Tcm::delay(uint32_t Id, Cycle Earliest) {
   reportMove(T, OldFinish);
 }
 
+void Tcm::forgetBefore(Cycle Before) {
+  // Core bookings never overlap, so their ends rise with their starts.
+  while (!CoreBusy.empty() && CoreBusy.begin()->second <= Before)
+    CoreBusy.erase(CoreBusy.begin());
+  // Transfers finish in order; stop at the first one still running.
+  while (FirstLive < Transfers.size()) {
+    Transfer &T = Transfers[FirstLive];
+    if (!T.Cycles.empty() && *T.Cycles.rbegin() >= Before)
+      break;
+    for (Cycle C : T.Cycles)
+      Owner.erase(C);
+    T.Cycles.clear();
+    T.OnFinishMoved = nullptr;
+    ++FirstLive;
+  }
+}
+
 bool Tcm::isCoreBusy(Cycle C) const {
   auto It = CoreBusy.upper_bound(C);
   return It != CoreBusy.begin() && std::prev(It)->second > C;
@@ -150,7 +191,13 @@ void Tcm::bump(Cycle C) {
   TcmRequesterStats &S = statsFor(T.Requester);
   ++S.BumpedCycles;
   const uint32_t Priority = getTcmPriority(T.Requester);
+  // Step over the transfer's own consecutive later beats through its cycle
+  // set, which is cheaper than testing each cycle. Paced beats (data from
+  // the external link) leave gaps, and the beat takes the first free one.
   Cycle Next = C + 1;
+  for (auto It = T.Cycles.upper_bound(C); It != T.Cycles.end() && *It == Next;
+       ++It)
+    ++Next;
   while (!isFreeFor(Next, Priority))
     ++Next;
   take(Next, Id);

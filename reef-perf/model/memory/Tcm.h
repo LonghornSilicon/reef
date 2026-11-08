@@ -23,6 +23,7 @@
 #include "common/Types.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -67,12 +68,21 @@ public:
   };
 
   /// Books \p Request, which must come from a lower-priority requester, and
-  /// \returns its timing and handle.
-  Booking book(const MemRequest &Request);
+  /// \returns its timing and handle. With \p Ready (one cycle per access),
+  /// no access takes the port before its data is ready.
+  Booking book(const MemRequest &Request, std::span<const Cycle> Ready = {});
 
   /// Moves every port cycle of transfer \p Id before \p Earliest to the next
   /// cycles it may use, and reports a new finish through OnFinishMoved.
   void delay(uint32_t Id, Cycle Earliest);
+
+  /// Drops core bookings and finished transfers that end before \p Before.
+  /// Safe once no request can start before \p Before: the memory module
+  /// calls it with the current cycle.
+  void forgetBefore(Cycle Before);
+
+  /// \returns how many core bookings and transfer cycles are kept.
+  size_t getRetainedBookings() const { return CoreBusy.size() + Owner.size(); }
 
   /// \returns the counters of \p Kind.
   const TcmRequesterStats &getStats(RequesterKind Kind) const;
@@ -89,7 +99,8 @@ private:
   };
 
   MemResponse accessCore(const MemRequest &Request, uint64_t Occupancy);
-  Booking accessLower(const MemRequest &Request, uint64_t Occupancy);
+  Booking accessLower(const MemRequest &Request, uint64_t Occupancy,
+                      std::span<const Cycle> Ready);
   bool isCoreBusy(Cycle C) const;
   /// \returns whether a requester of \p Priority may take cycle \p C, which
   /// means no core booking and no lower-priority owner of equal or higher
@@ -112,6 +123,7 @@ private:
   std::map<Cycle, Cycle> CoreBusy; // Core bookings: start -> end (exclusive).
   std::map<Cycle, uint32_t> Owner; // Lower-priority port cycles -> transfer.
   std::vector<Transfer> Transfers;
+  size_t FirstLive = 0; // Transfers before it are finished and forgotten.
   std::array<TcmRequesterStats, NumRequesterKinds> Stats{};
 };
 
