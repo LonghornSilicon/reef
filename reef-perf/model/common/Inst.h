@@ -50,7 +50,7 @@ enum class InstClass : uint8_t {
   V_LOAD,      ///< Vector loads.
   V_STORE,     ///< Vector stores.
   V_TO_SCALAR, ///< Vector ops that write a scalar or FP register.
-  MATRIX,      ///< Matrix-engine ops (opaque; nothing decodes to it yet).
+  MATRIX,      ///< Matrix-engine (Zvt) ops other than mset*; see Inst::Mtx.
   UNKNOWN,     ///< Not recognized; timed as an ALU op.
   NUM_CLASSES  ///< Number of classes (not a class).
 };
@@ -67,6 +67,52 @@ struct MemAccess {
 
 /// Bytes in one vector register (VLEN = 128 on M3).
 inline constexpr uint32_t VectorRegisterBytes = 16;
+
+/// What a MATRIX instruction does to the matrix engine (docs/matrix.md).
+/// The Zvt mset* instructions are not here: they are vector configuration
+/// (InstClass::VSET), as on CoralNPU, where the RVV front end runs them.
+enum class MatrixOp : uint8_t {
+  None,         ///< Not a matrix instruction.
+  Zero,         ///< vtzero: clear a tile group.
+  Discard,      ///< vtdiscard: mark tile state dead (mstatus.MS).
+  MoveToTile,   ///< vtmv.t.v: vector registers to one tile slice.
+  MoveToVector, ///< vtmv.v.t: one tile slice to vector registers.
+  TileLoad,     ///< vtle8/16/32: memory to one tile slice.
+  TileStore,    ///< vtse8/16/32: one tile slice to memory.
+  Mac,          ///< vtmmu, vtmms, vtfmm: tile multiply-accumulate.
+  /// A tile instruction the RVV decoder rejects (vl = 0, bad shape or
+  /// alignment): it retires as a no-op without reaching the engine.
+  Nop,
+  NumOps ///< Number of ops (not an op).
+};
+
+/// \returns the short name of \p Op, e.g. "mac" or "tile_load".
+const char *getMatrixOpName(MatrixOp Op);
+
+/// Element type of a matrix multiply-accumulate's inputs.
+enum class MatrixType : uint8_t {
+  Int8, ///< int8 x int8 -> int32 (vtmmu, vtmms).
+  Bf16, ///< bf16 x bf16 -> fp32 (vtfmm at SEW16).
+  Fp32  ///< fp32 x fp32 -> fp32 (vtfmm at SEW32).
+};
+
+/// Matrix-engine details of a MATRIX instruction, filled in by the frontend
+/// from the encoding and the Zvt configuration (mtype, vl) it ran under.
+struct MatrixInfo {
+  MatrixOp Op = MatrixOp::None; ///< What the instruction does.
+  uint8_t FirstTile = 0; ///< First architectural tile touched (mt0-mt15).
+  /// Tiles touched: 1, 2 or 4 (8-, 16- or 32-bit tile elements group
+  /// adjacent tiles, zvt_ctrl.sv).
+  uint8_t NumTiles = 1;
+  uint8_t TM = 0; ///< Rows of C (mtype.tm), for Mac.
+  /// Columns of C for Mac (vl); elements moved for loads, stores and moves.
+  uint8_t TN = 0;
+  uint8_t TK = 0;                     ///< Multiply depth (mtype.tk), for Mac.
+  MatrixType Type = MatrixType::Int8; ///< Input type, for Mac.
+  /// Data bytes per element: the memory element for loads and stores
+  /// (EEW), SEW for moves.
+  uint8_t ElemBytes = 1;
+};
 
 /// Splits a vector memory instruction's \p Accesses (one per element) into
 /// one group per vector register of \p RegBytes bytes, in element order.
@@ -97,6 +143,7 @@ struct Inst {
   InstClass Class = InstClass::UNKNOWN; ///< Coarse class.
   std::vector<RegId> Srcs;              ///< Registers read (no x0).
   std::vector<RegId> Dsts;              ///< Registers written (no x0).
+  MatrixInfo Mtx; ///< Matrix-engine details; Op is None unless MATRIX.
 
   Cycle FetchCycle = 0;    ///< Cycle it was fetched.
   Cycle DispatchCycle = 0; ///< Cycle it was dispatched.

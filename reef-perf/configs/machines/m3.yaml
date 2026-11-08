@@ -122,11 +122,12 @@ top:
                                        # 302a42d3 (rtl_bugs.md at the top of
                                        # the Reef repository)
   matrix:
-    params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
-      mtx_queue_entries: 4
-      mtx_lanes: 1
-      mtx_latency: 8
-      mtx_occupancy: 4
+    # M3 has no matrix engine; Zvt programs only run on CoralNPU builds with
+    # VME (8a5e1b31+). The built-in defaults model that engine; each value's
+    # source is in docs/matrix.md. Alternative arrays are overlays in
+    # configs/matrix/ (reef_perf -c configs/machines/m3.yaml -c <overlay>).
+    params:
+      mtx_queue_entries: 4    # PLACEHOLDER: CoralNPU shares the RVV queue
   memory:
     params:
       itcm_latency: 2

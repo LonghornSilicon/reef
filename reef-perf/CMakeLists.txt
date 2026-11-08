@@ -50,6 +50,7 @@ add_library(reef_perf_core STATIC
     model/frontend/Fetch.cpp
     model/frontend/FuncSim.cpp
     model/frontend/InstDecode.cpp
+    model/frontend/Zvt.cpp
 
     model/core/Core.cpp
     model/core/Dispatch.cpp
@@ -61,6 +62,7 @@ add_library(reef_perf_core STATIC
     model/vector/VectorPipeline.cpp
 
     model/matrix/Matrix.cpp
+    model/matrix/MatrixFabric.cpp
 
     model/memory/MemTiming.cpp
     model/memory/Memory.cpp
