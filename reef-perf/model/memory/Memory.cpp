@@ -82,8 +82,11 @@ MemResponse Memory::addExtMemTime(const MemRequest &Request,
   const bool Blocking =
       AXI.hasBlockingReads() &&
       (Request.Accesses.empty() || !Request.Accesses.front().IsStore);
-  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start);
-  Response.Latency += LinkDone - Response.Start;
+  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start).Done;
+  const uint64_t Extra = LinkDone - Response.Start;
+  // The operation keeps its outstanding slot until the link is done too.
+  AXI.extend(Response.Start + Response.Latency, Extra);
+  Response.Latency += Extra;
   if (Blocking)
     Response.Occupancy = Response.Latency;
   return Response;

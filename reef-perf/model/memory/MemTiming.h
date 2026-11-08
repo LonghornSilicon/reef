@@ -45,6 +45,10 @@ public:
   /// \returns true if a read holds its requester until its response.
   bool hasBlockingReads() const { return BlockingReads; }
 
+  /// Keeps an outstanding slot booked \p Cycles longer from \p From, the end
+  /// of an operation whose response comes later than access() timed it.
+  void extend(Cycle From, uint64_t Cycles);
+
   /// \returns {axi_data, axi_outstanding}, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const {
     return {&Data, &Outstanding};
@@ -72,10 +76,19 @@ public:
   /// \returns true if the link is modeled (a nonzero rate).
   bool isTimed() const { return BytesPerCycle > 0; }
 
+  /// One booking of the link.
+  struct Slot {
+    Cycle FirstByte = 0; ///< When the first byte moves.
+    Cycle Done = 0;      ///< The cycle after the last byte moves.
+  };
+
   /// Books the link to move \p Bytes, starting no earlier than \p Earliest.
-  /// \returns the cycle after the last byte moves, or \p Earliest if the
-  /// link is not modeled.
-  Cycle transfer(uint64_t Bytes, Cycle Earliest);
+  /// \returns the booking; both cycles are \p Earliest if the link is not
+  /// modeled.
+  Slot transfer(uint64_t Bytes, Cycle Earliest);
+
+  /// \returns the cycle after the first \p Bytes of \p Booked have moved.
+  Cycle getReady(const Slot &Booked, uint64_t Bytes) const;
 
   /// \returns the link, for the end-of-run summary.
   const ResourcePool &getLink() const { return Link; }
