@@ -107,6 +107,54 @@ TEST(TcmTest, CoreBumpsAnEarlierAxiSlaveBookingAndTellsItsRequester) {
   EXPECT_EQ(DTCM.getStats(RequesterKind::AxiSlave).BumpedCycles, 1U);
 }
 
+TEST(TcmTest, BumpedBeatOfALongTransferGoesPastItsTail) {
+  Tcm DTCM("dtcm", 1, 16, 1);
+  auto Writes = getLineWrites(1000);
+  MemResponse Booked =
+      DTCM.access(getRequest(RequesterKind::AxiSlave, Writes, 0));
+  EXPECT_EQ(Booked.Start + Booked.Latency, 1000U); // Cycles 0-999.
+  for (Cycle C = 0; C < 1000; ++C)
+    DTCM.access(getRequest(RequesterKind::LSU, getAccesses({0x18000}, 4), C));
+  // The core took all 1000 cycles, so every beat moved to 1000-1999.
+  EXPECT_EQ(DTCM.getStats(RequesterKind::AxiSlave).BumpedCycles, 1000U);
+  MemResponse After =
+      DTCM.access(getRequest(RequesterKind::AxiSlave, getLineWrites(1), 0));
+  EXPECT_EQ(After.Start, 2000U);
+}
+
+TEST(TcmTest, ForgettingThePastKeepsLaterTiming) {
+  Tcm DTCM("dtcm", 1, 16, 1);
+  for (Cycle C = 0; C < 100; ++C)
+    DTCM.access(getRequest(RequesterKind::LSU, getAccesses({0x10000}, 4), C));
+  auto Old = getLineWrites(4);
+  DTCM.access(getRequest(RequesterKind::AxiSlave, Old, 100)); // 100-103.
+  EXPECT_EQ(DTCM.getRetainedBookings(), 104U);
+
+  DTCM.forgetBefore(104);
+  EXPECT_EQ(DTCM.getRetainedBookings(), 0U);
+  // The port still knows the core is free from 100 on.
+  auto Load = getAccesses({0x10000}, 4);
+  EXPECT_EQ(DTCM.access(getRequest(RequesterKind::LSU, Load, 104)).Start, 104U);
+  auto New = getLineWrites(2);
+  MemResponse Booked =
+      DTCM.access(getRequest(RequesterKind::AxiSlave, New, 104));
+  EXPECT_EQ(Booked.Start, 105U); // 104 is the core's.
+}
+
+TEST(TcmTest, ForgetBeforeKeepsAnUnfinishedTransfer) {
+  Tcm DTCM("dtcm", 1, 16, 1);
+  Cycle MovedTo = 0;
+  auto Writes = getLineWrites(4);
+  MemRequest Dma = getRequest(RequesterKind::AxiSlave, Writes, 100);
+  Dma.OnFinishMoved = [&MovedTo](Cycle Finish) { MovedTo = Finish; };
+  DTCM.access(Dma); // 100-103.
+  DTCM.forgetBefore(102);
+  EXPECT_EQ(DTCM.getRetainedBookings(), 4U);
+  auto Load = getAccesses({0x10000}, 4);
+  DTCM.access(getRequest(RequesterKind::LSU, Load, 103));
+  EXPECT_EQ(MovedTo, 105U); // Still bumped and reported.
+}
+
 TEST(TcmTest, AxiSlaveBumpsDebugButNotTheOtherWayRound) {
   Tcm DTCM("dtcm", 1, 16, 1);
   Cycle DebugFinish = 0;

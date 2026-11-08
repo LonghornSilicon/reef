@@ -46,6 +46,10 @@ RegionKind Memory::getRegionKind(Address Addr) const {
 }
 
 MemResponse Memory::access(const MemRequest &Request) {
+  // No request starts before the current cycle, so older bookings are done.
+  const Cycle Now = getClock()->currentCycle();
+  ITCM.forgetBefore(Now);
+  DTCM.forgetBefore(Now);
   // Fetch books only the ITCM; fetch over AXI (outside the ITCM) is not
   // modeled, as before.
   if (Request.Requester == RequesterKind::IFetch &&
