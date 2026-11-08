@@ -30,7 +30,7 @@ uint32_t reef_perf::getTcmPriority(RequesterKind Kind) {
 Tcm::Tcm(std::string Name, uint32_t Latency, uint32_t LineBytes,
          uint32_t CyclesPerLine)
     : Latency(Latency), LineBytes(LineBytes), CyclesPerLine(CyclesPerLine),
-      Port(std::move(Name), 1) {}
+      Port(Name, 1), FetchUse(Name + "_fetch", 1) {}
 
 MemResponse Tcm::access(const MemRequest &Request) {
   if (getTcmPriority(Request.Requester) != 0)
@@ -91,6 +91,7 @@ MemResponse Tcm::accessFetch(const MemRequest &Request, uint64_t Occupancy) {
   Response.Occupancy = Occupancy;
   Response.Latency = Latency + Occupancy - CyclesPerLine;
   claimForCore(Response.Start, Occupancy);
+  FetchUse.reserve(Response.Start, Occupancy);
   return Response;
 }
 

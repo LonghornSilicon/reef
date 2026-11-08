@@ -89,6 +89,10 @@ public:
   /// \returns the core's port bookings, for the end-of-run summary.
   const ResourcePool &getPort() const { return Port; }
 
+  /// \returns instruction fetch's use of the port, for the summary. Kept
+  /// apart from getPort() so the LSU never waits for fetch.
+  const ResourcePool &getFetchUse() const { return FetchUse; }
+
 private:
   /// A lower-priority transfer: the port cycles it holds.
   struct Transfer {
@@ -122,6 +126,7 @@ private:
   uint32_t LineBytes;
   uint32_t CyclesPerLine;
   ResourcePool Port;               // The core's bookings, in call order.
+  ResourcePool FetchUse;           // Fetch's port cycles; statistics only.
   std::map<Cycle, Cycle> CoreBusy; // Core bookings: start -> end (exclusive).
   std::map<Cycle, uint32_t> Owner; // Lower-priority port cycles -> transfer.
   std::vector<Transfer> Transfers;

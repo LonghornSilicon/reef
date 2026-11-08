@@ -86,7 +86,8 @@ MemResponse Memory::access(const MemRequest &Request) {
 }
 
 std::vector<const ResourcePool *> Memory::getPools() const {
-  std::vector<const ResourcePool *> Pools = {&ITCM.getPort(), &DTCM.getPort()};
+  std::vector<const ResourcePool *> Pools = {
+      &ITCM.getPort(), &ITCM.getFetchUse(), &DTCM.getPort()};
   for (const ResourcePool *Pool : AXI.getPools())
     Pools.push_back(Pool);
   return Pools;
