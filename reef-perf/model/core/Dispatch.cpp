@@ -133,11 +133,16 @@ void Dispatch::scheduleDispatch() {
 bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
                            ExecTarget &Blamed) const {
   // A register hazard is blamed on the unit producing the register. A
-  // registered read sees the value one cycle after a forwarded read.
+  // registered read sees the value one cycle after a forwarded read. A
+  // writer not scheduled yet (Never) blocks as is: Never + 1 would wrap to 0.
   for (RegId Reg : I->Srcs) {
     const InstRef &Writer = LastWriter.at(Reg.getDense());
-    if (Reg.getFile() != RegFile::V && Writer &&
-        Writer->ResultReadyCycle + (readsRegistered(*I, Reg) ? 1 : 0) > Now) {
+    if (Reg.getFile() == RegFile::V || !Writer)
+      continue;
+    Cycle Ready = Writer->ResultReadyCycle;
+    if (Ready != Inst::Never && readsRegistered(*I, Reg))
+      ++Ready;
+    if (Ready > Now) {
       Why = StallReason::Raw;
       Blamed = getExecTarget(*Writer);
       return false;

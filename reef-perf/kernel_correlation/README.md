@@ -28,16 +28,16 @@ work. Error = (model - RTL) / RTL.
 
 | Kernel | Model ROI | RTL ROI | Error | ROI insts |
 | --- | ---: | ---: | ---: | ---: |
-| `activation_int8` | 12,103 | 12,562 | -3.7% | 4,030 |
-| `attention` | 13,800 | 13,814 | -0.1% | 2,689 |
-| `attention_int8` | 34,858 | 34,849 | +0.0% | 13,758 |
-| `embedding_int8` | 1,693 | 1,749 | -3.2% | 1,126 |
-| `layernorm` | 3,632 | 3,572 | +1.7% | 633 |
-| `layernorm_int8` | 7,987 | 8,131 | -1.8% | 4,123 |
+| `activation_int8` | 12,201 | 12,562 | -2.9% | 4,030 |
+| `attention` | 13,824 | 13,814 | +0.1% | 2,689 |
+| `attention_int8` | 34,862 | 34,849 | +0.0% | 13,758 |
+| `embedding_int8` | 1,726 | 1,749 | -1.3% | 1,126 |
+| `layernorm` | 3,638 | 3,572 | +1.8% | 633 |
+| `layernorm_int8` | 8,083 | 8,131 | -0.6% | 4,123 |
 | `linear_int8` | 59,446 | 59,408 | +0.1% | 29,696 |
-| `mlp_int8` | 123,452 | 123,324 | +0.1% | 61,180 |
+| `mlp_int8` | 123,454 | 123,324 | +0.1% | 61,180 |
 
-Mean absolute error: 1.3% over 8 kernels.
+Mean absolute error: 0.9% over 8 kernels.
 
 Before this fix the model was at 3.6%: `linear_int8` +7.0%,
 `mlp_int8` +6.7%, `attention_int8` +4.7%. These kernels have the most scalar
@@ -49,7 +49,8 @@ gets the value one cycle earlier (`comb`). The model now does the same:
 `Dispatch` adds one cycle for those reads, and `lsu_scalar_latency_overhead`
 goes from 3 to 2, so `load_chain` stays at 5 cycles and other load uses take 4.
 
-One microbenchmark gets worse: `gemv_int8` goes from -7.4% to -12.9%. Its
-`sw` now waits one more cycle for `vmv.x.s`, and the model gets faster, not
-slower. With 64 Rob entries the effect goes away, so the cause is in the Rob
-and vector completion timing, not in memory. It is not fixed here.
+A registered read waits only once its writer has a ready cycle. A writer the
+model has not scheduled yet (`vmv.x.s` until the vector unit retires it) is
+`Inst::Never`, and adding the extra cycle to that would wrap to 0 and let the
+reader through. `gemv_int8` improves from -7.4% to -3.8%: its `sw` now waits
+for `vmv.x.s` plus the registered cycle.
