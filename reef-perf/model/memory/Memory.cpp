@@ -16,7 +16,8 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
           Params->axi_max_outstanding, Params->axi_blocking_reads),
       Ext(Params->ext_mem_latency, Params->ext_mem_bytes_per_cycle),
-      DMA(Params->dma_setup_cycles, Params->dma_beat_bytes, &Ext,
+      DMA(
+          Params->dma_setup_cycles, Params->dma_beat_bytes, &Ext,
           [this](Address Addr) -> Tcm * {
             switch (getRegionKind(Addr)) {
             case RegionKind::ITCM:
@@ -27,7 +28,8 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
               break;
             }
             return nullptr;
-          }) {}
+          },
+          Params->dma_queue_depth) {}
 
 RegionKind Memory::getRegionKind(Address Addr) const {
   for (const MemoryRegion &Region : Regions)
@@ -58,9 +60,14 @@ MemResponse Memory::access(const MemRequest &Request) {
   const Cycle Arrive = Response.Start + Response.Latency;
   for (const MemAccess &Access : Request.Accesses) {
     const uint32_t Offset = Access.Addr - DmaRegs.Start;
-    if (Access.IsStore)
-      DMA.writeRegister(Offset, Access.Value, Arrive);
-    else if (Offset == DmaWait && DMA.getFinish() > Arrive)
+    if (Access.IsStore) {
+      // A GO into a full queue holds the e-bus until the DMA takes it.
+      const Cycle Accept = DMA.writeRegister(Offset, Access.Value, Arrive);
+      if (Accept > Arrive) {
+        Response.Latency = Accept - Response.Start;
+        Response.Occupancy = Response.Latency;
+      }
+    } else if (Offset == DmaWait && DMA.getFinish() > Arrive)
       Response.Latency = DMA.getFinish() - Response.Start;
   }
   return Response;

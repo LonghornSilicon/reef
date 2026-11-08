@@ -54,6 +54,8 @@ public:
     PARAMETER(uint32_t, dma_setup_cycles, 20,
               "Cycles from a DMA GO store to its first beat")
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
+    PARAMETER(uint32_t, dma_queue_depth, 0,
+              "Unfinished DMA transfers before a GO store waits (0: no limit)")
     PARAMETER(uint32_t, ext_mem_latency, 0,
               "External memory link cycles to the first byte of an operation")
     PARAMETER(double, ext_mem_bytes_per_cycle, 0,

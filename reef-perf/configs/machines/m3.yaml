@@ -143,6 +143,7 @@ top:
       # registers (memory/Dma.h).
       dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
       dma_beat_bytes: 16      # CoreAxi.scala: dtcmWidth = axi2DataBits = 128
+      dma_queue_depth: 0      # ASSUMPTION; 0 = no limit. A GO into a full queue holds the e-bus
       # The off-chip memory behind the e-bus (HyperRAM or QSPI), shared by the
       # core and the DMA. Not in M3: 0 keeps the testbench's memory, which
       # adds no delay (deviations A7).
