@@ -68,6 +68,8 @@ MemResponse Memory::access(const MemRequest &Request) {
       // A GO into a full queue holds the e-bus until the DMA takes it.
       const Cycle Accept = DMA.writeRegister(Offset, Access.Value, Arrive);
       if (Accept > Arrive) {
+        // The write's outstanding slot stays booked until the DMA takes it.
+        AXI.extend(Arrive, Accept - Arrive);
         Response.Latency = Accept - Response.Start;
         Response.Occupancy = Response.Latency;
       }

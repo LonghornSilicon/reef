@@ -150,7 +150,7 @@ TEST_F(DmaLinkFixture, CoreAccessWhileBytesArriveBumpsABeat) {
 TEST_F(DmaLinkFixture, QueuedTransferWaitsForTheLink) {
   programLink(0x20000000, 0x10000, 32, 0); // Link 20-78, beats 62 and 78.
   programLink(0x20000000, 0x10100, 32, 5); // Begin 99, link 99-157.
-  EXPECT_EQ(LinkDMA.getFinish(), 158U);      // Last beat at 157.
+  EXPECT_EQ(LinkDMA.getFinish(), 158U);    // Last beat at 157.
 }
 
 TEST_F(DmaLinkFixture, TcmToTcmDoesNotUseTheLink) {
