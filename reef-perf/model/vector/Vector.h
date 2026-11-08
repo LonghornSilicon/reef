@@ -93,7 +93,7 @@ VectorGroup getVectorGroup(const Inst &I);
 bool usesAddSubStage(const Inst &I);
 
 /// The vector module. Tree location: top.vector.
-class Vector : public sparta::Unit {
+class Vector : public sparta::Unit, public VectorRegisterInterface {
 public:
   // Parameter names are config keys, so they keep Sparta's snake_case.
   // NOLINTBEGIN(readability-identifier-naming)
@@ -205,6 +205,16 @@ public:
   /// \returns the functional unit pools, for the end-of-run summary.
   std::vector<const ResourcePool *> getPools() const {
     return Pipeline.getPools();
+  }
+
+  /// Records a matrix write of v\p Index (vtmv.v.t), readable from \p Ready.
+  /// Only the matrix module calls this; vector-only programs never do.
+  void setRegisterReady(unsigned Index, Cycle Ready) override {
+    RegReady.at(Index) = std::max(RegReady.at(Index), Ready);
+  }
+  /// \returns the first cycle a uop reading v\p Index may start.
+  Cycle getRegisterReady(unsigned Index) const override {
+    return RegReady.at(Index);
   }
 
 private:

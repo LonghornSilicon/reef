@@ -60,6 +60,9 @@ public:
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
+    PARAMETER(bool, zvt, false,
+              "Run and decode Zvt matrix instructions, as CoralNPU builds "
+              "with VME do. Off, a Zvt word traps, as on M3")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -71,8 +74,12 @@ public:
   /// Creates the unit on \p Node with parameters \p Params.
   Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params);
 
-  /// Connects \p Sim, which must outlive the unit.
-  void setFuncSim(FuncSim *Sim) { TheFuncSim = Sim; }
+  /// Connects \p Sim, which must outlive the unit, and passes it the `zvt`
+  /// parameter.
+  void setFuncSim(FuncSim *Sim) {
+    TheFuncSim = Sim;
+    TheFuncSim->setZvt(Zvt);
+  }
 
   /// \returns the taken branches, jumps and traps fetched so far.
   uint64_t getNumRedirects() const { return NumRedirects.get(); }
@@ -102,6 +109,7 @@ private:
   const PredictorKind Predictor;
   const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
+  const bool Zvt;
 
   FuncSim *TheFuncSim = nullptr;
   std::deque<InstRef> Ibuf;  // Oldest first.

@@ -1,6 +1,7 @@
 //===- InstDecode.cpp - Instruction classification ------------------------===//
 
 #include "frontend/InstDecode.h"
+#include "frontend/Zvt.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -261,13 +262,72 @@ static void decodeVectorMem(Inst &I, uint32_t Word, bool IsStore) {
   }
 }
 
-void reef_perf::decodeInst(Inst &I) {
+/// Decodes the class and sources of Zvt instruction \p Z. mset* are vector
+/// configuration, run by the vector module like vset* (on CoralNPU the RVV
+/// front end executes them and sends no command to the backend;
+/// RvvFrontEnd.sv:637-643). Sources follow
+/// RvvDecode.scala:221-232 (rs1, rs2) and the uop operand offsets.
+static void decodeZvtInst(Inst &I, const ZvtInst &Z) {
+  switch (Z.Kind) {
+  case ZvtKind::MSetMType:
+    I.Class = InstClass::VSET;
+    addReg(I.Srcs, File::X, Z.Rs1);
+    addReg(I.Srcs, File::X, Z.Rs2);
+    return;
+  case ZvtKind::MSetTN:
+  case ZvtKind::MSetTM:
+  case ZvtKind::MSetTK:
+    I.Class = InstClass::VSET;
+    addReg(I.Srcs, File::X, Z.Rs1);
+    return;
+  case ZvtKind::MSetMTypeI:
+    I.Class = InstClass::VSET;
+    return;
+  case ZvtKind::VtZero:
+  case ZvtKind::VtDiscard:
+    break;
+  case ZvtKind::VtMvTV: // rs1 = TSS; vs2 group of LMUL registers.
+    addReg(I.Srcs, File::X, Z.Rs1);
+    addVRegs(I.Srcs, Z.Rs2, std::max<uint32_t>(1, I.LMUL8 / 8));
+    break;
+  case ZvtKind::VtMvVT: // rs1 = TSS.
+    addReg(I.Srcs, File::X, Z.Rs1);
+    break;
+  case ZvtKind::VtLoad: // rs1 = address, rs2 = TSS.
+  case ZvtKind::VtStore:
+    addReg(I.Srcs, File::X, Z.Rs1);
+    addReg(I.Srcs, File::X, Z.Rs2);
+    break;
+  case ZvtKind::VtMM: {
+    // Four uops; operand register offsets per uop: int8 0, 2, 4, 6
+    // (rvv_backend_decode_unit_ari_de2.sv:1577-1590, :1800-1812); fp32
+    // 0-3 and bf16 0, 1, 4, 5 (OPFVV case, :1716-1726 and :2038-2044).
+    static constexpr uint32_t Int8[] = {0, 2, 4, 6};
+    static constexpr uint32_t Fp32[] = {0, 1, 2, 3};
+    static constexpr uint32_t Bf16[] = {0, 1, 4, 5};
+    const uint32_t *Offsets = !Z.Float ? Int8 : I.SEWBytes == 2 ? Bf16 : Fp32;
+    for (uint32_t Base : {Z.Rs2, Z.Rs1})
+      for (int K = 0; K < 4; ++K)
+        if (Base + Offsets[K] < RegId::NumPerFile)
+          I.Srcs.push_back(RegId::v(Base + Offsets[K]));
+    break;
+  }
+  }
+  I.Class = InstClass::MATRIX;
+}
+
+void reef_perf::decodeInst(Inst &I, bool Zvt) {
   // Mnemonic = first whitespace-separated token of the disassembly.
   I.Mnemonic = I.Disasm.substr(0, I.Disasm.find_first_of(" \t"));
 
   uint32_t Word = I.Encoding;
   I.Srcs.clear();
   I.Class = InstClass::UNKNOWN;
+
+  if (std::optional<ZvtInst> Z = Zvt ? decodeZvt(Word) : std::nullopt) {
+    decodeZvtInst(I, *Z);
+    return;
+  }
 
   if (std::optional<ScalarForm> Form = getScalarForm(Word)) {
     I.Class = Form->Class;
