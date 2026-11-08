@@ -260,42 +260,39 @@ VectorOp Vector::getOp(const Inst &I) const {
   return Op;
 }
 
-std::vector<Cycle> Vector::getSourcesReady(const Inst &I, uint32_t Uops) const {
+std::vector<std::vector<unsigned>> reef_perf::getUopSources(const Inst &I,
+                                                            uint32_t Uops) {
   std::vector<unsigned> Regs;
   for (RegId Reg : I.Srcs)
     if (Reg.getFile() == RegFile::V)
       Regs.push_back(Reg.getIndex());
-  if (Regs.empty())
-    return {};
+  size_t Listed = 0;
+  for (uint8_t Size : I.VectorSrcGroups)
+    Listed += Size;
+  sparta_assert(Listed == Regs.size(),
+                "VectorSrcGroups doesn't cover the vector registers in Srcs");
 
-  // Srcs lists each operand's register group in turn. A group is aligned to
-  // its size: LMUL registers, 2 x LMUL for a widening or narrowing operand,
-  // or one (v0, a reduction's vs1).
-  uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
-  std::vector<uint32_t> Sizes = {EMUL};
-  if (usesDoubleGroup(I))
-    Sizes.insert(Sizes.begin(), 2 * EMUL);
-  std::vector<Cycle> Ready(Uops, 0);
-  for (size_t Begin = 0; Begin < Regs.size();) {
-    uint32_t Size = 1;
-    for (uint32_t Try : Sizes) {
-      bool Fits = Regs[Begin] % Try == 0 && Begin + Try <= Regs.size();
-      for (uint32_t K = 1; Fits && K < Try; ++K)
-        Fits = Regs[Begin + K] == Regs[Begin] + K;
-      if (Fits) {
-        Size = Try;
-        break;
-      }
-    }
-    // Uop U reads the part of the group in the same position, as M3 does
-    // (one register of an LMUL group, half of one for a widening op).
-    for (uint32_t Uop = 0; Uop < Uops; ++Uop) {
-      unsigned Reg =
-          Regs[Begin + std::min<size_t>(Size - 1, size_t{Uop} * Size / Uops)];
-      Ready[Uop] = std::max(Ready[Uop], RegReady[Reg]);
-    }
+  // Uop U reads the part of each operand in the same position, as M3 does
+  // (one register of an LMUL group, half of one for a widening op).
+  std::vector<std::vector<unsigned>> Sources(Uops);
+  size_t Begin = 0;
+  for (uint8_t Size : I.VectorSrcGroups) {
+    for (uint32_t Uop = 0; Uop < Uops; ++Uop)
+      Sources[Uop].push_back(
+          Regs[Begin + std::min<size_t>(Size - 1, size_t{Uop} * Size / Uops)]);
     Begin += Size;
   }
+  return Sources;
+}
+
+std::vector<Cycle> Vector::getSourcesReady(const Inst &I, uint32_t Uops) const {
+  std::vector<std::vector<unsigned>> Sources = getUopSources(I, Uops);
+  if (I.VectorSrcGroups.empty())
+    return {};
+  std::vector<Cycle> Ready(Uops, 0);
+  for (uint32_t Uop = 0; Uop < Uops; ++Uop)
+    for (unsigned Reg : Sources[Uop])
+      Ready[Uop] = std::max(Ready[Uop], RegReady[Reg]);
   return Ready;
 }
 

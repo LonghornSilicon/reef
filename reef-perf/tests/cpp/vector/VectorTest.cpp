@@ -66,6 +66,18 @@ static VectorOp getLoad(uint32_t Uops, std::vector<Cycle> &Earliests) {
   return Op;
 }
 
+/// Sets \p I's vector sources to \p Groups, each a list of registers.
+static void
+setVectorSources(Inst &I, std::initializer_list<std::vector<unsigned>> Groups) {
+  for (const std::vector<unsigned> &Group : Groups) {
+    for (unsigned Reg : Group)
+      I.Srcs.push_back(RegId::v(Reg));
+    I.VectorSrcGroups.push_back(static_cast<uint8_t>(Group.size()));
+  }
+}
+
+using UopSources = std::vector<std::vector<unsigned>>;
+
 namespace {
 
 TEST(VectorUopsTest, OneUopPerRegisterOfTheGroup) {
@@ -80,6 +92,37 @@ TEST(VectorUopsTest, WideningAndNarrowingUseTheDoubleGroup) {
   EXPECT_EQ(getVectorUops(getVectorInst("vwadd.vv", 4)), 1U);
   // Not narrowing, despite the "vn".
   EXPECT_EQ(getVectorUops(getVectorInst("vnmsac.vv", 8, InstClass::V_MUL)), 1U);
+}
+
+// vwmul.vv v8, v2, v0 at LMUL=2: the decoder lists vs1 (v0, v1) before vs2
+// (v2, v3). Each uop reads half a register from both operands.
+TEST(VectorUopSourcesTest, WideningUopReadsBothOperands) {
+  Inst I = getVectorInst("vwmul.vv", 16, InstClass::V_MUL);
+  setVectorSources(I, {{0, 1}, {2, 3}});
+  EXPECT_EQ(getUopSources(I, getVectorUops(I)),
+            (UopSources{{0, 2}, {0, 2}, {1, 3}, {1, 3}}));
+}
+
+TEST(VectorUopSourcesTest, WideningAtLMULOneReadsBothOperands) {
+  Inst I = getVectorInst("vwmul.vv", 8, InstClass::V_MUL);
+  setVectorSources(I, {{2}, {3}});
+  EXPECT_EQ(getUopSources(I, getVectorUops(I)), (UopSources{{2, 3}, {2, 3}}));
+}
+
+// vwadd.wv v8, v4, v2 at LMUL=2: vs2 is double width, so uop U reads
+// register U of it and half of register U / 2 of vs1.
+TEST(VectorUopSourcesTest, DoubleWidthOperandGivesOneRegisterPerUop) {
+  Inst I = getVectorInst("vwadd.wv", 16);
+  setVectorSources(I, {{2, 3}, {4, 5, 6, 7}});
+  EXPECT_EQ(getUopSources(I, getVectorUops(I)),
+            (UopSources{{2, 4}, {2, 5}, {3, 6}, {3, 7}}));
+}
+
+TEST(VectorUopSourcesTest, MaskIsReadByEveryUop) {
+  Inst I = getVectorInst("vadd.vv", 16);
+  setVectorSources(I, {{4, 5}, {6, 7}, {0}});
+  EXPECT_EQ(getUopSources(I, getVectorUops(I)),
+            (UopSources{{4, 6, 0}, {5, 7, 0}}));
 }
 
 TEST(VectorUopsTest, ReductionWalksItsSourceGroup) {

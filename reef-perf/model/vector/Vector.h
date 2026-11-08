@@ -64,6 +64,10 @@ namespace reef_perf {
 /// (rvv_backend_decode_unit_ari.sv).
 uint32_t getVectorUops(const Inst &I);
 
+/// \returns per uop of \p I's \p Uops, the vector registers it reads: from
+/// each operand in \p I's VectorSrcGroups, the register in the same position.
+std::vector<std::vector<unsigned>> getUopSources(const Inst &I, uint32_t Uops);
+
 /// Sets of vector instructions with the same timing, which the configuration
 /// assigns to functional unit pools. Every vector instruction except vset*,
 /// loads and stores is in exactly one.

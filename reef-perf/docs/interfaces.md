@@ -57,7 +57,7 @@ one **writer**:
 
 | Fields | Written by |
 | --- | --- |
-| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts`, `Rs1Val`, `Rs2Val`, `Mtx` | frontend, when the instruction is fetched |
+| `Seq`, `PC`, `NextPC`, `Encoding`, `Disasm`, `Mnemonic`, `Mem`, `VL`, `SEWBytes`, `LMUL8`, `Class`, `Srcs`, `Dsts`, `VectorSrcGroups`, `Rs1Val`, `Rs2Val`, `Mtx` | frontend, when the instruction is fetched |
 | `FetchCycle` | frontend |
 | `DispatchCycle`, `RetireCycle` | core |
 | `IssueCycle`, `ResultReadyCycle`, `CompleteCycle` | the unit that executes the instruction (below) |
@@ -76,6 +76,10 @@ itself (`frontend/Zvt.h`) and
 synthesizes `Mem` (unit-stride tile loads and stores), `Dsts` (`rd` of
 `msettn`/`msettm`/`msettk`, `vd` of `vtmv.v.t`) and `Mtx`, the matrix
 details: op, tile group, `tm`/`tn`/`tk`, element type (docs/matrix.md).
+
+`VectorSrcGroups` gives the register count of each vector operand in `Srcs`,
+in order (vs1, vs2, v0, then vd for a multiply-accumulate), so readers don't
+have to guess where one register group ends and the next begins.
 
 `ResultReadyCycle` and `CompleteCycle` are `Inst::Never` until their
 writer sets them. Readers must treat `Never` as "not yet": Dispatch stalls a

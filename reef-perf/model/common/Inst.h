@@ -144,6 +144,8 @@ struct Inst {
   InstClass Class = InstClass::UNKNOWN; ///< Coarse class.
   std::vector<RegId> Srcs;              ///< Registers read (no x0).
   std::vector<RegId> Dsts;              ///< Registers written (no x0).
+  /// Register count of each vector operand in Srcs, in the order listed.
+  std::vector<uint8_t> VectorSrcGroups;
   MatrixInfo Mtx; ///< Matrix-engine details; Op is None unless MATRIX.
 
   Cycle FetchCycle = 0;    ///< Cycle it was fetched.

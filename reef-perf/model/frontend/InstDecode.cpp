@@ -70,10 +70,21 @@ static void addReg(std::vector<RegId> &Regs, File RegFile, uint32_t Reg) {
     Regs.push_back(RegId::f(Reg));
 }
 
-/// Appends \p Count consecutive vector registers starting at \p Base.
-static void addVRegs(std::vector<RegId> &Regs, uint32_t Base, uint32_t Count) {
-  for (uint32_t K = 0; K < Count && Base + K < RegId::NumPerFile; ++K)
-    Regs.push_back(RegId::v(Base + K));
+/// Appends to \p I's sources the vector operand of \p Count consecutive
+/// registers starting at \p Base.
+static void addVRegs(Inst &I, uint32_t Base, uint32_t Count) {
+  uint32_t Added = 0;
+  for (; Added < Count && Base + Added < RegId::NumPerFile; ++Added)
+    I.Srcs.push_back(RegId::v(Base + Added));
+  if (Added > 0)
+    I.VectorSrcGroups.push_back(static_cast<uint8_t>(Added));
+}
+
+/// \returns true if \p Text starts with any of \p Prefixes.
+static bool startsWithAny(std::string_view Text,
+                          std::initializer_list<std::string_view> Prefixes) {
+  return std::ranges::any_of(
+      Prefixes, [Text](auto Prefix) { return Text.starts_with(Prefix); });
 }
 
 /// \returns the form of an OP-FP instruction (major opcode 0x53).
@@ -157,21 +168,17 @@ static std::optional<ScalarForm> getScalarForm(uint32_t Word) {
 
 /// \returns the class of an OP-V arithmetic instruction, from \p Mnemonic.
 static InstClass getVectorArithClass(std::string_view Mnemonic) {
-  auto StartsWithAny = [Mnemonic](std::initializer_list<std::string_view> Ps) {
-    return std::ranges::any_of(
-        Ps, [Mnemonic](auto Prefix) { return Mnemonic.starts_with(Prefix); });
-  };
-  if (StartsWithAny({"vmv.x.s", "vcpop", "vfirst", "vfmv.f.s"}))
+  if (startsWithAny(Mnemonic, {"vmv.x.s", "vcpop", "vfirst", "vfmv.f.s"}))
     return InstClass::V_TO_SCALAR;
-  if (StartsWithAny({"vred", "vwred", "vfred", "vfwred", "vrgather", "vslide",
-                     "vfslide", "vcompress"}))
+  if (startsWithAny(Mnemonic, {"vred", "vwred", "vfred", "vfwred", "vrgather",
+                               "vslide", "vfslide", "vcompress"}))
     return InstClass::V_PERM;
-  if (StartsWithAny({"vdiv", "vrem"}))
+  if (startsWithAny(Mnemonic, {"vdiv", "vrem"}))
     return InstClass::V_DIV;
-  if (StartsWithAny({"vfdiv", "vfrdiv", "vfsqrt"}))
+  if (startsWithAny(Mnemonic, {"vfdiv", "vfrdiv", "vfsqrt"}))
     return InstClass::V_FDIV;
-  if (StartsWithAny({"vmul", "vmacc", "vnmsac", "vmadd", "vnmsub", "vwmul",
-                     "vwmacc", "vsmul"}))
+  if (startsWithAny(Mnemonic, {"vmul", "vmacc", "vnmsac", "vmadd", "vnmsub",
+                               "vwmul", "vwmacc", "vsmul"}))
     return InstClass::V_MUL;
   if (Mnemonic.starts_with("vf"))
     return InstClass::V_FP;
@@ -190,8 +197,8 @@ static bool readsDestination(uint32_t Funct3, uint32_t Funct6) {
 }
 
 /// Decodes the class and sources of an OP-V instruction (major opcode 0x57).
-/// Coarse: every operand spans LMUL registers; narrowing sources and widening
-/// accumulators span 2*LMUL.
+/// Coarse: every operand spans LMUL registers; the double-width operands
+/// (narrowing and .w* widening vs2, widening accumulators) span 2*LMUL.
 static void decodeOpV(Inst &I, uint32_t Word) {
   uint32_t Funct3 = getBits(Word, 14, 12);
   uint32_t Funct6 = getBits(Word, 31, 26);
@@ -211,8 +218,13 @@ static void decodeOpV(Inst &I, uint32_t Word) {
 
   uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
   bool Widening = Mnemonic.starts_with("vw") || Mnemonic.starts_with("vfw");
-  bool Narrowing = Mnemonic.starts_with("vn") || Mnemonic.starts_with("vfn");
-  uint32_t Vs2Regs = Narrowing ? 2 * EMUL : EMUL;
+  bool Narrowing =
+      startsWithAny(Mnemonic, {"vnsrl", "vnsra", "vnclip", "vncvt", "vfncvt"});
+  // vwadd.wv, vfwsub.wf and the other .w* widening forms read a double-width
+  // vs2.
+  std::string_view Suffix = Mnemonic.substr(Mnemonic.find('.') + 1);
+  bool WideVs2 = Narrowing || (Widening && Suffix.starts_with('w'));
+  uint32_t Vs2Regs = WideVs2 ? 2 * EMUL : EMUL;
   bool Unary = Funct6 == Funct6Unary;
 
   // The first operand: vs1, or the scalar rs1, depending on Funct3.
@@ -222,7 +234,7 @@ static void decodeOpV(Inst &I, uint32_t Word) {
   case 2: // OPMVV
     // vmv.x.s, vfmv.f.s and the other unary ops have no vs1.
     if (!Unary || Funct3 == 0)
-      addVRegs(I.Srcs, Rs1, EMUL);
+      addVRegs(I, Rs1, EMUL);
     break;
   case 4: // OPIVX
   case 6: // OPMVX
@@ -236,11 +248,11 @@ static void decodeOpV(Inst &I, uint32_t Word) {
   }
   // vs2, except for scalar-to-vector moves (vmv.s.x, vfmv.s.f).
   if (!Unary || (Funct3 != 5 && Funct3 != 6))
-    addVRegs(I.Srcs, Vs2, Vs2Regs);
+    addVRegs(I, Vs2, Vs2Regs);
   if (getBits(Word, 25, 25) == 0) // Masked: reads v0.
-    addVRegs(I.Srcs, 0, 1);
+    addVRegs(I, 0, 1);
   if (readsDestination(Funct3, Funct6))
-    addVRegs(I.Srcs, Rd, Widening ? 2 * EMUL : EMUL);
+    addVRegs(I, Rd, Widening ? 2 * EMUL : EMUL);
 }
 
 /// Decodes the class and sources of a vector load or store (LOAD-FP or
@@ -252,13 +264,14 @@ static void decodeVectorMem(Inst &I, uint32_t Word, bool IsStore) {
   if (Mop == 2) // Strided.
     addReg(I.Srcs, File::X, getBits(Word, 24, 20));
   if (Mop == 1 || Mop == 3) // Indexed (coarse: one index register).
-    addVRegs(I.Srcs, getBits(Word, 24, 20), 1);
+    addVRegs(I, getBits(Word, 24, 20), 1);
   if (getBits(Word, 25, 25) == 0) // Masked.
-    addVRegs(I.Srcs, 0, 1);
+    addVRegs(I, 0, 1);
   if (IsStore) { // The data: NF segments of LMUL registers.
     uint32_t NF = getBits(Word, 31, 29) + 1;
-    addVRegs(I.Srcs, getBits(Word, 11, 7),
-             std::max<uint32_t>(1, I.LMUL8 / 8) * NF);
+    uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
+    for (uint32_t Field = 0; Field < NF; ++Field)
+      addVRegs(I, getBits(Word, 11, 7) + Field * EMUL, EMUL);
   }
 }
 
@@ -288,7 +301,7 @@ static void decodeZvtInst(Inst &I, const ZvtInst &Z) {
     break;
   case ZvtKind::VtMvTV: // rs1 = TSS; vs2 group of LMUL registers.
     addReg(I.Srcs, File::X, Z.Rs1);
-    addVRegs(I.Srcs, Z.Rs2, std::max<uint32_t>(1, I.LMUL8 / 8));
+    addVRegs(I, Z.Rs2, std::max<uint32_t>(1, I.LMUL8 / 8));
     break;
   case ZvtKind::VtMvVT: // rs1 = TSS.
     addReg(I.Srcs, File::X, Z.Rs1);
@@ -306,10 +319,16 @@ static void decodeZvtInst(Inst &I, const ZvtInst &Z) {
     static constexpr uint32_t Fp32[] = {0, 1, 2, 3};
     static constexpr uint32_t Bf16[] = {0, 1, 4, 5};
     const uint32_t *Offsets = !Z.Float ? Int8 : I.SEWBytes == 2 ? Bf16 : Fp32;
-    for (uint32_t Base : {Z.Rs2, Z.Rs1})
+    for (uint32_t Base : {Z.Rs2, Z.Rs1}) {
+      uint8_t Added = 0;
       for (int K = 0; K < 4; ++K)
-        if (Base + Offsets[K] < RegId::NumPerFile)
+        if (Base + Offsets[K] < RegId::NumPerFile) {
           I.Srcs.push_back(RegId::v(Base + Offsets[K]));
+          ++Added;
+        }
+      if (Added > 0)
+        I.VectorSrcGroups.push_back(Added);
+    }
     break;
   }
   }
@@ -322,6 +341,7 @@ void reef_perf::decodeInst(Inst &I, bool Zvt) {
 
   uint32_t Word = I.Encoding;
   I.Srcs.clear();
+  I.VectorSrcGroups.clear();
   I.Class = InstClass::UNKNOWN;
 
   if (std::optional<ZvtInst> Z = Zvt ? decodeZvt(Word) : std::nullopt) {
