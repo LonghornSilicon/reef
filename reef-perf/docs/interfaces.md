@@ -376,6 +376,20 @@ the `vtdiscard` interlock.
 | [`inference-engine/coral/tools/setup_sim.sh`](../../inference-engine/coral/tools/setup_sim.sh) | Compiles `frontend/Zvt.cpp` into `coral_sim` with `FuncSim.cpp` and `InstDecode.cpp`, which now call it. The script lists reef-perf sources by hand, so without it the Coral kernels' `golden` CI job fails to link. | Build only; `coral_sim` keeps Zvt off. |
 | [`configs/machines/m3.yaml`](../configs/machines/m3.yaml) | The matrix module's own section (`top.matrix.params`), rule 4. | Matrix only. |
 
+### Memory → frontend (boot)
+
+`ReefSim::bindTree_()` connects them once, before the run. It is a call, not
+a port:
+
+1. `Memory::setBootImage()` gets the ELF's loaded segments
+   (`FuncSim::getLoadSegments()`) and counts the bytes that fall in the ITCM.
+2. The memory module's host (`memory/Host.h`) turns them into boot cycles:
+   `host_setup_cycles` + (bytes + 4) x `host_cycles_per_byte`, or 0 with
+   `host_boot` off.
+3. `Fetch::setStartCycle()` holds the first fetch until then.
+
+The memory module owns the boot timing; the frontend only waits for it.
+
 ## Known simplifications, by module
 
 These are the obvious next steps for each owner. None of them changes an

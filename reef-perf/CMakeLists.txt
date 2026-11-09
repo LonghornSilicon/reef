@@ -65,6 +65,7 @@ add_library(reef_perf_core STATIC
     model/matrix/MatrixFabric.cpp
 
     model/memory/Dma.cpp
+    model/memory/Host.cpp
     model/memory/MemTiming.cpp
     model/memory/Memory.cpp
     model/memory/Tcm.cpp

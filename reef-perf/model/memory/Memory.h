@@ -16,6 +16,7 @@
 #include "common/MemoryMap.h"
 #include "common/ResourcePool.h"
 #include "memory/Dma.h"
+#include "memory/Host.h"
 #include "memory/MemTiming.h"
 #include "memory/Tcm.h"
 
@@ -52,6 +53,12 @@ public:
     PARAMETER(uint32_t, dma_setup_cycles, 20,
               "Cycles from a DMA GO store to its first beat")
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
+    PARAMETER(bool, host_boot, false,
+              "Time the host's ITCM load before the core leaves reset")
+    PARAMETER(uint32_t, host_setup_cycles, 100,
+              "Cycles before the host's first boot byte")
+    PARAMETER(uint32_t, host_cycles_per_byte, 8,
+              "Cycles per byte on the host link")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -78,12 +85,20 @@ public:
   /// \returns the DMA, for its statistics.
   const Dma &getDma() const { return DMA; }
 
+  /// Sets the host's boot load from the ELF's \p Segments: the bytes that
+  /// fall in an ITCM.
+  void setBootImage(const std::vector<LoadSegment> &Segments);
+
+  /// \returns the host, for its boot cycles.
+  const Host &getHost() const { return TheHost; }
+
 private:
   std::vector<MemoryRegion> Regions = getDefaultMemoryMap();
   Tcm ITCM;
   Tcm DTCM;
   AxiModel AXI;
   Dma DMA;
+  Host TheHost;
 };
 
 } // namespace reef_perf
