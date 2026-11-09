@@ -15,7 +15,11 @@ Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
       ScalarOccupancyOverhead(Params->lsu_scalar_occupancy_overhead),
       VectorLoadRegOverhead(Params->lsu_vector_load_reg_overhead),
       VectorStoreRegOverhead(Params->lsu_vector_store_reg_overhead),
-      VectorSwitchCycles(Params->lsu_vector_switch_cycles), Pipe("lsu", 1) {
+      VectorSwitchCycles(Params->lsu_vector_switch_cycles),
+      TileCost(Params->lsu_tile_cost),
+      TileInstOverhead(Params->lsu_tile_inst_overhead),
+      TileBeatOverhead(Params->lsu_tile_beat_overhead),
+      TileSwitchCycles(Params->lsu_tile_switch_cycles), Pipe("lsu", 1) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Lsu, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Lsu, sendInitialCredits));
@@ -55,6 +59,16 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   ++NumVectorRegisters;
   uint64_t Overhead =
       Request.IsStore ? VectorStoreRegOverhead : VectorLoadRegOverhead;
+  uint64_t SwitchCycles = VectorSwitchCycles;
+  // A Zvt tile beat takes its own cost when lsu_tile_cost is on: an overhead
+  // once per instruction, not per beat (docs/lsu-tile-beats.md). Only the
+  // matrix module sets IsTile, so vector and scalar timing never take this
+  // path.
+  if (Request.IsTile && TileCost) {
+    Overhead =
+        TileBeatOverhead + (Request.FirstRegister ? TileInstOverhead : 0);
+    SwitchCycles = TileSwitchCycles;
+  }
   MemRequest Access;
   Access.Requester = RequesterKind::LSU;
   Access.Accesses = Request.Accesses;
@@ -65,7 +79,7 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   Result.Start = Response.Start - Overhead;
   Cycle BusyUntil = Response.Start + Response.Occupancy;
   if (Request.LastRegister)
-    BusyUntil += VectorSwitchCycles;
+    BusyUntil += SwitchCycles;
   Cycle Reserved = Pipe.reserve(Result.Start, BusyUntil - Result.Start);
   sparta_assert(Reserved == Result.Start, "LSU busy at the memory's start");
   // Dispatch gave the instruction an LSU queue entry; it leaves the queue when

@@ -36,7 +36,7 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
       FetchBlockBytes(Params->fetch_block_bytes),
-      IbufEntries(Params->ibuf_entries) {
+      IbufEntries(Params->ibuf_entries), Zvt(Params->zvt) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
   // The first group is fetched in cycle 1.
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));

@@ -26,7 +26,7 @@ mkdir -p "$prefix/bin"
     -I"$model" -isystem "$prefix/include" \
     "$engine/coral/sim/coral_sim.cpp" \
     "$model/frontend/FuncSim.cpp" "$model/frontend/InstDecode.cpp" \
-    "$model/common/Inst.cpp" \
+    "$model/frontend/Zvt.cpp" "$model/common/Inst.cpp" \
     "$prefix"/lib/lib{riscv,disasm,fesvr,fdt,softfloat}.a -ldl -lpthread \
     -o "$prefix/bin/coral_sim"
 echo "built $prefix/bin/coral_sim"

@@ -1,0 +1,22 @@
+# ILLUSTRATIVE, NOT VALIDATED: an 8x8 array of 4-wide dot-product PEs with
+# weights stationary, activations broadcast along rows and an adder tree
+# summing each column.
+# Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml -c configs/matrix/tree_8x8.yaml
+top:
+  matrix:
+    params:
+      mtx_pe_rows: 8
+      mtx_pe_cols: 8
+      mtx_macs_per_pe_int8: 4
+      mtx_macs_per_pe_bf16: 2
+      mtx_macs_per_pe_fp32: 1
+      mtx_dataflow: weight
+      mtx_row_operand: broadcast
+      mtx_col_operand: broadcast
+      mtx_mapping: generic           # rows x cols blocks (the Coral rule is Coral's array only)
+      mtx_reduction: tree
+      mtx_tree_level_latency: 1
+      mtx_double_buffer_stationary: true
+      mtx_pe_pipeline_depth: 1
