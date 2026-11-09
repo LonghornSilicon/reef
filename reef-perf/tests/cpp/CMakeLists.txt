@@ -23,6 +23,7 @@ set(REEF_PERF_TESTS
     frontend/ZvtTest
     matrix/MatrixFabricTest
     memory/DmaTest
+    memory/HostTest
     memory/MemTimingTest
     memory/TcmTest
     vector/VectorTest

@@ -42,7 +42,7 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));
 }
 
-void Fetch::scheduleFirstFetch() { FetchEvent.schedule(1); }
+void Fetch::scheduleFirstFetch() { FetchEvent.schedule(1 + StartCycle); }
 
 uint32_t Fetch::getFreeEntries(Cycle Now) const {
   uint64_t Used = Ibuf.size() + (FreedCycle == Now ? FreedAtCycle : 0);
