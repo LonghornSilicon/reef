@@ -151,3 +151,8 @@ top:
       host_boot: false
       host_setup_cycles: 100  # ASSUMPTION; no Reef source for the host link
       host_cycles_per_byte: 8 # ASSUMPTION; 1-lane SPI at the core clock
+      # The off-chip memory behind the e-bus (HyperRAM or QSPI), shared by the
+      # core and the DMA. Not in M3: 0 keeps the testbench's memory, which
+      # adds no delay (deviations A7).
+      ext_mem_latency: 0          # ASSUMPTION until the part is picked; QSPI 26 (multi-line) to 68 (single line)
+      ext_mem_bytes_per_cycle: 0  # ASSUMPTION until the part is picked; QSPI 1-2 B/cycle at 50 MHz

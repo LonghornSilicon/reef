@@ -420,7 +420,8 @@ interface unless noted.
   "Correlating it").
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
-  between requesters other than at the TCMs (`memory/Tcm.h`); the DMA (`memory/Dma.h`) is
+  between requesters other than at the TCMs (`memory/Tcm.h`) and the external
+  memory link (`ExtMemModel`), which the core and the DMA share in order; the DMA (`memory/Dma.h`) is
   the only `AxiSlave` requester, and nothing drives `Debug`; the AXI latency and
   outstanding limit are assumptions.
   No microbenchmark touches AXI memory yet, because Spike only backs the ITCM and

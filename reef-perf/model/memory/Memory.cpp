@@ -15,7 +15,8 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
            Params->dtcm_cycles_per_line),
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
           Params->axi_max_outstanding, Params->axi_blocking_reads),
-      DMA(Params->dma_setup_cycles, Params->dma_beat_bytes,
+      Ext(Params->ext_mem_latency, Params->ext_mem_bytes_per_cycle),
+      DMA(Params->dma_setup_cycles, Params->dma_beat_bytes, &Ext,
           [this](Address Addr) -> Tcm * {
             switch (getRegionKind(Addr)) {
             case RegionKind::ITCM:
@@ -72,7 +73,7 @@ MemResponse Memory::access(const MemRequest &Request) {
   const MemoryRegion DmaRegs = getDmaRegsRegion();
   if (Request.Accesses.empty() ||
       !DmaRegs.contains(Request.Accesses.front().Addr))
-    return Response;
+    return addExtMemTime(Request, Response);
   // A register access reaches the DMA when its AXI operation is done.
   const Cycle Arrive = Response.Start + Response.Latency;
   for (const MemAccess &Access : Request.Accesses) {
@@ -85,10 +86,34 @@ MemResponse Memory::access(const MemRequest &Request) {
   return Response;
 }
 
+MemResponse Memory::addExtMemTime(const MemRequest &Request,
+                                  MemResponse Response) {
+  if (!Ext.isTimed())
+    return Response;
+  uint64_t Bytes = 0;
+  for (const MemAccess &Access : Request.Accesses)
+    Bytes += Access.Size;
+  // The link time adds to the e-bus path's own latency (axi_latency). A
+  // blocking read keeps holding its requester until the data is back.
+  const bool Blocking =
+      AXI.hasBlockingReads() &&
+      (Request.Accesses.empty() || !Request.Accesses.front().IsStore);
+  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start).Done;
+  const uint64_t Extra = LinkDone - Response.Start;
+  // The operation keeps its outstanding slot until the link is done too.
+  AXI.extend(Response.Start + Response.Latency, Extra);
+  Response.Latency += Extra;
+  if (Blocking)
+    Response.Occupancy = Response.Latency;
+  return Response;
+}
+
 std::vector<const ResourcePool *> Memory::getPools() const {
   std::vector<const ResourcePool *> Pools = {
       &ITCM.getPort(), &ITCM.getFetchUse(), &DTCM.getPort()};
   for (const ResourcePool *Pool : AXI.getPools())
     Pools.push_back(Pool);
+  if (Ext.isTimed())
+    Pools.push_back(&Ext.getLink());
   return Pools;
 }
