@@ -1,6 +1,7 @@
 //===- DmaTest.cpp - DMA initiator tests ----------------------------------===//
 
 #include "memory/Dma.h"
+#include "memory/MemTiming.h"
 #include "memory/Tcm.h"
 
 #include <gtest/gtest.h>
@@ -15,7 +16,7 @@ namespace {
 /// A DTCM at 0x10000 (32 KB) with a 1-cycle SRAM, and a DMA that books it.
 struct DmaFixture : public ::testing::Test {
   Tcm DTCM{"dtcm", 1, 16, 1};
-  Dma DMA{20, 16, [this](Address Addr) -> Tcm * {
+  Dma DMA{20, 16, nullptr, [this](Address Addr) -> Tcm * {
             return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
           }};
 
@@ -79,7 +80,7 @@ TEST_F(DmaFixture, QueuedTransferMovesWhenTheOneAheadIsPushedOut) {
 
 TEST_F(DmaFixture, NarrowBeatsTakeOnePortCycleEach) {
   Tcm Port{"dtcm", 1, 16, 1};
-  Dma Narrow{20, 4,
+  Dma Narrow{20, 4, nullptr,
              [&Port](Address A) { return A < 0x80000000 ? &Port : nullptr; }};
   Narrow.writeRegister(DmaSrc, 0x80000000, 0);
   Narrow.writeRegister(DmaDst, 0x10000, 0);
@@ -91,7 +92,7 @@ TEST_F(DmaFixture, NarrowBeatsTakeOnePortCycleEach) {
 
 TEST_F(DmaFixture, LastBeatCarriesOnlyTheBytesLeft) {
   Tcm Port{"dtcm", 1, 16, 1};
-  Dma Wide{20, 32,
+  Dma Wide{20, 32, nullptr,
            [&Port](Address A) { return A < 0x80000000 ? &Port : nullptr; }};
   Wide.writeRegister(DmaSrc, 0x80000000, 0);
   Wide.writeRegister(DmaDst, 0x10000, 0);
@@ -105,6 +106,56 @@ TEST_F(DmaFixture, LastBeatCarriesOnlyTheBytesLeft) {
 TEST_F(DmaFixture, ZeroLengthDoesNothing) {
   program(0x80000000, 0x10000, 0, 0);
   EXPECT_EQ(DMA.getStats().Transfers, 0U);
+}
+
+/// The same DTCM with a modeled external link: 26 cycles to the first byte,
+/// then 1 B/cycle (a 16-bit QSPI-class link at half the core clock).
+struct DmaLinkFixture : public DmaFixture {
+  ExtMemModel Ext{26, 1.0};
+  Dma LinkDMA{20, 16, &Ext, [this](Address Addr) -> Tcm * {
+                return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
+              }};
+
+  void programLink(Address Src, Address Dst, uint32_t Len, Cycle At) {
+    LinkDMA.writeRegister(DmaSrc, Src, At);
+    LinkDMA.writeRegister(DmaDst, Dst, At);
+    LinkDMA.writeRegister(DmaLen, Len, At);
+    LinkDMA.writeRegister(DmaGo, 1, At);
+  }
+};
+
+TEST_F(DmaLinkFixture, ExternalEndIsBoundByTheLink) {
+  // Begin 120; the first byte at 146, then 16 bytes every 16 cycles. Each
+  // DTCM beat waits for its bytes: 162, 178, 194 and 210, usable at 211.
+  programLink(0x20000000, 0x10000, 64, 100);
+  EXPECT_EQ(LinkDMA.getFinish(), 211U);
+  EXPECT_EQ(Ext.getLink().getBusyCycles(), 90U);
+}
+
+TEST_F(DmaLinkFixture, CoreAccessWhileBytesArriveBumpsABeat) {
+  programLink(0x20000000, 0x10000, 64, 100); // Beats 162, 178, 194, 210.
+  std::vector<MemAccess> Load = {{0x10100, 4, false, 0}};
+  MemRequest Request;
+  Request.Accesses = Load;
+  Request.Earliest = 178; // The second beat's cycle.
+  EXPECT_EQ(DTCM.access(Request).Start, 178U);
+  // The beat takes the free cycle after it, so the finish holds.
+  EXPECT_EQ(DTCM.getStats(RequesterKind::AxiSlave).BumpedCycles, 1U);
+  EXPECT_EQ(LinkDMA.getFinish(), 211U);
+  Request.Earliest = 210; // The last beat's cycle.
+  DTCM.access(Request);
+  EXPECT_EQ(LinkDMA.getFinish(), 212U);
+}
+
+TEST_F(DmaLinkFixture, QueuedTransferWaitsForTheLink) {
+  programLink(0x20000000, 0x10000, 32, 0); // Link 20-78, beats 62 and 78.
+  programLink(0x20000000, 0x10100, 32, 5); // Begin 99, link 99-157.
+  EXPECT_EQ(LinkDMA.getFinish(), 158U);      // Last beat at 157.
+}
+
+TEST_F(DmaLinkFixture, TcmToTcmDoesNotUseTheLink) {
+  programLink(0x10000, 0x10100, 64, 0);
+  EXPECT_EQ(Ext.getLink().getOps(), 0U);
 }
 
 } // namespace

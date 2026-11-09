@@ -70,6 +70,52 @@ TEST(AxiModelTest, BlockingReadsDoNotHoldAWrite) {
   EXPECT_EQ(AXI.access(Store, 0).Occupancy, 1U); // Only its one beat.
 }
 
+TEST(AxiModelTest, ExtendKeepsTheOnlySlotBusy) {
+  // One slot: a store holds it for 2 cycles, then 30 more for the link.
+  AxiModel AXI(2, 32, 1, true);
+  std::vector<MemAccess> Store = {{0x20000000, 4, true, 0}};
+  EXPECT_EQ(AXI.access(Store, 0).Start, 0U);
+  AXI.extend(2, 30);
+  EXPECT_EQ(AXI.access(Store, 0).Start, 32U);
+}
+
+TEST(ExtMemModelTest, WithoutARateTheLinkAddsNothing) {
+  ExtMemModel Ext(26, 0);
+  EXPECT_FALSE(Ext.isTimed());
+  EXPECT_EQ(Ext.transfer(64, 10).Done, 10U);
+}
+
+TEST(ExtMemModelTest, FirstByteLatencyThenBytesAtTheRate) {
+  // 26 cycles to the first byte, then 64 bytes at 1 B/cycle: 10 + 90.
+  ExtMemModel Ext(26, 1.0);
+  const ExtMemModel::Slot Booked = Ext.transfer(64, 10);
+  EXPECT_EQ(Booked.FirstByte, 36U);
+  EXPECT_EQ(Booked.Done, 100U);
+}
+
+TEST(ExtMemModelTest, BytesArriveAtTheRateAfterTheFirst) {
+  ExtMemModel Ext(26, 1.0);
+  const ExtMemModel::Slot Booked = Ext.transfer(64, 10);
+  EXPECT_EQ(Ext.getReady(Booked, 16), 52U);
+  EXPECT_EQ(Ext.getReady(Booked, 64), 100U);
+}
+
+TEST(ExtMemModelTest, OperationsShareOneLink) {
+  ExtMemModel Ext(26, 1.0);
+  EXPECT_EQ(Ext.transfer(64, 10).Done, 100U);
+  EXPECT_EQ(Ext.transfer(64, 20).Done, 190U); // Waits for the first.
+}
+
+TEST(ExtMemModelTest, FractionalRateRoundsUp) {
+  // 16 bytes at 2.64 B/cycle (132 MB/s at 50 MHz) is 6.06, so 7 cycles.
+  ExtMemModel Ext(0, 2.64);
+  EXPECT_EQ(Ext.transfer(16, 0).Done, 7U);
+}
+
+TEST(ExtMemModelTest, NegativeRateThrows) {
+  EXPECT_THROW(ExtMemModel(0, -1.0), std::invalid_argument);
+}
+
 TEST(MemoryRegionTest, ContainsIsHalfOpen) {
   MemoryRegion DTCM{
       .Start = 0x10000, .Length = 0x8000, .Kind = RegionKind::DTCM};

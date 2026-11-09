@@ -68,8 +68,9 @@ public:
   };
 
   /// Books \p Request, which must come from a lower-priority requester, and
-  /// \returns its timing and handle.
-  Booking book(const MemRequest &Request);
+  /// \returns its timing and handle. With \p Ready (one cycle per access),
+  /// no access takes the port before its data is ready.
+  Booking book(const MemRequest &Request, std::span<const Cycle> Ready = {});
 
   /// Moves every port cycle of transfer \p Id before \p Earliest to the next
   /// cycles it may use, and reports a new finish through OnFinishMoved.
@@ -98,7 +99,8 @@ private:
   };
 
   MemResponse accessCore(const MemRequest &Request, uint64_t Occupancy);
-  Booking accessLower(const MemRequest &Request, uint64_t Occupancy);
+  Booking accessLower(const MemRequest &Request, uint64_t Occupancy,
+                      std::span<const Cycle> Ready);
   bool isCoreBusy(Cycle C) const;
   /// \returns whether a requester of \p Priority may take cycle \p C, which
   /// means no core booking and no lower-priority owner of equal or higher

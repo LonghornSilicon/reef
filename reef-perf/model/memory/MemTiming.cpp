@@ -3,6 +3,7 @@
 #include "memory/MemTiming.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
@@ -32,6 +33,13 @@ AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
       BlockingReads(BlockingReads), Data("axi_data", 1),
       Outstanding("axi_outstanding", MaxOutstanding) {}
 
+void AxiModel::extend(Cycle From, uint64_t Cycles) {
+  // Bookings are made in call order, so with one slot this continues the
+  // operation's own booking.
+  if (Cycles != 0)
+    Outstanding.reserve(From, Cycles);
+}
+
 MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
                              Cycle Earliest) {
   MemResponse Response;
@@ -47,4 +55,28 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
   if (BlockingReads && IsRead)
     Response.Occupancy = Response.Latency;
   return Response;
+}
+
+ExtMemModel::ExtMemModel(uint32_t Latency, double BytesPerCycle)
+    : Latency(Latency), BytesPerCycle(BytesPerCycle), Link("ext_mem_link", 1) {
+  if (BytesPerCycle < 0)
+    throw std::invalid_argument("ext_mem_bytes_per_cycle must be at least 0");
+}
+
+ExtMemModel::Slot ExtMemModel::transfer(uint64_t Bytes, Cycle Earliest) {
+  if (!isTimed())
+    return {Earliest, Earliest};
+  const auto DataCycles = static_cast<uint64_t>(
+      std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
+  const uint64_t Occupancy = Latency + std::max<uint64_t>(DataCycles, 1);
+  const Cycle Start = Link.reserve(Earliest, Occupancy);
+  return {Start + Latency, Start + Occupancy};
+}
+
+Cycle ExtMemModel::getReady(const Slot &Booked, uint64_t Bytes) const {
+  if (!isTimed())
+    return Booked.FirstByte;
+  const auto DataCycles = static_cast<uint64_t>(
+      std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
+  return std::min(Booked.Done, Booked.FirstByte + std::max<uint64_t>(DataCycles, 1));
 }

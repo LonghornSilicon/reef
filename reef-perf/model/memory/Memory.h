@@ -1,11 +1,11 @@
 //===- Memory.h - The memory module -----------------------------*- C++ -*-===//
 ///
 /// \file
-/// The memory module: the ITCM, the DTCM (memory/Tcm.h) and the AXI master
-/// port to off-core memory (a black box). Other modules reach it through
-/// MemoryInterface. An operation goes to the memory holding its first address,
-/// using the same memory map as Spike; anything outside the ITCM and DTCM goes
-/// to AXI.
+/// The memory module: the ITCM, the DTCM (memory/Tcm.h), the AXI master
+/// port (the e-bus) and the off-chip memory behind it (ExtMemModel). Other
+/// modules reach it through MemoryInterface. An operation goes to the memory
+/// holding its first address, using the same memory map as Spike; anything
+/// outside the ITCM and DTCM goes to AXI.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -61,6 +61,10 @@ public:
               "Cycles before the host's first boot byte")
     PARAMETER(uint32_t, host_cycles_per_byte, 8,
               "Cycles per byte on the host link")
+    PARAMETER(uint32_t, ext_mem_latency, 0,
+              "External memory link cycles to the first byte of an operation")
+    PARAMETER(double, ext_mem_bytes_per_cycle, 0,
+              "External memory link bytes per core cycle (0: not modeled)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -81,7 +85,8 @@ public:
   /// Times \p Request and books the memory it uses. \returns its timing.
   MemResponse access(const MemRequest &Request) override;
 
-  /// \returns itcm, dtcm, axi_data and axi_outstanding.
+  /// \returns itcm, dtcm, axi_data, axi_outstanding and, when modeled,
+  /// ext_mem_link.
   std::vector<const ResourcePool *> getPools() const;
 
   /// \returns the DMA, for its statistics.
@@ -95,10 +100,15 @@ public:
   const Host &getHost() const { return TheHost; }
 
 private:
+  /// Adds the external memory link's time to \p Response, the e-bus timing
+  /// of \p Request. \returns the result.
+  MemResponse addExtMemTime(const MemRequest &Request, MemResponse Response);
+
   std::vector<MemoryRegion> Regions = getDefaultMemoryMap();
   Tcm ITCM;
   Tcm DTCM;
   AxiModel AXI;
+  ExtMemModel Ext;
   Dma DMA;
   Host TheHost;
 };

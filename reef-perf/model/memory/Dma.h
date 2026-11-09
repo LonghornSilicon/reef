@@ -21,9 +21,12 @@
 /// A transfer starts `dma_setup_cycles` after the GO store arrives, or after
 /// the previous transfer finishes (one at a time). It then moves one
 /// `dma_beat_bytes` beat per TCM port cycle the core leaves free; whichever of
-/// SRC and DST is in a TCM is booked there as an AxiSlave requester. When a
-/// core access pushes a transfer's finish out, every queued transfer behind
-/// it moves too. Only timing is modeled: Spike's memory is not copied.
+/// SRC and DST is in a TCM is booked there as an AxiSlave requester. An end
+/// outside the TCMs moves its bytes over the external memory link
+/// (ExtMemModel), when that is modeled. A transfer finishes when both ends
+/// are done. When a core access pushes a transfer's finish out, every queued
+/// transfer behind it moves too. Only timing is modeled: Spike's memory is
+/// not copied.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -39,6 +42,7 @@
 
 namespace reef_perf {
 
+class ExtMemModel;
 class Tcm;
 
 /// Register offsets in the DMA's register block.
@@ -64,8 +68,10 @@ public:
   using TcmLookup = std::function<Tcm *(Address)>;
 
   /// Creates a DMA whose transfers wait \p SetupCycles before their first
-  /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names.
-  Dma(uint32_t SetupCycles, uint32_t BeatBytes, TcmLookup FindTcm);
+  /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names
+  /// and, for an end outside them, the link \p Ext (may be null).
+  Dma(uint32_t SetupCycles, uint32_t BeatBytes, ExtMemModel *Ext,
+      TcmLookup FindTcm);
 
   /// Applies a store of \p Value to register \p Offset that arrives at
   /// cycle \p Arrive. A GO store starts a transfer.
@@ -87,6 +93,7 @@ private:
     std::vector<Tcm *> Targets;     // TCMs booked, at most one per end.
     std::vector<uint32_t> Ids;      // Their Tcm::book handles.
     std::vector<Cycle> EndFinishes; // When each booked end finishes.
+    Cycle ExtFinish = 0;            // When the link is done, or 0.
   };
 
   void start(Cycle Arrive);
@@ -95,6 +102,7 @@ private:
 
   uint32_t SetupCycles;
   uint32_t BeatBytes;
+  ExtMemModel *Ext;
   TcmLookup FindTcm;
   Address Src = 0;
   Address Dst = 0;
