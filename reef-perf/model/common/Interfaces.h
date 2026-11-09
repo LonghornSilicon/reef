@@ -77,6 +77,10 @@ struct VectorLsuRequest {
   Cycle Earliest = 0;
   bool FirstRegister = true; ///< The instruction's first register.
   bool LastRegister = true;  ///< The instruction's last register.
+  /// A 16-byte beat of a Zvt tile load or store, from the matrix module. The
+  /// LSU may cost it differently from a vector register (lsu_tile_cost);
+  /// the vector module leaves it false.
+  bool IsTile = false;
 };
 
 /// The LSU's answer to a VectorLsuRequest.
@@ -97,6 +101,25 @@ struct VectorLsuInterface {
   /// Times \p Request and books the LSU for it. \returns its timing.
   virtual VectorLsuResponse
   accessVectorRegister(const VectorLsuRequest &Request) = 0;
+};
+
+/// The vector module's register scoreboard as the matrix module sees it.
+/// Zvt instructions read vector registers (vtmm operands, vtmv.t.v); the
+/// matrix module asks when the last vector writer's result is ready. It asks
+/// in the Tick phase, after every instruction dispatched in the same cycle
+/// has reached the vector module (ports deliver in PortUpdate).
+struct VectorRegisterInterface {
+  virtual ~VectorRegisterInterface() = default; ///< Never owned by matrix.
+
+  /// \returns the first cycle a reader of vector register v\p Index may start.
+  virtual Cycle getRegisterReady(unsigned Index) const = 0;
+
+  /// Records that the matrix module writes v\p Index (vtmv.v.t), readable
+  /// from cycle \p Ready on. Vector instructions that arrive in a later
+  /// cycle wait for it inside the vector module, as CoralNPU's RVV backend
+  /// resolves the dependence; Dispatch keeps readers out of the writer's own
+  /// cycle (docs/interfaces.md, "Matrix → vector").
+  virtual void setRegisterReady(unsigned Index, Cycle Ready) = 0;
 };
 
 /// Why the frontend had no instruction for the core in a cycle, for top-down
