@@ -25,8 +25,10 @@
 /// outside the TCMs moves its bytes over the external memory link
 /// (ExtMemModel), when that is modeled. A transfer finishes when both ends
 /// are done. When a core access pushes a transfer's finish out, every queued
-/// transfer behind it moves too. Only timing is modeled: Spike's memory is
-/// not copied.
+/// transfer behind it moves too. With `dma_queue_depth` set, a GO store that
+/// finds that many transfers unfinished waits for the oldest of them to
+/// finish: the full queue back-pressures the e-bus. Only timing is modeled:
+/// Spike's memory is not copied.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -59,6 +61,7 @@ struct DmaStats {
   uint64_t Transfers = 0;  ///< Transfers started.
   uint64_t Bytes = 0;      ///< Bytes moved.
   uint64_t BusyCycles = 0; ///< Cycles from each start to its finish.
+  uint64_t FullCycles = 0; ///< Cycles GO stores waited for a full queue.
 };
 
 /// The DMA initiator. Owned by the memory module.
@@ -70,12 +73,15 @@ public:
   /// Creates a DMA whose transfers wait \p SetupCycles before their first
   /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names
   /// and, for an end outside them, the link \p Ext (may be null).
+  /// \p QueueDepth caps the unfinished transfers (0: no limit).
   Dma(uint32_t SetupCycles, uint32_t BeatBytes, ExtMemModel *Ext,
-      TcmLookup FindTcm);
+      TcmLookup FindTcm, uint32_t QueueDepth = 0);
 
   /// Applies a store of \p Value to register \p Offset that arrives at
-  /// cycle \p Arrive. A GO store starts a transfer.
-  void writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive);
+  /// cycle \p Arrive. A GO store starts a transfer. \returns the cycle the
+  /// register takes the store: later than \p Arrive only for a GO that
+  /// waits for room in a full queue.
+  Cycle writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive);
 
   /// \returns the cycle the last started transfer finishes, or 0 if none.
   Cycle getFinish() const { return Jobs.empty() ? 0 : Jobs.back().Finish; }
@@ -104,6 +110,7 @@ private:
   uint32_t BeatBytes;
   ExtMemModel *Ext;
   TcmLookup FindTcm;
+  uint32_t QueueDepth;
   Address Src = 0;
   Address Dst = 0;
   uint32_t Len = 0;

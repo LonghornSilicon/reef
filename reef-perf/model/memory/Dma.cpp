@@ -15,14 +15,14 @@
 using namespace reef_perf;
 
 Dma::Dma(uint32_t SetupCycles, uint32_t BeatBytes, ExtMemModel *Ext,
-         TcmLookup FindTcm)
+         TcmLookup FindTcm, uint32_t QueueDepth)
     : SetupCycles(SetupCycles), BeatBytes(BeatBytes), Ext(Ext),
-      FindTcm(std::move(FindTcm)) {
+      FindTcm(std::move(FindTcm)), QueueDepth(QueueDepth) {
   if (BeatBytes == 0 || BeatBytes > 255)
     throw std::invalid_argument("dma_beat_bytes must be 1-255");
 }
 
-void Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
+Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
   switch (Offset) {
   case DmaSrc:
     Src = static_cast<Address>(Value);
@@ -33,12 +33,20 @@ void Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
   case DmaLen:
     Len = static_cast<uint32_t>(Value);
     break;
-  case DmaGo:
-    start(Arrive);
-    break;
+  case DmaGo: {
+    // Transfers finish in order, so the queue is full exactly when the
+    // QueueDepth-th newest transfer has not finished yet.
+    Cycle Accept = Arrive;
+    if (QueueDepth != 0 && Len != 0 && Jobs.size() >= QueueDepth)
+      Accept = std::max(Arrive, Jobs[Jobs.size() - QueueDepth].Finish);
+    Stats.FullCycles += Accept - Arrive;
+    start(Accept);
+    return Accept;
+  }
   default:
     break; // WAIT and unused offsets ignore stores.
   }
+  return Arrive;
 }
 
 void Dma::start(Cycle Arrive) {

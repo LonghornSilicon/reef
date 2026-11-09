@@ -146,6 +146,7 @@ top:
       # registers (memory/Dma.h).
       dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
       dma_beat_bytes: 16      # CoreAxi.scala: dtcmWidth = axi2DataBits = 128
+      dma_queue_depth: 0      # ASSUMPTION; 0 = no limit. A GO into a full queue holds the e-bus
       # The host's ITCM load before the core leaves reset (memory/Host.h). Off,
       # so runs start in cycle 0 as the RTL testbench does (it backdoor-loads).
       host_boot: false

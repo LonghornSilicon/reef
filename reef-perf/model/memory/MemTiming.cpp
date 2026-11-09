@@ -78,5 +78,6 @@ Cycle ExtMemModel::getReady(const Slot &Booked, uint64_t Bytes) const {
     return Booked.FirstByte;
   const auto DataCycles = static_cast<uint64_t>(
       std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
-  return std::min(Booked.Done, Booked.FirstByte + std::max<uint64_t>(DataCycles, 1));
+  return std::min(Booked.Done,
+                  Booked.FirstByte + std::max<uint64_t>(DataCycles, 1));
 }

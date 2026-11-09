@@ -150,12 +150,51 @@ TEST_F(DmaLinkFixture, CoreAccessWhileBytesArriveBumpsABeat) {
 TEST_F(DmaLinkFixture, QueuedTransferWaitsForTheLink) {
   programLink(0x20000000, 0x10000, 32, 0); // Link 20-78, beats 62 and 78.
   programLink(0x20000000, 0x10100, 32, 5); // Begin 99, link 99-157.
-  EXPECT_EQ(LinkDMA.getFinish(), 158U);      // Last beat at 157.
+  EXPECT_EQ(LinkDMA.getFinish(), 158U);    // Last beat at 157.
 }
 
 TEST_F(DmaLinkFixture, TcmToTcmDoesNotUseTheLink) {
   programLink(0x10000, 0x10100, 64, 0);
   EXPECT_EQ(Ext.getLink().getOps(), 0U);
+}
+
+/// The same DTCM with a DMA that holds at most \p Depth unfinished transfers.
+struct DmaQueueFixture : public DmaFixture {
+  Dma Queued{20, 16, nullptr,
+             [this](Address Addr) -> Tcm * {
+               return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
+             },
+             1};
+
+  Cycle go(Address Dst, uint32_t Len, Cycle At) {
+    Queued.writeRegister(DmaSrc, 0x20000000, At);
+    Queued.writeRegister(DmaDst, Dst, At);
+    Queued.writeRegister(DmaLen, Len, At);
+    return Queued.writeRegister(DmaGo, 1, At);
+  }
+};
+
+TEST_F(DmaQueueFixture, GoWithRoomIsTakenAtOnce) {
+  EXPECT_EQ(go(0x10000, 32, 0), 0U); // Beats 20-21, done at 22.
+  EXPECT_EQ(Queued.getStats().FullCycles, 0U);
+}
+
+TEST_F(DmaQueueFixture, GoIntoAFullQueueWaitsForTheOldestToFinish) {
+  go(0x10000, 32, 0);                 // Done at 22.
+  EXPECT_EQ(go(0x10100, 32, 5), 22U); // Waits 17 cycles for a slot.
+  EXPECT_EQ(Queued.getFinish(), 44U); // 22 + 20 setup + 2 beats.
+  EXPECT_EQ(Queued.getStats().FullCycles, 17U);
+}
+
+TEST_F(DmaQueueFixture, GoAfterTheQueueDrainsDoesNotWait) {
+  go(0x10000, 32, 0);
+  EXPECT_EQ(go(0x10100, 32, 30), 30U);
+}
+
+TEST_F(DmaFixture, WithoutADepthTheQueueNeverFills) {
+  program(0x80000000, 0x10000, 32, 0);
+  DMA.writeRegister(DmaDst, 0x10100, 5);
+  EXPECT_EQ(DMA.writeRegister(DmaGo, 1, 5), 5U);
 }
 
 } // namespace

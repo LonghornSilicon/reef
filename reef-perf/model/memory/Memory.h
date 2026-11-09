@@ -55,6 +55,8 @@ public:
     PARAMETER(uint32_t, dma_setup_cycles, 20,
               "Cycles from a DMA GO store to its first beat")
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
+    PARAMETER(uint32_t, dma_queue_depth, 0,
+              "Unfinished DMA transfers before a GO store waits (0: no limit)")
     PARAMETER(bool, host_boot, false,
               "Time the host's ITCM load before the core leaves reset")
     PARAMETER(uint32_t, host_setup_cycles, 100,
