@@ -376,6 +376,16 @@ the `vtdiscard` interlock.
 | [`inference-engine/coral/tools/setup_sim.sh`](../../inference-engine/coral/tools/setup_sim.sh) | Compiles `frontend/Zvt.cpp` into `coral_sim` with `FuncSim.cpp` and `InstDecode.cpp`, which now call it. The script lists reef-perf sources by hand, so without it the Coral kernels' `golden` CI job fails to link. | Build only; `coral_sim` keeps Zvt off. |
 | [`configs/machines/m3.yaml`](../configs/machines/m3.yaml) | The matrix module's own section (`top.matrix.params`), rule 4. | Matrix only. |
 
+### Frontend → memory (fetch)
+
+Each fetch group books its 16-byte ITCM line through
+`MemoryInterface::access()` with `RequesterKind::IFetch`, in the cycle it is
+fetched. Fetch ignores the answer and keeps its own timing
+(`fetch_interval`). The booking marks the cycle as core traffic, so the host
+and the DMA (AXI slave) only get the cycles fetch leaves free. An LSU access to
+the ITCM never waits for fetch, as in the RTL. Fetch outside the ITCM (over
+AXI) is not modeled.
+
 ### Memory → frontend (boot)
 
 `ReefSim::bindTree_()` connects them once, before the run. It is a call, not

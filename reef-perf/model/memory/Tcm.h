@@ -90,6 +90,10 @@ public:
   /// \returns the core's port bookings, for the end-of-run summary.
   const ResourcePool &getPort() const { return Port; }
 
+  /// \returns instruction fetch's use of the port, for the summary. Kept
+  /// apart from getPort() so the LSU never waits for fetch.
+  const ResourcePool &getFetchUse() const { return FetchUse; }
+
 private:
   /// A lower-priority transfer: the port cycles it holds.
   struct Transfer {
@@ -101,6 +105,10 @@ private:
   MemResponse accessCore(const MemRequest &Request, uint64_t Occupancy);
   Booking accessLower(const MemRequest &Request, uint64_t Occupancy,
                       std::span<const Cycle> Ready);
+  MemResponse accessFetch(const MemRequest &Request, uint64_t Occupancy);
+  // Marks Occupancy cycles from Start as core traffic, moving any
+  // lower-priority transfer off them.
+  void claimForCore(Cycle Start, uint64_t Occupancy);
   bool isCoreBusy(Cycle C) const;
   /// \returns whether a requester of \p Priority may take cycle \p C, which
   /// means no core booking and no lower-priority owner of equal or higher
@@ -120,6 +128,7 @@ private:
   uint32_t LineBytes;
   uint32_t CyclesPerLine;
   ResourcePool Port;               // The core's bookings, in call order.
+  ResourcePool FetchUse;           // Fetch's port cycles; statistics only.
   std::map<Cycle, Cycle> CoreBusy; // Core bookings: start -> end (exclusive).
   std::map<Cycle, uint32_t> Owner; // Lower-priority port cycles -> transfer.
   std::vector<Transfer> Transfers;

@@ -85,8 +85,8 @@ public:
   /// Times \p Request and books the memory it uses. \returns its timing.
   MemResponse access(const MemRequest &Request) override;
 
-  /// \returns itcm, dtcm, axi_data, axi_outstanding and, when modeled,
-  /// ext_mem_link.
+  /// \returns itcm, itcm_fetch, dtcm, axi_data, axi_outstanding and, when
+  /// modeled, ext_mem_link.
   std::vector<const ResourcePool *> getPools() const;
 
   /// \returns the DMA, for its statistics.

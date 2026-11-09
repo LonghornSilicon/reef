@@ -32,7 +32,7 @@ uint32_t reef_perf::getTcmPriority(RequesterKind Kind) {
 Tcm::Tcm(std::string Name, uint32_t Latency, uint32_t LineBytes,
          uint32_t CyclesPerLine)
     : Latency(Latency), LineBytes(LineBytes), CyclesPerLine(CyclesPerLine),
-      Port(std::move(Name), 1) {}
+      Port(Name, 1), FetchUse(Name + "_fetch", 1) {}
 
 MemResponse Tcm::access(const MemRequest &Request) {
   if (getTcmPriority(Request.Requester) != 0)
@@ -47,6 +47,8 @@ MemResponse Tcm::access(const MemRequest &Request) {
   for (const MemAccess &Access : Request.Accesses)
     S.Bytes += Access.Size;
   S.PortCycles += Occupancy;
+  if (Request.Requester == RequesterKind::IFetch)
+    return accessFetch(Request, Occupancy);
   return accessCore(Request, Occupancy);
 }
 
@@ -81,11 +83,40 @@ MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
   Response.Latency = Latency + Occupancy - CyclesPerLine;
   Response.Start = Port.reserve(Request.Earliest, Occupancy);
   statsFor(Request.Requester).WaitCycles += Response.Start - Request.Earliest;
-  CoreBusy[Response.Start] = Response.Start + Occupancy;
-  for (Cycle C = Response.Start; C < Response.Start + Occupancy; ++C)
+  claimForCore(Response.Start, Occupancy);
+  return Response;
+}
+
+MemResponse Tcm::accessFetch(const MemRequest &Request, uint64_t Occupancy) {
+  // Fetch is core traffic, so lower priorities never get its cycles. An LSU
+  // access to the ITCM wins over fetch in the RTL; the LSU books its own port
+  // (Port), so it never waits for fetch, and fetch keeps its own timing.
+  MemResponse Response;
+  Response.Start = Request.Earliest;
+  Response.Occupancy = Occupancy;
+  Response.Latency = Latency + Occupancy - CyclesPerLine;
+  claimForCore(Response.Start, Occupancy);
+  FetchUse.reserve(Response.Start, Occupancy);
+  return Response;
+}
+
+void Tcm::claimForCore(Cycle Start, uint64_t Occupancy) {
+  // Merge with every booking that overlaps or touches [Start, End), so a
+  // short fetch booking never hides the rest of a longer LSU booking.
+  Cycle Begin = Start;
+  Cycle End = Start + Occupancy;
+  auto It = CoreBusy.upper_bound(Start);
+  if (It != CoreBusy.begin() && std::prev(It)->second >= Start)
+    --It;
+  while (It != CoreBusy.end() && It->first <= End) {
+    Begin = std::min(Begin, It->first);
+    End = std::max(End, It->second);
+    It = CoreBusy.erase(It);
+  }
+  CoreBusy[Begin] = End;
+  for (Cycle C = Start; C < Start + Occupancy; ++C)
     if (Owner.contains(C))
       bump(C);
-  return Response;
 }
 
 Tcm::Booking Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy,

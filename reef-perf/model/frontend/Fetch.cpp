@@ -140,6 +140,15 @@ void Fetch::fetchGroup() {
   if (Fetched > 0) {
     ++NumGroups;
     LastGroupRedirected = Redirect;
+    if (Mem) {
+      const Address Line = Ibuf[Ibuf.size() - Fetched]->PC & ~Address{15};
+      const MemAccess Access{Line, 16, false, 0};
+      MemRequest Request;
+      Request.Requester = RequesterKind::IFetch;
+      Request.Accesses = std::span<const MemAccess>(&Access, 1);
+      Request.Earliest = Now;
+      Mem->access(Request);
+    }
   } else if (Done) {
     ++NumGroups;
   }

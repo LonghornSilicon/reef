@@ -51,6 +51,12 @@ MemResponse Memory::access(const MemRequest &Request) {
   const Cycle Now = getClock()->currentCycle();
   ITCM.forgetBefore(Now);
   DTCM.forgetBefore(Now);
+  // Fetch books only the ITCM; fetch over AXI (outside the ITCM) is not
+  // modeled, as before.
+  if (Request.Requester == RequesterKind::IFetch &&
+      (Request.Accesses.empty() ||
+       getRegionKind(Request.Accesses.front().Addr) != RegionKind::ITCM))
+    return {Request.Earliest, 1, 1};
   // An empty access list (e.g. a vector op with vl = 0) is one DTCM line.
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM
@@ -103,7 +109,8 @@ MemResponse Memory::addExtMemTime(const MemRequest &Request,
 }
 
 std::vector<const ResourcePool *> Memory::getPools() const {
-  std::vector<const ResourcePool *> Pools = {&ITCM.getPort(), &DTCM.getPort()};
+  std::vector<const ResourcePool *> Pools = {
+      &ITCM.getPort(), &ITCM.getFetchUse(), &DTCM.getPort()};
   for (const ResourcePool *Pool : AXI.getPools())
     Pools.push_back(Pool);
   if (Ext.isTimed())
