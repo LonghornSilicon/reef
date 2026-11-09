@@ -22,7 +22,9 @@ set(REEF_PERF_TESTS
     frontend/InstDecodeTest
     frontend/ZvtTest
     matrix/MatrixFabricTest
+    memory/DmaTest
     memory/MemTimingTest
+    memory/TcmTest
     vector/VectorTest
 )
 foreach(path ${REEF_PERF_TESTS})

@@ -26,28 +26,6 @@ namespace reef_perf {
 uint32_t countDistinctBlocks(std::span<const MemAccess> Accesses,
                              uint32_t BlockBytes);
 
-/// An ITCM or DTCM: one port moving a line every `CyclesPerLine` cycles, with
-/// latency = `Latency` + transfer cycles - 1. No banks.
-class TcmModel {
-public:
-  /// Creates a TCM whose port is named \p Name in statistics.
-  TcmModel(std::string Name, uint32_t Latency, uint32_t LineBytes,
-           uint32_t CyclesPerLine);
-
-  /// Times \p Accesses, starting no earlier than \p Earliest, and books the
-  /// port. \returns the timing.
-  MemResponse access(std::span<const MemAccess> Accesses, Cycle Earliest);
-
-  /// \returns the port, for the end-of-run summary.
-  const ResourcePool &getPort() const { return Port; }
-
-private:
-  uint32_t Latency;
-  uint32_t LineBytes;
-  uint32_t CyclesPerLine;
-  ResourcePool Port;
-};
-
 /// The AXI master port and the memory behind it, as a black box: one beat per
 /// cycle on the data channel, at most `MaxOutstanding` operations in flight,
 /// and a fixed `Latency`. Reads and writes share one channel.

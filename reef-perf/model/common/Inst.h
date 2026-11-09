@@ -63,6 +63,7 @@ struct MemAccess {
   Address Addr = 0;     ///< Byte address.
   uint8_t Size = 0;     ///< Size in bytes.
   bool IsStore = false; ///< True for a store.
+  uint64_t Value = 0;   ///< Value stored (stores only), from Spike.
 };
 
 /// Bytes in one vector register (VLEN = 128 on M3).

@@ -41,28 +41,6 @@ TEST(DistinctBlocksTest, ZeroBlockSizeThrows) {
                std::invalid_argument);
 }
 
-TEST(TcmModelTest, SingleLineAccessHasBaseLatency) {
-  TcmModel TCM("dtcm", 2, 16, 1);
-  MemResponse Response = TCM.access(getAccesses({0x10000}, 4), 5);
-  EXPECT_EQ(Response.Start, 5U);
-  EXPECT_EQ(Response.Occupancy, 1U);
-  EXPECT_EQ(Response.Latency, 2U);
-}
-
-TEST(TcmModelTest, EachExtraLineAddsOccupancyAndLatency) {
-  TcmModel TCM("dtcm", 2, 16, 1);
-  MemResponse Response =
-      TCM.access(getAccesses({0x10000, 0x10010, 0x10020, 0x10030}, 4), 0);
-  EXPECT_EQ(Response.Occupancy, 4U);
-  EXPECT_EQ(Response.Latency, 5U);
-}
-
-TEST(TcmModelTest, BusyPortDelaysTheNextAccess) {
-  TcmModel TCM("dtcm", 2, 16, 3);
-  EXPECT_EQ(TCM.access(getAccesses({0x10000}, 4), 0).Start, 0U);
-  EXPECT_EQ(TCM.access(getAccesses({0x10000}, 4), 1).Start, 3U);
-}
-
 TEST(AxiModelTest, BeatsFollowTheBusWidth) {
   AxiModel AXI(20, 32, 4);
   MemResponse Response = AXI.access(getAccesses({0x0, 0x20}, 4), 0);

@@ -48,6 +48,8 @@ without write forwarding (`Decode.scala:347-361`, `regd`); every other reader
 gets the value one cycle earlier (`comb`). The model now does the same:
 `Dispatch` adds one cycle for those reads, and `lsu_scalar_latency_overhead`
 goes from 3 to 2, so `load_chain` stays at 5 cycles and other load uses take 4.
+(#42 later set `dtcm_latency` to 1, the M3 SRAM, and the overhead to 3; the
+totals are the same.)
 
 A registered read waits only once its writer has a ready cycle. A writer the
 model has not scheduled yet (`vmv.x.s` until the vector unit retires it) is

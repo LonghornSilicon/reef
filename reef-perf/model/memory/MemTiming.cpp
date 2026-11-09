@@ -26,23 +26,6 @@ uint32_t reef_perf::countDistinctBlocks(std::span<const MemAccess> Accesses,
   return static_cast<uint32_t>(Blocks.size());
 }
 
-TcmModel::TcmModel(std::string Name, uint32_t Latency, uint32_t LineBytes,
-                   uint32_t CyclesPerLine)
-    : Latency(Latency), LineBytes(LineBytes), CyclesPerLine(CyclesPerLine),
-      Port(std::move(Name), 1) {}
-
-MemResponse TcmModel::access(std::span<const MemAccess> Accesses,
-                             Cycle Earliest) {
-  MemResponse Response;
-  // Each distinct line holds its TCM memory port for CyclesPerLine cycles.
-  // The first line completes after Latency; additional lines are serialized.
-  const uint64_t Blocks = countDistinctBlocks(Accesses, LineBytes);
-  Response.Occupancy = Blocks * CyclesPerLine;
-  Response.Latency = Latency + (Blocks - 1) * CyclesPerLine;
-  Response.Start = Port.reserve(Earliest, Response.Occupancy);
-  return Response;
-}
-
 AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
                    uint32_t MaxOutstanding)
     : Latency(Latency), BytesPerBeat(BytesPerBeat), Data("axi_data", 1),
