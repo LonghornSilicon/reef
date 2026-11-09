@@ -1,0 +1,36 @@
+# Turns on the Zvt matrix extension, so programs that use it run on the
+# matrix module. M3 has no matrix engine and its RTL traps on Zvt; CoralNPU
+# builds with VME (8a5e1b31+) run it. The core stays M3's, so only per-op
+# differences, not whole ROIs, compare with the VME RTL (docs/matrix.md).
+# The matrix module's own parameters keep their built-in CoralNPU defaults;
+# array alternatives are overlays in configs/matrix/.
+#
+# The core, LSU included, stays M3's: tile loads and stores cost what a
+# vector register does on M3's LSU (lsu_tile_cost false, below). The VME
+# RTL's newer core charges them less; the matrix_diff experiment sets that
+# for correlation (REFERENCE_CORE_PARAMS). Nothing here changes a program
+# without Zvt instructions.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml [-c configs/matrix/<array>.yaml]
+top:
+  frontend:
+    params:
+      zvt: true
+  core:
+    lsu:
+      params:
+        # Zvt tile beats can take their own LSU cost (core/Lsu.h). Off here:
+        # M3 + Zvt keeps M3's LSU, so a tile beat costs a vector register
+        # (lsu_vector_* in m3.yaml). The values below are the newer
+        # CoralNPU 8a5e1b31 LSU's (2 cycles per tile instruction + 1 per
+        # 16-byte beat, tile_{load,store}{,32}_burst in
+        # microbenchmarks/matrix/rtl_vme.csv), used only when lsu_tile_cost
+        # is true: -p top.core.lsu.params.lsu_tile_cost true models a core
+        # with that LSU's tile path. Which LSU Reef has is the core owner's
+        # decision (docs/lsu-tile-beats.md).
+        lsu_tile_cost: false
+        lsu_tile_inst_overhead: 1   # TRACE (sum with switch); split INFER
+        lsu_tile_beat_overhead: 0   # TRACE: 4 beats cost 3 more than 1
+        lsu_tile_switch_cycles: 1   # INFER: as lsu_vector_switch_cycles

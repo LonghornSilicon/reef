@@ -22,8 +22,10 @@ int main() {
     fill.int8s(q, kPositions * kWidth);
     fill.int8s(k, kPositions * kWidth);
     fill.int8s(v, kPositions * kWidth);
+    bench::roi_begin();
     reef_kernels::attention_head_int8(kPositions, kPositions, kWidth, 0, 0, q,
                                       kWidth, k, v, 10, exp_table, 8, scores,
                                       probs, out, kWidth);
+    bench::roi_end();
     return 0;
 }

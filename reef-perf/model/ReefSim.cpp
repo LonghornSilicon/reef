@@ -58,6 +58,40 @@ static void writeTopDown(std::ostream &OS, const TopDownSlots &Slots) {
   OS << "\n    }\n  },\n";
 }
 
+/// Writes \p M's statistics as the "matrix" JSON object (last in the file).
+static void writeMatrix(std::ostream &OS, const Matrix &M) {
+  const MatrixStats &S = M.getStats();
+  OS << "  \"matrix\": {\n    \"ops\": {";
+  for (size_t Op = 1; Op < S.Ops.size(); ++Op)
+    OS << (Op > 1 ? ", " : "") << '"'
+       << getMatrixOpName(static_cast<MatrixOp>(Op)) << "\": " << S.Ops[Op];
+  double Utilization = S.CapacityMacs == 0
+                           ? 0.0
+                           : static_cast<double>(S.UsefulMacs) /
+                                 static_cast<double>(S.CapacityMacs);
+  OS << "},\n"
+     << "    \"useful_macs\": " << S.UsefulMacs << ",\n"
+     << "    \"capacity_macs\": " << S.CapacityMacs << ",\n"
+     << "    \"mac_utilization\": " << Utilization << ",\n"
+     << "    \"array_busy_cycles\": " << S.ArrayBusyCycles << ",\n"
+     << "    \"mem_beats\": " << S.MemBeats << ",\n"
+     << "    \"subtile_reads\": " << S.SubtileReads << ",\n"
+     << "    \"subtile_writes\": " << S.SubtileWrites << ",\n";
+  double Area = M.getAreaUm2();
+  double Energy = M.getEnergyPj();
+  OS << "    \"area_um2\": ";
+  if (Area < 0.0)
+    OS << "null";
+  else
+    OS << Area;
+  OS << ",\n    \"energy_pj\": ";
+  if (Energy < 0.0)
+    OS << "null";
+  else
+    OS << Energy;
+  OS << "\n  }\n";
+}
+
 ReefSim::ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
                  const SpikeOptions &Options)
     : sparta::app::Simulation("reef_perf", &Scheduler),
@@ -113,6 +147,8 @@ void ReefSim::bindTree_() {
       MemoryModule.getUnit()->getHost().getBootCycles());
   CoreModule.setMemory(MemoryModule.getUnit());
   VectorModule.getUnit()->setLsu(CoreModule.getVectorLsu());
+  MatrixModule.getUnit()->setLsu(CoreModule.getVectorLsu());
+  MatrixModule.getUnit()->setVectorRegisters(VectorModule.getUnit());
   CoreModule.setInstBuffer(FrontendModule.getUnit());
 }
 
@@ -246,5 +282,7 @@ void ReefSim::writeJSON(std::ostream &OS) const {
       First = false;
     }
   }
-  OS << "\n  }\n}\n";
+  OS << "\n  },\n";
+  writeMatrix(OS, *MatrixModule.getUnit());
+  OS << "}\n";
 }

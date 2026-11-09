@@ -48,7 +48,9 @@ top:
     lsu:
       params:
         lsu_queue_entries: 4    # Lsu.scala:835 CircularBufferMulti(..., 4)
-        lsu_scalar_latency_overhead: 4   # Scalar LSU pipeline beyond the 1-cycle DTCM: 5-cycle lw-to-use (load_chain) - 1
+        lsu_scalar_latency_overhead: 3   # Scalar LSU pipeline beyond the 1-cycle DTCM: 4-cycle
+                                          # load-to-use; an address use adds 1 (Dispatch), so
+                                          # load_chain stays 5
         lsu_scalar_occupancy_overhead: 3 # One scalar memory op every 4 cycles
         lsu_vector_load_reg_overhead: 3   # B14: fit to vle8 microbenchmarks on the
         lsu_vector_store_reg_overhead: 2  # RTL at LMUL 1 and 8 (per register:
@@ -122,11 +124,12 @@ top:
                                        # 302a42d3 (rtl_bugs.md at the top of
                                        # the Reef repository)
   matrix:
-    params:                   # PLACEHOLDERS: no matrix ISA or RTL yet
-      mtx_queue_entries: 4
-      mtx_lanes: 1
-      mtx_latency: 8
-      mtx_occupancy: 4
+    # M3 has no matrix engine; Zvt programs only run on CoralNPU builds with
+    # VME (8a5e1b31+). The built-in defaults model that engine; each value's
+    # source is in docs/matrix.md. Alternative arrays are overlays in
+    # configs/matrix/ (reef_perf -c configs/machines/m3.yaml -c <overlay>).
+    params:
+      mtx_queue_entries: 4    # PLACEHOLDER: CoralNPU shares the RVV queue
   memory:
     params:
       itcm_latency: 1         # SRAM.scala: the ITCM is the same 1-cycle TCM128 SRAM as the DTCM
