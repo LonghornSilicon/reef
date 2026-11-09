@@ -28,11 +28,15 @@ uint32_t countDistinctBlocks(std::span<const MemAccess> Accesses,
 
 /// The AXI master port and the memory behind it, as a black box: one beat per
 /// cycle on the data channel, at most `MaxOutstanding` operations in flight,
-/// and a fixed `Latency`. Reads and writes share one channel.
+/// and a fixed `Latency`. Reads and writes share one channel. With
+/// `BlockingReads`, a read holds its requester until its read response
+/// returns (occupancy = latency), as M3's blocking e-bus does; a write holds
+/// it only while its beats go out.
 class AxiModel {
 public:
   /// Creates the port with a \p BytesPerBeat-wide data bus.
-  AxiModel(uint32_t Latency, uint32_t BytesPerBeat, uint32_t MaxOutstanding);
+  AxiModel(uint32_t Latency, uint32_t BytesPerBeat, uint32_t MaxOutstanding,
+           bool BlockingReads = false);
 
   /// Times \p Accesses, starting no earlier than \p Earliest, and books the
   /// data channel and an outstanding slot. \returns the timing.
@@ -46,6 +50,7 @@ public:
 private:
   uint32_t Latency;
   uint32_t BytesPerBeat;
+  bool BlockingReads;
   ResourcePool Data;        // One beat per cycle.
   ResourcePool Outstanding; // Each entry held until its operation is done.
 };

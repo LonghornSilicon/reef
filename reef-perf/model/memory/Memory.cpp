@@ -14,7 +14,7 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
       DTCM("dtcm", Params->dtcm_latency, Params->dtcm_line_bytes,
            Params->dtcm_cycles_per_line),
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
-          Params->axi_max_outstanding),
+          Params->axi_max_outstanding, Params->axi_blocking_reads),
       DMA(Params->dma_setup_cycles, Params->dma_beat_bytes,
           [this](Address Addr) -> Tcm * {
             switch (getRegionKind(Addr)) {
