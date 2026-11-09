@@ -1,0 +1,130 @@
+//===- MatrixFabricTest.cpp - Matrix fabric timing tests ------------------===//
+
+#include "matrix/MatrixFabric.h"
+
+#include <gtest/gtest.h>
+
+#include <stdexcept>
+
+using namespace reef_perf;
+
+namespace {
+
+TEST(MatrixFabricTest, CoralDefaultsFullTile) {
+  // 64 PEs x 4 int8 lanes = 256 MACs/cycle; 1024 MACs take 4 cycles, the
+  // PE-busy count measured for vtmmu tm = tn = 16, tk = 4.
+  FabricCost C = getMacCost(FabricConfig{}, 16, 16, 4, MatrixType::Int8);
+  EXPECT_EQ(C.Passes, 4U);
+  EXPECT_EQ(C.Busy, 4U);
+  EXPECT_EQ(C.Occupancy, 4U);
+  EXPECT_EQ(C.Latency, 4U + 9U); // + PipelineDepth
+  EXPECT_EQ(C.UsefulMacs, 1024U);
+  EXPECT_EQ(C.CapacityMacs, 1024U);
+}
+
+TEST(MatrixFabricTest, CoralDefaultsOtherTypes) {
+  EXPECT_EQ(getMacCost(FabricConfig{}, 16, 16, 1, MatrixType::Fp32).Busy, 4U);
+  EXPECT_EQ(getMacCost(FabricConfig{}, 16, 16, 2, MatrixType::Bf16).Busy, 4U);
+}
+
+TEST(MatrixFabricTest, CoralPartialTilesFollowThePeArray) {
+  // busy = min(4, ceil(tm / 2)), no tn term (zvt_pe_array.sv:216-217); the
+  // VME RTL takes 4 cycles per independent 8x8 vtmmu (mac_indep_tm8tn8).
+  auto Busy = [](uint32_t TM, uint32_t TN) {
+    return getMacCost(FabricConfig{}, TM, TN, 4, MatrixType::Int8).Busy;
+  };
+  EXPECT_EQ(Busy(1, 16), 1U);
+  EXPECT_EQ(Busy(4, 16), 2U);
+  EXPECT_EQ(Busy(8, 8), 4U);
+  EXPECT_EQ(Busy(16, 4), 4U);
+  EXPECT_EQ(Busy(16, 16), 4U);
+}
+
+TEST(MatrixFabricTest, GenericPartialTileFollowsTheFormula) {
+  FabricConfig F;
+  F.Map = Mapping::Generic;
+  EXPECT_EQ(getMacCost(F, 8, 16, 4, MatrixType::Int8).Busy, 2U);
+  EXPECT_EQ(getMacCost(F, 8, 8, 4, MatrixType::Int8).Busy, 1U);
+  EXPECT_EQ(getMacCost(F, 16, 16, 4, MatrixType::Int8).Busy, 4U);
+}
+
+TEST(MatrixFabricTest, WeightStationarySystolic) {
+  FabricConfig F;
+  F.Map = Mapping::Generic;
+  F.Rows = 16;
+  F.Cols = 16;
+  F.MacsPerPeInt8 = 1;
+  F.Flow = Dataflow::Weight;
+  F.RowOperand = Delivery::Forwarded;
+  F.ColOperand = Delivery::Forwarded;
+  F.Reduce = Reduction::Chain;
+  F.DoubleBufferStationary = true;
+  F.PipelineDepth = 1;
+  FabricCost C = getMacCost(F, 16, 16, 4, MatrixType::Int8);
+  // Rows map K (4 used), columns map N (16), M = 16 streams.
+  EXPECT_EQ(C.Passes, 1U);
+  EXPECT_EQ(C.Busy, 16U + 4U); // stream + one exposed load of 4 rows
+  // Fill (16 - 1) + (4 - 1), drain (4 - 1), pipeline 1.
+  EXPECT_EQ(C.Latency, 15U + 3U + 20U + 3U + 1U);
+  EXPECT_EQ(C.UsefulMacs, 1024U);
+  EXPECT_EQ(C.CapacityMacs, 16U * 16U * 20U);
+}
+
+TEST(MatrixFabricTest, StationaryLoadsWithoutDoubleBuffering) {
+  FabricConfig F;
+  F.Map = Mapping::Generic;
+  F.Rows = 2;
+  F.Cols = 16;
+  F.MacsPerPeInt8 = 1;
+  F.Flow = Dataflow::Weight;
+  F.StationaryLoadCycles = 5;
+  FabricCost C = getMacCost(F, 16, 16, 4, MatrixType::Int8);
+  EXPECT_EQ(C.Passes, 2U);               // K = 4 over 2 rows
+  EXPECT_EQ(C.Busy, 2U * 16U + 2U * 5U); // every pass loads
+}
+
+TEST(MatrixFabricTest, AdderTreeDrain) {
+  FabricConfig F;
+  F.Map = Mapping::Generic;
+  F.Rows = 8;
+  F.Cols = 8;
+  F.MacsPerPeInt8 = 4;
+  F.Flow = Dataflow::Weight;
+  F.Reduce = Reduction::Tree;
+  F.TreeLevelLatency = 2;
+  F.PipelineDepth = 0;
+  F.DoubleBufferStationary = true;
+  FabricCost C = getMacCost(F, 16, 16, 4, MatrixType::Int8);
+  // K = 4 fits one PE's lanes: 1 row used; tree over 1 x 4 inputs = 2 levels.
+  EXPECT_EQ(C.Passes, 2U);
+  EXPECT_EQ(C.Busy, 2U * 16U + 1U);
+  EXPECT_EQ(C.Latency, C.Busy + 2U * 2U);
+}
+
+TEST(MatrixFabricTest, PipelineAcrossOpsAndClockDivider) {
+  FabricConfig F;
+  F.PipelineAcrossOps = false;
+  F.ClockDivider = 2;
+  FabricCost C = getMacCost(F, 16, 16, 4, MatrixType::Int8);
+  EXPECT_EQ(C.Latency, 2U * 13U);
+  EXPECT_EQ(C.Occupancy, C.Latency);
+  EXPECT_EQ(C.Busy, 8U);
+}
+
+TEST(MatrixFabricTest, RejectsBadConfigs) {
+  FabricConfig F;
+  F.MacsPerPeBf16 = 0;
+  EXPECT_THROW(getMacCost(F, 16, 16, 2, MatrixType::Bf16),
+               std::invalid_argument);
+  EXPECT_THROW(parseDataflow("row"), std::invalid_argument);
+  EXPECT_THROW(parseDelivery("multicast"), std::invalid_argument);
+  EXPECT_THROW(parseReduction("ring"), std::invalid_argument);
+  EXPECT_THROW(parseMapping("diagonal"), std::invalid_argument);
+  FabricConfig Ws;
+  Ws.Flow = Dataflow::Weight; // The Coral mapping is output-stationary only.
+  EXPECT_THROW(getMacCost(Ws, 16, 16, 4, MatrixType::Int8),
+               std::invalid_argument);
+  EXPECT_EQ(parseDataflow("weight"), Dataflow::Weight);
+}
+
+} // namespace
