@@ -20,6 +20,8 @@ set(REEF_PERF_TESTS
     common/ResourcePoolTest
     common/TypesTest
     frontend/InstDecodeTest
+    frontend/ZvtTest
+    matrix/MatrixFabricTest
     memory/DmaTest
     memory/MemTimingTest
     memory/TcmTest

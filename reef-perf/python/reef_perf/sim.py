@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +81,9 @@ class SimResult:
         pools: Per pool: count (resources), ops and busy_cycles.
         topdown: Where the dispatch slots went, as the simulator reports it;
             reef_perf.topdown turns it into a tree.
+        matrix: Matrix-engine statistics (ops by kind, MACs, utilization,
+            memory beats, and area/energy estimates when configured); empty
+            for output written before the matrix module reported them.
     """
 
     program: str
@@ -95,6 +98,7 @@ class SimResult:
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
     topdown: dict[str, Any]
+    matrix: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -128,6 +132,7 @@ class SimResult:
                 for name, counters in data["pools"].items()
             },
             topdown=dict(data["topdown"]),
+            matrix=dict(data.get("matrix", {})),
         )
 
     def to_json(self) -> dict[str, Any]:
