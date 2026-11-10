@@ -19,9 +19,9 @@
 
 namespace npu {
 
-// ---- Model: TinyStories-Instruct-8M (GPT-Neo), int8 weights ---------------
+// ---- Model: TinyStories-28M (GPT-Neo), int8 weights ----------------------
 #ifndef E2E_HIDDEN
-#define E2E_HIDDEN 256
+#define E2E_HIDDEN 512
 #endif
 #ifndef E2E_LAYERS
 #define E2E_LAYERS 8
@@ -50,7 +50,7 @@ static_assert(kHeadDim % 4 == 0 && kHidden % 64 == 0, "tile shapes");
 // Prefill block: tokens per tile (tile rows). Activations are
 // [feature][kBlockTokens].
 #ifndef E2E_BLOCK_TOKENS
-#define E2E_BLOCK_TOKENS 16
+#define E2E_BLOCK_TOKENS 8
 #endif
 constexpr uint32_t kBlockTokens = E2E_BLOCK_TOKENS;
 
