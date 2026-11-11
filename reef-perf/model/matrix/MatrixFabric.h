@@ -52,7 +52,7 @@ enum class Mapping : uint8_t {
   Coral,
   /// Rows and columns tile the array in rows x cols blocks (one pass per
   /// block); for the sweep's other designs. Checked against the cycle-level
-  /// reference in experiments/array_ref (docs/matrix.md, D4).
+  /// reference in experiments/array_ref (docs/matrix-correlation-log.md, D4).
   Generic
 };
 
@@ -106,6 +106,12 @@ struct FabricCost {
   uint64_t UsefulMacs = 0;   ///< TM * TN * TK.
   uint64_t CapacityMacs = 0; ///< MACs the array could do in Busy cycles.
 };
+
+/// \returns CoralNPU's steps per full tile (PROCESS_DELAY = 256 / PEs) for
+/// \p Config's PE count.
+/// \throws std::invalid_argument naming mtx_pe_cols if the count is not 32,
+/// 64, 128 or 256.
+uint64_t getCoralSteps(const FabricConfig &Config);
 
 /// Checks \p Config before a run.
 /// \throws std::invalid_argument naming the first bad parameter: a zero row,

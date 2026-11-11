@@ -5,7 +5,7 @@ and 2N iterations with the reference core's settings
 (matrix_diff.REFERENCE_CORE_PARAMS), and its per-op cost,
 (ROI(2N) - ROI(N)) / ops, must stay within a tolerance of the RTL's, from
 microbenchmarks/matrix/rtl_vme.csv (measured on CoralNPU 8a5e1b31;
-docs/matrix.md, "Correlating it").
+docs/matrix.md, "Measuring against the RTL").
 
 A program is either CORRELATED (it must match) or a KNOWN_GAP (its error is
 outside the matrix module and is tracked elsewhere; matrix_diff compare still
@@ -45,9 +45,10 @@ CORRELATED = {
     "mac_chain_bf16": 0.02,
     "mac_indep_bf16": 0.02,
     # 5.83 against 6.0: ROB-bound, a little differently from the RTL
-    # (docs/matrix.md, B2).
+    # (docs/matrix-correlation-log.md, B2).
     "vtmm_misaligned": 0.05,
-    # C4/C5 (docs/matrix.md): vtzero, moves, tile-write and completion paths.
+    # C4/C5 (docs/matrix-correlation-log.md): vtzero, moves, tile writes
+    # and the completion path.
     "zero_burst": 0.02,
     "move_tv_burst": 0.02,
     "move_vt_burst": 0.02,
@@ -90,7 +91,10 @@ _BY_NAME = {bench.name: bench for bench in BENCHMARKS}
 
 
 RTL_REFERENCE_PE128 = RTL_REFERENCE.with_name("rtl_vme_pe128.csv")
-"""The same programs on a 128-PE CoralNPU build (docs/matrix.md, D4)."""
+"""The same programs on a 128-PE CoralNPU build.
+
+See docs/matrix-correlation-log.md, D4.
+"""
 
 PE128_CONFIG = VME_CONFIG.parents[1] / "matrix" / "coral_128pe.yaml"
 """Model settings for the 128-PE build: 8 x 16 PEs, PROCESS_DELAY 2."""

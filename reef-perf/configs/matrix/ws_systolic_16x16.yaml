@@ -1,5 +1,5 @@
 # NO RTL; FORMULAS CHECKED against the cycle-level reference and SCALE-Sim
-# (docs/matrix.md, D4). A 16x16 weight-stationary systolic array of
+# (docs/matrix.md, "Checking it"). A 16x16 weight-stationary systolic array of
 # scalar MAC PEs. B (weights) is preloaded one row per cycle, double
 # buffered; A streams in from the left and partial sums move down columns.
 # Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):

@@ -53,6 +53,15 @@ TEST(MatrixFabricTest, CoralPartialTilesFollowThePeArray) {
   EXPECT_EQ(Busy(16, 16), 4U);
 }
 
+TEST(MatrixFabricTest, CoralStepsAreTheProcessDelay) {
+  FabricConfig F;
+  EXPECT_EQ(getCoralSteps(F), 4U); // 64 PEs.
+  F.Cols = 16;
+  EXPECT_EQ(getCoralSteps(F), 2U); // 128 PEs.
+  F.Cols = 12;
+  EXPECT_THROW(getCoralSteps(F), std::invalid_argument);
+}
+
 TEST(MatrixFabricTest, CoralStepsScaleWithThePeCount) {
   // PROCESS_DELAY = 256 / NUM_PE steps of 8 / PROCESS_DELAY rows per half.
   auto Busy = [](uint32_t Cols, uint32_t TM) {
@@ -221,8 +230,9 @@ const ReferenceCase ReferenceCases[] = {
 
 TEST(MatrixFabricTest, ReferenceArrays) {
   // The generic formulas against experiments/array_ref, a cycle-level
-  // schedule of the same arrays (docs/matrix.md, D4). The interval may be a
-  // fraction (passes alternate buffers); occupancy is its ceiling.
+  // schedule of the same arrays (docs/matrix-correlation-log.md, D4). The
+  // interval may be a fraction (passes alternate buffers); occupancy is its
+  // ceiling.
   for (const ReferenceCase &R : ReferenceCases) {
     FabricConfig F;
     F.Rows = R.Rows;

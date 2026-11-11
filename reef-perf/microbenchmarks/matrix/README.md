@@ -39,7 +39,7 @@ from the `ITERS` assembler symbol (`--defsym ITERS=<n>`), so the
 `matrix_diff` experiment can build N and 2N and take the per-op difference.
 `microbenchmarks/matrix/rtl_vme.csv` holds those programs' ROIs on the
 CoralNPU `8a5e1b31` VME verification simulator, at N and 2N;
-`rtl_vme_pe128.csv` the same on a 128-PE build (docs/matrix.md, D4). All but
+`rtl_vme_pe128.csv` the same on a 128-PE build (docs/matrix-correlation-log.md, D4). All but
 `tile_store` end by reading their last result back into a scalar, so the model's `ROI_END`
 waits for it; `tile_store` and `gemm_tile` end on a store, which the model
 cannot wait for (docs/matrix.md, open case 2).

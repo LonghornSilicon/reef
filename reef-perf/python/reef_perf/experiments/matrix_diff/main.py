@@ -13,7 +13,7 @@ Each looping matrix microbenchmark is built twice, with N and 2N iterations
 (the ITERS symbol). (ROI(2N) - ROI(N)) / N is the cost of one iteration with
 the one-time costs (setup, the tail still in flight at ROI_END, and most of
 the M3-vs-CoralNPU core difference) cancelled, which is what the matrix
-parameters are calibrated against (docs/matrix.md, "Correlating it").
+parameters are calibrated against (docs/matrix.md, "Measuring against the RTL").
 
 <vme_sim> is vme_core_mini_verification_axi_sim. Writes under
 results/matrix_diff/: elfs/<n>/<name>.elf, model.csv, rtl.csv

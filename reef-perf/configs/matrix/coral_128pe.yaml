@@ -1,6 +1,6 @@
 # CoralNPU's Zvt engine with 128 PEs: COMPRATIO 1/2, PROCESS_DELAY 2
 # (rvv_backend_define.svh:210-220 with COMPRATIO 8/TE). Matches a 128-PE
-# CoralNPU build (docs/matrix.md, D4; rtl_vme_pe128.csv). Use on top of
+# CoralNPU build (docs/matrix-correlation-log.md, D4; rtl_vme_pe128.csv). Use on top of
 # coral_vme.yaml, or alone (its other values are the defaults):
 #   reef_perf --elf x.elf -c configs/machines/m3.yaml \
 #       -c configs/machines/m3_vme.yaml -c configs/matrix/coral_128pe.yaml
@@ -9,5 +9,4 @@ top:
     params:
       mtx_pe_rows: 8
       mtx_pe_cols: 16               # NUM_PE = TE*TE*COMPRATIO = 128
-      mtx_zero_cycles: 2            # PROCESS_DELAY (zvt_ctrl.sv:435-445)
       mtx_mapping: coral

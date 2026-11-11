@@ -52,6 +52,18 @@ Reduction reef_perf::parseReduction(const std::string &Name) {
 
 static uint64_t ceilDiv(uint64_t A, uint64_t B) { return (A + B - 1) / B; }
 
+uint64_t reef_perf::getCoralSteps(const FabricConfig &Config) {
+  constexpr uint64_t TileElems = 16 * 16;
+  uint64_t NumPe = uint64_t{Config.Rows} * Config.Cols;
+  uint64_t Steps = NumPe == 0 ? 0 : TileElems / NumPe;
+  if (Steps == 0 || Steps * NumPe != TileElems || Steps > 8 ||
+      (Steps & (Steps - 1)) != 0)
+    throw std::invalid_argument(
+        "mtx_mapping coral needs mtx_pe_rows x mtx_pe_cols of 32, 64, 128 "
+        "or 256 PEs (a power-of-two share of a 16 x 16 tile)");
+  return Steps;
+}
+
 void reef_perf::checkFabricConfig(const FabricConfig &Config) {
   auto AtLeastOne = [](uint32_t Value, const char *Name) {
     if (Value == 0)
@@ -129,14 +141,7 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
     // the count (cntMax00, zvt_pe_array.sv:216-217). 64 PEs: 4 steps of 2
     // rows, as at 8a5e1b31.
     constexpr uint64_t TileEdge = 16;
-    uint64_t NumPe = uint64_t{Config.Rows} * Config.Cols;
-    uint64_t Steps = TileEdge * TileEdge / NumPe;
-    if (Steps * NumPe != TileEdge * TileEdge || Steps > TileEdge / 2 ||
-        (Steps & (Steps - 1)) != 0)
-      throw std::invalid_argument(
-          "mtx_mapping coral needs mtx_pe_rows x mtx_pe_cols of 32, 64, 128 "
-          "or 256 PEs (a power-of-two share of a 16 x 16 tile)");
-    uint64_t RowsPerStep = TileEdge / 2 / Steps;
+    uint64_t RowsPerStep = TileEdge / 2 / getCoralSteps(Config);
     Cost.Passes = ceilDiv(std::min<uint64_t>(M, TileEdge / 2), RowsPerStep);
   } else {
     Cost.Passes =
@@ -145,7 +150,7 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
   // Busy: cycles a lone MAC holds the array. Interval: cycles between
   // back-to-back MACs, which can be shorter when the next MAC's stationary
   // load overlaps this one's compute. Checked against the cycle-level
-  // reference in experiments/array_ref (docs/matrix.md, D4).
+  // reference in experiments/array_ref (docs/matrix-correlation-log.md, D4).
   Cost.Busy = Cost.Passes * Temporal;
   uint64_t Interval = Cost.Busy;
   if (Config.Flow != Dataflow::Output) {

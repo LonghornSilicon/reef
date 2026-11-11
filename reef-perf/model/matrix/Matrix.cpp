@@ -25,6 +25,18 @@ static uint32_t atLeastOne(uint32_t Value, const char *Name) {
   return Value;
 }
 
+/// \returns mtx_zero_cycles, or, if it is 0, CoralNPU's PROCESS_DELAY for
+/// the Coral mapping (vtzero clears a tile in as many steps as a MAC,
+/// zvt_ctrl.sv:435-445) and 4, Coral's 64-PE value, for other arrays.
+static uint32_t getZeroCycles(const Matrix::MatrixParameterSet *Params,
+                              const FabricConfig &Fabric) {
+  if (Params->mtx_zero_cycles != 0)
+    return Params->mtx_zero_cycles;
+  if (Fabric.Map == Mapping::Coral)
+    return static_cast<uint32_t>(getCoralSteps(Fabric));
+  return 4;
+}
+
 static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   FabricConfig F;
   F.Rows = Params->mtx_pe_rows;
@@ -59,7 +71,7 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       CompleteLatency(Params->mtx_complete_latency), Fabric(getFabric(Params)),
       NumArrays(atLeastOne(Params->mtx_num_arrays, "mtx_num_arrays")),
       AccRawCycles(Params->mtx_acc_raw_cycles),
-      ZeroCycles(Params->mtx_zero_cycles),
+      ZeroCycles(getZeroCycles(Params, Fabric)),
       MoveCyclesPerUop(Params->mtx_move_cycles_per_uop),
       MoveLatency(Params->mtx_move_latency),
       TileWriteLatency(Params->mtx_tile_write_latency),

@@ -140,7 +140,7 @@ settings (6 and 17 cycles per `vtle32`).
   memory latency − 2 after the access starts).
 - `tile_load_behind_mac` (a MAC, then 8 `vtle8` and a `lw`) ran 12.5% fast
   until its waveform showed the cause was on the matrix side (MAC pipeline
-  depth, command path, controller drain, FIFO pop latency; `matrix.md`, C4).
+  depth, command path, controller drain, FIFO pop latency; `matrix-correlation-log.md`, C4).
   It now matches, so the 1 + 1 split does not show there; it is still a
   guess.
 
@@ -168,7 +168,7 @@ settings (6 and 17 cycles per `vtle32`).
    the matrix module can still mark a tile beat.
 5. **Take method 2** (below), or tell us the RTL reason if you already know
    it, so the fitted values can be replaced by the mechanism.
-6. **Vector load latency.** `gemm_tile` (matrix.md, "Held-out check")
+6. **Vector load latency.** `gemm_tile` (matrix-correlation-log.md, "Held-out check")
    shows that even with the newer LSU's vector load throughput, the
    model's vector loads take longer from dispatch to writeback than the
    RTL's, enough to keep a 19-instruction k-step's MAC in the 16-entry ROB

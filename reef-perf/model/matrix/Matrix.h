@@ -25,7 +25,7 @@
 /// only `mtx_acc_raw_cycles` after that MAC started, as CoralNPU's hitRaw
 /// check does. Tile contents are not modeled.
 ///
-/// All timing values not cited in docs/matrix.md are placeholders.
+/// Each default's source is in docs/matrix.md, "Parameters".
 ///
 //===----------------------------------------------------------------------===//
 
@@ -124,9 +124,9 @@ public:
     PARAMETER(uint32_t, mtx_fabric_clock_divider, 1,
               "Core cycles per fabric cycle")
     // Tile storage and data movement.
-    PARAMETER(uint32_t, mtx_zero_cycles, 4,
-              "Cycles vtzero holds the "
-              "controller")
+    PARAMETER(uint32_t, mtx_zero_cycles, 0,
+              "Cycles vtzero holds the controller; 0 derives it: 256 / PEs "
+              "for mtx_mapping coral (PROCESS_DELAY), 4 otherwise")
     PARAMETER(uint32_t, mtx_move_cycles_per_uop, 1,
               "Controller cycles per vtmv uop")
     PARAMETER(uint32_t, mtx_move_latency, 0,
