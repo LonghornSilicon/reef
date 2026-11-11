@@ -496,8 +496,8 @@ What to sweep, across modules, is collected in `sweep-candidates.md`.
 
 | # | Step | Verified by |
 | --- | --- | --- |
-| D1 | **Test every preset:** each `configs/matrix/*.yaml` loads on top of `vme.yaml` and runs `gemm_tile`. | New pytest |
-| D2 | **Validate parameters at construction:** zero rows, columns, lanes, arrays or divider, and unknown dataflow, delivery, reduction or mapping names, each fail with the parameter's name in the error. | ctest |
+| D1 | **Done (2026-11-11).** Every `configs/matrix/*.yaml` runs `mac_indep` and `gemm_tile` on top of `m3_vme.yaml`, within its peak MAC rate (`test_presets_run_and_respect_compute_bound`). New preset `coral_128pe.yaml`, the RTL-checked 128-PE array. | New pytest |
+| D2 | **Done (2026-11-11).** A zero row, column, lane, array, divider, queue, issue-width or FIFO count, a uop buffer smaller than a MAC, an unknown dataflow, delivery, reduction or mapping name, or a Coral PE count other than 32-256 stops the run with the parameter's name in the error (`checkFabricConfig`; `MatrixFabricTest`, `test_bad_matrix_parameters_fail_by_name`). | ctest |
 | D3 | **A sweep script** that runs a grid of `-p` overrides and writes ROI cycles, `mac_utilization` and the cost estimates to CSV. | Runs on the presets |
 | D4 | **Coral-shaped arrays done (2026-11-11):** the Coral mapping scales with the PE count and matches a 128-PE CoralNPU build (results below; `test_matches_rtl_at_128_pes`). **Still open: systolic and tree presets** (case 17), which need a reference array simulator. 256 PEs is out of scope for Reef. | Per GEMM shape |
 

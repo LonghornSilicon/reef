@@ -61,8 +61,8 @@ Mapping parseMapping(const std::string &Name);
 /// \throws std::invalid_argument for any other name.
 Dataflow parseDataflow(const std::string &Name);
 /// \returns the Delivery named \p Name ("broadcast", "forwarded").
-/// \throws std::invalid_argument for any other name.
-Delivery parseDelivery(const std::string &Name);
+/// \throws std::invalid_argument naming \p Param for any other name.
+Delivery parseDelivery(const std::string &Name, const std::string &Param);
 /// \returns the Reduction named \p Name ("in_place", "chain", "tree").
 /// \throws std::invalid_argument for any other name.
 Reduction parseReduction(const std::string &Name);
@@ -104,6 +104,13 @@ struct FabricCost {
   uint64_t UsefulMacs = 0;   ///< TM * TN * TK.
   uint64_t CapacityMacs = 0; ///< MACs the array could do in Busy cycles.
 };
+
+/// Checks \p Config before a run.
+/// \throws std::invalid_argument naming the first bad parameter: a zero row,
+/// column, MAC-lane count or clock divider, the Coral mapping with a
+/// dataflow other than output-stationary, or a Coral PE count that is not
+/// 32, 64, 128 or 256.
+void checkFabricConfig(const FabricConfig &Config);
 
 /// \returns the timing of a TM x TN x TK MAC with \p Type inputs on \p Config.
 /// \throws std::invalid_argument if the array has no rows, columns or MAC

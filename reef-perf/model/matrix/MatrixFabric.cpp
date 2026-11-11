@@ -20,13 +20,14 @@ Dataflow reef_perf::parseDataflow(const std::string &Name) {
                               "' (output, weight, input)");
 }
 
-Delivery reef_perf::parseDelivery(const std::string &Name) {
+Delivery reef_perf::parseDelivery(const std::string &Name,
+                                  const std::string &Param) {
   if (Name == "broadcast")
     return Delivery::Broadcast;
   if (Name == "forwarded")
     return Delivery::Forwarded;
-  throw std::invalid_argument("matrix operand delivery: unknown value '" +
-                              Name + "' (broadcast, forwarded)");
+  throw std::invalid_argument(Param + ": unknown value '" + Name +
+                              "' (broadcast, forwarded)");
 }
 
 Mapping reef_perf::parseMapping(const std::string &Name) {
@@ -50,6 +51,21 @@ Reduction reef_perf::parseReduction(const std::string &Name) {
 }
 
 static uint64_t ceilDiv(uint64_t A, uint64_t B) { return (A + B - 1) / B; }
+
+void reef_perf::checkFabricConfig(const FabricConfig &Config) {
+  auto AtLeastOne = [](uint32_t Value, const char *Name) {
+    if (Value == 0)
+      throw std::invalid_argument(std::string(Name) + " must be at least 1");
+  };
+  AtLeastOne(Config.Rows, "mtx_pe_rows");
+  AtLeastOne(Config.Cols, "mtx_pe_cols");
+  AtLeastOne(Config.MacsPerPeInt8, "mtx_macs_per_pe_int8");
+  AtLeastOne(Config.MacsPerPeBf16, "mtx_macs_per_pe_bf16");
+  AtLeastOne(Config.MacsPerPeFp32, "mtx_macs_per_pe_fp32");
+  AtLeastOne(Config.ClockDivider, "mtx_fabric_clock_divider");
+  // The Coral rules (dataflow, PE count) are checked by one full-tile MAC.
+  getMacCost(Config, 16, 16, 4, MatrixType::Int8);
+}
 
 /// \returns the levels of a binary adder tree over \p Inputs inputs.
 static uint64_t getTreeLevels(uint64_t Inputs) {

@@ -4,9 +4,21 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <stdexcept>
+#include <string>
 
 using namespace reef_perf;
+
+/// \returns the message \p F throws as std::invalid_argument, or "".
+static std::string getError(const std::function<void()> &F) {
+  try {
+    F();
+  } catch (const std::invalid_argument &E) {
+    return E.what();
+  }
+  return "";
+}
 
 namespace {
 
@@ -136,7 +148,8 @@ TEST(MatrixFabricTest, RejectsBadConfigs) {
   EXPECT_THROW(getMacCost(F, 16, 16, 2, MatrixType::Bf16),
                std::invalid_argument);
   EXPECT_THROW(parseDataflow("row"), std::invalid_argument);
-  EXPECT_THROW(parseDelivery("multicast"), std::invalid_argument);
+  EXPECT_THROW(parseDelivery("multicast", "mtx_row_operand"),
+               std::invalid_argument);
   EXPECT_THROW(parseReduction("ring"), std::invalid_argument);
   EXPECT_THROW(parseMapping("diagonal"), std::invalid_argument);
   FabricConfig Ws;
@@ -144,6 +157,44 @@ TEST(MatrixFabricTest, RejectsBadConfigs) {
   EXPECT_THROW(getMacCost(Ws, 16, 16, 4, MatrixType::Int8),
                std::invalid_argument);
   EXPECT_EQ(parseDataflow("weight"), Dataflow::Weight);
+}
+
+TEST(MatrixFabricTest, ZeroSizesNameTheParameter) {
+  auto Error = [](const std::function<void(FabricConfig &)> &Set) {
+    FabricConfig F;
+    Set(F);
+    return getError([&] { checkFabricConfig(F); });
+  };
+  EXPECT_EQ(Error([](FabricConfig &F) { F.Rows = 0; }),
+            "mtx_pe_rows must be at least 1");
+  EXPECT_EQ(Error([](FabricConfig &F) { F.Cols = 0; }),
+            "mtx_pe_cols must be at least 1");
+  EXPECT_EQ(Error([](FabricConfig &F) { F.MacsPerPeInt8 = 0; }),
+            "mtx_macs_per_pe_int8 must be at least 1");
+  EXPECT_EQ(Error([](FabricConfig &F) { F.MacsPerPeBf16 = 0; }),
+            "mtx_macs_per_pe_bf16 must be at least 1");
+  EXPECT_EQ(Error([](FabricConfig &F) { F.MacsPerPeFp32 = 0; }),
+            "mtx_macs_per_pe_fp32 must be at least 1");
+  EXPECT_EQ(Error([](FabricConfig &F) { F.ClockDivider = 0; }),
+            "mtx_fabric_clock_divider must be at least 1");
+  EXPECT_NE(Error([](FabricConfig &F) { F.Cols = 12; }).find("mtx_pe_cols"),
+            std::string::npos);
+  EXPECT_NE(Error([](FabricConfig &F) {
+              F.Flow = Dataflow::Weight;
+            }).find("mtx_mapping"),
+            std::string::npos);
+  EXPECT_EQ(Error([](FabricConfig &) {}), "");
+}
+
+TEST(MatrixFabricTest, UnknownNamesNameTheParameter) {
+  auto Has = [](const std::function<void()> &F, const std::string &Name) {
+    return getError(F).find(Name) != std::string::npos;
+  };
+  EXPECT_TRUE(Has([] { parseDataflow("diagonal"); }, "mtx_dataflow"));
+  EXPECT_TRUE(Has([] { parseDelivery("teleport", "mtx_col_operand"); },
+                  "mtx_col_operand"));
+  EXPECT_TRUE(Has([] { parseReduction("sum"); }, "mtx_reduction"));
+  EXPECT_TRUE(Has([] { parseMapping("other"); }, "mtx_mapping"));
 }
 
 } // namespace

@@ -10,12 +10,20 @@
 #include <cstdint>
 #include <span>
 #include <stdexcept>
+#include <string>
 
 using namespace reef_perf;
 
 /// Bytes in one tile row of 8-bit elements, and in one memory beat (the
 /// 128-bit DTCM bus).
 static constexpr uint32_t SubtileBytes = 16;
+
+/// \returns \p Value. \throws std::invalid_argument naming \p Name if it is 0.
+static uint32_t atLeastOne(uint32_t Value, const char *Name) {
+  if (Value == 0)
+    throw std::invalid_argument(std::string(Name) + " must be at least 1");
+  return Value;
+}
 
 static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   FabricConfig F;
@@ -25,8 +33,8 @@ static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   F.MacsPerPeBf16 = Params->mtx_macs_per_pe_bf16;
   F.MacsPerPeFp32 = Params->mtx_macs_per_pe_fp32;
   F.Flow = parseDataflow(Params->mtx_dataflow);
-  F.RowOperand = parseDelivery(Params->mtx_row_operand);
-  F.ColOperand = parseDelivery(Params->mtx_col_operand);
+  F.RowOperand = parseDelivery(Params->mtx_row_operand, "mtx_row_operand");
+  F.ColOperand = parseDelivery(Params->mtx_col_operand, "mtx_col_operand");
   F.HopLatency = Params->mtx_hop_latency;
   F.Reduce = parseReduction(Params->mtx_reduction);
   F.TreeLevelLatency = Params->mtx_tree_level_latency;
@@ -37,35 +45,34 @@ static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   F.PipelineAcrossOps = Params->mtx_pipeline_across_ops;
   F.ClockDivider = Params->mtx_fabric_clock_divider;
   F.Map = parseMapping(Params->mtx_mapping);
-  // Fails early on a fabric that cannot run int8.
-  getMacCost(F, 1, 1, 1, MatrixType::Int8);
+  checkFabricConfig(F);
   return F;
 }
 
 Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
-    : sparta::Unit(Node, name), QueueEntries(Params->mtx_queue_entries),
+    : sparta::Unit(Node, name),
+      QueueEntries(atLeastOne(Params->mtx_queue_entries, "mtx_queue_entries")),
       CmdLatency(Params->mtx_cmd_latency),
-      UopsPerCycle(Params->mtx_uops_per_cycle),
+      UopsPerCycle(
+          atLeastOne(Params->mtx_uops_per_cycle, "mtx_uops_per_cycle")),
       UopBufferEntries(Params->mtx_uop_buffer_entries),
       CompleteLatency(Params->mtx_complete_latency), Fabric(getFabric(Params)),
-      NumArrays(Params->mtx_num_arrays),
+      NumArrays(atLeastOne(Params->mtx_num_arrays, "mtx_num_arrays")),
       AccRawCycles(Params->mtx_acc_raw_cycles),
       ZeroCycles(Params->mtx_zero_cycles),
       MoveCyclesPerUop(Params->mtx_move_cycles_per_uop),
       MoveLatency(Params->mtx_move_latency),
       TileWriteLatency(Params->mtx_tile_write_latency),
       TileReadLatency(Params->mtx_tile_read_latency),
-      LsuFifoEntries(Params->mtx_lsu_fifo_entries),
+      LsuFifoEntries(
+          atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
       EnergyPerMac(Params->mtx_energy_per_mac_pj),
       EnergyPerSubtile(Params->mtx_energy_per_subtile_access_pj),
       EnergyPerBeat(Params->mtx_energy_per_mem_beat_pj), Cmd("matrix_cmd", 1),
-      Arrays("matrix_array", Params->mtx_num_arrays), Ctrl("matrix_ctrl", 1) {
-  if (QueueEntries == 0 || UopsPerCycle == 0 || LsuFifoEntries == 0)
-    throw std::invalid_argument("mtx_queue_entries, mtx_uops_per_cycle and "
-                                "mtx_lsu_fifo_entries must be at least 1");
+      Arrays("matrix_array", NumArrays), Ctrl("matrix_ctrl", 1) {
   if (UopBufferEntries < 4)
     throw std::invalid_argument("mtx_uop_buffer_entries must hold a MAC's 4 "
                                 "uops");

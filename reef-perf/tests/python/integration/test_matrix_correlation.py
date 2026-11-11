@@ -92,10 +92,7 @@ _BY_NAME = {bench.name: bench for bench in BENCHMARKS}
 RTL_REFERENCE_PE128 = RTL_REFERENCE.with_name("rtl_vme_pe128.csv")
 """The same programs on a 128-PE CoralNPU build (docs/matrix.md, D4)."""
 
-PE128_PARAMS: dict[str, object] = {
-    "top.matrix.params.mtx_pe_cols": 16,
-    "top.matrix.params.mtx_zero_cycles": 2,
-}
+PE128_CONFIG = VME_CONFIG.parents[1] / "matrix" / "coral_128pe.yaml"
 """Model settings for the 128-PE build: 8 x 16 PEs, PROCESS_DELAY 2."""
 
 CORRELATED_PE128 = {
@@ -128,7 +125,7 @@ def _model_cost(
     bench: DiffBenchmark,
     tmp_path: Path,
     reference: Path = RTL_REFERENCE,
-    params: dict[str, object] | None = None,
+    overlays: tuple[Path, ...] = (),
 ) -> float:
     rtl_insts = [
         int(row["roi_instructions"]) for row in _rtl_rows(bench, reference)
@@ -140,8 +137,8 @@ def _model_cost(
         elf = build_microbenchmark(f"matrix/{bench.name}", out, {"ITERS": n})
         result = run_sim(
             elf,
-            params={**REFERENCE_CORE_PARAMS, **(params or {})},
-            overlay_configs=(VME_CONFIG,),
+            params=REFERENCE_CORE_PARAMS,
+            overlay_configs=(VME_CONFIG, *overlays),
         )
         assert result.instructions == result.functional_instructions
         assert result.roi_cycles is not None
@@ -184,7 +181,7 @@ def test_matches_rtl_at_128_pes(
     del cpp_build_dir
     bench = _BY_NAME[name]
     rtl = _rtl_cost(bench, RTL_REFERENCE_PE128)
-    model = _model_cost(bench, tmp_path, RTL_REFERENCE_PE128, PE128_PARAMS)
+    model = _model_cost(bench, tmp_path, RTL_REFERENCE_PE128, (PE128_CONFIG,))
     assert model == pytest.approx(rtl, rel=CORRELATED_PE128[name]), (
         f"{name} at 128 PEs: model {model:.3f} against RTL {rtl:.3f}"
     )
