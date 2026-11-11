@@ -36,7 +36,6 @@ the details:
 | ROB size: M3 has 8 entries, the VME RTL 16 | A MAC holds its entry until its tile write lands: dependent MACs 7.0 cycles each with 8, 4.0 with 16 | core |
 | A tile store holds the LSU while it waits for data (case 5) | about 7% fast on load-then-store chains | core |
 | `vtdiscard`'s dispatch interlock (case 7) | 77% fast on a loop of `vtmmu` + `vtdiscard` | core |
-| Dispatch gives the matrix unit 4 instruction credits | One-uop moves and loads run at about 0.8 per cycle where the RTL does 1 (about 26% slow on bursts of them) | core |
 | The M3 frontend is slower on short loops than the VME core's | about 25% slow on a loop with a branch every 5 instructions | frontend |
 | A vector reader of a `vtmv.v.t` result | 1 cycle late | vector |
 | Matrix and vector work share dispatch on CoralNPU (case 4) | Mixed vector and matrix kernels come out fast | vector |
@@ -127,7 +126,7 @@ with a dataflow other than output-stationary.
                                   │                         through 2-entry FIFOs     │
                                   │          3. tile scoreboard (mt0-mt15)            │
                                   │          4. complete_latency → core ROB ◄─────────┘
-                                  └─ 4 matrix credits; tile loads/stores also take an LSU credit
+                                  └─ 8 matrix credits; tile loads/stores also take an LSU credit
 ```
 
 - **Functional side.** Spike does not know Zvt. FuncSim skips Spike for Zvt
@@ -169,7 +168,7 @@ Each default is tagged with where it comes from:
 
 | Parameter | Default | Tag | Meaning |
 | --- | --- | --- | --- |
-| `mtx_queue_entries` | 4 | PLACEHOLDER | Matrix credits in Dispatch, in instructions: how far the core runs ahead of the engine. Holds one-uop ops to about 0.8 per cycle where the RTL does 1. |
+| `mtx_queue_entries` | 8 | DSE | Matrix credits in Dispatch, in instructions: how far the core runs ahead of the engine. CoralNPU has no such instruction limit; its limit is the 8-uop buffer, so 8 credits never bind before it does. With 4, one-uop moves ran at 0.8 per cycle against the RTL's 1. |
 | `mtx_cmd_latency` | 4 | TRACE | Dispatch to a uop entering the buffer. A MAC's first step comes 6 cycles after dispatch (its 4 uops take 2 cycles), a move's first uop 5 (`mac_chain`, `move_tv_rob`). |
 | `mtx_uops_per_cycle` | 3 | RTL | Uops pushed into the buffer per cycle (`NUM_DP_UOP`). |
 | `mtx_uop_buffer_entries` | 8 | RTL + TRACE | The Zvt reservation station (`ZVT_RS_DEPTH`): 2 MACs or 8 one-uop ops. Pushes see the room before that cycle's pops (`rvv_backend.sv:776-807`; 128-PE `mac_indep_tm4`). |
@@ -339,9 +338,9 @@ they matter. Settled ones say how. Each was checked against CoralNPU `8a5e1b31` 
 can answer it.
 
 1. **RTL numbers (settled, C3-C5, D4).** Every Coral value is now from the
-   RTL source or a VME waveform, except `mtx_queue_entries`: Dispatch's
-   matrix credits, 4 instructions, which hold one-uop ops below the RTL's
-   rate (a core change).
+   RTL source or a VME waveform. `mtx_queue_entries` (Dispatch's matrix
+   credits) has no RTL counterpart; it defaults to 8 so that the 8-uop
+   buffer, which does, is the limit.
 2. **The ROI ends too early in the model (settled: the RTL differs).** On
    CoralNPU a CSR read waits for an empty retirement buffer
    (`Decode.scala:707-708`), and a tile instruction stays there until its

@@ -44,7 +44,7 @@ CORRELATED = {
     "mac_indep_fp32": 0.02,
     "mac_chain_bf16": 0.02,
     "mac_indep_bf16": 0.02,
-    # 5.83 against 6.0: ROB-bound, a little differently from the RTL
+    # 5.75 against 6.0: ROB-bound, a little differently from the RTL
     # (docs/matrix-correlation-log.md, B2).
     "vtmm_misaligned": 0.05,
     # C4/C5 (docs/matrix-correlation-log.md): vtzero, moves, tile writes
@@ -76,10 +76,8 @@ KNOWN_GAP = {
     "vec_load4_burst": "vector reference: M3's LSU, not the newer one",
     "vec_store4_burst": "vector reference: M3's LSU, not the newer one",
     "vtdiscard_after_mac": "core: vtdiscard's dispatch interlock (case 7)",
-    "move_tv8_burst": "core: Dispatch's 4 matrix credits cap one-uop ops; "
-    "and the frontend loop bubble",
-    "move_vt8_burst": "core: Dispatch's 4 matrix credits cap one-uop ops; "
-    "and the frontend loop bubble",
+    "move_tv8_burst": "frontend: the loop branch costs more than on the RTL",
+    "move_vt8_burst": "frontend: the loop branch costs more than on the RTL",
     "move_vt_use": "vector: vmv.x.s of a move result is 1 cycle later than "
     "on the RTL",
     "load_then_store": "core: a tile store holds the LSU while it waits for "

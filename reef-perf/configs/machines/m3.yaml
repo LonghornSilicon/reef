@@ -129,7 +129,7 @@ top:
     # source is in docs/matrix.md. Alternative arrays are overlays in
     # configs/matrix/ (reef_perf -c configs/machines/m3.yaml -c <overlay>).
     params:
-      mtx_queue_entries: 4    # PLACEHOLDER: CoralNPU shares the RVV queue
+      mtx_queue_entries: 8    # DSE: large enough not to limit before the 8-uop buffer does (docs/matrix.md)
   memory:
     params:
       itcm_latency: 1         # SRAM.scala: the ITCM is the same 1-cycle TCM128 SRAM as the DTCM

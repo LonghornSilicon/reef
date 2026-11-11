@@ -74,7 +74,9 @@ public:
     explicit MatrixParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     // Core interface and command path.
-    PARAMETER(uint32_t, mtx_queue_entries, 4, "Matrix command queue entries")
+    PARAMETER(uint32_t, mtx_queue_entries, 8,
+              "Matrix instructions Dispatch may send ahead of the engine "
+              "(credits)")
     PARAMETER(uint32_t, mtx_cmd_latency, 4,
               "Cycles from receiving an instruction to issuing its uops")
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
