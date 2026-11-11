@@ -2,7 +2,8 @@
 
 GPT-Neo TinyStories-28M on the NPU (M3 core, Zvt matrix unit, DMA). Weights
 and the KV cache stream from XSPI flash into the 32 KB DTCM; code fits the
-8 KB ITCM.
+8 KB ITCM. Integer only: the build targets `rv32im…zve32x` (no F), so a float
+instruction fails to compile.
 
 ELFs are not committed. Build them with `coral/tools/build.sh`, run from
 `inference-engine/`. It uses Coral's GCC from `$CORAL_TOOLCHAIN` or `PATH`,
@@ -20,7 +21,7 @@ Give every variant its own `E2E_OUT` so builds can run in parallel.
 | Kernel | File | ELF | Cycles (8-token block, XSPI 2 B/cycle) |
 |---|---|---|---:|
 | Embedding | `embed.cc` | `embed.elf` | 11,212 |
-| LayerNorm | `layernorm.cc` | `layernorm.elf` | 42,695 |
+| LayerNorm | `layernorm.cc` | `layernorm.elf` | 36,560 |
 | Q, K, V projections | `linear.cc` | `qkv.elf` | 539,998 |
 | Attention (positions 0–7) | `attention.cc` | `attention.elf` | 115,936 |
 | Out-projection + residual | `linear.cc` | `attn_out.elf` | 189,545 |

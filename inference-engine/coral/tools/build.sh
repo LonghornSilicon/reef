@@ -30,7 +30,8 @@ src=coral/kernels
 bin="${E2E_OUT:-build/e2e}"
 obj="$bin/obj"
 mkdir -p "$obj" "$bin"
-arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
+# Integer only: no F, and Zve32x (no vector float), so a float fails to build.
+arch=(-march=rv32im_zicsr_zifencei_zbb_zve32x -mabi=ilp32 -mcmodel=medany)
 cflags=("${arch[@]}" -std=c++17 -Os -fno-exceptions -fno-rtti
         -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections
         -fno-tree-loop-distribute-patterns -Wall -Wextra -Werror "$@")
