@@ -40,13 +40,15 @@ reef_perf --elf x.elf -c configs/machines/m3.yaml \
 | Knob | Reference | Why it matters | Status |
 | --- | --- | --- | --- |
 | Array preset (`configs/matrix/*.yaml`): `mtx_pe_rows`, `mtx_pe_cols`, `mtx_dataflow`, `mtx_row_operand`, `mtx_col_operand`, `mtx_reduction` | Coral: 8 x 8 PEs x 4 int8 lanes, output-stationary, broadcast, in place | The main fabric choice. Only the Coral point has RTL behind it; the others need a reference before their numbers are trusted (D4, case 17). Under Zvt one `vtmm` is at most 16 x 16 x KMAX, so arrays bigger than that are under-used (`mac_utilization` shows it). | ready (Coral); others need D4 |
+| Coral array size: `mtx_pe_rows` x `mtx_pe_cols` with `mtx_mapping: coral`, and `mtx_zero_cycles` = 256 / PEs | 64 PEs | Fewer steps per tile. 128 PEs matches a 128-PE CoralNPU build (matrix.md, D4); 32 is the formula's other buildable size; 256 is out of scope. | ready (64, 128) |
+| `top.matrix.params.mtx_uop_buffer_entries` | 8 (`ZVT_RS_DEPTH`) | How many uops wait for the engine: 2 MACs. Limits small-tile MAC rates once the array is fast. | ready |
 | `top.matrix.params.mtx_num_arrays` | 1 | MACs to different tiles overlap with more arrays. `mac_indep` is array-bound at 4.0 cycles/MAC on one array. | ready |
 | `top.matrix.params.mtx_acc_raw_cycles` | 4 (hitRaw, `zvt_pe_array.sv:195-207`) | Whether a MAC can accumulate into a tile still in the pipeline. 0 (no forwarding) makes `mac_chain` 10 cycles/MAC instead of 4. Matters for any GEMM that accumulates over K into one tile. | ready |
 | `top.matrix.params.mtx_queue_entries` | 4 instructions; CoralNPU's Zvt reservation station holds 8 uops = 2 `vtmm` (`ZVT_RS_DEPTH`) | How far the core can run ahead of the engine. | ready (counted in instructions, not uops) |
-| `mtx_pe_pipeline_depth`, `mtx_fabric_clock_divider` | 6 (3 multiply + 3 adder stages), 1 | Deeper pipelines or a slower fabric clock trade latency for fmax; with `mtx_acc_raw_cycles` and the ROB they set how many MACs must be in flight. fmax per design needs PD (case 14). | ready; fmax is a decision |
+| `mtx_pe_pipeline_depth`, `mtx_fabric_clock_divider` | 9 (multiply 3 + handshake 1 + adder 3 + block skew 2), 1 | Deeper pipelines or a slower fabric clock trade latency for fmax; with `mtx_acc_raw_cycles` and the ROB they set how many MACs must be in flight. fmax per design needs PD (case 14). | ready; fmax is a decision |
 | `mtx_double_buffer_stationary`, `mtx_stationary_load_cycles` | Not used by Coral (output-stationary) | Load cost of weight/input-stationary arrays. | ready |
 | Weight reuse across `vtmm` | None: each `vtmm` reloads its stationary operand | Penalizes weight- and input-stationary arrays under Zvt's one-tile-per-instruction (case 12). | decision (spec) |
-| LSU ↔ matrix FIFO depth | CoralNPU: 2-deep `lsu2vme`/`vme2lsu` (`zvt.sv:163-206`) | How far tile loads and stores run ahead of the controller. Not modeled yet (B3); tile load is +45%, tile store +23% against the RTL. | model work (B3) |
+| `top.matrix.params.mtx_lsu_fifo_entries` | 2: `lsu2vme`/`vme2lsu` (`zvt.sv:163-206`) | How far tile loads and stores run ahead of the controller (B3). | ready |
 | Area and energy (`mtx_area_per_pe_um2`, `mtx_energy_*`) | 0 (left out of the summary) | Needed to weigh designs, not just rank them by cycles. | decision (PD sky130 numbers) |
 
 ## Across modules

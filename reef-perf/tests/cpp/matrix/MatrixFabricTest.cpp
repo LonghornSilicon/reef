@@ -40,6 +40,25 @@ TEST(MatrixFabricTest, CoralPartialTilesFollowThePeArray) {
   EXPECT_EQ(Busy(16, 16), 4U);
 }
 
+TEST(MatrixFabricTest, CoralStepsScaleWithThePeCount) {
+  // PROCESS_DELAY = 256 / NUM_PE steps of 8 / PROCESS_DELAY rows per half.
+  auto Busy = [](uint32_t Cols, uint32_t TM) {
+    FabricConfig F;
+    F.Cols = Cols;
+    return getMacCost(F, TM, 16, 4, MatrixType::Int8).Busy;
+  };
+  EXPECT_EQ(Busy(16, 16), 2U); // 128 PEs.
+  EXPECT_EQ(Busy(16, 4), 1U);
+  EXPECT_EQ(Busy(16, 5), 2U);
+  EXPECT_EQ(Busy(32, 16), 1U); // 256 PEs.
+  EXPECT_EQ(Busy(4, 16), 8U);  // 32 PEs.
+  EXPECT_EQ(Busy(4, 3), 3U);
+  FabricConfig Odd;
+  Odd.Cols = 12; // 96 PEs: not a power-of-two share of the tile.
+  EXPECT_THROW(getMacCost(Odd, 16, 16, 4, MatrixType::Int8),
+               std::invalid_argument);
+}
+
 TEST(MatrixFabricTest, GenericPartialTileFollowsTheFormula) {
   FabricConfig F;
   F.Map = Mapping::Generic;

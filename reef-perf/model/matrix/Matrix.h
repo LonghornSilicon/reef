@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace reef_perf {
@@ -77,6 +78,8 @@ public:
     PARAMETER(uint32_t, mtx_cmd_latency, 4,
               "Cycles from receiving an instruction to issuing its uops")
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
+    PARAMETER(uint32_t, mtx_uop_buffer_entries, 8,
+              "Uops the engine's reservation station holds (ZVT_RS_DEPTH)")
     PARAMETER(uint32_t, mtx_complete_latency, 1,
               "Cycles from the result being written to the core seeing the "
               "instruction complete")
@@ -218,10 +221,17 @@ private:
   Cycle getFifoFree(const std::deque<Cycle> &Pops) const;
   /// Records a pop at \p Cycle in \p Pops.
   void recordPop(std::deque<Cycle> &Pops, Cycle When) const;
+  /// Pushes \p Uops uops into the reservation station in order, from
+  /// \p Earliest. \returns the first and last push cycles.
+  std::pair<Cycle, Cycle> pushUops(uint32_t Uops, Cycle Earliest);
+  /// Sets the pop cycles of the newest \p Uops uops: all at \p Last for a
+  /// MAC (\p Together), else spread one per cycle ending at \p Last.
+  void popUops(uint32_t Uops, Cycle Last, bool Together);
 
   const uint32_t QueueEntries;
   const uint32_t CmdLatency;
   const uint32_t UopsPerCycle;
+  const uint32_t UopBufferEntries;
   const uint32_t CompleteLatency;
   const FabricConfig Fabric;
   const uint32_t NumArrays;
@@ -249,6 +259,10 @@ private:
   std::array<Cycle, 16> TileMacReady{}; // A MAC into the tile may start.
   std::array<Cycle, RegId::NumPerFile> OwnVReady{}; // vtmv.v.t results.
   Cycle LastCmdStart = 0;                           // In-order uop issue.
+  // Reservation-station uops still in it or popped at or after the last
+  // push: {push cycle, pop cycle}; the pop is NoPop until scheduled.
+  std::deque<std::pair<Cycle, Cycle>> RsUops;
+  static constexpr Cycle NoPop = ~Cycle{0};
   Cycle HeadFree = 0;   // The controller's head uop is released.
   Cycle LastDone = 0;   // Latest result of any instruction.
   Cycle ArrayDrain = 0; // Latest MAC result.

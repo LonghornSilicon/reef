@@ -129,6 +129,10 @@ BENCHMARKS = (
     DiffBenchmark("zero_rob", 50, 1, "vtzero + 15 addi", True),
     DiffBenchmark("move_tv_rob", 50, 1, "vtmv.t.v + 15 addi", True),
     DiffBenchmark("mac_queue", 50, 1, "4 vtmmu + 8 addi", True),
+    # D4: dispatch-to-retire time of partial-tile MACs.
+    DiffBenchmark("mac_rob_tm4", 50, 1, "vtmmu tm4 + 15 addi", True),
+    DiffBenchmark("mac_rob_tn4", 50, 1, "vtmmu tn4 + 15 addi", True),
+    DiffBenchmark("mac_rob_tm8tn8", 50, 1, "vtmmu 8x8 + 15 addi", True),
 )
 """The looping matrix microbenchmarks."""
 

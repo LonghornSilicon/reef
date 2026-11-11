@@ -79,6 +79,9 @@ EXPECTED_OPS = {
     "zero_rob": {"zero": 50, "move_to_vector": 1},
     "move_tv_rob": {"move_to_tile": 50, "move_to_vector": 1},
     "mac_queue": {"mac": 200, "move_to_vector": 1},
+    "mac_rob_tm4": {"mac": 50, "move_to_vector": 1},
+    "mac_rob_tn4": {"mac": 50, "move_to_vector": 1},
+    "mac_rob_tm8tn8": {"mac": 50, "move_to_vector": 1},
     "illegal_shapes": {"nop": 2},
 }
 """Matrix instructions each program executes, by op."""

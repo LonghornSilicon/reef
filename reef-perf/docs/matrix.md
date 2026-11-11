@@ -264,7 +264,7 @@ built from the cited RTL behavior.
 | C1 | **Done (2026-11-06);** the CoralNPU changes are in `docs/coralnpu_vme_verification.patch`. Also needed a testbench fix: with verification on, the VME core has extra retirement-lane debug outputs (`mtype`, `tileWrites`) that `core_mini_axi_tb.{h,cc}` did not bind, so SystemC refused to start. Build the VME verification simulator. In `~/coralnpu-pinned/tests/verilator_sim/BUILD`, add `vme_core_mini_verification_axi_tb` and `_sim` next to the existing local `vme_core_mini_axi_*` entries, depending on `//hdl/chisel/src/coralnpu:vme_core_mini_verification_axi_cc_library`. Then `bazel build -c opt //tests/verilator_sim:vme_core_mini_verification_axi_sim`. | About 20 minutes (`baseline/ASYNC.md`). Runs in the background. |
 | C2 | **Done.** `ITERS`, set with `build_microbenchmark(..., {"ITERS": n})`; the `matrix_diff` experiment builds N and 2N. Give each microbenchmark an iteration count set at build time (today it is fixed at 200), and build N and 2N copies of each with the CoralNPU toolchain. | Needed for the differencing in "Correlating it", step 3 |
 | C3 | **Done for the four looping programs** (`microbenchmarks/matrix/rtl_vme.csv`; results below). Waveforms not kept yet. Run them on the RTL and record the results in `microbenchmarks/matrix/rtl_vme.csv`. Keep one waveform of `mac_chain` and one of `tile_store` for cases 5 and 9. | Needs C1 and C2 |
-| C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat. On that core a vector load costs the same and a vector store one cycle more; the model's vector cost is M3's LSU (it matches the M3 RTL), so the gap was mostly the LSU version. The core's LSU now gives tile beats their own cost (`lsu_tile_cost`; off by default and in `m3_vme.yaml`, which keep M3's LSU; on for correlation in `REFERENCE_CORE_PARAMS`), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. **MAC pipeline and command path done** from VME waveforms (`mac_chain`, `tile_load_behind_mac`): `mtx_cmd_latency` 6 → 4, `mtx_pe_pipeline_depth` 6 → 9, the controller starts the cycle after the last MAC's tile write, and a `lsu2vme` beat is popped no earlier than the cycle after its push; `tile_load_behind_mac` now matches (32.0). **Remaining PLACEHOLDERs done (2026-11-10)** with 14 held-out programs (results below): `mtx_move_latency` 1 → 0, a controller op starts on its first uop instead of after all its uops issue, and the other values are confirmed and retagged. Left: `mtx_queue_entries` (the RTL counts 8 uops, the model 4 instructions; counting uops is a Dispatch change, core) and `gemm_tile` (vector loads, core). | Matrix parameters only |
+| C4 | **Tile path: LSU cost done** (`docs/lsu-tile-beats.md`): the VME RTL charges a tile load or store 2 cycles per instruction + 1 per beat. On that core a vector load costs the same and a vector store one cycle more; the model's vector cost is M3's LSU (it matches the M3 RTL), so the gap was mostly the LSU version. The core's LSU now gives tile beats their own cost (`lsu_tile_cost`; off by default and in `m3_vme.yaml`, which keep M3's LSU; on for correlation in `REFERENCE_CORE_PARAMS`), pending the core owner's review. The unrolled `*_burst` programs match within 2%. The loop-per-row `tile_load`/`tile_store` are frontend-bound in the model, so they are not used for this. **MAC pipeline and command path done** from VME waveforms (`mac_chain`, `tile_load_behind_mac`): `mtx_cmd_latency` 6 → 4, `mtx_pe_pipeline_depth` 6 → 9, the controller starts the cycle after the last MAC's tile write, and a `lsu2vme` beat is popped no earlier than the cycle after its push; `tile_load_behind_mac` now matches (32.0). **Remaining PLACEHOLDERs done (2026-11-10)** with 14 held-out programs (results below): `mtx_move_latency` 1 → 0, a controller op starts on its first uop instead of after all its uops issue, and the other values are confirmed and retagged. Left: `mtx_queue_entries`, Dispatch's 4 matrix credits, which cap one-uop ops at about 0.8 per cycle where the RTL takes one per cycle (core; the engine's own 8-uop reservation station is modeled since D4), and `gemm_tile` (vector loads, core). | Matrix parameters only |
 | C5 | **Done (2026-11-10).** `mtx_complete_latency` stays 1, now measured at `8a5e1b31`: `mac_rob`, `zero_rob` and `move_tv_rob` match, and 0 or 2 would each be off by one cycle per op. In the waveforms, `vmeRtVld` rises 2 cycles after an op's last controller cycle (a register, then the `mtInfoRs` FIFO, `zvt.sv:247-276`, `:535-570`) and the core retires the op in that cycle. | From C3 |
 
 #### First per-op results (C3)
@@ -385,11 +385,12 @@ What changed, from waveforms (`move_tv8_burst`, `move_tv_rob`,
 The remaining gaps are outside the matrix module:
 
 - **Queue depth (core).** One-uop moves run one per controller cycle on the
-  RTL, 16 back to back. The model's 4-instruction queue, with credits back
-  about 5 cycles after dispatch, caps them at 0.8 per cycle. The RTL's Zvt
-  reservation station holds 8 uops (`ZVT_RS_DEPTH`), so 8 one-uop ops but
-  only 2 MACs. Counting the queue in uops needs Dispatch to take an
-  instruction's uop count against `MtxCredits` (`Dispatch.cpp:219-255`).
+  RTL, 16 back to back. The model's 4 matrix credits in Dispatch, back
+  about 5 cycles after dispatch, cap them at 0.8 per cycle. (The engine's
+  8-uop reservation station, `ZVT_RS_DEPTH`, is modeled since D4; it holds
+  8 one-uop ops but only 2 MACs.) Letting one-uop ops through needs
+  Dispatch to count credits in uops, or more of them
+  (`Dispatch.cpp:219-255`).
   With 8 entries the model gives 1.275; the last 0.09 is the loop branch
   (3 cycles on the RTL, about 4.4 in the model: the frontend gap above).
 - **`vmv.x.s` of a move result (vector).** On the RTL it retires in the
@@ -398,6 +399,61 @@ The remaining gaps are outside the matrix module:
   `load_then_store` the LSU takes the store as soon as the load's last beat
   is pushed and waits 2 cycles for the controller to finish the load's pops;
   the model books the LSU only once data is ready, 1 cycle per pair fast.
+
+#### D4: a 128-PE CoralNPU array
+
+CoralNPU sizes its array as `NUM_PE = TE * TE * COMPRATIO` and walks a tile
+in `PROCESS_DELAY = 1 / COMPRATIO` steps (`rvv_backend_define.svh:210-220`).
+At VLEN 128 the default is 64 PEs and 4 steps. Setting `COMPRATIO` to
+`8/TE` and `PROCESS_DELAY` to `TE/8` builds a 128-PE, 2-step array; every
+use of `COMPRATIO` is a product, so the textual macro arithmetic holds. 256
+PEs (1 step) does not build: the step counter is `$clog2(PROCESS_DELAY)` = 0
+bits wide (`zvt_pe_array.sv:183`). The build is a separate CoralNPU worktree
+(`~/coralnpu-pe128`, `8a5e1b31` + `docs/coralnpu_vme_verification.patch` +
+the two defines); its results are in `microbenchmarks/matrix/rtl_vme_pe128.csv`.
+
+Two model changes, both in the matrix module:
+
+- **The Coral mapping scales with the PE count**: `PROCESS_DELAY = 256 /
+  (mtx_pe_rows x mtx_pe_cols)` steps of `8 / PROCESS_DELAY` rows per half
+  (`MatrixFabric.cpp`), where it was fixed at `min(4, ceil(tm / 2))`.
+  Unchanged at 64 PEs. `mtx_zero_cycles` is also `PROCESS_DELAY` and has to
+  be set with it.
+- **The uop reservation station** (`mtx_uop_buffer_entries`, 8 =
+  `ZVT_RS_DEPTH`). Dispatch pushes up to 3 uops a cycle, each push lane
+  checking the room left at the start of the cycle, before that cycle's pop
+  (`almost_full`, `rvv_backend.sv:776-807`). A MAC pops its 4 uops with its
+  last step (`peCmdRdy = canStart && cntCr`); the controller pops one per
+  cycle. The model used to give each instruction its own `ceil(uops / 3)`
+  issue cycles, which capped MACs at one per 2 cycles; the 128-PE waveform
+  of `mac_indep_tm4` shows 2 MACs every 3 cycles, the FIFO count cycling 3,
+  6, 4. At 64 PEs it changes only `vtmm_misaligned` (6.25 to 5.83; RTL 6.0).
+
+Predictions were recorded before the 128-PE run
+(`heldout_predictions_pe128.csv`). Cycles per op:
+
+| Program | 64-PE RTL | 128-PE RTL | 128-PE model |
+| --- | --- | --- | --- |
+| `mac_indep` and its tn4, 8 x 8, fp32, bf16 variants | 4.0 | 2.0 | 2.0 |
+| `mac_chain` and all its variants | 4.0 | 4.0 | 4.0 (hitRaw does not depend on the array size) |
+| `mac_indep_tm4` | 2.0 | 1.755 | 1.835 (2.0 before the reservation station) |
+| `zero_burst` | 4.0 | 2.0 | 2.0 |
+| `load_then_mac`, `move_then_mac`, `mac_then_store` | 18 | 16 | 16 |
+| `mac_rob`, `zero_rob` | 22 / 12 | 20 / 10 | 20 / 10 |
+| `mac_rob_tm4`, `mac_rob_tn4`, `mac_rob_tm8tn8` | 20 / 22 / 22 | 19 / 20 / 20 | 19 / 20 / 20 |
+| `tile_load_behind_mac` | 32 | 30 | 30 |
+| `mac_queue` | 19 | 15 | 15.36 |
+
+The known gaps (vector loads, frontend, queue depth, case 5, `vtdiscard`)
+are the same at both sizes. `mac_indep_tm4` and `mac_queue` are ROB-bound
+short loops at 128 PEs and stay 2-5% slow. The engine is not the cause:
+`mac_rob_tm4` (the same MAC's dispatch-to-retire time) matches, and a
+shorter MAC pipeline that would close it is ruled out by the three
+`mac_rob_*` programs. The frontend's loop cost is the likeliest cause; not
+checked.
+
+This validates the Coral mapping at other sizes. It says nothing about the
+systolic and tree presets, which no RTL has.
 
 #### Held-out check: `gemm_tile`
 
@@ -443,7 +499,7 @@ What to sweep, across modules, is collected in `sweep-candidates.md`.
 | D1 | **Test every preset:** each `configs/matrix/*.yaml` loads on top of `vme.yaml` and runs `gemm_tile`. | New pytest |
 | D2 | **Validate parameters at construction:** zero rows, columns, lanes, arrays or divider, and unknown dataflow, delivery, reduction or mapping names, each fail with the parameter's name in the error. | ctest |
 | D3 | **A sweep script** that runs a grid of `-p` overrides and writes ROI cycles, `mac_utilization` and the cost estimates to CSV. | Runs on the presets |
-| D4 | **Check the non-Coral formulas** (case 17) against a reference array simulator or RTL prototype before using the sweep's numbers. | Per GEMM shape |
+| D4 | **Coral-shaped arrays done (2026-11-11):** the Coral mapping scales with the PE count and matches a 128-PE CoralNPU build (results below; `test_matches_rtl_at_128_pes`). **Still open: systolic and tree presets** (case 17), which need a reference array simulator. 256 PEs is out of scope for Reef. | Per GEMM shape |
 
 ### Left for other owners or the spec
 
@@ -466,9 +522,10 @@ Things this draft does not settle, roughly by how much they matter for
 correlation. Each was checked against CoralNPU `8a5e1b31` where the source
 can answer it.
 
-1. **RTL numbers (settled, C3-C5).** Every Coral value is now from the RTL
-   source or a VME waveform, except `mtx_queue_entries` (counted in
-   instructions; the RTL counts uops, a Dispatch change).
+1. **RTL numbers (settled, C3-C5, D4).** Every Coral value is now from the
+   RTL source or a VME waveform, except `mtx_queue_entries`: Dispatch's
+   matrix credits, 4 instructions, which hold one-uop ops below the RTL's
+   rate (a core change).
 2. **The ROI ends too early in the model (settled: the RTL differs).** On
    CoralNPU a CSR read waits for an empty retirement buffer
    (`Decode.scala:707-708`), and a tile instruction stays there until its

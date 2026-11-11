@@ -106,10 +106,22 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
       throw std::invalid_argument(
           "mtx_mapping coral models CoralNPU's output-stationary array; use "
           "mtx_mapping generic with mtx_dataflow weight or input");
-    // The step counter walks the tile's rows two at a time and stops at
-    // PROCESS_DELAY = 4; rows 8-15 run in the upper blocks in parallel, and
-    // tn does not change the count (zvt_pe_array.sv:216-217).
-    Cost.Passes = std::min<uint64_t>(4, ceilDiv(M, 2));
+    // CoralNPU sizes its array as NUM_PE = TE * TE * COMPRATIO and walks a
+    // tile in PROCESS_DELAY = 1 / COMPRATIO steps (rvv_backend_define.svh:
+    // 210-220). Each step covers TE / 2 / PROCESS_DELAY rows of each half;
+    // rows 8-15 run in the upper blocks in parallel, and tn does not change
+    // the count (cntMax00, zvt_pe_array.sv:216-217). 64 PEs: 4 steps of 2
+    // rows, as at 8a5e1b31.
+    constexpr uint64_t TileEdge = 16;
+    uint64_t NumPe = uint64_t{Config.Rows} * Config.Cols;
+    uint64_t Steps = TileEdge * TileEdge / NumPe;
+    if (Steps * NumPe != TileEdge * TileEdge || Steps > TileEdge / 2 ||
+        (Steps & (Steps - 1)) != 0)
+      throw std::invalid_argument(
+          "mtx_mapping coral needs mtx_pe_rows x mtx_pe_cols of 32, 64, 128 "
+          "or 256 PEs (a power-of-two share of a 16 x 16 tile)");
+    uint64_t RowsPerStep = TileEdge / 2 / Steps;
+    Cost.Passes = ceilDiv(std::min<uint64_t>(M, TileEdge / 2), RowsPerStep);
   } else {
     Cost.Passes =
         ceilDiv(SpatialRows, Config.Rows) * ceilDiv(SpatialCols, Config.Cols);

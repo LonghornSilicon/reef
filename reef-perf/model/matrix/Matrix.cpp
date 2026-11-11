@@ -46,6 +46,7 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
     : sparta::Unit(Node, name), QueueEntries(Params->mtx_queue_entries),
       CmdLatency(Params->mtx_cmd_latency),
       UopsPerCycle(Params->mtx_uops_per_cycle),
+      UopBufferEntries(Params->mtx_uop_buffer_entries),
       CompleteLatency(Params->mtx_complete_latency), Fabric(getFabric(Params)),
       NumArrays(Params->mtx_num_arrays),
       AccRawCycles(Params->mtx_acc_raw_cycles),
@@ -65,6 +66,9 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
   if (QueueEntries == 0 || UopsPerCycle == 0 || LsuFifoEntries == 0)
     throw std::invalid_argument("mtx_queue_entries, mtx_uops_per_cycle and "
                                 "mtx_lsu_fifo_entries must be at least 1");
+  if (UopBufferEntries < 4)
+    throw std::invalid_argument("mtx_uop_buffer_entries must hold a MAC's 4 "
+                                "uops");
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Matrix, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Matrix, sendInitialCredits));
@@ -215,6 +219,49 @@ Matrix::Transfer Matrix::runTileStore(const Inst &I, Cycle CtrlEarliest) {
   return T;
 }
 
+std::pair<Cycle, Cycle> Matrix::pushUops(uint32_t Uops, Cycle Earliest) {
+  Cycle T = Earliest;
+  if (!RsUops.empty())
+    T = std::max(T, RsUops.back().first);
+  if (Uops == 0)
+    return {T, T};
+  // Uops popped before the last push no longer change any count below.
+  while (!RsUops.empty() && RsUops.front().second < RsUops.back().first)
+    RsUops.pop_front();
+  Cycle First = 0;
+  for (uint32_t U = 0; U < Uops; ++U) {
+    for (;; ++T) {
+      // Each push lane checks the room left at the start of the cycle,
+      // before that cycle's pops (almost_full per lane, multi_fifo.sv;
+      // rs_ready_zvt2dp, rvv_backend.sv:797-807).
+      uint64_t In = 0;
+      uint64_t PushedNow = 0;
+      for (const auto &[Push, Pop] : RsUops) {
+        if (Push < T && Pop >= T)
+          ++In;
+        if (Push == T)
+          ++PushedNow;
+      }
+      if (PushedNow < UopsPerCycle && In + PushedNow < UopBufferEntries)
+        break;
+    }
+    if (U == 0)
+      First = T;
+    RsUops.emplace_back(T, NoPop);
+    if (Cmd.getNextFree(T) == T)
+      Cmd.reserve(T, 1); // Pool statistics: cycles with a push.
+  }
+  return {First, T};
+}
+
+void Matrix::popUops(uint32_t Uops, Cycle Last, bool Together) {
+  sparta_assert(RsUops.size() >= Uops, "popping uops that were not pushed");
+  for (uint32_t U = 0; U < Uops; ++U) {
+    Cycle Pop = Together ? Last : Last - (Uops - 1 - U);
+    RsUops[RsUops.size() - Uops + U].second = Pop;
+  }
+}
+
 void Matrix::executeInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
@@ -222,14 +269,14 @@ void Matrix::executeInst(const InstRef &I) {
                 "matrix module got a non-matrix instruction");
   ++Stats.Ops.at(static_cast<size_t>(I->Mtx.Op));
 
-  // 1. Command path: in program order, once vector sources are ready.
+  // 1. Command path: uops enter the reservation station in program order,
+  // once vector sources are ready; a uop can leave the cycle after it
+  // enters.
   uint32_t Uops = getUops(*I);
-  uint64_t IssueCycles =
-      std::max<uint64_t>(1, (uint64_t{Uops} + UopsPerCycle - 1) / UopsPerCycle);
   Cycle CmdEarliest = std::max(
       {Cycle{Now + CmdLatency}, getVectorSourcesReady(*I), LastCmdStart});
-  Cycle CmdStart = Cmd.reserve(CmdEarliest, IssueCycles);
-  Cycle CmdDone = CmdStart + IssueCycles;
+  auto [CmdStart, LastPush] = pushUops(Uops, CmdEarliest);
+  Cycle CmdDone = LastPush + 1;
   LastCmdStart = CmdStart;
   OutCreditsPort.send(1, CmdStart - Now); // Leaves the queue as it issues.
 
@@ -364,6 +411,10 @@ void Matrix::executeInst(const InstRef &I) {
   case MatrixOp::NumOps:
     break;
   }
+  if (Uops != 0)
+    // A MAC leaves with its last step (peCmdRdy = canStart && cntCr,
+    // zvt_pe_array.sv:206); the controller takes one uop per cycle.
+    popUops(Uops, std::max(HeadFree, Start + 1) - 1, M.Op == MatrixOp::Mac);
   LastDone = std::max(LastDone, Done);
 
   I->IssueCycle = CmdStart;
