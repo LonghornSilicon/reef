@@ -1,0 +1,20 @@
+# The Reef SoC's external memory link: XSPI flash on 16 data lines, read in
+# DTR (data on both edges of the 25 MHz link clock). Not in M3, whose
+# testbench memory adds no delay, so m3.yaml leaves the link off and the M3
+# correlation does not use this file (deviations A7).
+#
+# Source: the XSPI section of the Reef microarchitecture spec v0.1. Cycles
+# here are core cycles at 50 MHz: one link clock cycle is two.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/memory/xspi_dtr.yaml --ext-mem-mb 160
+top:
+  memory:
+    params:
+      # First byte: 48/N + 6 link cycles (opcode, address, dummy), N = lines
+      # that carry the command. N = 8 gives 12 link cycles = 24 core cycles.
+      # ASSUMPTION: N is not fixed yet; N = 1 gives 54 link cycles = 108.
+      ext_mem_latency: 24
+      # 16 lines x 2 edges x 25 MHz = 800 Mb/s = 100 MB/s = 2 B per core cycle.
+      ext_mem_bytes_per_cycle: 2

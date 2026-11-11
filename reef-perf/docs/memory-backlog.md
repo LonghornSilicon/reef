@@ -29,8 +29,19 @@ microbenchmark, run it on the RTL with scripts/run_rtl.sh and compare.
 
 ## Blocked
 
-### HyperRAM
+### The external memory link's remaining numbers
 
-Not modeled. The model needs the HyperRAM part's latency, bandwidth and
-interface, and those depend on which HyperRAM the SoC uses. Until then, the
-DMA's HyperRAM side is the placeholder `dma_setup_cycles` (deviations.md A5).
+The SoC plan replaced HyperRAM with an XSPI flash link. The model has the
+link (`ExtMemModel`, deviations.md A7), and `configs/memory/xspi_dtr.yaml`
+and `xspi_str.yaml` set its rate and first-byte latency from the spec. These
+are still unknown, so they are not modeled or are placeholders:
+
+- N, the number of lines that carry the command. It sets the first-byte
+  latency: 24 core cycles for N = 8, 108 for N = 1.
+- The controller's own latency and any pipeline stages on the route to the
+  DTCM.
+- The controller FIFO depth and what a full FIFO does (`dma_queue_depth`).
+- The minimum chip-select high time between transfers.
+- How the KV cache is written. The spec's link is read only so far.
+- What `dma_setup_cycles` (20) stands for now that the link has its own
+  latency. It may count the same delay twice.

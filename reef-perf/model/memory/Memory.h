@@ -59,6 +59,8 @@ public:
               "Unfinished DMA transfers before a GO store waits (0: no limit)")
     PARAMETER(bool, host_boot, false,
               "Time the host's ITCM load before the core leaves reset")
+    PARAMETER(bool, host_boot_data, false,
+              "With host_boot, also time the host's DTCM data load")
     PARAMETER(uint32_t, host_setup_cycles, 100,
               "Cycles before the host's first boot byte")
     PARAMETER(uint32_t, host_cycles_per_byte, 8,
@@ -95,7 +97,7 @@ public:
   const Dma &getDma() const { return DMA; }
 
   /// Sets the host's boot load from the ELF's \p Segments: the bytes that
-  /// fall in an ITCM.
+  /// fall in an ITCM (code) and in a DTCM (data).
   void setBootImage(const std::vector<LoadSegment> &Segments);
 
   /// \returns the host, for its boot cycles.
