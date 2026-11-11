@@ -29,19 +29,27 @@ microbenchmark, run it on the RTL with scripts/run_rtl.sh and compare.
 
 ## Blocked
 
-### The external memory link's remaining numbers
+### The external memories' remaining numbers
 
-The SoC plan replaced HyperRAM with an XSPI flash link. The model has the
-link (`ExtMemModel`, deviations.md A7), and `configs/memory/xspi_dtr.yaml`
-and `xspi_str.yaml` set its rate and first-byte latency from the spec. These
-are still unknown, so they are not modeled or are placeholders:
+The SoC plan is two memories on separate links: XSPI flash for the weights
+(read only) and a PSRAM for the KV cache (read and written). The model has
+both (`ExtMemModel`, deviations.md A7). `configs/memory/xspi_str.yaml`,
+`xspi_dtr.yaml` and `psram_kv.yaml` hold pessimistic numbers to sweep. These
+are still open:
 
-- N, the number of lines that carry the command. It sets the first-byte
-  latency: 24 core cycles for N = 8, 108 for N = 1.
+- The flash's first-byte latency. The config uses 68, the top of the RTL
+  team's 26 to 68 range; the spec's formula gives 24 with the command on 8
+  lines.
+- Whether the flash sustains its peak rate.
+- The PSRAM part. Its latencies, rate and burst limit are typical values.
 - The controller's own latency and any pipeline stages on the route to the
   DTCM.
 - The controller FIFO depth and what a full FIFO does (`dma_queue_depth`).
-- The minimum chip-select high time between transfers.
-- How the KV cache is written. The spec's link is read only so far.
-- What `dma_setup_cycles` (20) stands for now that the link has its own
+- Whether the DMA has one channel or one per memory. The model has one, so
+  DMA transfers to the two memories do not overlap.
+- What `dma_setup_cycles` (20) stands for now that each link has its own
   latency. It may count the same delay twice.
+- The firmware's memory map. It keeps the KV cache after the weights in one
+  region (at `0x24A73800`, with 74.5 MB of model before it), not at
+  `0x24000000` after 64 MB of flash. Runs set `ext_ram_base` and
+  `ext_ram_mb` to the firmware's range until the two agree.
