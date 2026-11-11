@@ -6,12 +6,13 @@
 top:
   matrix:
     params:
-      mtx_queue_entries: 4          # PLACEHOLDER: Zvt RS holds 8 uops (ZVT_RS_DEPTH), = 2 vtmm
+      mtx_queue_entries: 8          # DSE: Dispatch's matrix credits. CoralNPU's limit is the 8-uop buffer below; 8 credits never bind before it (4 held one-uop moves to 0.8/cycle)
       mtx_cmd_latency: 4            # TRACE: dispatch to first MAC step is 6 = 4 + 2 issue cycles (mac_chain waveform)
       mtx_uops_per_cycle: 3         # RVV dispatch, 3 uops/cycle
-      mtx_complete_latency: 1       # vmeRt -> retire, 1 cycle (08eadd1c trace)
+      mtx_uop_buffer_entries: 8     # RTL + TRACE: ZVT_RS_DEPTH; room checked before same-cycle pops (128-PE mac_indep_tm4 waveform)
+      mtx_complete_latency: 1       # TRACE (8a5e1b31, mac_rob, zero_rob, move_tv_rob): vmeRtVld 2 cycles after the last controller cycle, retired that cycle
       mtx_num_arrays: 1
-      mtx_pe_rows: 8                # NUM_PE = TE*TE*COMPRATIO = 64
+      mtx_pe_rows: 8                # NUM_PE = TE*TE*COMPRATIO = 64 (128 with mtx_pe_cols 16: matches a 128-PE build, matrix-correlation-log.md, D4)
       mtx_pe_cols: 8                #   (rvv_backend_define.svh:212-222)
       mtx_macs_per_pe_int8: 4       # 4 int8 per 32-bit PE lane (K word)
       mtx_macs_per_pe_bf16: 2       # 2 bf16 per lane (KMAX = 2)
@@ -22,13 +23,13 @@ top:
       mtx_mapping: coral             # CoralNPU's partial-tile rule (zvt_pe_array.sv:216-217)
       mtx_reduction: in_place
       mtx_pe_pipeline_depth: 9      # RTL + TRACE: mulbulk 3 + handshake_ff 1 + adder 3 + block skew 2; first step to retire is 14 (waveform)
-      mtx_accumulate_latency: 0     # PLACEHOLDER
+      mtx_accumulate_latency: 0     # TRACE: folded into mtx_pe_pipeline_depth (first step to retire 14, mac_chain waveform)
       mtx_acc_raw_cycles: 4         # hitRaw: MULBULKPIPENUM + 1 (zvt_pe_array.sv:195-207)
-      mtx_pipeline_across_ops: true # PLACEHOLDER: not measured
-      mtx_zero_cycles: 4            # PROCESS_DELAY (zvt_ctrl.sv:435-445, :613)
-      mtx_move_cycles_per_uop: 1    # PLACEHOLDER
-      mtx_move_latency: 1           # PLACEHOLDER
-      mtx_tile_write_latency: 1     # PLACEHOLDER
-      mtx_tile_read_latency: 1      # PLACEHOLDER
+      mtx_pipeline_across_ops: true # TRACE: mac_indep 4.0 cycles per MAC (false would give 13)
+      mtx_zero_cycles: 0            # derived: PROCESS_DELAY = 256 / PEs (zvt_ctrl.sv:435-445, :613), 4 here
+      mtx_move_cycles_per_uop: 1    # RTL + TRACE: isMv2Vme/isMv2Rvv one uop per cycle (zvt_ctrl.sv:605-610); move_tv8_burst, move_vt_burst
+      mtx_move_latency: 0           # RTL + TRACE: tile write is a flop (zvt_mt_reg.sv); move_then_mac, move_vt_use
+      mtx_tile_write_latency: 1     # RTL + TRACE: flop write (zvt_mt_reg.sv); last load pop to first store read 1 cycle (load_then_store waveform), load_then_mac
+      mtx_tile_read_latency: 1      # RTL: the tile read is combinational (zvt_mt.sv:68); the 1 is the vme2lsu FIFO register. mac_then_store matches
       mtx_lsu_fifo_entries: 2       # lsu2vme / vme2lsu DEPTH 2 (zvt.sv:163-206)
       mtx_ctrl_waits_for_array_drain: true  # !peBusy (zvt_ctrl.sv:105-106, :130-134)

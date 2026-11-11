@@ -60,6 +60,28 @@ EXPECTED_OPS = {
         "move_to_vector": 1,
     },
     "gemm_tile": {"mac": 16, "zero": 1, "move_to_vector": 16},
+    # C4/C5 (held out).
+    "zero_burst": {"zero": 320, "move_to_vector": 1},
+    "move_tv_burst": {"move_to_tile": 320, "move_to_vector": 1},
+    "move_tv8_burst": {"move_to_tile": 320, "move_to_vector": 1},
+    "move_vt_burst": {"move_to_vector": 320},
+    "move_vt8_burst": {"move_to_vector": 320},
+    "move_vt_use": {"move_to_vector": 100},
+    "load_then_mac": {"tile_load": 50, "mac": 50, "move_to_vector": 1},
+    "move_then_mac": {"move_to_tile": 50, "mac": 50, "move_to_vector": 1},
+    "mac_then_store": {"mac": 50, "tile_store": 50, "move_to_vector": 1},
+    "load_then_store": {
+        "tile_load": 160,
+        "tile_store": 160,
+        "move_to_vector": 1,
+    },
+    "mac_rob": {"mac": 50, "move_to_vector": 1},
+    "zero_rob": {"zero": 50, "move_to_vector": 1},
+    "move_tv_rob": {"move_to_tile": 50, "move_to_vector": 1},
+    "mac_queue": {"mac": 200, "move_to_vector": 1},
+    "mac_rob_tm4": {"mac": 50, "move_to_vector": 1},
+    "mac_rob_tn4": {"mac": 50, "move_to_vector": 1},
+    "mac_rob_tm8tn8": {"mac": 50, "move_to_vector": 1},
     "illegal_shapes": {"nop": 2},
 }
 """Matrix instructions each program executes, by op."""
@@ -194,24 +216,30 @@ def test_dependent_macs_issue_as_fast_as_independent_ones(
     assert waiting > chain
 
 
+PRESET_PROGRAMS = {"mac_indep": 200, "gemm_tile": 16}
+"""Programs every preset runs (D1), with their vtmmu count (16 x 16 x 4)."""
+
+
 @pytest.mark.integration
+@pytest.mark.parametrize("program", sorted(PRESET_PROGRAMS))
 @pytest.mark.parametrize(
     "overlay", sorted(OVERLAY_DIR.glob("*.yaml")), ids=lambda path: path.stem
 )
-def test_overlays_respect_compute_bound(
-    overlay: Path, cpp_build_dir: Path, tmp_path: Path
+def test_presets_run_and_respect_compute_bound(
+    overlay: Path, program: str, cpp_build_dir: Path, tmp_path: Path
 ) -> None:
-    """Every array preset runs and respects its peak MAC rate.
+    """Every array preset runs each program and respects its peak MAC rate.
 
-    Utilization stays at or below 100%, and the run lasts at least as long as
-    the array was busy.
+    gemm_tile adds vtzero, vector loads into the MACs and the vtmv.v.t
+    read-back to mac_indep's MACs. Utilization stays at or below 100%, and
+    the run lasts at least as long as the array was busy.
     """
     del cpp_build_dir
-    result = _run("mac_indep", tmp_path, (overlay,))
+    result = _run(program, tmp_path, (overlay,))
     stats = result.matrix
     assert result.instructions == result.functional_instructions
     assert 0.0 < stats["mac_utilization"] <= 1.0
-    assert stats["useful_macs"] == 200 * 16 * 16 * 4
+    assert stats["useful_macs"] == PRESET_PROGRAMS[program] * 16 * 16 * 4
     # The array cannot finish faster than its busy cycles allow. Total
     # cycles, not ROI cycles: the closing mcycle read issues while MACs are
     # still in flight.
@@ -279,3 +307,34 @@ def test_more_arrays_overlap_independent_macs(
     )
     assert one == pytest.approx(4.0)
     assert 2.0 <= two < 0.6 * one
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("param", "value", "message"),
+    [
+        ("mtx_num_arrays", 0, "mtx_num_arrays must be at least 1"),
+        ("mtx_queue_entries", 0, "mtx_queue_entries must be at least 1"),
+        ("mtx_uops_per_cycle", 0, "mtx_uops_per_cycle must be at least 1"),
+        ("mtx_lsu_fifo_entries", 0, "mtx_lsu_fifo_entries must be at least 1"),
+        ("mtx_uop_buffer_entries", 2, "mtx_uop_buffer_entries must hold"),
+        ("mtx_pe_rows", 0, "mtx_pe_rows must be at least 1"),
+        ("mtx_macs_per_pe_bf16", 0, "mtx_macs_per_pe_bf16 must be at least 1"),
+        ("mtx_dataflow", "diagonal", "mtx_dataflow: unknown"),
+        ("mtx_col_operand", "teleport", "mtx_col_operand: unknown"),
+        ("mtx_mapping", "other", "mtx_mapping: unknown"),
+    ],
+)
+def test_bad_matrix_parameters_fail_by_name(
+    param: str, value: object, message: str, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """A bad matrix parameter stops the run with an error naming it (D2)."""
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    elf = build_microbenchmark("matrix/mac_indep", tmp_path)
+    with pytest.raises(SimulationError, match=message):
+        run_sim(
+            elf,
+            params={f"top.matrix.params.{param}": value},
+            overlay_configs=(VME_CONFIG,),
+        )

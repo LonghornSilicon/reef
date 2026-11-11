@@ -1,4 +1,5 @@
-# ILLUSTRATIVE, NOT VALIDATED: an 8x8 array of 4-wide dot-product PEs with
+# NO RTL; FORMULAS CHECKED against the cycle-level reference and SCALE-Sim
+# (docs/matrix.md, "Checking it"). An 8x8 array of 4-wide dot-product PEs with
 # weights stationary, activations broadcast along rows and an adder tree
 # summing each column.
 # Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):

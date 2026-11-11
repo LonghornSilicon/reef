@@ -9,10 +9,10 @@ symbol). `(ROI(2N) - ROI(N)) / (N x ops per iteration)` is the steady-state
 cost of one operation. Setup, the work still in flight at `ROI_END`, and most
 of the difference between the model's M3 core and the RTL's `8a5e1b31` core
 cancel out. These are the numbers the matrix parameters are calibrated
-against ([docs/matrix.md](../../../../docs/matrix.md), "Correlating it").
+against ([docs/matrix.md](../../../../docs/matrix.md), "Measuring against the RTL").
 
 The model steps run in the Docker image. The RTL step runs on the host, where
-the VME verification simulator was built (docs/matrix.md, step C1):
+the VME verification simulator was built (docs/matrix-correlation-log.md, step C1):
 
 ```
 uv run python -m reef_perf.experiments.matrix_diff.main build

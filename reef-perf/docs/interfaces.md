@@ -421,7 +421,7 @@ interface unless noted.
   not compete with vector uops for the RVV dispatch they share on CoralNPU;
   no dedicated memory port; the core's `vtdiscard` interlock is not modeled.
   The Coral engine is correlated against the VME RTL (docs/matrix.md,
-  "Correlating it").
+  "What to trust").
 - **Memory:** synchronous booking instead of request/response; one port per
   TCM, no banks; AXI read and write channels not separated; no arbitration
   between requesters other than at the TCMs (`memory/Tcm.h`) and the external

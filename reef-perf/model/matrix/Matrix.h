@@ -25,7 +25,7 @@
 /// only `mtx_acc_raw_cycles` after that MAC started, as CoralNPU's hitRaw
 /// check does. Tile contents are not modeled.
 ///
-/// All timing values not cited in docs/matrix.md are placeholders.
+/// Each default's source is in docs/matrix.md, "Parameters".
 ///
 //===----------------------------------------------------------------------===//
 
@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace reef_perf {
@@ -73,10 +74,14 @@ public:
     explicit MatrixParameterSet(sparta::TreeNode *Node)
         : sparta::ParameterSet(Node) {}
     // Core interface and command path.
-    PARAMETER(uint32_t, mtx_queue_entries, 4, "Matrix command queue entries")
+    PARAMETER(uint32_t, mtx_queue_entries, 8,
+              "Matrix instructions Dispatch may send ahead of the engine "
+              "(credits)")
     PARAMETER(uint32_t, mtx_cmd_latency, 4,
               "Cycles from receiving an instruction to issuing its uops")
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
+    PARAMETER(uint32_t, mtx_uop_buffer_entries, 8,
+              "Uops the engine's reservation station holds (ZVT_RS_DEPTH)")
     PARAMETER(uint32_t, mtx_complete_latency, 1,
               "Cycles from the result being written to the core seeing the "
               "instruction complete")
@@ -121,13 +126,14 @@ public:
     PARAMETER(uint32_t, mtx_fabric_clock_divider, 1,
               "Core cycles per fabric cycle")
     // Tile storage and data movement.
-    PARAMETER(uint32_t, mtx_zero_cycles, 4,
-              "Cycles vtzero holds the "
-              "controller")
+    PARAMETER(uint32_t, mtx_zero_cycles, 0,
+              "Cycles vtzero holds the controller; 0 derives it: 256 / PEs "
+              "for mtx_mapping coral (PROCESS_DELAY), 4 otherwise")
     PARAMETER(uint32_t, mtx_move_cycles_per_uop, 1,
               "Controller cycles per vtmv uop")
-    PARAMETER(uint32_t, mtx_move_latency, 1,
-              "Cycles after a move's last uop until its result is written")
+    PARAMETER(uint32_t, mtx_move_latency, 0,
+              "Extra cycles, after the cycle following a move's last uop, "
+              "until its result can be read")
     PARAMETER(uint32_t, mtx_tile_write_latency, 1,
               "Cycles from a tile load's last data beat to the tile write")
     PARAMETER(uint32_t, mtx_tile_read_latency, 1,
@@ -217,10 +223,17 @@ private:
   Cycle getFifoFree(const std::deque<Cycle> &Pops) const;
   /// Records a pop at \p Cycle in \p Pops.
   void recordPop(std::deque<Cycle> &Pops, Cycle When) const;
+  /// Pushes \p Uops uops into the reservation station in order, from
+  /// \p Earliest. \returns the first and last push cycles.
+  std::pair<Cycle, Cycle> pushUops(uint32_t Uops, Cycle Earliest);
+  /// Sets the pop cycles of the newest \p Uops uops: all at \p Last for a
+  /// MAC (\p Together), else spread one per cycle ending at \p Last.
+  void popUops(uint32_t Uops, Cycle Last, bool Together);
 
   const uint32_t QueueEntries;
   const uint32_t CmdLatency;
   const uint32_t UopsPerCycle;
+  const uint32_t UopBufferEntries;
   const uint32_t CompleteLatency;
   const FabricConfig Fabric;
   const uint32_t NumArrays;
@@ -248,6 +261,10 @@ private:
   std::array<Cycle, 16> TileMacReady{}; // A MAC into the tile may start.
   std::array<Cycle, RegId::NumPerFile> OwnVReady{}; // vtmv.v.t results.
   Cycle LastCmdStart = 0;                           // In-order uop issue.
+  // Reservation-station uops still in it or popped at or after the last
+  // push: {push cycle, pop cycle}; the pop is NoPop until scheduled.
+  std::deque<std::pair<Cycle, Cycle>> RsUops;
+  static constexpr Cycle NoPop = ~Cycle{0};
   Cycle HeadFree = 0;   // The controller's head uop is released.
   Cycle LastDone = 0;   // Latest result of any instruction.
   Cycle ArrayDrain = 0; // Latest MAC result.

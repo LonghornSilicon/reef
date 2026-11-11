@@ -45,12 +45,14 @@ enum class Reduction : uint8_t {
 
 /// How a tile's rows and columns map onto the array's steps.
 enum class Mapping : uint8_t {
-  /// CoralNPU's PE array: 2 tile rows per step, at most 4 steps, whatever
-  /// tn is (busy = min(4, ceil(tm / 2)); ROWS_PER_CNT and cntMax00,
-  /// zvt_pe_array.sv:216-217). Output-stationary only.
+  /// CoralNPU's PE array: 256 / PEs steps (PROCESS_DELAY) of
+  /// 8 / PROCESS_DELAY tile rows per half, whatever tn is (ROWS_PER_CNT and
+  /// cntMax00, zvt_pe_array.sv:216-217); at 64 PEs, min(4, ceil(tm / 2)).
+  /// Output-stationary only.
   Coral,
-  /// Rows and columns tile the array in rows x cols blocks (one step per
-  /// block), the formula in docs/matrix.md; for the sweep's other designs.
+  /// Rows and columns tile the array in rows x cols blocks (one pass per
+  /// block); for the sweep's other designs. Checked against the cycle-level
+  /// reference in experiments/array_ref (docs/matrix-correlation-log.md, D4).
   Generic
 };
 
@@ -61,8 +63,8 @@ Mapping parseMapping(const std::string &Name);
 /// \throws std::invalid_argument for any other name.
 Dataflow parseDataflow(const std::string &Name);
 /// \returns the Delivery named \p Name ("broadcast", "forwarded").
-/// \throws std::invalid_argument for any other name.
-Delivery parseDelivery(const std::string &Name);
+/// \throws std::invalid_argument naming \p Param for any other name.
+Delivery parseDelivery(const std::string &Name, const std::string &Param);
 /// \returns the Reduction named \p Name ("in_place", "chain", "tree").
 /// \throws std::invalid_argument for any other name.
 Reduction parseReduction(const std::string &Name);
@@ -104,6 +106,19 @@ struct FabricCost {
   uint64_t UsefulMacs = 0;   ///< TM * TN * TK.
   uint64_t CapacityMacs = 0; ///< MACs the array could do in Busy cycles.
 };
+
+/// \returns CoralNPU's steps per full tile (PROCESS_DELAY = 256 / PEs) for
+/// \p Config's PE count.
+/// \throws std::invalid_argument naming mtx_pe_cols if the count is not 32,
+/// 64, 128 or 256.
+uint64_t getCoralSteps(const FabricConfig &Config);
+
+/// Checks \p Config before a run.
+/// \throws std::invalid_argument naming the first bad parameter: a zero row,
+/// column, MAC-lane count or clock divider, the Coral mapping with a
+/// dataflow other than output-stationary, or a Coral PE count that is not
+/// 32, 64, 128 or 256.
+void checkFabricConfig(const FabricConfig &Config);
 
 /// \returns the timing of a TM x TN x TK MAC with \p Type inputs on \p Config.
 /// \throws std::invalid_argument if the array has no rows, columns or MAC

@@ -10,12 +10,32 @@
 #include <cstdint>
 #include <span>
 #include <stdexcept>
+#include <string>
 
 using namespace reef_perf;
 
 /// Bytes in one tile row of 8-bit elements, and in one memory beat (the
 /// 128-bit DTCM bus).
 static constexpr uint32_t SubtileBytes = 16;
+
+/// \returns \p Value. \throws std::invalid_argument naming \p Name if it is 0.
+static uint32_t atLeastOne(uint32_t Value, const char *Name) {
+  if (Value == 0)
+    throw std::invalid_argument(std::string(Name) + " must be at least 1");
+  return Value;
+}
+
+/// \returns mtx_zero_cycles, or, if it is 0, CoralNPU's PROCESS_DELAY for
+/// the Coral mapping (vtzero clears a tile in as many steps as a MAC,
+/// zvt_ctrl.sv:435-445) and 4, Coral's 64-PE value, for other arrays.
+static uint32_t getZeroCycles(const Matrix::MatrixParameterSet *Params,
+                              const FabricConfig &Fabric) {
+  if (Params->mtx_zero_cycles != 0)
+    return Params->mtx_zero_cycles;
+  if (Fabric.Map == Mapping::Coral)
+    return static_cast<uint32_t>(getCoralSteps(Fabric));
+  return 4;
+}
 
 static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   FabricConfig F;
@@ -25,8 +45,8 @@ static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   F.MacsPerPeBf16 = Params->mtx_macs_per_pe_bf16;
   F.MacsPerPeFp32 = Params->mtx_macs_per_pe_fp32;
   F.Flow = parseDataflow(Params->mtx_dataflow);
-  F.RowOperand = parseDelivery(Params->mtx_row_operand);
-  F.ColOperand = parseDelivery(Params->mtx_col_operand);
+  F.RowOperand = parseDelivery(Params->mtx_row_operand, "mtx_row_operand");
+  F.ColOperand = parseDelivery(Params->mtx_col_operand, "mtx_col_operand");
   F.HopLatency = Params->mtx_hop_latency;
   F.Reduce = parseReduction(Params->mtx_reduction);
   F.TreeLevelLatency = Params->mtx_tree_level_latency;
@@ -37,34 +57,37 @@ static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   F.PipelineAcrossOps = Params->mtx_pipeline_across_ops;
   F.ClockDivider = Params->mtx_fabric_clock_divider;
   F.Map = parseMapping(Params->mtx_mapping);
-  // Fails early on a fabric that cannot run int8.
-  getMacCost(F, 1, 1, 1, MatrixType::Int8);
+  checkFabricConfig(F);
   return F;
 }
 
 Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
-    : sparta::Unit(Node, name), QueueEntries(Params->mtx_queue_entries),
+    : sparta::Unit(Node, name),
+      QueueEntries(atLeastOne(Params->mtx_queue_entries, "mtx_queue_entries")),
       CmdLatency(Params->mtx_cmd_latency),
-      UopsPerCycle(Params->mtx_uops_per_cycle),
+      UopsPerCycle(
+          atLeastOne(Params->mtx_uops_per_cycle, "mtx_uops_per_cycle")),
+      UopBufferEntries(Params->mtx_uop_buffer_entries),
       CompleteLatency(Params->mtx_complete_latency), Fabric(getFabric(Params)),
-      NumArrays(Params->mtx_num_arrays),
+      NumArrays(atLeastOne(Params->mtx_num_arrays, "mtx_num_arrays")),
       AccRawCycles(Params->mtx_acc_raw_cycles),
-      ZeroCycles(Params->mtx_zero_cycles),
+      ZeroCycles(getZeroCycles(Params, Fabric)),
       MoveCyclesPerUop(Params->mtx_move_cycles_per_uop),
       MoveLatency(Params->mtx_move_latency),
       TileWriteLatency(Params->mtx_tile_write_latency),
       TileReadLatency(Params->mtx_tile_read_latency),
-      LsuFifoEntries(Params->mtx_lsu_fifo_entries),
+      LsuFifoEntries(
+          atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
       EnergyPerMac(Params->mtx_energy_per_mac_pj),
       EnergyPerSubtile(Params->mtx_energy_per_subtile_access_pj),
       EnergyPerBeat(Params->mtx_energy_per_mem_beat_pj), Cmd("matrix_cmd", 1),
-      Arrays("matrix_array", Params->mtx_num_arrays), Ctrl("matrix_ctrl", 1) {
-  if (QueueEntries == 0 || UopsPerCycle == 0 || LsuFifoEntries == 0)
-    throw std::invalid_argument("mtx_queue_entries, mtx_uops_per_cycle and "
-                                "mtx_lsu_fifo_entries must be at least 1");
+      Arrays("matrix_array", NumArrays), Ctrl("matrix_ctrl", 1) {
+  if (UopBufferEntries < 4)
+    throw std::invalid_argument("mtx_uop_buffer_entries must hold a MAC's 4 "
+                                "uops");
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Matrix, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Matrix, sendInitialCredits));
@@ -215,6 +238,49 @@ Matrix::Transfer Matrix::runTileStore(const Inst &I, Cycle CtrlEarliest) {
   return T;
 }
 
+std::pair<Cycle, Cycle> Matrix::pushUops(uint32_t Uops, Cycle Earliest) {
+  Cycle T = Earliest;
+  if (!RsUops.empty())
+    T = std::max(T, RsUops.back().first);
+  if (Uops == 0)
+    return {T, T};
+  // Uops popped before the last push no longer change any count below.
+  while (!RsUops.empty() && RsUops.front().second < RsUops.back().first)
+    RsUops.pop_front();
+  Cycle First = 0;
+  for (uint32_t U = 0; U < Uops; ++U) {
+    for (;; ++T) {
+      // Each push lane checks the room left at the start of the cycle,
+      // before that cycle's pops (almost_full per lane, multi_fifo.sv;
+      // rs_ready_zvt2dp, rvv_backend.sv:797-807).
+      uint64_t In = 0;
+      uint64_t PushedNow = 0;
+      for (const auto &[Push, Pop] : RsUops) {
+        if (Push < T && Pop >= T)
+          ++In;
+        if (Push == T)
+          ++PushedNow;
+      }
+      if (PushedNow < UopsPerCycle && In + PushedNow < UopBufferEntries)
+        break;
+    }
+    if (U == 0)
+      First = T;
+    RsUops.emplace_back(T, NoPop);
+    if (Cmd.getNextFree(T) == T)
+      Cmd.reserve(T, 1); // Pool statistics: cycles with a push.
+  }
+  return {First, T};
+}
+
+void Matrix::popUops(uint32_t Uops, Cycle Last, bool Together) {
+  sparta_assert(RsUops.size() >= Uops, "popping uops that were not pushed");
+  for (uint32_t U = 0; U < Uops; ++U) {
+    Cycle Pop = Together ? Last : Last - (Uops - 1 - U);
+    RsUops[RsUops.size() - Uops + U].second = Pop;
+  }
+}
+
 void Matrix::executeInst(const InstRef &I) {
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
@@ -222,14 +288,14 @@ void Matrix::executeInst(const InstRef &I) {
                 "matrix module got a non-matrix instruction");
   ++Stats.Ops.at(static_cast<size_t>(I->Mtx.Op));
 
-  // 1. Command path: in program order, once vector sources are ready.
+  // 1. Command path: uops enter the reservation station in program order,
+  // once vector sources are ready; a uop can leave the cycle after it
+  // enters.
   uint32_t Uops = getUops(*I);
-  uint64_t IssueCycles =
-      std::max<uint64_t>(1, (uint64_t{Uops} + UopsPerCycle - 1) / UopsPerCycle);
   Cycle CmdEarliest = std::max(
       {Cycle{Now + CmdLatency}, getVectorSourcesReady(*I), LastCmdStart});
-  Cycle CmdStart = Cmd.reserve(CmdEarliest, IssueCycles);
-  Cycle CmdDone = CmdStart + IssueCycles;
+  auto [CmdStart, LastPush] = pushUops(Uops, CmdEarliest);
+  Cycle CmdDone = LastPush + 1;
   LastCmdStart = CmdStart;
   OutCreditsPort.send(1, CmdStart - Now); // Leaves the queue as it issues.
 
@@ -245,12 +311,18 @@ void Matrix::executeInst(const InstRef &I) {
   // (zvt_pe_array.sv:195-207).
   Cycle TilesReady =
       getTilesReady(*I, M.Op == MatrixOp::Mac ? TileMacReady : TileReady);
-  Cycle Earliest = std::max({CmdDone, TilesReady, HeadFree});
-  // Every controller op except a MAC waits for the array to drain (!peBusy:
-  // zvt_ctrl.sv:105-106, :130-134).
   bool UsesCtrl = M.Op == MatrixOp::Zero || M.Op == MatrixOp::MoveToTile ||
                   M.Op == MatrixOp::MoveToVector ||
                   M.Op == MatrixOp::TileLoad || M.Op == MatrixOp::TileStore;
+  // A MAC needs all its uops at the head (isPe over the ZVT_LMUL uop lanes,
+  // zvt_ctrl.sv:108-119). The controller serves the other ops one uop per
+  // cycle from the first uop on; later uops issue faster than that, so they
+  // never wait (VME waveforms of move_tv_rob and move_vt_use: dispatch to
+  // first uop 5 cycles for a 4-uop move, 6 for a MAC).
+  Cycle CmdReady = UsesCtrl ? CmdStart + 1 : CmdDone;
+  Cycle Earliest = std::max({CmdReady, TilesReady, HeadFree});
+  // Every controller op except a MAC waits for the array to drain (!peBusy:
+  // zvt_ctrl.sv:105-106, :130-134).
   // The controller acts the cycle after the last MAC's tile write: on the
   // VME RTL, peBusy falls 13 cycles after a MAC's first step and the first
   // tile-load pop behind it comes at 14 (waveform of tile_load_behind_mac).
@@ -358,6 +430,10 @@ void Matrix::executeInst(const InstRef &I) {
   case MatrixOp::NumOps:
     break;
   }
+  if (Uops != 0)
+    // A MAC leaves with its last step (peCmdRdy = canStart && cntCr,
+    // zvt_pe_array.sv:206); the controller takes one uop per cycle.
+    popUops(Uops, std::max(HeadFree, Start + 1) - 1, M.Op == MatrixOp::Mac);
   LastDone = std::max(LastDone, Done);
 
   I->IssueCycle = CmdStart;

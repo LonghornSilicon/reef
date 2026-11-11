@@ -20,13 +20,14 @@ Dataflow reef_perf::parseDataflow(const std::string &Name) {
                               "' (output, weight, input)");
 }
 
-Delivery reef_perf::parseDelivery(const std::string &Name) {
+Delivery reef_perf::parseDelivery(const std::string &Name,
+                                  const std::string &Param) {
   if (Name == "broadcast")
     return Delivery::Broadcast;
   if (Name == "forwarded")
     return Delivery::Forwarded;
-  throw std::invalid_argument("matrix operand delivery: unknown value '" +
-                              Name + "' (broadcast, forwarded)");
+  throw std::invalid_argument(Param + ": unknown value '" + Name +
+                              "' (broadcast, forwarded)");
 }
 
 Mapping reef_perf::parseMapping(const std::string &Name) {
@@ -50,6 +51,33 @@ Reduction reef_perf::parseReduction(const std::string &Name) {
 }
 
 static uint64_t ceilDiv(uint64_t A, uint64_t B) { return (A + B - 1) / B; }
+
+uint64_t reef_perf::getCoralSteps(const FabricConfig &Config) {
+  constexpr uint64_t TileElems = 16 * 16;
+  uint64_t NumPe = uint64_t{Config.Rows} * Config.Cols;
+  uint64_t Steps = NumPe == 0 ? 0 : TileElems / NumPe;
+  if (Steps == 0 || Steps * NumPe != TileElems || Steps > 8 ||
+      (Steps & (Steps - 1)) != 0)
+    throw std::invalid_argument(
+        "mtx_mapping coral needs mtx_pe_rows x mtx_pe_cols of 32, 64, 128 "
+        "or 256 PEs (a power-of-two share of a 16 x 16 tile)");
+  return Steps;
+}
+
+void reef_perf::checkFabricConfig(const FabricConfig &Config) {
+  auto AtLeastOne = [](uint32_t Value, const char *Name) {
+    if (Value == 0)
+      throw std::invalid_argument(std::string(Name) + " must be at least 1");
+  };
+  AtLeastOne(Config.Rows, "mtx_pe_rows");
+  AtLeastOne(Config.Cols, "mtx_pe_cols");
+  AtLeastOne(Config.MacsPerPeInt8, "mtx_macs_per_pe_int8");
+  AtLeastOne(Config.MacsPerPeBf16, "mtx_macs_per_pe_bf16");
+  AtLeastOne(Config.MacsPerPeFp32, "mtx_macs_per_pe_fp32");
+  AtLeastOne(Config.ClockDivider, "mtx_fabric_clock_divider");
+  // The Coral rules (dataflow, PE count) are checked by one full-tile MAC.
+  getMacCost(Config, 16, 16, 4, MatrixType::Int8);
+}
 
 /// \returns the levels of a binary adder tree over \p Inputs inputs.
 static uint64_t getTreeLevels(uint64_t Inputs) {
@@ -106,27 +134,64 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
       throw std::invalid_argument(
           "mtx_mapping coral models CoralNPU's output-stationary array; use "
           "mtx_mapping generic with mtx_dataflow weight or input");
-    // The step counter walks the tile's rows two at a time and stops at
-    // PROCESS_DELAY = 4; rows 8-15 run in the upper blocks in parallel, and
-    // tn does not change the count (zvt_pe_array.sv:216-217).
-    Cost.Passes = std::min<uint64_t>(4, ceilDiv(M, 2));
+    // CoralNPU sizes its array as NUM_PE = TE * TE * COMPRATIO and walks a
+    // tile in PROCESS_DELAY = 1 / COMPRATIO steps (rvv_backend_define.svh:
+    // 210-220). Each step covers TE / 2 / PROCESS_DELAY rows of each half;
+    // rows 8-15 run in the upper blocks in parallel, and tn does not change
+    // the count (cntMax00, zvt_pe_array.sv:216-217). 64 PEs: 4 steps of 2
+    // rows, as at 8a5e1b31.
+    constexpr uint64_t TileEdge = 16;
+    uint64_t RowsPerStep = TileEdge / 2 / getCoralSteps(Config);
+    Cost.Passes = ceilDiv(std::min<uint64_t>(M, TileEdge / 2), RowsPerStep);
   } else {
     Cost.Passes =
         ceilDiv(SpatialRows, Config.Rows) * ceilDiv(SpatialCols, Config.Cols);
   }
+  // Busy: cycles a lone MAC holds the array. Interval: cycles between
+  // back-to-back MACs, which can be shorter when the next MAC's stationary
+  // load overlaps this one's compute. Checked against the cycle-level
+  // reference in experiments/array_ref (docs/matrix-correlation-log.md, D4).
   Cost.Busy = Cost.Passes * Temporal;
+  uint64_t Interval = Cost.Busy;
   if (Config.Flow != Dataflow::Output) {
     uint64_t Load = Config.StationaryLoadCycles != 0
                         ? Config.StationaryLoadCycles
                         : UsedRows;
-    // Double buffering hides every load but the first.
-    Cost.Busy += Config.DoubleBufferStationary ? Load : Cost.Passes * Load;
+    // A column reloads only after its last row's use, which trails the
+    // first row's by the partial-sum chain.
+    uint64_t ReloadWait = Config.Reduce == Reduction::Chain
+                              ? (UsedRows - 1) * Config.HopLatency
+                              : 0;
+    if (Config.DoubleBufferStationary) {
+      // The next pass loads into the other buffer while this one computes.
+      // Passes are at least Temporal (the PEs) and Load (one load at a time
+      // down each column) apart, and a buffer is free again only two passes
+      // later, so a pair of passes takes at least Temporal + Load +
+      // ReloadWait. In twice-passes units, to keep the pair average exact:
+      uint64_t TwicePerPass =
+          std::max(2 * std::max(Temporal, Load), Temporal + Load + ReloadWait);
+      // A lone MAC's second pass waits only for the PEs and the load path;
+      // the pair rule applies from its third.
+      Cost.Busy = Load + Temporal;
+      if (Cost.Passes >= 2)
+        Cost.Busy += std::max(Temporal, Load) +
+                     ceilDiv((Cost.Passes - 2) * TwicePerPass, 2);
+      Interval = ceilDiv(Cost.Passes * TwicePerPass, 2);
+    } else {
+      uint64_t PerPass = Temporal + Load + ReloadWait;
+      Cost.Busy = Cost.Passes * PerPass - ReloadWait;
+      Interval = Cost.Passes * PerPass;
+    }
   }
 
+  // Skew from operands moving one PE per hop. A stationary operand does not
+  // move during compute, so only output-stationary arrays skew both ways; in
+  // a weight-stationary array the row skew is the partial-sum chain (Drain).
   uint64_t Fill = 0;
   if (Config.RowOperand == Delivery::Forwarded)
     Fill += (UsedCols - 1) * Config.HopLatency;
-  if (Config.ColOperand == Delivery::Forwarded)
+  if (Config.ColOperand == Delivery::Forwarded &&
+      Config.Flow == Dataflow::Output)
     Fill += (UsedRows - 1) * Config.HopLatency;
   uint64_t Drain = 0;
   if (Config.Reduce == Reduction::Chain)
@@ -138,7 +203,7 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
                      Config.AccumulateLatency;
   Cost.UsefulMacs = M * N * K;
   Cost.CapacityMacs = uint64_t{Config.Rows} * Config.Cols * Lanes * Cost.Busy;
-  Cost.Occupancy = Config.PipelineAcrossOps ? Cost.Busy : Latency;
+  Cost.Occupancy = Config.PipelineAcrossOps ? Interval : Latency;
   Cost.Busy *= Config.ClockDivider;
   Cost.Latency = Latency * Config.ClockDivider;
   Cost.Occupancy *= Config.ClockDivider;
