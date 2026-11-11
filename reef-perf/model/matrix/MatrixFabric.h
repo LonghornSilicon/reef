@@ -45,12 +45,14 @@ enum class Reduction : uint8_t {
 
 /// How a tile's rows and columns map onto the array's steps.
 enum class Mapping : uint8_t {
-  /// CoralNPU's PE array: 2 tile rows per step, at most 4 steps, whatever
-  /// tn is (busy = min(4, ceil(tm / 2)); ROWS_PER_CNT and cntMax00,
-  /// zvt_pe_array.sv:216-217). Output-stationary only.
+  /// CoralNPU's PE array: 256 / PEs steps (PROCESS_DELAY) of
+  /// 8 / PROCESS_DELAY tile rows per half, whatever tn is (ROWS_PER_CNT and
+  /// cntMax00, zvt_pe_array.sv:216-217); at 64 PEs, min(4, ceil(tm / 2)).
+  /// Output-stationary only.
   Coral,
-  /// Rows and columns tile the array in rows x cols blocks (one step per
-  /// block), the formula in docs/matrix.md; for the sweep's other designs.
+  /// Rows and columns tile the array in rows x cols blocks (one pass per
+  /// block); for the sweep's other designs. Checked against the cycle-level
+  /// reference in experiments/array_ref (docs/matrix.md, D4).
   Generic
 };
 

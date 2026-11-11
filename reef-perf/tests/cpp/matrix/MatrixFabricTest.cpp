@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <functional>
 #include <stdexcept>
 #include <string>
@@ -95,8 +96,11 @@ TEST(MatrixFabricTest, WeightStationarySystolic) {
   // Rows map K (4 used), columns map N (16), M = 16 streams.
   EXPECT_EQ(C.Passes, 1U);
   EXPECT_EQ(C.Busy, 16U + 4U); // stream + one exposed load of 4 rows
-  // Fill (16 - 1) + (4 - 1), drain (4 - 1), pipeline 1.
-  EXPECT_EQ(C.Latency, 15U + 3U + 20U + 3U + 1U);
+  // Fill (16 - 1) along the rows, drain (4 - 1) down the chain, pipeline 1;
+  // the weights do not move, so there is no second skew.
+  EXPECT_EQ(C.Latency, 15U + 20U + 3U + 1U);
+  // Back to back, the next MAC's load hides behind this one's 16 steps.
+  EXPECT_EQ(C.Occupancy, 16U);
   EXPECT_EQ(C.UsefulMacs, 1024U);
   EXPECT_EQ(C.CapacityMacs, 16U * 16U * 20U);
 }
@@ -195,6 +199,54 @@ TEST(MatrixFabricTest, UnknownNamesNameTheParameter) {
                   "mtx_col_operand"));
   EXPECT_TRUE(Has([] { parseReduction("sum"); }, "mtx_reduction"));
   EXPECT_TRUE(Has([] { parseMapping("other"); }, "mtx_mapping"));
+}
+
+/// One row of FabricReference.inc: an array, a MAC shape, and the cycle-level
+/// reference's latency and back-to-back interval.
+struct ReferenceCase {
+  uint32_t Rows, Cols, Lanes;
+  Dataflow Flow;
+  Delivery RowOperand, ColOperand;
+  Reduction Reduce;
+  uint32_t Hop, TreeLevel, Depth, StationaryLoad;
+  bool DoubleBuffer;
+  uint32_t M, N, K;
+  uint64_t Latency;
+  double Interval;
+};
+
+const ReferenceCase ReferenceCases[] = {
+#include "FabricReference.inc"
+};
+
+TEST(MatrixFabricTest, ReferenceArrays) {
+  // The generic formulas against experiments/array_ref, a cycle-level
+  // schedule of the same arrays (docs/matrix.md, D4). The interval may be a
+  // fraction (passes alternate buffers); occupancy is its ceiling.
+  for (const ReferenceCase &R : ReferenceCases) {
+    FabricConfig F;
+    F.Rows = R.Rows;
+    F.Cols = R.Cols;
+    F.MacsPerPeInt8 = R.Lanes;
+    F.Flow = R.Flow;
+    F.RowOperand = R.RowOperand;
+    F.ColOperand = R.ColOperand;
+    F.Reduce = R.Reduce;
+    F.HopLatency = R.Hop;
+    F.TreeLevelLatency = R.TreeLevel;
+    F.PipelineDepth = R.Depth;
+    F.StationaryLoadCycles = R.StationaryLoad;
+    F.DoubleBufferStationary = R.DoubleBuffer;
+    F.Map = Mapping::Generic;
+    FabricCost C = getMacCost(F, R.M, R.N, R.K, MatrixType::Int8);
+    SCOPED_TRACE(std::to_string(R.Rows) + "x" + std::to_string(R.Cols) +
+                 " lanes " + std::to_string(R.Lanes) + " shape " +
+                 std::to_string(R.M) + "x" + std::to_string(R.N) + "x" +
+                 std::to_string(R.K));
+    EXPECT_EQ(C.Latency, R.Latency);
+    EXPECT_GE(static_cast<double>(C.Occupancy), R.Interval);
+    EXPECT_LT(static_cast<double>(C.Occupancy), R.Interval + 1);
+  }
 }
 
 } // namespace

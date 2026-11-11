@@ -142,19 +142,51 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
     Cost.Passes =
         ceilDiv(SpatialRows, Config.Rows) * ceilDiv(SpatialCols, Config.Cols);
   }
+  // Busy: cycles a lone MAC holds the array. Interval: cycles between
+  // back-to-back MACs, which can be shorter when the next MAC's stationary
+  // load overlaps this one's compute. Checked against the cycle-level
+  // reference in experiments/array_ref (docs/matrix.md, D4).
   Cost.Busy = Cost.Passes * Temporal;
+  uint64_t Interval = Cost.Busy;
   if (Config.Flow != Dataflow::Output) {
     uint64_t Load = Config.StationaryLoadCycles != 0
                         ? Config.StationaryLoadCycles
                         : UsedRows;
-    // Double buffering hides every load but the first.
-    Cost.Busy += Config.DoubleBufferStationary ? Load : Cost.Passes * Load;
+    // A column reloads only after its last row's use, which trails the
+    // first row's by the partial-sum chain.
+    uint64_t ReloadWait = Config.Reduce == Reduction::Chain
+                              ? (UsedRows - 1) * Config.HopLatency
+                              : 0;
+    if (Config.DoubleBufferStationary) {
+      // The next pass loads into the other buffer while this one computes.
+      // Passes are at least Temporal (the PEs) and Load (one load at a time
+      // down each column) apart, and a buffer is free again only two passes
+      // later, so a pair of passes takes at least Temporal + Load +
+      // ReloadWait. In twice-passes units, to keep the pair average exact:
+      uint64_t TwicePerPass =
+          std::max(2 * std::max(Temporal, Load), Temporal + Load + ReloadWait);
+      // A lone MAC's second pass waits only for the PEs and the load path;
+      // the pair rule applies from its third.
+      Cost.Busy = Load + Temporal;
+      if (Cost.Passes >= 2)
+        Cost.Busy += std::max(Temporal, Load) +
+                     ceilDiv((Cost.Passes - 2) * TwicePerPass, 2);
+      Interval = ceilDiv(Cost.Passes * TwicePerPass, 2);
+    } else {
+      uint64_t PerPass = Temporal + Load + ReloadWait;
+      Cost.Busy = Cost.Passes * PerPass - ReloadWait;
+      Interval = Cost.Passes * PerPass;
+    }
   }
 
+  // Skew from operands moving one PE per hop. A stationary operand does not
+  // move during compute, so only output-stationary arrays skew both ways; in
+  // a weight-stationary array the row skew is the partial-sum chain (Drain).
   uint64_t Fill = 0;
   if (Config.RowOperand == Delivery::Forwarded)
     Fill += (UsedCols - 1) * Config.HopLatency;
-  if (Config.ColOperand == Delivery::Forwarded)
+  if (Config.ColOperand == Delivery::Forwarded &&
+      Config.Flow == Dataflow::Output)
     Fill += (UsedRows - 1) * Config.HopLatency;
   uint64_t Drain = 0;
   if (Config.Reduce == Reduction::Chain)
@@ -166,7 +198,7 @@ FabricCost reef_perf::getMacCost(const FabricConfig &Config, uint32_t TM,
                      Config.AccumulateLatency;
   Cost.UsefulMacs = M * N * K;
   Cost.CapacityMacs = uint64_t{Config.Rows} * Config.Cols * Lanes * Cost.Busy;
-  Cost.Occupancy = Config.PipelineAcrossOps ? Cost.Busy : Latency;
+  Cost.Occupancy = Config.PipelineAcrossOps ? Interval : Latency;
   Cost.Busy *= Config.ClockDivider;
   Cost.Latency = Latency * Config.ClockDivider;
   Cost.Occupancy *= Config.ClockDivider;

@@ -455,6 +455,69 @@ checked.
 This validates the Coral mapping at other sizes. It says nothing about the
 systolic and tree presets, which no RTL has.
 
+#### D4: systolic and tree arrays
+
+No RTL has these arrays, so their formulas (`getMacCost`, generic mapping)
+were checked two ways.
+
+**A cycle-level reference** (`python/reef_perf/experiments/array_ref/ref.py`)
+schedules each pass of a MAC: when each operand reaches each PE (from where it
+enters and whether it is forwarded or broadcast, worked out separately for the
+two operands), each multiply, each partial-sum hop, each tree input and each
+stationary load. It books every PE port, tree input and column load path per
+cycle, starts each pass at the earliest cycle nothing collides, fails if the
+two operands of a multiply do not meet, and checks that every product of the
+tile is computed exactly once. `array_ref.main` runs it over 1,536 cases
+(output-stationary 8 and 16 square, 1 or 4 lanes, every delivery pair, hop 1
+or 2, depth 1 or 3; weight-stationary chain 2/4/16 x 8/16, hop 1 or 2, load 0
+or 6, single or double buffered; trees 2/8 x 4/8, 1 or 4 lanes, level 1 or 2;
+eight tile shapes up to 16 x 16 x 4) and writes
+`tests/cpp/matrix/FabricReference.inc`. `MatrixFabricTest.ReferenceArrays`
+checks every row: latency exactly, back-to-back occupancy as the ceiling of
+the reference's interval (alternating buffers can make it a fraction).
+
+It found two errors, both fixed:
+
+- **Weight-stationary latency counted the row skew twice**, once as fill (a
+  forwarded column operand) and once as the partial-sum chain. The weights do
+  not move during compute, so the skew is the chain alone. `ws_systolic_16x16`
+  on a 16 x 16 x 4 MAC: 42 to 39 cycles.
+- **Stationary loads and back-to-back MACs.** The model charged every MAC
+  one load and nothing else. Double buffered, the next MAC's load overlaps
+  this one's compute, limited by the PEs (`Temporal`), the column load path
+  (`Load`) and buffer reuse two passes later (`Temporal + Load + chain
+  skew` per pair of passes): `ws_systolic_16x16` 20 to 16 cycles per MAC,
+  `tree_8x8` 33 to 32. Single buffered, a column reloads only after its last
+  row's use, which trails the first by the chain: 20 to 23. A lone MAC's
+  latency still includes its first load. `MatrixFabric.cpp` now separates
+  the two (`Busy` for a lone MAC, the interval for occupancy).
+
+Output-stationary arrays, single-buffered trees and every latency outside
+the weight-stationary chain matched before the fix.
+
+**SCALE-Sim 3.0.0** (an open-source systolic-array simulator) independently
+gives the same cycles as the reference on 11 single-fold GEMMs, output- and
+weight-stationary, 4 x 8 to 16 x 16
+(`python -m reef_perf.experiments.array_ref.scalesim_check`, in a throwaway
+environment; it is not a dependency). That includes the weight-stationary
+skew counted once. SCALE-Sim cannot check the rest: it skews and loads over
+the whole array even for a partial tile, and runs folds one after another
+with full fill and drain, so it does not model overlapping passes or MACs.
+
+**What is assumed, not checked** (no RTL):
+
+- A pass's results go straight to tile storage (each PE writes its own C
+  element; for chains and trees, the bottom of each column). Arrays that
+  shift results out through the array would add a drain per pass and could
+  not overlap passes as freely.
+- Skew and loads span only the PEs a tile uses.
+- Stationary loads move one PE row per cycle down each column, in step with
+  that column's wavefront.
+- Everything outside the array is Coral's: one tile per `vtmm`, the uop
+  path, the controller. Under Zvt, weight reuse across instructions does not
+  exist (case 12).
+- Input-stationary arrays are not in the reference.
+
 #### Held-out check: `gemm_tile`
 
 One 16x16x64 int8 GEMM (16 k-steps of 8 `vle8` + `vtmmu`, then 16 rows of
@@ -499,7 +562,7 @@ What to sweep, across modules, is collected in `sweep-candidates.md`.
 | D1 | **Done (2026-11-11).** Every `configs/matrix/*.yaml` runs `mac_indep` and `gemm_tile` on top of `m3_vme.yaml`, within its peak MAC rate (`test_presets_run_and_respect_compute_bound`). New preset `coral_128pe.yaml`, the RTL-checked 128-PE array. | New pytest |
 | D2 | **Done (2026-11-11).** A zero row, column, lane, array, divider, queue, issue-width or FIFO count, a uop buffer smaller than a MAC, an unknown dataflow, delivery, reduction or mapping name, or a Coral PE count other than 32-256 stops the run with the parameter's name in the error (`checkFabricConfig`; `MatrixFabricTest`, `test_bad_matrix_parameters_fail_by_name`). | ctest |
 | D3 | **A sweep script** that runs a grid of `-p` overrides and writes ROI cycles, `mac_utilization` and the cost estimates to CSV. | Runs on the presets |
-| D4 | **Coral-shaped arrays done (2026-11-11):** the Coral mapping scales with the PE count and matches a 128-PE CoralNPU build (results below; `test_matches_rtl_at_128_pes`). **Still open: systolic and tree presets** (case 17), which need a reference array simulator. 256 PEs is out of scope for Reef. | Per GEMM shape |
+| D4 | **Coral-shaped arrays done (2026-11-11):** the Coral mapping scales with the PE count and matches a 128-PE CoralNPU build (results below; `test_matches_rtl_at_128_pes`). **Systolic and tree arrays: formulas checked (2026-11-11)** against a cycle-level reference and SCALE-Sim; two formula errors fixed (results below). No RTL has them. 256 PEs is out of scope for Reef. | Per GEMM shape |
 
 ### Left for other owners or the spec
 
@@ -612,8 +675,10 @@ can answer it.
     some standard OPMVV funct6 111100 encodings (the vwmaccu family) to the
     matrix engine (`RvvFrontEnd.sv:633`, `rvv_backend_decode_unit_ari_de2.sv
     :506-509`), a CoralNPU decode collision the model does not reproduce.
-17. **Fill, drain and tree formulas** are analytic and unchecked for any
-    setting but CoralNPU's.
+17. **Fill, drain and tree formulas (settled for the formulas, D4).**
+    Checked against a cycle-level reference on 1,536 array and shape cases
+    and against SCALE-Sim on single-fold shapes. No RTL; the assumptions are
+    listed under "D4: systolic and tree arrays".
 
     
     
