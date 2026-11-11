@@ -70,11 +70,15 @@ public:
   /// \returns the TCM holding an address, or nullptr outside the TCMs.
   using TcmLookup = std::function<Tcm *(Address)>;
 
+  /// \returns the external memory link an address is behind, or nullptr.
+  using LinkLookup = std::function<ExtMemModel *(Address)>;
+
   /// Creates a DMA whose transfers wait \p SetupCycles before their first
   /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names
-  /// and, for an end outside them, the link \p Ext (may be null).
-  /// \p QueueDepth caps the unfinished transfers (0: no limit).
-  Dma(uint32_t SetupCycles, uint32_t BeatBytes, ExtMemModel *Ext,
+  /// and, for an end outside them, the link \p FindLink names (\p FindLink
+  /// may be empty: no link is modeled). \p QueueDepth caps the unfinished
+  /// transfers (0: no limit).
+  Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
       TcmLookup FindTcm, uint32_t QueueDepth = 0);
 
   /// Applies a store of \p Value to register \p Offset that arrives at
@@ -108,7 +112,7 @@ private:
 
   uint32_t SetupCycles;
   uint32_t BeatBytes;
-  ExtMemModel *Ext;
+  LinkLookup FindLink;
   TcmLookup FindTcm;
   uint32_t QueueDepth;
   Address Src = 0;

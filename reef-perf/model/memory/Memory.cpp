@@ -15,9 +15,16 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
            Params->dtcm_cycles_per_line),
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
           Params->axi_max_outstanding, Params->axi_blocking_reads),
-      Ext(Params->ext_mem_latency, Params->ext_mem_bytes_per_cycle),
+      Ext("ext_mem_link", Params->ext_mem_latency, Params->ext_mem_latency,
+          Params->ext_mem_bytes_per_cycle, Params->ext_mem_max_burst_bytes),
+      Ram("ext_ram_link", Params->ext_ram_latency,
+          Params->ext_ram_write_latency, Params->ext_ram_bytes_per_cycle,
+          Params->ext_ram_max_burst_bytes),
+      RamBase(Params->ext_ram_base),
+      RamBytes(uint64_t{Params->ext_ram_mb} * 1024 * 1024),
       DMA(
-          Params->dma_setup_cycles, Params->dma_beat_bytes, &Ext,
+          Params->dma_setup_cycles, Params->dma_beat_bytes,
+          [this](Address Addr) { return getLink(Addr); },
           [this](Address Addr) -> Tcm * {
             switch (getRegionKind(Addr)) {
             case RegionKind::ITCM:
@@ -105,19 +112,25 @@ MemResponse Memory::access(const MemRequest &Request) {
   return Response;
 }
 
+ExtMemModel *Memory::getLink(Address Addr) {
+  return Addr >= RamBase && Addr - RamBase < RamBytes ? &Ram : &Ext;
+}
+
 MemResponse Memory::addExtMemTime(const MemRequest &Request,
                                   MemResponse Response) {
-  if (!Ext.isTimed())
+  const bool IsStore =
+      !Request.Accesses.empty() && Request.Accesses.front().IsStore;
+  ExtMemModel &Link =
+      Request.Accesses.empty() ? Ext : *getLink(Request.Accesses.front().Addr);
+  if (!Link.isTimed())
     return Response;
   uint64_t Bytes = 0;
   for (const MemAccess &Access : Request.Accesses)
     Bytes += Access.Size;
   // The link time adds to the e-bus path's own latency (axi_latency). A
   // blocking read keeps holding its requester until the data is back.
-  const bool Blocking =
-      AXI.hasBlockingReads() &&
-      (Request.Accesses.empty() || !Request.Accesses.front().IsStore);
-  const Cycle LinkDone = Ext.transfer(Bytes, Response.Start).Done;
+  const bool Blocking = AXI.hasBlockingReads() && !IsStore;
+  const Cycle LinkDone = Link.transfer(Bytes, Response.Start, IsStore).Done;
   const uint64_t Extra = LinkDone - Response.Start;
   // The operation keeps its outstanding slot until the link is done too.
   AXI.extend(Response.Start + Response.Latency, Extra);
@@ -134,5 +147,7 @@ std::vector<const ResourcePool *> Memory::getPools() const {
     Pools.push_back(Pool);
   if (Ext.isTimed())
     Pools.push_back(&Ext.getLink());
+  if (Ram.isTimed())
+    Pools.push_back(&Ram.getLink());
   return Pools;
 }

@@ -62,30 +62,41 @@ private:
   ResourcePool Outstanding; // Each entry held until its operation is done.
 };
 
-/// The off-chip memory behind the SoC bus (HyperRAM or QSPI flash): one link
-/// that each operation holds for `Latency` cycles to its first byte, then
-/// for its bytes at `BytesPerCycle`. The core's e-bus accesses and the DMA
-/// share the link. A rate of 0 means no link model: the M3 testbench's
-/// memory, which adds no delay (tests/systemc/Xbar.h).
+/// One off-chip memory behind the SoC bus (XSPI flash, a PSRAM): one link
+/// that each operation holds for a first-byte latency, then for its bytes at
+/// `BytesPerCycle`. A read and a write can have different latencies. With a
+/// burst limit, an operation longer than `MaxBurstBytes` is split into
+/// bursts, and each burst pays the latency again. The core's e-bus accesses
+/// and the DMA share the link. A rate of 0 means no link model: the M3
+/// testbench's memory, which adds no delay (tests/systemc/Xbar.h).
 class ExtMemModel {
 public:
-  /// Creates the link. \throws std::invalid_argument if \p BytesPerCycle is
-  /// negative.
+  /// Creates a link whose reads and writes both take \p Latency cycles to
+  /// the first byte, with no burst limit. \throws std::invalid_argument if
+  /// \p BytesPerCycle is negative.
   ExtMemModel(uint32_t Latency, double BytesPerCycle);
+
+  /// Creates the link named \p Name in statistics. A read takes \p Latency
+  /// cycles to its first byte and a write \p WriteLatency; a burst holds at
+  /// most \p MaxBurstBytes (0: no limit). \throws std::invalid_argument if
+  /// \p BytesPerCycle is negative.
+  ExtMemModel(std::string Name, uint32_t Latency, uint32_t WriteLatency,
+              double BytesPerCycle, uint32_t MaxBurstBytes);
 
   /// \returns true if the link is modeled (a nonzero rate).
   bool isTimed() const { return BytesPerCycle > 0; }
 
   /// One booking of the link.
   struct Slot {
-    Cycle FirstByte = 0; ///< When the first byte moves.
-    Cycle Done = 0;      ///< The cycle after the last byte moves.
+    Cycle FirstByte = 0;       ///< When the first byte moves.
+    Cycle Done = 0;            ///< The cycle after the last byte moves.
+    uint32_t BurstLatency = 0; ///< First-byte cycles each of its bursts pays.
   };
 
-  /// Books the link to move \p Bytes, starting no earlier than \p Earliest.
-  /// \returns the booking; both cycles are \p Earliest if the link is not
-  /// modeled.
-  Slot transfer(uint64_t Bytes, Cycle Earliest);
+  /// Books the link to read \p Bytes, or write them if \p IsWrite, starting
+  /// no earlier than \p Earliest. \returns the booking; both cycles are
+  /// \p Earliest if the link is not modeled.
+  Slot transfer(uint64_t Bytes, Cycle Earliest, bool IsWrite = false);
 
   /// \returns the cycle after the first \p Bytes of \p Booked have moved.
   Cycle getReady(const Slot &Booked, uint64_t Bytes) const;
@@ -94,8 +105,15 @@ public:
   const ResourcePool &getLink() const { return Link; }
 
 private:
+  // The cycles Bytes take at the link's rate, at least 1.
+  uint64_t getDataCycles(uint64_t Bytes) const;
+  // The bursts Bytes are split into, at least 1.
+  uint64_t getBursts(uint64_t Bytes) const;
+
   uint32_t Latency;
+  uint32_t WriteLatency;
   double BytesPerCycle;
+  uint32_t MaxBurstBytes;
   ResourcePool Link;
 };
 

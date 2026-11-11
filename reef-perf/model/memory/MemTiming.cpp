@@ -58,26 +58,48 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
 }
 
 ExtMemModel::ExtMemModel(uint32_t Latency, double BytesPerCycle)
-    : Latency(Latency), BytesPerCycle(BytesPerCycle), Link("ext_mem_link", 1) {
+    : ExtMemModel("ext_mem_link", Latency, Latency, BytesPerCycle, 0) {}
+
+ExtMemModel::ExtMemModel(std::string Name, uint32_t Latency,
+                         uint32_t WriteLatency, double BytesPerCycle,
+                         uint32_t MaxBurstBytes)
+    : Latency(Latency), WriteLatency(WriteLatency),
+      BytesPerCycle(BytesPerCycle), MaxBurstBytes(MaxBurstBytes),
+      Link(std::move(Name), 1) {
   if (BytesPerCycle < 0)
-    throw std::invalid_argument("ext_mem_bytes_per_cycle must be at least 0");
+    throw std::invalid_argument("link bytes per cycle must be at least 0");
 }
 
-ExtMemModel::Slot ExtMemModel::transfer(uint64_t Bytes, Cycle Earliest) {
-  if (!isTimed())
-    return {Earliest, Earliest};
-  const auto DataCycles = static_cast<uint64_t>(
+uint64_t ExtMemModel::getDataCycles(uint64_t Bytes) const {
+  const auto Cycles = static_cast<uint64_t>(
       std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
-  const uint64_t Occupancy = Latency + std::max<uint64_t>(DataCycles, 1);
+  return std::max<uint64_t>(Cycles, 1);
+}
+
+uint64_t ExtMemModel::getBursts(uint64_t Bytes) const {
+  if (MaxBurstBytes == 0 || Bytes == 0)
+    return 1;
+  return (Bytes + MaxBurstBytes - 1) / MaxBurstBytes;
+}
+
+ExtMemModel::Slot ExtMemModel::transfer(uint64_t Bytes, Cycle Earliest,
+                                        bool IsWrite) {
+  if (!isTimed())
+    return {Earliest, Earliest, 0};
+  // Every burst starts with a new command, so it pays the latency again.
+  const uint32_t BurstLatency = IsWrite ? WriteLatency : Latency;
+  const uint64_t Occupancy =
+      (getBursts(Bytes) * BurstLatency) + getDataCycles(Bytes);
   const Cycle Start = Link.reserve(Earliest, Occupancy);
-  return {Start + Latency, Start + Occupancy};
+  return {Start + BurstLatency, Start + Occupancy, BurstLatency};
 }
 
 Cycle ExtMemModel::getReady(const Slot &Booked, uint64_t Bytes) const {
   if (!isTimed())
     return Booked.FirstByte;
-  const auto DataCycles = static_cast<uint64_t>(
-      std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
-  return std::min(Booked.Done,
-                  Booked.FirstByte + std::max<uint64_t>(DataCycles, 1));
+  // The bursts before the one holding the last of these bytes are complete.
+  const uint64_t EarlierBursts = getBursts(Bytes) - 1;
+  return std::min(Booked.Done, Booked.FirstByte +
+                                   (EarlierBursts * Booked.BurstLatency) +
+                                   getDataCycles(Bytes));
 }

@@ -69,6 +69,23 @@ public:
               "External memory link cycles to the first byte of an operation")
     PARAMETER(double, ext_mem_bytes_per_cycle, 0,
               "External memory link bytes per core cycle (0: not modeled)")
+    PARAMETER(uint32_t, ext_mem_max_burst_bytes, 0,
+              "External memory link bytes per burst; each burst pays the "
+              "latency (0: no limit)")
+    PARAMETER(uint32_t, ext_ram_mb, 0,
+              "Size in MB of the second external memory, a RAM with its own "
+              "link (0: none)")
+    PARAMETER(uint32_t, ext_ram_base, 0x24000000,
+              "First address of the second external memory")
+    PARAMETER(uint32_t, ext_ram_latency, 0,
+              "RAM link cycles to the first byte of a read burst")
+    PARAMETER(uint32_t, ext_ram_write_latency, 0,
+              "RAM link cycles to the first byte of a write burst")
+    PARAMETER(double, ext_ram_bytes_per_cycle, 0,
+              "RAM link bytes per core cycle (0: not modeled)")
+    PARAMETER(uint32_t, ext_ram_max_burst_bytes, 0,
+              "RAM link bytes per burst; each burst pays the latency (0: no "
+              "limit)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -90,7 +107,7 @@ public:
   MemResponse access(const MemRequest &Request) override;
 
   /// \returns itcm, itcm_fetch, dtcm, axi_data, axi_outstanding and, when
-  /// modeled, ext_mem_link.
+  /// modeled, ext_mem_link and ext_ram_link.
   std::vector<const ResourcePool *> getPools() const;
 
   /// \returns the DMA, for its statistics.
@@ -107,12 +124,18 @@ private:
   /// Adds the external memory link's time to \p Response, the e-bus timing
   /// of \p Request. \returns the result.
   MemResponse addExtMemTime(const MemRequest &Request, MemResponse Response);
+  // The link Addr is behind: the RAM's for an address in the second external
+  // memory, otherwise the first memory's.
+  ExtMemModel *getLink(Address Addr);
 
   std::vector<MemoryRegion> Regions = getDefaultMemoryMap();
   Tcm ITCM;
   Tcm DTCM;
   AxiModel AXI;
   ExtMemModel Ext;
+  ExtMemModel Ram;
+  Address RamBase;
+  uint64_t RamBytes;
   Dma DMA;
   Host TheHost;
 };

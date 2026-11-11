@@ -112,7 +112,8 @@ TEST_F(DmaFixture, ZeroLengthDoesNothing) {
 /// then 1 B/cycle (a 16-bit QSPI-class link at half the core clock).
 struct DmaLinkFixture : public DmaFixture {
   ExtMemModel Ext{26, 1.0};
-  Dma LinkDMA{20, 16, &Ext, [this](Address Addr) -> Tcm * {
+  Dma LinkDMA{20, 16, [this](Address) { return &Ext; },
+              [this](Address Addr) -> Tcm * {
                 return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
               }};
 
@@ -195,6 +196,49 @@ TEST_F(DmaFixture, WithoutADepthTheQueueNeverFills) {
   program(0x80000000, 0x10000, 32, 0);
   DMA.writeRegister(DmaDst, 0x10100, 5);
   EXPECT_EQ(DMA.writeRegister(DmaGo, 1, 5), 5U);
+}
+
+/// A flash link and a slower RAM link from 0x24000000 up; the DMA uses the
+/// link its external address is behind.
+struct DmaTwoLinkFixture : public DmaFixture {
+  ExtMemModel Flash{"flash", 26, 26, 1.0, 0};
+  ExtMemModel Ram{"ram", 30, 16, 0.25, 0};
+  Dma TwoDMA{
+      20, 16,
+      [this](Address Addr) { return Addr >= 0x24000000 ? &Ram : &Flash; },
+      [this](Address Addr) -> Tcm * {
+        return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
+      }};
+
+  void programTwo(Address Src, Address Dst, uint32_t Len, Cycle At) {
+    TwoDMA.writeRegister(DmaSrc, Src, At);
+    TwoDMA.writeRegister(DmaDst, Dst, At);
+    TwoDMA.writeRegister(DmaLen, Len, At);
+    TwoDMA.writeRegister(DmaGo, 1, At);
+  }
+};
+
+TEST_F(DmaTwoLinkFixture, ARamAddressUsesTheRamLink) {
+  // Begin 20; the RAM's first byte at 50, then 16 bytes at 0.25 B/cycle: the
+  // DTCM beat at 114, usable at 115.
+  programTwo(0x24000000, 0x10000, 16, 0);
+  EXPECT_EQ(TwoDMA.getFinish(), 115U);
+  EXPECT_EQ(Ram.getLink().getBusyCycles(), 94U);
+  EXPECT_EQ(Flash.getLink().getOps(), 0U);
+}
+
+TEST_F(DmaTwoLinkFixture, AWriteToTheRamPaysTheWriteLatency) {
+  // Begin 20; the RAM write takes 16 + 64 cycles, to 100.
+  programTwo(0x10000, 0x24000000, 16, 0);
+  EXPECT_EQ(TwoDMA.getFinish(), 100U);
+  EXPECT_EQ(Ram.getLink().getBusyCycles(), 80U);
+}
+
+TEST_F(DmaTwoLinkFixture, TheTwoLinksDoNotWaitForEachOther) {
+  // A core read holds the flash link; the RAM link is still free.
+  Flash.transfer(1000, 0);
+  programTwo(0x24000000, 0x10000, 16, 0);
+  EXPECT_EQ(TwoDMA.getFinish(), 115U);
 }
 
 } // namespace

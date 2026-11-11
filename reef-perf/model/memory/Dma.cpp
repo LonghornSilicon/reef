@@ -14,10 +14,11 @@
 
 using namespace reef_perf;
 
-Dma::Dma(uint32_t SetupCycles, uint32_t BeatBytes, ExtMemModel *Ext,
+Dma::Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
          TcmLookup FindTcm, uint32_t QueueDepth)
-    : SetupCycles(SetupCycles), BeatBytes(BeatBytes), Ext(Ext),
-      FindTcm(std::move(FindTcm)), QueueDepth(QueueDepth) {
+    : SetupCycles(SetupCycles), BeatBytes(BeatBytes),
+      FindLink(std::move(FindLink)), FindTcm(std::move(FindTcm)),
+      QueueDepth(QueueDepth) {
   if (BeatBytes == 0 || BeatBytes > 255)
     throw std::invalid_argument("dma_beat_bytes must be 1-255");
 }
@@ -68,9 +69,11 @@ void Dma::start(Cycle Arrive) {
        {std::pair{Src, false}, std::pair{Dst, true}}) {
     Tcm *Target = FindTcm(Base);
     if (!Target) {
+      // The end's own memory: the flash, or the RAM for a KV cache address.
+      ExtMemModel *Ext = FindLink ? FindLink(Base) : nullptr;
       if (Ext && Ext->isTimed()) {
         const ExtMemModel::Slot Link =
-            Ext->transfer(Len, std::max(Jobs[J].ExtFinish, Begin));
+            Ext->transfer(Len, std::max(Jobs[J].ExtFinish, Begin), IsStore);
         Jobs[J].ExtFinish = Link.Done;
         for (uint32_t I = 0; !IsStore && I < Beats; ++I)
           Ready.push_back(Ext->getReady(

@@ -112,6 +112,23 @@ TEST(ExtMemModelTest, FractionalRateRoundsUp) {
   EXPECT_EQ(Ext.transfer(16, 0).Done, 7U);
 }
 
+TEST(ExtMemModelTest, AWriteCanHaveItsOwnLatency) {
+  ExtMemModel Ram("ram", 30, 16, 1.0, 0);
+  EXPECT_EQ(Ram.transfer(8, 0).Done, 38U);          // Read: 30 + 8.
+  EXPECT_EQ(Ram.transfer(8, 100, true).Done, 124U); // Write: 16 + 8.
+}
+
+TEST(ExtMemModelTest, EachBurstPaysTheLatency) {
+  // 250 bytes in bursts of 100: 3 bursts x 30 cycles, and 250 data cycles.
+  ExtMemModel Ram("ram", 30, 16, 1.0, 100);
+  const ExtMemModel::Slot Booked = Ram.transfer(250, 0);
+  EXPECT_EQ(Booked.FirstByte, 30U);
+  EXPECT_EQ(Booked.Done, 340U);
+  EXPECT_EQ(Ram.getReady(Booked, 100), 130U); // The first burst.
+  EXPECT_EQ(Ram.getReady(Booked, 101), 161U); // After the second command.
+  EXPECT_EQ(Ram.getReady(Booked, 250), 340U);
+}
+
 TEST(ExtMemModelTest, NegativeRateThrows) {
   EXPECT_THROW(ExtMemModel(0, -1.0), std::invalid_argument);
 }
