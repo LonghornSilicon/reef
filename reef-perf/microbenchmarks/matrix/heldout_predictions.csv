@@ -18,3 +18,19 @@ mac_indep_tn4,50,834,1634,313,4.000
 vtmm_misaligned,100,649,1274,512,6.250
 # Added 2026-11-07T09:22:57-06:00 after B5 (matrix side only; the core interlock is not modeled), before its RTL run.
 vtdiscard_after_mac,50,298,572,212,5.480
+# Added 2026-11-10T23:37:23-06:00 for C4/C5 (remaining PLACEHOLDERs, mtx_complete_latency), before their RTL run.
+# Model: yuvesh-kernel-integration 90659dd + these programs; same settings. One-parameter nudges in results/matrix_c45/sensitivity.csv.
+zero_burst,20,1293,2573,366,4.000
+move_tv_burst,20,1615,3215,706,5.000
+move_tv8_burst,20,653,1293,704,2.000
+move_vt_burst,20,1291,2571,702,4.000
+move_vt8_burst,20,501,991,702,1.531
+move_vt_use,100,1601,3201,601,16.000
+load_then_mac,50,916,1816,406,18.000
+move_then_mac,50,966,1916,406,19.000
+mac_then_store,50,916,1816,406,18.000
+load_then_store,20,2093,4173,946,13.000
+mac_rob,50,1117,2217,857,22.000
+zero_rob,50,618,1218,857,12.000
+move_tv_rob,50,717,1417,857,14.000
+mac_queue,50,971,1921,708,19.000

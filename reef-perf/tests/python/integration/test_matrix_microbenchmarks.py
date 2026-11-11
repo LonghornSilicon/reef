@@ -60,6 +60,25 @@ EXPECTED_OPS = {
         "move_to_vector": 1,
     },
     "gemm_tile": {"mac": 16, "zero": 1, "move_to_vector": 16},
+    # C4/C5 (held out).
+    "zero_burst": {"zero": 320, "move_to_vector": 1},
+    "move_tv_burst": {"move_to_tile": 320, "move_to_vector": 1},
+    "move_tv8_burst": {"move_to_tile": 320, "move_to_vector": 1},
+    "move_vt_burst": {"move_to_vector": 320},
+    "move_vt8_burst": {"move_to_vector": 320},
+    "move_vt_use": {"move_to_vector": 100},
+    "load_then_mac": {"tile_load": 50, "mac": 50, "move_to_vector": 1},
+    "move_then_mac": {"move_to_tile": 50, "mac": 50, "move_to_vector": 1},
+    "mac_then_store": {"mac": 50, "tile_store": 50, "move_to_vector": 1},
+    "load_then_store": {
+        "tile_load": 160,
+        "tile_store": 160,
+        "move_to_vector": 1,
+    },
+    "mac_rob": {"mac": 50, "move_to_vector": 1},
+    "zero_rob": {"zero": 50, "move_to_vector": 1},
+    "move_tv_rob": {"move_to_tile": 50, "move_to_vector": 1},
+    "mac_queue": {"mac": 200, "move_to_vector": 1},
     "illegal_shapes": {"nop": 2},
 }
 """Matrix instructions each program executes, by op."""

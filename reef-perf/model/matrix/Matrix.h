@@ -126,8 +126,9 @@ public:
               "controller")
     PARAMETER(uint32_t, mtx_move_cycles_per_uop, 1,
               "Controller cycles per vtmv uop")
-    PARAMETER(uint32_t, mtx_move_latency, 1,
-              "Cycles after a move's last uop until its result is written")
+    PARAMETER(uint32_t, mtx_move_latency, 0,
+              "Extra cycles, after the cycle following a move's last uop, "
+              "until its result can be read")
     PARAMETER(uint32_t, mtx_tile_write_latency, 1,
               "Cycles from a tile load's last data beat to the tile write")
     PARAMETER(uint32_t, mtx_tile_read_latency, 1,

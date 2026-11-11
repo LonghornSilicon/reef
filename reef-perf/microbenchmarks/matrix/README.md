@@ -22,6 +22,12 @@ frontend set, they are not part of the M3 correlation report:
 | `gemm_multi`, `gemm_longk` | 32 x 32 x 64 and 16 x 16 x 256 int8 GEMMs (held out) |
 | `tile_load_behind_mac` | Tile loads whose controller half waits for a MAC to drain while the LSU runs ahead through the 2-entry `lsu2vme` FIFO |
 | `gemm_tile` | A 16x16x64 int8 tile GEMM with operand loads and read-back |
+| `zero_burst` | `vtzero` throughput (C4) |
+| `move_tv_burst`, `move_tv8_burst`, `move_vt_burst`, `move_vt8_burst` | `vtmv.t.v` / `vtmv.v.t` throughput at 4 uops (32-bit) and 1 uop (8-bit) per move (C4) |
+| `move_vt_use` | Latency from `vtmv.v.t` to a `vmv.x.s` of its result, carried around the loop (C4) |
+| `load_then_mac`, `move_then_mac`, `mac_then_store`, `load_then_store` | Tile write and read latencies: each op depends on the one before through the same tiles (C4) |
+| `mac_rob`, `zero_rob`, `move_tv_rob` | One matrix op + 15 `addi`: ROB-bound, so the op's dispatch-to-retire time, including `mtx_complete_latency`, sets the loop (C5) |
+| `mac_queue` | 4 independent `vtmmu` + 8 `addi`: how far dispatch runs ahead of the engine (C4) |
 | `illegal_shapes` | Tile instructions with vl = 0, which retire as no-ops |
 
 Run them with Zvt on: `-c configs/machines/m3.yaml -c

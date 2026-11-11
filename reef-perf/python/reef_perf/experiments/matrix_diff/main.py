@@ -113,6 +113,22 @@ BENCHMARKS = (
     DiffBenchmark("vtmm_misaligned", 100, 1, "2 no-op vtmmu + 1 MAC", True),
     DiffBenchmark("vtdiscard_after_mac", 50, 1, "vtmmu + vtdiscard", True),
     DiffBenchmark("gemm_longk", 10, 1, "16x16x256 GEMM", True),
+    # C4/C5: the remaining PLACEHOLDERs and mtx_complete_latency. Predictions
+    # recorded in heldout_predictions.csv before their RTL run.
+    DiffBenchmark("zero_burst", 20, 16, "vtzero (4 tiles)", True),
+    DiffBenchmark("move_tv_burst", 20, 16, "vtmv.t.v e32 (4 uops)", True),
+    DiffBenchmark("move_tv8_burst", 20, 16, "vtmv.t.v e8 (1 uop)", True),
+    DiffBenchmark("move_vt_burst", 20, 16, "vtmv.v.t e32 (4 uops)", True),
+    DiffBenchmark("move_vt8_burst", 20, 16, "vtmv.v.t e8 (1 uop)", True),
+    DiffBenchmark("move_vt_use", 100, 1, "vtmv.v.t -> vmv.x.s chain", True),
+    DiffBenchmark("load_then_mac", 50, 1, "vtle32 -> vtmmu", True),
+    DiffBenchmark("move_then_mac", 50, 1, "vtmv.t.v -> vtmmu", True),
+    DiffBenchmark("mac_then_store", 50, 1, "vtmmu -> vtse32", True),
+    DiffBenchmark("load_then_store", 20, 8, "vtle32 -> vtse32", True),
+    DiffBenchmark("mac_rob", 50, 1, "vtmmu + 15 addi", True),
+    DiffBenchmark("zero_rob", 50, 1, "vtzero + 15 addi", True),
+    DiffBenchmark("move_tv_rob", 50, 1, "vtmv.t.v + 15 addi", True),
+    DiffBenchmark("mac_queue", 50, 1, "4 vtmmu + 8 addi", True),
 )
 """The looping matrix microbenchmarks."""
 

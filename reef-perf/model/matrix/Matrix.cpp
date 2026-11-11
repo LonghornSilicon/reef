@@ -245,12 +245,18 @@ void Matrix::executeInst(const InstRef &I) {
   // (zvt_pe_array.sv:195-207).
   Cycle TilesReady =
       getTilesReady(*I, M.Op == MatrixOp::Mac ? TileMacReady : TileReady);
-  Cycle Earliest = std::max({CmdDone, TilesReady, HeadFree});
-  // Every controller op except a MAC waits for the array to drain (!peBusy:
-  // zvt_ctrl.sv:105-106, :130-134).
   bool UsesCtrl = M.Op == MatrixOp::Zero || M.Op == MatrixOp::MoveToTile ||
                   M.Op == MatrixOp::MoveToVector ||
                   M.Op == MatrixOp::TileLoad || M.Op == MatrixOp::TileStore;
+  // A MAC needs all its uops at the head (isPe over the ZVT_LMUL uop lanes,
+  // zvt_ctrl.sv:108-119). The controller serves the other ops one uop per
+  // cycle from the first uop on; later uops issue faster than that, so they
+  // never wait (VME waveforms of move_tv_rob and move_vt_use: dispatch to
+  // first uop 5 cycles for a 4-uop move, 6 for a MAC).
+  Cycle CmdReady = UsesCtrl ? CmdStart + 1 : CmdDone;
+  Cycle Earliest = std::max({CmdReady, TilesReady, HeadFree});
+  // Every controller op except a MAC waits for the array to drain (!peBusy:
+  // zvt_ctrl.sv:105-106, :130-134).
   // The controller acts the cycle after the last MAC's tile write: on the
   // VME RTL, peBusy falls 13 cycles after a MAC's first step and the first
   // tile-load pop behind it comes at 14 (waveform of tile_load_behind_mac).

@@ -47,6 +47,17 @@ CORRELATED = {
     # 6.25 against 6.0: the loop is ROB-bound in the model a little more
     # tightly than on the RTL (docs/matrix.md, B2).
     "vtmm_misaligned": 0.05,
+    # C4/C5 (docs/matrix.md): vtzero, moves, tile-write and completion paths.
+    "zero_burst": 0.02,
+    "move_tv_burst": 0.02,
+    "move_vt_burst": 0.02,
+    "load_then_mac": 0.02,
+    "move_then_mac": 0.02,
+    "mac_then_store": 0.02,
+    "mac_rob": 0.02,
+    "zero_rob": 0.02,
+    "move_tv_rob": 0.02,
+    "mac_queue": 0.02,
 }
 """Programs that must match the RTL, with their relative tolerance."""
 
@@ -61,6 +72,14 @@ KNOWN_GAP = {
     "vec_load4_burst": "vector reference: M3's LSU, not the newer one",
     "vec_store4_burst": "vector reference: M3's LSU, not the newer one",
     "vtdiscard_after_mac": "core: vtdiscard's dispatch interlock (case 7)",
+    "move_tv8_burst": "core: the queue counts instructions, the RTL 8 uops; "
+    "and the frontend loop bubble",
+    "move_vt8_burst": "core: the queue counts instructions, the RTL 8 uops; "
+    "and the frontend loop bubble",
+    "move_vt_use": "vector: vmv.x.s of a move result is 1 cycle later than "
+    "on the RTL",
+    "load_then_store": "core: a tile store holds the LSU while it waits for "
+    "data (case 5)",
 }
 """Programs with a known error outside the matrix module, and why."""
 
