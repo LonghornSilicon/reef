@@ -1,16 +1,12 @@
-/* Memory map for Coral programs: the CoralNPU M3 highmem build, the map
- * reef_perf uses with --highmem.
- *   ITCM: 0x000000 - 0x0FFFFF (1 MB)  code
- *   DTCM: 0x100000 - 0x1FFFFF (1 MB)  host mailbox, data, bss, stack
- * The mailbox (include/reef_kernels/host_if.hpp) comes first in DTCM so the
- * host can find it at a fixed address.
- */
+/* The M3 as built: 8 KB ITCM (code only), 32 KB DTCM (mailbox, data, bss,
+ * stack). Weights and the KV cache live in XSPI flash at 0x20000000
+ * (npu.hpp); they are not part of this image. */
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
 MEMORY {
-  ITCM (rx) : ORIGIN = 0x00000000, LENGTH = 1M
-  DTCM (rw) : ORIGIN = 0x00100000, LENGTH = 1M
+  ITCM (rx) : ORIGIN = 0x00000000, LENGTH = 8K
+  DTCM (rw) : ORIGIN = 0x00010000, LENGTH = 32K
 }
 
 SECTIONS {
@@ -31,4 +27,5 @@ SECTIONS {
   } > DTCM
 
   _stack_top = ORIGIN(DTCM) + LENGTH(DTCM);
+  ASSERT(_stack_top - __bss_end >= 1024, "DTCM: less than 1 KB left for the stack")
 }

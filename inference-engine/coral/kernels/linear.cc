@@ -1,206 +1,110 @@
-// Linear projections: float, W8A8, int8, and the row-major matvec for
-// lm_head.
-//
-// linear_f32 and linear_w8a8 produce up to 16 outputs per vector strip and
-// walk the inputs in order, so each lane accumulates exactly like the
-// reference's sequential sum. matvec_rows_f32 instead reduces along a row
-// with the ordered reduction vfredosum, which adds in element order.
-// linear_int8 is integer throughout, so its order is free.
+// Linear layer on the Zvt matrix unit, weights streamed from flash by DMA.
 
-#include "fixed_point.hpp"
-#include "reef_kernels/kernels.hpp"
+#include "common.hpp"
 
-#include <riscv_vector.h>
+namespace npu {
 
-namespace reef_kernels {
-namespace {
+// ---- Linear: out = act[K][16] x W[K x N] on the matrix engine ------------
+static void issue_weights(uint32_t weights, uint32_t in_dim, uint32_t chunks,
+                          uint32_t index) {
+    const uint32_t group = index / chunks;
+    const uint32_t chunk = index % chunks;
+    const uint32_t rows = (in_dim - chunk * kChunkRows) < kChunkRows
+                              ? in_dim - chunk * kChunkRows
+                              : kChunkRows;
+    dma(weights + group * (in_dim * 64 + 256) + chunk * kChunkRows * 64,
+        addr(dtcm.scratch.weights[index & 1]),
+        rows * 64 + (chunk == chunks - 1 ? 256 : 0));
+}
 
-constexpr float kInt8Limit = 127.0F;
-
-// What happens to a strip of finished outputs before it is stored: nothing,
-// or adding the bias (linear() adds it after the sum, as here).
-struct NoBias {
-    vfloat32m4_t operator()(vfloat32m4_t acc, std::size_t /*c*/,
-                            std::size_t /*vl*/) const {
-        return acc;
+// Column block col_block, held in the accumulator tile_sel selects.
+static void epilogue(Mode mode, uint32_t col_block, uint32_t tile_sel,
+                     const int32_t* bias, int8_t* out, uint32_t tokens) {
+    if (mode == kArgmax) { // logits of 16 vocabulary entries, row 0
+        const vint32m4_t logits = vtmv(tile_sel);
+        const vint32m4_t best = __riscv_vle32_v_i32m4(dtcm.best_logit, 16);
+        const vbool8_t greater = __riscv_vmsgt_vv_i32m4_b8(logits, best, 16);
+        __riscv_vse32_v_i32m4(
+            dtcm.best_logit,
+            __riscv_vmerge_vvm_i32m4(best, logits, greater, 16), 16);
+        const vint32m4_t index = __riscv_vreinterpret_v_u32m4_i32m4(
+            __riscv_vadd_vx_u32m4(__riscv_vid_v_u32m4(16), col_block * 16, 16));
+        __riscv_vse32_v_i32m4(
+            dtcm.best_index,
+            __riscv_vmerge_vvm_i32m4(__riscv_vle32_v_i32m4(dtcm.best_index, 16),
+                                     index, greater, 16),
+            16);
+        return;
     }
-};
-
-struct AddBias {
-    const float* bias;
-    vfloat32m4_t operator()(vfloat32m4_t acc, std::size_t c,
-                            std::size_t vl) const {
-        return __riscv_vfadd_vv_f32m4(acc, __riscv_vle32_v_f32m4(bias + c, vl),
-                                      vl);
+    if (mode == kValueRows) { // V rows: token row, 16 dims of head col_block
+        const vint32m4_t bias_vec = __riscv_vle32_v_i32m4(bias, 16);
+        for (uint32_t row = 0; row < tokens; ++row) {
+            vint32m4_t value =
+                __riscv_vadd_vv_i32m4(vtmv(tile_sel | row), bias_vec, 16);
+            value = __riscv_vsub_vx_i32m4(value, dtcm.act_sum[row], 16);
+            __riscv_vse8_v_i8m1(
+                out + row * kHidden + col_block * 16,
+                to_i8(__riscv_vsra_vx_i32m4(value, kRequantShift, 16)), 16);
+        }
+        return;
     }
-};
+    const vint32m4_t act_sum = __riscv_vle32_v_i32m4(dtcm.act_sum, 16);
+    for (uint32_t j = 0; j < 16; ++j) { // feature col_block*16+j over tokens
+        int8_t* out_row = out + (col_block * 16 + j) * kBlockTokens;
+        vint32m4_t value = __riscv_vsub_vv_i32m4(
+            vtmv(tile_sel | kColumnSlice | j), act_sum, 16);
+        value = __riscv_vsra_vx_i32m4(__riscv_vadd_vx_i32m4(value, bias[j], 16),
+                                      kRequantShift, 16);
+        if (mode == kResidual) {
+            value = __riscv_vadd_vv_i32m4(value, load_i8(out_row), 16);
+        }
+        vint8m1_t result = to_i8(value);
+        if (mode == kGelu) {
+            result = __riscv_vluxei8_v_i8m1(
+                dtcm.gelu_table, __riscv_vreinterpret_v_i8m1_u8m1(result), 16);
+        }
+        __riscv_vse8_v_i8m1(out_row, result, kBlockTokens);
+    }
+}
 
-template <typename Epilogue>
-void linear_f32_impl(std::size_t rows, std::size_t in, std::size_t out,
-                     const float* x, const float* wt, Epilogue epilogue,
-                     float* y) {
-    for (std::size_t c = 0; c < out;) {
-        const std::size_t vl = __riscv_vsetvl_e32m4(out - c);
-        for (std::size_t r = 0; r < rows; ++r) {
-            const float* xr = x + (r * in);
-            vfloat32m4_t acc = __riscv_vfmv_v_f_f32m4(0.0F, vl);
-            for (std::size_t k = 0; k < in; ++k) {
-                const vfloat32m4_t w =
-                    __riscv_vle32_v_f32m4(wt + (k * out) + c, vl);
-                acc = __riscv_vfadd_vv_f32m4(
-                    acc, __riscv_vfmul_vf_f32m4(w, xr[k], vl), vl);
+void linear(uint32_t weights, uint32_t in_dim, uint32_t out_dim,
+            const int8_t* act, uint32_t tokens, Mode mode, int8_t* out) {
+    const uint32_t chunks = (in_dim + kChunkRows - 1) / kChunkRows;
+    const uint32_t total = out_dim / 64 * chunks;
+    issue_weights(weights, in_dim, chunks, 0);
+    // Weights are uint8 with zero point 128: subtract 128 * sum_k act[in_dim].
+    vint32m4_t act_sum = splat(0);
+    for (uint32_t i = 0; i < in_dim; ++i) {
+        act_sum =
+            __riscv_vadd_vv_i32m4(act_sum, load_i8(act + i * kBlockTokens), 16);
+    }
+    __riscv_vse32_v_i32m4(dtcm.act_sum, __riscv_vsll_vx_i32m4(act_sum, 7, 16),
+                          16);
+    for (uint32_t i = 0; i < total; ++i) {
+        dma_wait();
+        if (i + 1 < total) {
+            issue_weights(weights, in_dim, chunks, i + 1);
+        }
+        const uint32_t chunk = i % chunks;
+        const uint32_t rows = (in_dim - chunk * kChunkRows) < kChunkRows
+                                  ? in_dim - chunk * kChunkRows
+                                  : kChunkRows;
+        const uint8_t* buf = dtcm.scratch.weights[i & 1];
+        if (chunk == 0) {
+            vtzero(true);
+        }
+        config_int8(tokens);
+        mac4(act + chunk * kChunkRows * kBlockTokens, kBlockTokens, buf,
+             rows / 4);
+        if (chunk == chunks - 1) {
+            const auto* bias =
+                reinterpret_cast<const int32_t*>(buf + rows * 64);
+            for (uint32_t acc = 0; acc < 4; ++acc) {
+                epilogue(mode, i / chunks * 4 + acc, acc_tile(acc),
+                         bias + acc * 16, out, tokens);
             }
-            __riscv_vse32_v_f32m4(y + (r * out) + c, epilogue(acc, c, vl), vl);
-        }
-        c += vl;
-    }
-}
-
-// Quantize one row with its own scale (quantize_rows): returns the scale.
-float quantize_row(std::size_t n, const float* x, std::int8_t* x_q) {
-    vfloat32m1_t largest = __riscv_vfmv_s_f_f32m1(0.0F, 1);
-    for (std::size_t k = 0; k < n;) {
-        const std::size_t vl = __riscv_vsetvl_e32m4(n - k);
-        const vfloat32m4_t magnitude =
-            __riscv_vfabs_v_f32m4(__riscv_vle32_v_f32m4(x + k, vl), vl);
-        largest = __riscv_vfredmax_vs_f32m4_f32m1(magnitude, largest, vl);
-        k += vl;
-    }
-    const float max_magnitude = __riscv_vfmv_f_s_f32m1_f32(largest);
-    const float scale =
-        max_magnitude > 0.0F ? max_magnitude / kInt8Limit : 1.0F;
-
-    for (std::size_t k = 0; k < n;) {
-        const std::size_t vl = __riscv_vsetvl_e32m4(n - k);
-        // x / scale, rounded to nearest even by the dynamic rounding mode.
-        vint32m4_t q = __riscv_vfcvt_x_f_v_i32m4(
-            __riscv_vfdiv_vf_f32m4(__riscv_vle32_v_f32m4(x + k, vl), scale, vl),
-            vl);
-        q = __riscv_vmax_vx_i32m4(q, -127, vl);
-        q = __riscv_vmin_vx_i32m4(q, 127, vl);
-        const vint16m2_t narrow = __riscv_vncvt_x_x_w_i16m2(q, vl);
-        __riscv_vse8_v_i8m1(x_q + k, __riscv_vncvt_x_x_w_i8m1(narrow, vl), vl);
-        k += vl;
-    }
-    return scale;
-}
-
-template <typename Epilogue>
-void linear_w8a8_impl(std::size_t rows, std::size_t in, std::size_t out,
-                      const float* x, const std::int8_t* wt,
-                      const float* w_scale, Epilogue epilogue, std::int8_t* x_q,
-                      float* y) {
-    for (std::size_t r = 0; r < rows; ++r) {
-        const float scale = quantize_row(in, x + (r * in), x_q);
-        for (std::size_t c = 0; c < out;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(out - c);
-            vint32m4_t acc = __riscv_vmv_v_x_i32m4(0, vl);
-            for (std::size_t k = 0; k < in; ++k) {
-                const vint16m2_t w = __riscv_vsext_vf2_i16m2(
-                    __riscv_vle8_v_i8m1(wt + (k * out) + c, vl), vl);
-                acc = __riscv_vwmacc_vx_i32m4(acc, x_q[k], w, vl);
-            }
-            // float(sum) * (row_scale * w_scale[c]), then the bias.
-            const vfloat32m4_t combined = __riscv_vfmul_vf_f32m4(
-                __riscv_vle32_v_f32m4(w_scale + c, vl), scale, vl);
-            const vfloat32m4_t result = __riscv_vfmul_vv_f32m4(
-                __riscv_vfcvt_f_x_v_f32m4(acc, vl), combined, vl);
-            __riscv_vse32_v_f32m4(y + (r * out) + c, epilogue(result, c, vl),
-                                  vl);
-            c += vl;
         }
     }
 }
 
-// Where an int8 projection's int32 sums start: zero, or the bias.
-struct ZeroStart {
-    vint32m4_t operator()(std::size_t /*c*/, std::size_t vl) const {
-        return __riscv_vmv_v_x_i32m4(0, vl);
-    }
-};
-
-struct BiasStart {
-    const std::int32_t* bias;
-    vint32m4_t operator()(std::size_t c, std::size_t vl) const {
-        return __riscv_vle32_v_i32m4(bias + c, vl);
-    }
-};
-
-// 16 outputs per strip: acc[c] += x[r][k] * wt[k][c] over k, then narrow.
-template <typename Start>
-void linear_int8_impl(std::size_t rows, std::size_t in, std::size_t out,
-                      const std::int8_t* x, const std::int8_t* wt, Start start,
-                      unsigned shift, std::int8_t* y) {
-    for (std::size_t c = 0; c < out;) {
-        const std::size_t vl = __riscv_vsetvl_e8m1(out - c);
-        for (std::size_t r = 0; r < rows; ++r) {
-            vint32m4_t acc = start(c, vl);
-            for (std::size_t k = 0; k < in; ++k) {
-                const vint16m2_t w = __riscv_vsext_vf2_i16m2(
-                    __riscv_vle8_v_i8m1(wt + (k * out) + c, vl), vl);
-                acc = __riscv_vwmacc_vx_i32m4(acc, x[(r * in) + k], w, vl);
-            }
-            __riscv_vse8_v_i8m1(y + (r * out) + c,
-                                detail::narrow_int8(acc, shift, vl), vl);
-        }
-        c += vl;
-    }
-}
-
-} // namespace
-
-void linear_f32(std::size_t rows, std::size_t in, std::size_t out,
-                const float* x, const float* wt, float* y) {
-    linear_f32_impl(rows, in, out, x, wt, NoBias{}, y);
-}
-
-void linear_bias_f32(std::size_t rows, std::size_t in, std::size_t out,
-                     const float* x, const float* wt, const float* bias,
-                     float* y) {
-    linear_f32_impl(rows, in, out, x, wt, AddBias{bias}, y);
-}
-
-void linear_w8a8(std::size_t rows, std::size_t in, std::size_t out,
-                 const float* x, const std::int8_t* wt, const float* w_scale,
-                 std::int8_t* x_q, float* y) {
-    linear_w8a8_impl(rows, in, out, x, wt, w_scale, NoBias{}, x_q, y);
-}
-
-void linear_w8a8_bias(std::size_t rows, std::size_t in, std::size_t out,
-                      const float* x, const std::int8_t* wt,
-                      const float* w_scale, const float* bias, std::int8_t* x_q,
-                      float* y) {
-    linear_w8a8_impl(rows, in, out, x, wt, w_scale, AddBias{bias}, x_q, y);
-}
-
-void matvec_rows_f32(std::size_t out, std::size_t in, const float* w,
-                     const float* x, float* y) {
-    for (std::size_t c = 0; c < out; ++c) {
-        const float* row = w + (c * in);
-        vfloat32m1_t sum = __riscv_vfmv_s_f_f32m1(0.0F, 1);
-        for (std::size_t k = 0; k < in;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(in - k);
-            const vfloat32m4_t products =
-                __riscv_vfmul_vv_f32m4(__riscv_vle32_v_f32m4(x + k, vl),
-                                       __riscv_vle32_v_f32m4(row + k, vl), vl);
-            sum = __riscv_vfredosum_vs_f32m4_f32m1(products, sum, vl);
-            k += vl;
-        }
-        y[c] = __riscv_vfmv_f_s_f32m1_f32(sum);
-    }
-}
-
-void linear_int8(std::size_t rows, std::size_t in, std::size_t out,
-                 const std::int8_t* x, const std::int8_t* wt, unsigned shift,
-                 std::int8_t* y) {
-    linear_int8_impl(rows, in, out, x, wt, ZeroStart{}, shift, y);
-}
-
-void linear_bias_int8(std::size_t rows, std::size_t in, std::size_t out,
-                      const std::int8_t* x, const std::int8_t* wt,
-                      const std::int32_t* bias, unsigned shift,
-                      std::int8_t* y) {
-    linear_int8_impl(rows, in, out, x, wt, BiasStart{bias}, shift, y);
-}
-
-} // namespace reef_kernels
+} // namespace npu

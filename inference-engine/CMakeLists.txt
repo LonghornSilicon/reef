@@ -18,17 +18,6 @@ set_target_properties(gpt_neo_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-# Host tools for coral/: golden outputs for the kernel tests and the packed
-# model the firmware runs. coral/tools/test.sh builds and runs them.
-foreach(tool gen_golden pack_model)
-    add_executable(${tool} coral/host/${tool}.cpp)
-    target_link_libraries(${tool} PRIVATE inference_engine)
-    target_include_directories(${tool} PRIVATE coral/include coral/host)
-    set_target_properties(${tool} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-    )
-endforeach()
-
 include(CTest)
 if(BUILD_TESTING)
     include(FetchContent)
