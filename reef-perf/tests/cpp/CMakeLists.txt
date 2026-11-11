@@ -15,11 +15,17 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 # One directory per module, matching model/<module>/.
 set(REEF_PERF_TESTS
+    common/InstTest
     common/InterfacesTest
     common/ResourcePoolTest
     common/TypesTest
     frontend/InstDecodeTest
+    frontend/ZvtTest
+    matrix/MatrixFabricTest
+    memory/DmaTest
+    memory/HostTest
     memory/MemTimingTest
+    memory/TcmTest
     vector/VectorTest
 )
 foreach(path ${REEF_PERF_TESTS})

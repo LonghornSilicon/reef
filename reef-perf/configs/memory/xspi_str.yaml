@@ -1,0 +1,13 @@
+# The Reef SoC's weight memory: XSPI flash on 16 data lines, read only, in
+# STR (data on one edge of the 25 MHz link clock). This is the pessimistic
+# baseline; xspi_dtr.yaml has twice the rate. See that file for the units.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/memory/xspi_str.yaml --ext-mem-mb 160
+top:
+  memory:
+    params:
+      ext_mem_latency: 68         # As xspi_dtr.yaml: ASSUMPTION, pessimistic
+      # 16 lines x 1 edge x 25 MHz = 400 Mb/s = 50 MB/s = 1 B per core cycle.
+      ext_mem_bytes_per_cycle: 1

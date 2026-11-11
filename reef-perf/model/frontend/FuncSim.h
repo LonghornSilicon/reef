@@ -14,6 +14,7 @@
 
 #include "common/Inst.h"
 #include "common/MemoryMap.h"
+#include "frontend/Zvt.h"
 
 #include <riscv/cfg.h>
 #include <riscv/processor.h>
@@ -60,11 +61,18 @@ public:
   /// \throws std::runtime_error if the instruction traps.
   InstRef next();
 
+  /// Turns Zvt on or off (default off). Off, next() never looks for Zvt, so a
+  /// Zvt word goes to Spike, which traps on it.
+  void setZvt(bool Enabled) { ZvtEnabled = Enabled; }
+
   /// \returns true once next() has returned nullptr.
   bool isHalted() const { return Halted; }
 
   /// \returns the instructions handed out so far, including `mpause`.
   uint64_t getNumExecuted() const { return NumExecuted; }
+
+  /// \returns the ELF's loaded segments, in file order.
+  const std::vector<LoadSegment> &getLoadSegments() const { return Segments; }
 
 private:
   /// Spike's view of the memory map: flat regions of host RAM. Everything
@@ -103,15 +111,22 @@ private:
   /// Runs \p I in Spike and records its outcome, memory accesses and register
   /// writes.
   void execute(Inst &I);
+  /// Runs Zvt instruction \p Z (\p I) outside Spike: applies its
+  /// configuration effects and records what the timing model needs.
+  /// \throws std::runtime_error where the RTL would trap.
+  void executeZvt(Inst &I, const ZvtInst &Z);
 
   std::string ISA; // Config points into it.
   cfg_t Config;
   FlatMemory Mem;
+  std::vector<LoadSegment> Segments;
   std::unique_ptr<std::FILE, int (*)(std::FILE *)> Log;
   std::ostringstream ConsoleOut;
   std::unique_ptr<processor_t> Proc;
   uint64_t NumExecuted = 0;
   bool Halted = false;
+  bool ZvtEnabled = false;
+  ZvtConfig Zvt; // Matrix configuration Spike does not hold.
 };
 
 } // namespace reef_perf

@@ -56,6 +56,13 @@ TEST(ResourcePoolTest, NextFreeMatchesReserveWithoutBooking) {
   EXPECT_EQ(Pool.reserve(1, 1), 4U);
 }
 
+TEST(ResourcePoolTest, ReserveFirstWaitsForTheFirstResource) {
+  ResourcePool Pool("alu", 2);
+  EXPECT_EQ(Pool.reserveFirst(0, 3), 0U);
+  EXPECT_EQ(Pool.reserveFirst(0, 1), 3U); // The second resource stays free.
+  EXPECT_EQ(Pool.reserve(0, 1), 0U);
+}
+
 TEST(ResourcePoolTest, RejectsEmptyPool) {
   EXPECT_THROW(ResourcePool("none", 0), std::invalid_argument);
 }

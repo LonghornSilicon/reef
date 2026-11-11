@@ -9,8 +9,8 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +81,9 @@ class SimResult:
         pools: Per pool: count (resources), ops and busy_cycles.
         topdown: Where the dispatch slots went, as the simulator reports it;
             reef_perf.topdown turns it into a tree.
+        matrix: Matrix-engine statistics (ops by kind, MACs, utilization,
+            memory beats, and area/energy estimates when configured); empty
+            for output written before the matrix module reported them.
     """
 
     program: str
@@ -95,6 +98,7 @@ class SimResult:
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
     topdown: dict[str, Any]
+    matrix: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -128,6 +132,7 @@ class SimResult:
                 for name, counters in data["pools"].items()
             },
             topdown=dict(data["topdown"]),
+            matrix=dict(data.get("matrix", {})),
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -155,6 +160,7 @@ def run_sim(
     params: Mapping[str, object] | None = None,
     binary: Path | None = None,
     timeout: float | None = None,
+    overlay_configs: Sequence[Path] = (),
 ) -> SimResult:
     """Run one program on the simulator.
 
@@ -165,6 +171,8 @@ def run_sim(
             {"top.frontend.params.fetch_interval": 2}.
         binary: Simulator executable; found with find_binary() by default.
         timeout: Seconds before the run is abandoned.
+        overlay_configs: Configuration files applied after sim_config, in
+            order; each overrides the values it lists.
 
     Returns:
         The simulator's summary.
@@ -179,6 +187,8 @@ def run_sim(
         cmd += ["--json", str(json_path)]
         if sim_config is not None:
             cmd += ["-c", str(Path(sim_config).resolve())]
+        for overlay in overlay_configs:
+            cmd += ["-c", str(Path(overlay).resolve())]
         for key, value in (params or {}).items():
             cmd += ["-p", key, str(value)]
         proc = subprocess.run(

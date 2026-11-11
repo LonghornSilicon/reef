@@ -111,6 +111,24 @@ TEST(InstDecodeTest, MultiplyAccumulateReadsDestination) {
   EXPECT_EQ(Vmacc.Srcs, (Regs{v(1), v(2), v(3)}));
 }
 
+TEST(InstDecodeTest, RecordsEachVectorOperandGroup) {
+  Inst Vwmul = decode(0xee202457, "vwmul.vv v8, v2, v0", 16);
+  EXPECT_EQ(Vwmul.Srcs, (Regs{v(0), v(1), v(2), v(3)}));
+  EXPECT_EQ(Vwmul.VectorSrcGroups, (std::vector<uint8_t>{2, 2}));
+}
+
+TEST(InstDecodeTest, WideningWvFormReadsDoubleWidthVs2) {
+  Inst Vwadd = decode(0xd6412457, "vwadd.wv v8, v4, v2", 16);
+  EXPECT_EQ(Vwadd.Srcs, (Regs{v(2), v(3), v(4), v(5), v(6), v(7)}));
+  EXPECT_EQ(Vwadd.VectorSrcGroups, (std::vector<uint8_t>{2, 4}));
+}
+
+TEST(InstDecodeTest, VnmsacIsNotNarrowing) {
+  Inst Vnmsac = decode(0xbe20a257, "vnmsac.vv v4, v1, v2");
+  EXPECT_EQ(Vnmsac.Srcs, (Regs{v(1), v(2), v(4)}));
+  EXPECT_EQ(Vnmsac.VectorSrcGroups, (std::vector<uint8_t>{1, 1, 1}));
+}
+
 TEST(InstDecodeTest, ReductionIsPermuteClass) {
   Inst Vred = decode(0x02302257, "vredsum.vs v4, v3, v0");
   EXPECT_EQ(Vred.Class, InstClass::V_PERM);

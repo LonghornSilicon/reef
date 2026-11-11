@@ -1,0 +1,22 @@
+# The Reef SoC's weight memory: XSPI flash on 16 data lines, read only, in
+# DTR (data on both edges of the 25 MHz link clock). Not in M3, whose
+# testbench memory adds no delay, so m3.yaml leaves the link off and the M3
+# correlation does not use this file (deviations A7).
+#
+# DTR is the faster of the two modes. The baseline is STR (xspi_str.yaml);
+# sweep to this file's rate from there.
+#
+# Cycles here are core cycles at 50 MHz: one link clock cycle is two.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/memory/xspi_dtr.yaml --ext-mem-mb 160
+top:
+  memory:
+    params:
+      # ASSUMPTION, pessimistic: the top of the RTL team's 26 to 68 range.
+      # The spec's formula, 48/N + 6 link cycles with the command on N = 8
+      # lines, gives 24.
+      ext_mem_latency: 68
+      # 16 lines x 2 edges x 25 MHz = 800 Mb/s = 100 MB/s = 2 B per core cycle.
+      ext_mem_bytes_per_cycle: 2

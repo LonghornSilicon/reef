@@ -1,0 +1,29 @@
+# A design alternative to M3's vector functional units, for comparing
+# organizations: two general-purpose lanes behind one shared 8-entry
+# reservation station, which every vector instruction group uses. This is the
+# organization the model had before roadmap B15. Uop counts, the vector ROB
+# and each instruction group's latency stay M3's.
+#
+# Use it on top of m3.yaml:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_unified_vector.yaml
+top:
+  vector:
+    params:
+      vec_stations:        [shared]
+      vec_station_entries: [8]
+      vec_pools:           [lanes]
+      vec_pool_counts:     [2]
+      vec_pool_stations:   [shared]
+      vec_alu_addsub_pool: lanes
+      vec_alu_pool: lanes
+      vec_compare_pool: lanes
+      vec_compare_first_unit_only: false
+      vec_mul_pool: lanes
+      vec_div_pool: lanes
+      vec_fdiv_pool: lanes
+      vec_fp_pool: lanes
+      vec_permute_pool: lanes
+      vec_reduce_pool: lanes
+      vec_widening_reduce_pool: lanes
+      vec_fp_reduce_pool: lanes

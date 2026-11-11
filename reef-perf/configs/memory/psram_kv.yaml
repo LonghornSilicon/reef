@@ -1,0 +1,25 @@
+# The Reef SoC's KV cache memory: a PSRAM, read and written, on its own link
+# beside the weight flash (xspi_str.yaml or xspi_dtr.yaml). The two links do
+# not wait for each other. Not in M3 (deviations A7).
+#
+# Every number is an ASSUMPTION: typical QSPI PSRAM values, pessimistic. No
+# part is chosen yet. Sweep them.
+#
+# The RAM is the address range [ext_ram_base, ext_ram_base + ext_ram_mb MB)
+# inside the external region, so --ext-mem-mb must reach its end (72 MB for
+# the values here). A firmware that keeps its KV cache elsewhere sets
+# ext_ram_base and ext_ram_mb to match.
+#
+# Use it on top of m3.yaml and a flash file:
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/memory/xspi_str.yaml -c configs/memory/psram_kv.yaml \
+#       --ext-mem-mb 160
+top:
+  memory:
+    params:
+      ext_ram_base: 0x24000000     # Right after 64 MB of flash at 0x20000000
+      ext_ram_mb: 8
+      ext_ram_latency: 30          # Cycles to the first byte of a read burst
+      ext_ram_write_latency: 16    # Cycles to the first byte of a write burst
+      ext_ram_bytes_per_cycle: 0.25
+      ext_ram_max_burst_bytes: 100 # Then a new command, and the latency again

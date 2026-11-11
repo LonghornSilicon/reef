@@ -30,6 +30,10 @@ public:
   /// earlier than \p Earliest. \returns the start cycle.
   Cycle reserve(Cycle Earliest, uint64_t Occupancy);
 
+  /// Like reserve(), but books the first resource, for an operation only it
+  /// can run. \returns the start cycle.
+  Cycle reserveFirst(Cycle Earliest, uint64_t Occupancy);
+
   /// \returns the cycle reserve() would start an operation that may begin at
   /// \p Earliest, without booking anything.
   Cycle getNextFree(Cycle Earliest) const;
@@ -47,6 +51,8 @@ public:
   uint64_t getBusyCycles() const { return BusyCycles; }
 
 private:
+  Cycle book(Cycle &FreeAtCycle, Cycle Earliest, uint64_t Occupancy);
+
   std::string Name;
   std::vector<Cycle> FreeAt; // Per resource: the first cycle it is free.
   uint64_t Ops = 0;

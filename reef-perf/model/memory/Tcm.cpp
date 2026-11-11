@@ -1,0 +1,256 @@
+//===- Tcm.cpp - A tightly coupled memory ---------------------------------===//
+
+#include "memory/Tcm.h"
+
+#include "memory/MemTiming.h"
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+using namespace reef_perf;
+
+uint32_t reef_perf::getTcmPriority(RequesterKind Kind) {
+  switch (Kind) {
+  case RequesterKind::IFetch:
+  case RequesterKind::LSU:
+  case RequesterKind::Matrix: // Not in M3; treated as part of the core.
+    return 0;
+  case RequesterKind::AxiSlave:
+    return 1;
+  case RequesterKind::Debug:
+    return 2;
+  }
+  throw std::invalid_argument("unknown requester");
+}
+
+Tcm::Tcm(std::string Name, uint32_t Latency, uint32_t LineBytes,
+         uint32_t CyclesPerLine)
+    : Latency(Latency), LineBytes(LineBytes), CyclesPerLine(CyclesPerLine),
+      Port(Name, 1), FetchUse(Name + "_fetch", 1) {}
+
+MemResponse Tcm::access(const MemRequest &Request) {
+  if (getTcmPriority(Request.Requester) != 0)
+    return book(Request).Response;
+  const uint64_t Occupancy =
+      static_cast<uint64_t>(countDistinctBlocks(Request.Accesses, LineBytes)) *
+      CyclesPerLine;
+  TcmRequesterStats &S = statsFor(Request.Requester);
+  const bool IsWrite =
+      !Request.Accesses.empty() && Request.Accesses.front().IsStore;
+  ++(IsWrite ? S.Writes : S.Reads);
+  for (const MemAccess &Access : Request.Accesses)
+    S.Bytes += Access.Size;
+  S.PortCycles += Occupancy;
+  if (Request.Requester == RequesterKind::IFetch)
+    return accessFetch(Request, Occupancy);
+  return accessCore(Request, Occupancy);
+}
+
+Tcm::Booking Tcm::book(const MemRequest &Request,
+                       std::span<const Cycle> Ready) {
+  if (!Ready.empty() && Ready.size() != Request.Accesses.size())
+    throw std::invalid_argument("Tcm::book needs one ready cycle per access");
+  if (getTcmPriority(Request.Requester) == 0)
+    throw std::invalid_argument("Tcm::book takes lower-priority requests");
+  // Each access is its own port transaction, so beats narrower than a line
+  // still take a port cycle each.
+  uint64_t Occupancy = 0;
+  TcmRequesterStats &S = statsFor(Request.Requester);
+  for (const MemAccess &Access : Request.Accesses) {
+    Occupancy += static_cast<uint64_t>(countDistinctBlocks(
+                     std::span<const MemAccess>(&Access, 1), LineBytes)) *
+                 CyclesPerLine;
+    S.Bytes += Access.Size;
+  }
+  const bool IsWrite =
+      !Request.Accesses.empty() && Request.Accesses.front().IsStore;
+  ++(IsWrite ? S.Writes : S.Reads);
+  S.PortCycles += Occupancy;
+  return accessLower(Request, Occupancy, Ready);
+}
+
+MemResponse Tcm::accessCore(const MemRequest &Request, uint64_t Occupancy) {
+  MemResponse Response;
+  Response.Occupancy = Occupancy;
+  // The first line is usable after Latency; each further line adds
+  // CyclesPerLine.
+  Response.Latency = Latency + Occupancy - CyclesPerLine;
+  Response.Start = Port.reserve(Request.Earliest, Occupancy);
+  statsFor(Request.Requester).WaitCycles += Response.Start - Request.Earliest;
+  claimForCore(Response.Start, Occupancy);
+  return Response;
+}
+
+MemResponse Tcm::accessFetch(const MemRequest &Request, uint64_t Occupancy) {
+  // Fetch is core traffic, so lower priorities never get its cycles. An LSU
+  // access to the ITCM wins over fetch in the RTL; the LSU books its own port
+  // (Port), so it never waits for fetch, and fetch keeps its own timing.
+  MemResponse Response;
+  Response.Start = Request.Earliest;
+  Response.Occupancy = Occupancy;
+  Response.Latency = Latency + Occupancy - CyclesPerLine;
+  claimForCore(Response.Start, Occupancy);
+  FetchUse.reserve(Response.Start, Occupancy);
+  return Response;
+}
+
+void Tcm::claimForCore(Cycle Start, uint64_t Occupancy) {
+  // Merge with every booking that overlaps or touches [Start, End), so a
+  // short fetch booking never hides the rest of a longer LSU booking.
+  Cycle Begin = Start;
+  Cycle End = Start + Occupancy;
+  auto It = CoreBusy.upper_bound(Start);
+  if (It != CoreBusy.begin() && std::prev(It)->second >= Start)
+    --It;
+  while (It != CoreBusy.end() && It->first <= End) {
+    Begin = std::min(Begin, It->first);
+    End = std::max(End, It->second);
+    It = CoreBusy.erase(It);
+  }
+  CoreBusy[Begin] = End;
+  for (Cycle C = Start; C < Start + Occupancy; ++C)
+    if (Owner.contains(C))
+      bump(C);
+}
+
+Tcm::Booking Tcm::accessLower(const MemRequest &Request, uint64_t Occupancy,
+                              std::span<const Cycle> Ready) {
+  const uint32_t Priority = getTcmPriority(Request.Requester);
+  const auto Id = static_cast<uint32_t>(Transfers.size());
+  Transfers.push_back({Request.Requester, {}, Request.OnFinishMoved});
+  if (Ready.empty()) {
+    for (Cycle C = Request.Earliest; Transfers[Id].Cycles.size() < Occupancy;
+         ++C)
+      if (isFreeFor(C, Priority))
+        take(C, Id);
+  } else {
+    // Each access waits for its data, then takes the next free cycles.
+    Cycle C = Request.Earliest;
+    for (size_t I = 0; I < Request.Accesses.size(); ++I) {
+      C = std::max(C, Ready[I]);
+      uint64_t Need = static_cast<uint64_t>(countDistinctBlocks(
+                          Request.Accesses.subspan(I, 1), LineBytes)) *
+                      CyclesPerLine;
+      for (; Need > 0; ++C)
+        if (isFreeFor(C, Priority)) {
+          take(C, Id);
+          --Need;
+        }
+    }
+  }
+
+  const Transfer &T = Transfers[Id];
+  MemResponse Response;
+  Response.Start = *T.Cycles.begin();
+  Response.Occupancy = Occupancy;
+  Response.Latency = getFinish(T) - Response.Start;
+  statsFor(Request.Requester).WaitCycles +=
+      *T.Cycles.rbegin() + 1 - Request.Earliest - Occupancy;
+  return {Response, Id};
+}
+
+void Tcm::delay(uint32_t Id, Cycle Earliest) {
+  Transfer &T = Transfers[Id];
+  if (T.Cycles.empty() || *T.Cycles.begin() >= Earliest)
+    return;
+  const Cycle OldFinish = getFinish(T);
+  uint64_t Moved = 0;
+  while (!T.Cycles.empty() && *T.Cycles.begin() < Earliest) {
+    Owner.erase(*T.Cycles.begin());
+    T.Cycles.erase(T.Cycles.begin());
+    ++Moved;
+  }
+  const uint32_t Priority = getTcmPriority(T.Requester);
+  for (Cycle C = Earliest; Moved > 0; ++C) {
+    if (isFreeFor(C, Priority)) {
+      take(C, Id);
+      --Moved;
+    }
+  }
+  reportMove(T, OldFinish);
+}
+
+void Tcm::forgetBefore(Cycle Before) {
+  // Core bookings never overlap, so their ends rise with their starts.
+  while (!CoreBusy.empty() && CoreBusy.begin()->second <= Before)
+    CoreBusy.erase(CoreBusy.begin());
+  // Transfers finish in order; stop at the first one still running.
+  while (FirstLive < Transfers.size()) {
+    Transfer &T = Transfers[FirstLive];
+    if (!T.Cycles.empty() && *T.Cycles.rbegin() >= Before)
+      break;
+    for (Cycle C : T.Cycles)
+      Owner.erase(C);
+    T.Cycles.clear();
+    T.OnFinishMoved = nullptr;
+    ++FirstLive;
+  }
+}
+
+bool Tcm::isCoreBusy(Cycle C) const {
+  auto It = CoreBusy.upper_bound(C);
+  return It != CoreBusy.begin() && std::prev(It)->second > C;
+}
+
+bool Tcm::isFreeFor(Cycle C, uint32_t Priority) const {
+  if (isCoreBusy(C))
+    return false;
+  auto It = Owner.find(C);
+  return It == Owner.end() ||
+         getTcmPriority(Transfers[It->second].Requester) > Priority;
+}
+
+void Tcm::take(Cycle C, uint32_t Id) {
+  if (Owner.contains(C))
+    bump(C);
+  Owner[C] = Id;
+  Transfers[Id].Cycles.insert(C);
+}
+
+void Tcm::bump(Cycle C) {
+  const uint32_t Id = Owner.at(C);
+  Transfer &T = Transfers[Id];
+  const Cycle OldFinish = getFinish(T);
+  Owner.erase(C);
+  T.Cycles.erase(C);
+  TcmRequesterStats &S = statsFor(T.Requester);
+  ++S.BumpedCycles;
+  const uint32_t Priority = getTcmPriority(T.Requester);
+  // Step over the transfer's own consecutive later beats through its cycle
+  // set, which is cheaper than testing each cycle. Paced beats (data from
+  // the external link) leave gaps, and the beat takes the first free one.
+  Cycle Next = C + 1;
+  for (auto It = T.Cycles.upper_bound(C); It != T.Cycles.end() && *It == Next;
+       ++It)
+    ++Next;
+  while (!isFreeFor(Next, Priority))
+    ++Next;
+  take(Next, Id);
+  reportMove(T, OldFinish);
+}
+
+void Tcm::reportMove(Transfer &T, Cycle OldFinish) {
+  const Cycle NewFinish = getFinish(T);
+  statsFor(T.Requester).WaitCycles += NewFinish - OldFinish;
+  if (NewFinish != OldFinish && T.OnFinishMoved)
+    T.OnFinishMoved(NewFinish);
+}
+
+Cycle Tcm::getFinish(const Transfer &T) const {
+  // As for the core: the last line is usable Latency cycles after it starts.
+  return *T.Cycles.rbegin() + 1 - CyclesPerLine + Latency;
+}
+
+const TcmRequesterStats &Tcm::getStats(RequesterKind Kind) const {
+  return Stats[static_cast<size_t>(Kind)];
+}
+
+TcmRequesterStats &Tcm::statsFor(RequesterKind Kind) {
+  return Stats[static_cast<size_t>(Kind)];
+}

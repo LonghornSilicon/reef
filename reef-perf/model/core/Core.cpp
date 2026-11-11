@@ -53,6 +53,8 @@ void Core::bind() {
 
 void Core::setMemory(MemoryInterface *Mem) { TheLsu->setMemory(Mem); }
 
+VectorLsuInterface *Core::getVectorLsu() const { return TheLsu; }
+
 void Core::setInstBuffer(InstBufferInterface *Buffer) {
   TheDispatch->setInstBuffer(Buffer);
 }

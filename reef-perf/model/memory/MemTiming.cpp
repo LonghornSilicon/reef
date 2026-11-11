@@ -3,6 +3,7 @@
 #include "memory/MemTiming.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
@@ -26,26 +27,18 @@ uint32_t reef_perf::countDistinctBlocks(std::span<const MemAccess> Accesses,
   return static_cast<uint32_t>(Blocks.size());
 }
 
-TcmModel::TcmModel(std::string Name, uint32_t Latency, uint32_t LineBytes,
-                   uint32_t CyclesPerLine)
-    : Latency(Latency), LineBytes(LineBytes), CyclesPerLine(CyclesPerLine),
-      Port(std::move(Name), 1) {}
-
-MemResponse TcmModel::access(std::span<const MemAccess> Accesses,
-                             Cycle Earliest) {
-  MemResponse Response;
-  Response.Occupancy =
-      static_cast<uint64_t>(countDistinctBlocks(Accesses, LineBytes)) *
-      CyclesPerLine;
-  Response.Latency = Latency + Response.Occupancy - 1;
-  Response.Start = Port.reserve(Earliest, Response.Occupancy);
-  return Response;
-}
-
 AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
-                   uint32_t MaxOutstanding)
-    : Latency(Latency), BytesPerBeat(BytesPerBeat), Data("axi_data", 1),
+                   uint32_t MaxOutstanding, bool BlockingReads)
+    : Latency(Latency), BytesPerBeat(BytesPerBeat),
+      BlockingReads(BlockingReads), Data("axi_data", 1),
       Outstanding("axi_outstanding", MaxOutstanding) {}
+
+void AxiModel::extend(Cycle From, uint64_t Cycles) {
+  // Bookings are made in call order, so with one slot this continues the
+  // operation's own booking.
+  if (Cycles != 0)
+    Outstanding.reserve(From, Cycles);
+}
 
 MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
                              Cycle Earliest) {
@@ -57,5 +50,56 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
       std::max(Data.getNextFree(Earliest), Outstanding.getNextFree(Earliest));
   Data.reserve(Response.Start, Response.Occupancy);
   Outstanding.reserve(Response.Start, Response.Latency);
+  // A blocking read keeps its requester until the read response is back.
+  const bool IsRead = Accesses.empty() || !Accesses.front().IsStore;
+  if (BlockingReads && IsRead)
+    Response.Occupancy = Response.Latency;
   return Response;
+}
+
+ExtMemModel::ExtMemModel(uint32_t Latency, double BytesPerCycle)
+    : ExtMemModel("ext_mem_link", Latency, Latency, BytesPerCycle, 0) {}
+
+ExtMemModel::ExtMemModel(std::string Name, uint32_t Latency,
+                         uint32_t WriteLatency, double BytesPerCycle,
+                         uint32_t MaxBurstBytes)
+    : Latency(Latency), WriteLatency(WriteLatency),
+      BytesPerCycle(BytesPerCycle), MaxBurstBytes(MaxBurstBytes),
+      Link(std::move(Name), 1) {
+  if (BytesPerCycle < 0)
+    throw std::invalid_argument("link bytes per cycle must be at least 0");
+}
+
+uint64_t ExtMemModel::getDataCycles(uint64_t Bytes) const {
+  const auto Cycles = static_cast<uint64_t>(
+      std::ceil(static_cast<double>(Bytes) / BytesPerCycle));
+  return std::max<uint64_t>(Cycles, 1);
+}
+
+uint64_t ExtMemModel::getBursts(uint64_t Bytes) const {
+  if (MaxBurstBytes == 0 || Bytes == 0)
+    return 1;
+  return (Bytes + MaxBurstBytes - 1) / MaxBurstBytes;
+}
+
+ExtMemModel::Slot ExtMemModel::transfer(uint64_t Bytes, Cycle Earliest,
+                                        bool IsWrite) {
+  if (!isTimed())
+    return {Earliest, Earliest, 0};
+  // Every burst starts with a new command, so it pays the latency again.
+  const uint32_t BurstLatency = IsWrite ? WriteLatency : Latency;
+  const uint64_t Occupancy =
+      (getBursts(Bytes) * BurstLatency) + getDataCycles(Bytes);
+  const Cycle Start = Link.reserve(Earliest, Occupancy);
+  return {Start + BurstLatency, Start + Occupancy, BurstLatency};
+}
+
+Cycle ExtMemModel::getReady(const Slot &Booked, uint64_t Bytes) const {
+  if (!isTimed())
+    return Booked.FirstByte;
+  // The bursts before the one holding the last of these bytes are complete.
+  const uint64_t EarlierBursts = getBursts(Bytes) - 1;
+  return std::min(Booked.Done, Booked.FirstByte +
+                                   (EarlierBursts * Booked.BurstLatency) +
+                                   getDataCycles(Bytes));
 }

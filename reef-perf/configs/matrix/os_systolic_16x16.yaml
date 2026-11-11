@@ -1,0 +1,22 @@
+# NO RTL; FORMULAS CHECKED against the cycle-level reference and SCALE-Sim
+# (docs/matrix.md, "Checking it"). A 16x16 output-stationary systolic array.
+# A enters from the left, B from the top, both forwarded one PE per cycle;
+# each PE accumulates its own C element.
+# Use on top of m3.yaml (the machine) and m3_vme.yaml (turns Zvt on):
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/m3_vme.yaml -c configs/matrix/os_systolic_16x16.yaml
+top:
+  matrix:
+    params:
+      mtx_pe_rows: 16
+      mtx_pe_cols: 16
+      mtx_macs_per_pe_int8: 1
+      mtx_macs_per_pe_bf16: 1
+      mtx_macs_per_pe_fp32: 1
+      mtx_dataflow: output
+      mtx_row_operand: forwarded
+      mtx_col_operand: forwarded
+      mtx_hop_latency: 1
+      mtx_mapping: generic           # rows x cols blocks (the Coral rule is Coral's array only)
+      mtx_reduction: in_place
+      mtx_pe_pipeline_depth: 1
