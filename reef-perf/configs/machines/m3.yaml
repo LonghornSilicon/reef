@@ -155,7 +155,17 @@ top:
       host_cycles_per_byte: 8 # ASSUMPTION; 1-lane SPI at the core clock
       # The off-chip memory behind the e-bus, shared by the core and the DMA.
       # Not in M3: 0 keeps the testbench's memory, which adds no delay
-      # (deviations A7). The Reef SoC's XSPI link is an overlay:
-      # configs/memory/xspi_dtr.yaml (or xspi_str.yaml for the fallback).
+      # (deviations A7). The Reef SoC's memories are overlays in
+      # configs/memory/: xspi_str.yaml or xspi_dtr.yaml for the weight flash,
+      # psram_kv.yaml for the KV cache RAM.
       ext_mem_latency: 0
       ext_mem_bytes_per_cycle: 0
+      ext_mem_max_burst_bytes: 0  # 0 = no burst limit
+      # A second external memory with its own link (the KV cache RAM). Off:
+      # with ext_ram_mb 0, every external address uses the link above.
+      ext_ram_mb: 0
+      ext_ram_base: 0x24000000
+      ext_ram_latency: 0
+      ext_ram_write_latency: 0
+      ext_ram_bytes_per_cycle: 0
+      ext_ram_max_burst_bytes: 0
