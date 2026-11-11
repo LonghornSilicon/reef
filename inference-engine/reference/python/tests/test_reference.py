@@ -2,7 +2,7 @@
 
 Runs the Google Test suite through CTest, GPT-Neo from Python on a tiny
 random model, the C++ API documentation build, and lint for the whole
-module. coral/tests/test_coral.py checks the kernels against the engine.
+module.
 """
 
 import json

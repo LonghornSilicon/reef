@@ -1,147 +1,265 @@
-// One attention head over cached keys and values (Attention::context).
-//
-// The reference computes scores and probability products for every key and
-// gives masked keys a probability of exactly zero. A zero product added to
-// a running sum leaves it unchanged, so visiting only the visible keys, in
-// the same order, gives the same bits. The int8 head is integer throughout.
+// Block flash attention over the KV cache in flash.
 
-#include "fixed_point.hpp"
-#include "reef_kernels/kernels.hpp"
-#include "vector_math.hpp"
+#include "common.hpp"
 
-#include <riscv_vector.h>
+namespace npu {
 
-namespace reef_kernels {
+// ---- Attention ------------------------------------------------------------
+// One KV block for a single query token (decode). The score tile has one real
+// row, so one row read holds all 16 keys' scores: the softmax runs on that
+// one vector (reductions across keys), and P V comes back as rows too.
+// State uses lane 0 of row_max / row_sum; out_acc[dim] holds the output.
+static void attend_row(uint32_t head, uint32_t block, const uint8_t* key_block,
+                       const uint8_t* value_block, uint32_t query_pos,
+                       bool local) {
+    Softmax& state = dtcm.scratch.softmax;
+    vtzero();
+    config_int8(1);
+    mac<true>(dtcm.shared.attn.query + head * kHeadDim * kBlockTokens,
+              kBlockTokens, key_block, 16, kHeadDim / 4); // S = q K^T
+    // Key positions of this block's 16 lanes; visible: oldest <= key <= query.
+    const vuint32m4_t key_pos =
+        __riscv_vadd_vx_u32m4(__riscv_vid_v_u32m4(16), block * 16, 16);
+    const uint32_t oldest =
+        (local && query_pos >= kLocalWindow) ? query_pos - kLocalWindow + 1 : 0;
+    const vbool8_t valid = __riscv_vmand_mm_b8(
+        __riscv_vmsleu_vx_u32m4_b8(key_pos, query_pos, 16),
+        __riscv_vmsgeu_vx_u32m4_b8(key_pos, oldest, 16), 16);
+    const vint32m4_t scores =
+        __riscv_vmerge_vvm_i32m4(splat(kNegInf), vtmv(0), valid, 16);
+    const int32_t block_max =
+        __riscv_vmv_x_s_i32m1_i32(__riscv_vredmax_vs_i32m4_i32m1(
+            scores, __riscv_vmv_s_x_i32m1(kNegInf, 1), 16));
+    const int32_t m_old = state.row_max[0];
+    const int32_t m_new = block_max > m_old ? block_max : m_old;
+    const uint32_t gap = static_cast<uint32_t>(m_new - m_old) >> kExpShift;
+    const int32_t alpha = dtcm.exp_table[gap < 255 ? gap : 255];
+    vint32m4_t prob = exp_lut(__riscv_vrsub_vx_i32m4(scores, m_new, 16));
+    prob = __riscv_vmerge_vvm_i32m4(splat(0), prob, valid, 16);
+    const int32_t prob_sum = __riscv_vmv_x_s_i32m1_i32(
+        __riscv_vredsum_vs_i32m4_i32m1(prob, __riscv_vmv_s_x_i32m1(0, 1), 16));
+    // P as 16 contiguous bytes; the A operand reads it with stride 1, so row t
+    // starts at probs + t and its lane 0 is key t's probability.
+    __riscv_vse8_v_u8m1(state.probs,
+                        __riscv_vreinterpret_v_i8m1_u8m1(
+                            to_i8(__riscv_vsub_vx_i32m4(prob, 128, 16))),
+                        16);
+    state.row_max[0] = m_new;
+    state.row_sum[0] = ((state.row_sum[0] * alpha) >> 8) + prob_sum;
+    for (uint32_t dim0 = 0; dim0 < kHeadDim; dim0 += 16) { // O += P V
+        vtzero();
+        config_int8(1);
+        mac<false>(state.probs, 1, value_block + dim0, kHeadDim, 4);
+        int32_t* acc = state.out_acc + dim0;
+        const vint32m4_t scaled = __riscv_vsra_vx_i32m4(
+            __riscv_vmul_vx_i32m4(__riscv_vle32_v_i32m4(acc, 16), alpha, 16), 8,
+            16);
+        __riscv_vse32_v_i32m4(acc, __riscv_vadd_vv_i32m4(scaled, vtmv(0), 16),
+                              16);
+    }
+}
 
-void attention_head_f32(std::size_t query_len, std::size_t key_len,
-                        std::size_t head_dim, std::size_t query_start,
-                        std::size_t window, const float* q,
-                        std::size_t q_stride, const float* k, const float* v,
-                        float* scores, float* out, std::size_t out_stride) {
-    const std::ptrdiff_t row_bytes =
-        static_cast<std::ptrdiff_t>(head_dim * sizeof(float));
-    for (std::size_t i = 0; i < query_len; ++i) {
-        // Visible keys [first, end): causal, then the sliding window.
-        const std::size_t position = query_start + i;
-        const std::size_t end = position + 1 < key_len ? position + 1 : key_len;
-        const std::size_t first =
-            window > 0 && position + 1 > window ? position + 1 - window : 0;
-        const float* qi = q + (i * q_stride);
-
-        // scores[j] = sum over d, in order, of q[d] * k[j][d]; the lanes walk
-        // keys, reading one column of k with a strided load.
-        for (std::size_t j = first; j < end;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(end - j);
-            vfloat32m4_t acc = __riscv_vfmv_v_f_f32m4(0.0F, vl);
-            for (std::size_t d = 0; d < head_dim; ++d) {
-                const vfloat32m4_t column = __riscv_vlse32_v_f32m4(
-                    k + (j * head_dim) + d, row_bytes, vl);
-                acc = __riscv_vfadd_vv_f32m4(
-                    acc, __riscv_vfmul_vf_f32m4(column, qi[d], vl), vl);
-            }
-            __riscv_vse32_v_f32m4(scores + j, acc, vl);
-            j += vl;
+// One KV block (16 positions) for head h: online-softmax update of m, l, acc.
+static void attend_block(uint32_t head, uint32_t block,
+                         const uint8_t* key_block, const uint8_t* value_block,
+                         uint32_t tokens, uint32_t start_pos, bool local) {
+    if (tokens == 1) {
+        attend_row(head, block, key_block, value_block, start_pos, local);
+        return;
+    }
+    Softmax& state = dtcm.scratch.softmax;
+    vtzero();
+    config_int8(tokens);
+    mac<true>(dtcm.shared.attn.query + head * kHeadDim * kBlockTokens,
+              kBlockTokens, key_block, 16, kHeadDim / 4); // S = Q K^T
+    const vuint32m4_t query_pos =
+        __riscv_vadd_vx_u32m4(__riscv_vid_v_u32m4(16), start_pos, 16);
+    const vint32m4_t neg_inf = splat(kNegInf);
+    auto valid = [&](uint32_t key) {
+        vbool8_t ok = __riscv_vmsgeu_vx_u32m4_b8(query_pos, key, 16);
+        if (local) {
+            ok = __riscv_vmand_mm_b8(
+                ok,
+                __riscv_vmsltu_vx_u32m4_b8(query_pos, key + kLocalWindow, 16),
+                16);
         }
-
-        // masked_softmax: row maximum, exp and ordered sum, then divide.
-        vfloat32m1_t largest = __riscv_vfmv_s_f_f32m1(scores[first], 1);
-        for (std::size_t j = first; j < end;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(end - j);
-            largest = __riscv_vfredmax_vs_f32m4_f32m1(
-                __riscv_vle32_v_f32m4(scores + j, vl), largest, vl);
-            j += vl;
-        }
-        const float row_max = __riscv_vfmv_f_s_f32m1_f32(largest);
-        vfloat32m1_t sum = __riscv_vfmv_s_f_f32m1(0.0F, 1);
-        for (std::size_t j = first; j < end;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(end - j);
-            const vfloat32m4_t e = detail::exp_nonpositive(
-                __riscv_vfsub_vf_f32m4(__riscv_vle32_v_f32m4(scores + j, vl),
-                                       row_max, vl),
-                vl);
-            __riscv_vse32_v_f32m4(scores + j, e, vl);
-            sum = __riscv_vfredosum_vs_f32m4_f32m1(e, sum, vl);
-            j += vl;
-        }
-        const float total = __riscv_vfmv_f_s_f32m1_f32(sum);
-        for (std::size_t j = first; j < end;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(end - j);
-            __riscv_vse32_v_f32m4(
-                scores + j,
-                __riscv_vfdiv_vf_f32m4(__riscv_vle32_v_f32m4(scores + j, vl),
-                                       total, vl),
-                vl);
-            j += vl;
-        }
-
-        // out[c] = sum over visible j, in order, of p[j] * v[j][c].
-        float* oi = out + (i * out_stride);
-        for (std::size_t c = 0; c < head_dim;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(head_dim - c);
-            vfloat32m4_t acc = __riscv_vfmv_v_f_f32m4(0.0F, vl);
-            for (std::size_t j = first; j < end; ++j) {
-                const vfloat32m4_t row =
-                    __riscv_vle32_v_f32m4(v + (j * head_dim) + c, vl);
-                acc = __riscv_vfadd_vv_f32m4(
-                    acc, __riscv_vfmul_vf_f32m4(row, scores[j], vl), vl);
-            }
-            __riscv_vse32_v_f32m4(oi + c, acc, vl);
-            c += vl;
+        return ok;
+    };
+    vint32m4_t block_max = neg_inf;
+    for (uint32_t j = 0; j < 16; ++j) {
+        block_max = __riscv_vmax_vv_i32m4(
+            block_max,
+            __riscv_vmerge_vvm_i32m4(neg_inf, vtmv(kColumnSlice | j),
+                                     valid(block * 16 + j), 16),
+            16);
+    }
+    const vint32m4_t m_old = __riscv_vle32_v_i32m4(state.row_max, 16);
+    const vint32m4_t m_new = __riscv_vmax_vv_i32m4(m_old, block_max, 16);
+    const vint32m4_t alpha = exp_lut(__riscv_vsub_vv_i32m4(m_new, m_old, 16));
+    vint32m4_t prob_sum = splat(0);
+    for (uint32_t j = 0; j < 16; ++j) {
+        vint32m4_t prob =
+            exp_lut(__riscv_vsub_vv_i32m4(m_new, vtmv(kColumnSlice | j), 16));
+        prob =
+            __riscv_vmerge_vvm_i32m4(splat(0), prob, valid(block * 16 + j), 16);
+        prob_sum = __riscv_vadd_vv_i32m4(prob_sum, prob, 16);
+        __riscv_vse8_v_u8m1(state.probs + j * 16,
+                            __riscv_vreinterpret_v_i8m1_u8m1(
+                                to_i8(__riscv_vsub_vx_i32m4(prob, 128, 16))),
+                            16);
+    }
+    __riscv_vse32_v_i32m4(state.row_max, m_new, 16);
+    __riscv_vse32_v_i32m4(
+        state.row_sum,
+        __riscv_vadd_vv_i32m4(
+            __riscv_vsra_vx_i32m4(
+                __riscv_vmul_vv_i32m4(__riscv_vle32_v_i32m4(state.row_sum, 16),
+                                      alpha, 16),
+                8, 16),
+            prob_sum, 16),
+        16);
+    for (uint32_t dim0 = 0; dim0 < kHeadDim;
+         dim0 += 16) { // O += P V, 16 dims per tile
+        vtzero();
+        config_int8(tokens);
+        mac<false>(state.probs, 16, value_block + dim0, kHeadDim, 4);
+        for (uint32_t j = dim0; j < kHeadDim && j < dim0 + 16; ++j) {
+            int32_t* acc_row = state.out_acc + j * 16;
+            vint32m4_t value = __riscv_vmul_vv_i32m4(
+                __riscv_vle32_v_i32m4(acc_row, 16), alpha, 16);
+            value = __riscv_vadd_vv_i32m4(__riscv_vsra_vx_i32m4(value, 8, 16),
+                                          vtmv(kColumnSlice | (j - dim0)), 16);
+            __riscv_vse32_v_i32m4(acc_row, value, 16);
         }
     }
 }
 
-void attention_head_int8(std::size_t query_len, std::size_t key_len,
-                         std::size_t head_dim, std::size_t query_start,
-                         std::size_t window, const std::int8_t* q,
-                         std::size_t q_stride, const std::int8_t* k,
-                         const std::int8_t* v, unsigned score_shift,
-                         const std::uint16_t* table, unsigned out_shift,
-                         std::int32_t* scores, std::uint8_t* probs,
-                         std::int8_t* out, std::size_t out_stride) {
-    const auto row_bytes = static_cast<std::ptrdiff_t>(head_dim);
-    for (std::size_t i = 0; i < query_len; ++i) {
-        const std::size_t position = query_start + i;
-        const std::size_t end = position + 1 < key_len ? position + 1 : key_len;
-        const std::size_t first =
-            window > 0 && position + 1 > window ? position + 1 - window : 0;
-        const std::int8_t* qi = q + (i * q_stride);
-
-        // scores[j] = q . k[j] in int32; the lanes walk keys.
-        for (std::size_t j = first; j < end;) {
-            const std::size_t vl = __riscv_vsetvl_e32m4(end - j);
-            vint32m4_t acc = __riscv_vmv_v_x_i32m4(0, vl);
-            for (std::size_t d = 0; d < head_dim; ++d) {
-                const vint16m2_t column = __riscv_vsext_vf2_i16m2(
-                    __riscv_vlse8_v_i8m1(k + (j * head_dim) + d, row_bytes, vl),
-                    vl);
-                acc = __riscv_vwmacc_vx_i32m4(acc, qi[d], column, vl);
-            }
-            __riscv_vse32_v_i32m4(scores + j, acc, vl);
-            j += vl;
+void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+    const bool local = (layer & 1) != 0;
+    const uint32_t tail_col = start_pos & 15;
+    const uint32_t tail_block = start_pos >> 4;
+    const uint32_t first_block = (local && start_pos + 1 > kLocalWindow)
+                                     ? (start_pos + 1 - kLocalWindow) >> 4
+                                     : 0;
+    const uint32_t key_base =
+        kKeyCache + layer * kNumHeads * kKvBlocks * kKvBlock;
+    const uint32_t value_base =
+        kValueCache + layer * kNumHeads * kKvBlocks * kKvBlock;
+    auto issue = [&](uint32_t head, uint32_t start_block, uint32_t buf) {
+        const uint32_t count = (tail_block + 1 - start_block) < kKvChunk
+                                   ? tail_block + 1 - start_block
+                                   : kKvChunk;
+        const uint32_t offset = (head * kKvBlocks + start_block) * kKvBlock;
+        dma(key_base + offset, addr(dtcm.shared.attn.kv_buf[buf][0]),
+            count * kKvBlock);
+        dma(value_base + offset, addr(dtcm.shared.attn.kv_buf[buf][1]),
+            count * kKvBlock);
+    };
+    uint32_t head = 0;
+    uint32_t start_block = first_block;
+    uint32_t buf = 0;
+    issue(head, start_block, buf);
+    while (true) {
+        dma_wait();
+        uint32_t next_head = head;
+        uint32_t next_start = start_block + kKvChunk;
+        if (next_start > tail_block) {
+            ++next_head;
+            next_start = first_block;
         }
-
-        // Softmax over the visible keys only, as masked_softmax_int8.
-        softmax_int8(end - first, scores + first, score_shift, table,
-                     probs + first);
-
-        // out[c] = saturate(rounding_shift(sum over visible j of p[j] *
-        // v[j][c], out_shift)).
-        std::int8_t* oi = out + (i * out_stride);
-        for (std::size_t c = 0; c < head_dim;) {
-            const std::size_t vl = __riscv_vsetvl_e8m1(head_dim - c);
-            vint32m4_t acc = __riscv_vmv_v_x_i32m4(0, vl);
-            for (std::size_t j = first; j < end; ++j) {
-                const vint16m2_t row = __riscv_vsext_vf2_i16m2(
-                    __riscv_vle8_v_i8m1(v + (j * head_dim) + c, vl), vl);
-                acc = __riscv_vwmacc_vx_i32m4(
-                    acc, static_cast<std::int16_t>(probs[j]), row, vl);
-            }
-            __riscv_vse8_v_i8m1(oi + c, detail::narrow_int8(acc, out_shift, vl),
-                                vl);
-            c += vl;
+        if (next_head < kNumHeads) {
+            issue(next_head, next_start, buf ^ 1);
         }
+        Softmax& state = dtcm.scratch.softmax;
+        if (start_block == first_block) {
+            __riscv_vse32_v_i32m4(state.row_max, splat(kNegInf), 16);
+            __riscv_vse32_v_i32m4(state.row_sum, splat(0), 16);
+            for (uint32_t j = 0; j < kHeadDim; ++j) {
+                __riscv_vse32_v_i32m4(state.out_acc + j * 16, splat(0), 16);
+            }
+        }
+        for (uint32_t block = start_block;
+             block <= tail_block && block < start_block + kKvChunk; ++block) {
+            uint8_t* key_block = dtcm.shared.attn.kv_buf[buf][0] +
+                                 (block - start_block) * kKvBlock;
+            uint8_t* value_block = dtcm.shared.attn.kv_buf[buf][1] +
+                                   (block - start_block) * kKvBlock;
+            if (block ==
+                tail_block) { // insert the new tokens at positions tail_col..
+                for (uint32_t j = 0; j < kHeadDim; ++j) {
+                    __riscv_vse8_v_i8m1(
+                        reinterpret_cast<int8_t*>(key_block) + j * 16 +
+                            tail_col,
+                        __riscv_vle8_v_i8m1(dtcm.shared.attn.key +
+                                                (head * kHeadDim + j) *
+                                                    kBlockTokens,
+                                            tokens),
+                        tokens);
+                }
+                for (uint32_t row = 0; row < tokens; ++row) {
+                    __riscv_vse8_v_u8m4(
+                        value_block + (tail_col + row) * kHeadDim,
+                        __riscv_vle8_v_u8m4(dtcm.shared.attn.value +
+                                                row * kHidden + head * kHeadDim,
+                                            kHeadDim),
+                        kHeadDim);
+                }
+            }
+            attend_block(head, block, key_block, value_block, tokens, start_pos,
+                         local);
+            if (block == tail_block) { // write the newest block back
+                const uint32_t offset = (head * kKvBlocks + block) * kKvBlock;
+                dma(addr(key_block), key_base + offset, kKvBlock);
+                dma(addr(value_block), value_base + offset, kKvBlock);
+            }
+        }
+        if (start_block + kKvChunk >
+            tail_block) {      // head done: O = (acc - 128 row_sum) / row_sum
+            if (tokens == 1) { // one token: out_acc[dim], scalar row_sum
+                const int32_t row_sum = state.row_sum[0];
+                const int32_t recip = static_cast<int32_t>(
+                    (1U << 20) / static_cast<uint32_t>(row_sum));
+                for (uint32_t dim0 = 0; dim0 < kHeadDim; dim0 += 16) {
+                    vint32m4_t out = __riscv_vsub_vx_i32m4(
+                        __riscv_vle32_v_i32m4(state.out_acc + dim0, 16),
+                        row_sum << 7, 16);
+                    out = __riscv_vsra_vx_i32m4(
+                        __riscv_vmul_vx_i32m4(out, recip, 16), 20, 16);
+                    // Dims down column 0 of normed (rows kBlockTokens apart).
+                    __riscv_vsse8_v_i8m1(
+                        dtcm.normed + (head * kHeadDim + dim0) * kBlockTokens,
+                        kBlockTokens, to_i8(out),
+                        kHeadDim - dim0 < 16 ? kHeadDim - dim0 : 16);
+                }
+            } else { // block of tokens: out_acc[dim][token], row_sum per token
+                const vint32m4_t row_sum =
+                    __riscv_vle32_v_i32m4(state.row_sum, 16);
+                const vint32m4_t recip =
+                    __riscv_vreinterpret_v_u32m4_i32m4(__riscv_vdivu_vv_u32m4(
+                        __riscv_vmv_v_x_u32m4(1U << 20, 16),
+                        __riscv_vreinterpret_v_i32m4_u32m4(row_sum), 16));
+                const vint32m4_t zero_point =
+                    __riscv_vsll_vx_i32m4(row_sum, 7, 16);
+                for (uint32_t j = 0; j < kHeadDim; ++j) {
+                    vint32m4_t out_row = __riscv_vsub_vv_i32m4(
+                        __riscv_vle32_v_i32m4(state.out_acc + j * 16, 16),
+                        zero_point, 16);
+                    out_row = __riscv_vsra_vx_i32m4(
+                        __riscv_vmul_vv_i32m4(out_row, recip, 16), 20, 16);
+                    __riscv_vse8_v_i8m1(dtcm.normed + (head * kHeadDim + j) *
+                                                          kBlockTokens,
+                                        to_i8(out_row), kBlockTokens);
+                }
+            }
+        }
+        if (next_head >= kNumHeads) {
+            break;
+        }
+        head = next_head;
+        start_block = next_start;
+        buf ^= 1;
     }
+    dma_wait(); // the last write-backs
 }
 
-} // namespace reef_kernels
+} // namespace npu

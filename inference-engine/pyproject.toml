@@ -24,10 +24,9 @@ dev = [
 packages = ["reference/python/inference_engine"]
 
 [tool.pytest.ini_options]
-testpaths = ["reference/python/tests", "coral/tests"]
+testpaths = ["reference/python/tests"]
 markers = [
     "slow: tests requiring a simulator or long runtime",
-    "coral: tests needing Docker, the Coral toolchain, and reef_perf",
 ]
 timeout = 300
 

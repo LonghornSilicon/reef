@@ -1,152 +1,115 @@
-# coral: GPT-Neo on the Coral NPU core
+# coral
 
-Everything here is cross-compiled for the CoralNPU M3 core (RV32IMF, Zbb,
-Zve32f, VLEN 128) and runs on `reef_perf` or the chip. The host C++ engine in
-`../reference/cpp/include/inference_engine/` is the source of truth. Every
-kernel reproduces one engine function **bit for bit**, and the tests fail if
-a single bit differs.
+GPT-Neo TinyStories-28M on the NPU (M3 core, Zvt matrix unit, DMA). Weights
+and the KV cache stream from XSPI flash into the 32 KB DTCM; code fits the
+8 KB ITCM.
+
+ELFs are not committed. Build them with `coral/tools/build.sh`, run from
+`inference-engine/`. It uses Coral's GCC from `$CORAL_TOOLCHAIN` or `PATH`,
+or else Docker with the volume that `coral/tools/setup_toolchain.sh` fills.
+The ELFs land in `$E2E_OUT` (default `build/e2e/`), and compiler flags pass
+straight through:
 
 ```
-coral/
-  include/reef_kernels/
-    kernels.hpp      kernel API; each kernel names the engine function it matches
-    model_blob.hpp   byte layout of a packed model (host writes, firmware reads)
-    host_if.hpp      mailbox the host uses to drive the firmware
-  kernels/           the library: one function per operator and mode, no main, no globals
-  runtime/           crt0.S (start-up, written once), link.ld (M3 highmem map), libc.cc
-  firmware/          gpt_neo.cc stitches the kernels into the model; main.cc serves the mailbox
-  tests/             golden tests: run a kernel on the core, compare with the engine's output
-                     test_coral.py runs them all (test.sh) from `uv run pytest`
-  bench/             reef-perf benchmarks: 8M decode shapes; *_int8 at the original 16x64 shapes
-  host/              gen_golden (writes the tests' expected outputs), pack_model (packs weights)
-  sim/               coral_sim: Spike without the timing model, for CI
-  tools/             setup_toolchain.sh, setup_sim.sh, build.sh, run.sh, test.sh
+coral/tools/build.sh                                  # defaults: 8-token block at position 0, layer 0
+E2E_OUT=build/e2e/dec59 coral/tools/build.sh -DE2E_TOKENS=1 -DE2E_START_POS=58
 ```
 
-The benchmarks, the tests and the firmware all link the same `kernels/` code.
-The kernel that gets benchmarked is the kernel that gets tested, and that's
-the kernel the demo runs.
+Give every variant its own `E2E_OUT` so builds can run in parallel.
 
-## Precision modes
+| Kernel | File | ELF | Cycles (8-token block, XSPI 2 B/cycle) |
+|---|---|---|---:|
+| Embedding | `embed.cc` | `embed.elf` | 11,212 |
+| LayerNorm | `layernorm.cc` | `layernorm.elf` | 42,695 |
+| Q, K, V projections | `linear.cc` | `qkv.elf` | 539,998 |
+| Attention (positions 0–7) | `attention.cc` | `attention.elf` | 115,936 |
+| Out-projection + residual | `linear.cc` | `attn_out.elf` | 189,545 |
+| fc1 + GeLU | `linear.cc` | `fc1.elf` | 730,963 |
+| fc2 + residual | `linear.cc` | `fc2.elf` | 666,057 |
+| `lm_head` + argmax (1 token) | `lm_head.cc` | `lm_head.elf` | 14,443,774 |
+| Whole model (16-token prompt + 1 decode step) | `main.cc` | `e2e.elf` | 87,366,903 |
 
-Each mode is a set of engine functions with kernels that match them:
+Each kernel ELF (`standalone.cc`) runs its kernel once on one block of
+tokens whose residual is already in the DTCM. `common.hpp` holds the DTCM
+layout. `npu.hpp` holds the model shape, the flash map, and the DMA and Zvt
+wrappers.
 
-| Mode | Engine | Kernels | Firmware |
+## Knobs
+
+| Define | ELFs | Default | Meaning |
 |---|---|---|---|
-| fp32 | float operators, `math.hpp` | `*_f32` | yes |
-| W8A8 | `quant.hpp`: int8 projections, float elsewhere | `linear_w8a8*` + `*_f32` | yes |
-| int8 | `int8.hpp`: integer only, shifts and lookup tables | `*_int8` | not yet |
+| `E2E_TOKENS` | kernel ELFs | 8 | Tokens in the block, 1–8. Use 1 for a decode step. |
+| `E2E_START_POS` | all | 0 | Position of the block's first token. Attention reads this many cached positions. In `e2e.elf`, a nonzero value skips prefill and decodes from this position. |
+| `E2E_LAYER` | kernel ELFs | 0 | Which layer's weights to use. Even layers use global attention; odd layers use local attention over a 256-token window. |
+| `E2E_PROMPT`, `E2E_NEW_TOKENS` | `e2e.elf` | 32, 8 | Prompt length and number of generated tokens. |
 
-The int8 kernels are the original standalone ones (linear, GELU and softmax
-tables, attention, LayerNorm, embedding), now library functions checked
-against `int8.hpp`. Its `gelu_table(0.05, 0.05)` and `exp_table()` reproduce
-the tables they hard-coded. The firmware can't run an int8 model yet: that
-needs a scale for every activation tensor, picked by calibrating against
-the fp32 model, plus a rescaling residual add.
+## Estimating a workload from kernel runs
 
-## How kernels are kept equal to the engine
+Each run gives its cycles in the ROI between the two mcycle reads. One layer is
+ln1 + qkv + attention + attn_out + ln2 + fc1 + fc2, where ln2 costs the same as
+`layernorm`. Every token you generate also costs ln_f (the same cost as
+`layernorm`) plus `lm_head`.
 
-1. The engine defines the arithmetic exactly. Float steps happen in a fixed
-   order with no fused multiply-adds (`-ffp-contract=off` on both sides).
-   `exp` and `tanh` come from `math.hpp` rather than the C library. W8A8
-   rounding follows `quant.hpp`.
-2. `host/gen_golden.cpp` calls the engine on seeded inputs and writes
-   `build/coral/golden/<test>.hpp`. The expected outputs are hex-float
-   literals, so they're exact.
-3. Each `tests/test_*.cc` runs the kernels on those inputs on the core and
-   compares the outputs bit for bit. A mismatch executes `ebreak`, so
-   reef_perf reports a trap and exits non-zero.
-4. `tests/test_gpt_neo.cc` checks the firmware's whole forward pass on a
-   small random model, in fp32 and W8A8:
-   - the logits of every generated token,
-   - the generated tokens when the request goes through the host mailbox.
+- **Only attention depends on position.** The linear kernels and `layernorm`
+  depend only on `E2E_TOKENS`, and `embed` barely changes. So run the
+  position-independent kernels once per token count, and run `attention` for
+  each position you care about.
+- **Layers repeat.** All 8 layers have the same shape. Attention is the same in
+  every layer below position 256. From position 256 on, run `attention` with
+  `E2E_LAYER=0` (global) and `E2E_LAYER=1` (local), then weight each by 4.
+- **Prefill of P tokens** runs as ⌈P/8⌉ blocks at positions 0, 8, 16, … (the
+  last block can be shorter). Add `embed` once per block, and ln_f + `lm_head`
+  once.
+- **Decoding token n** (1-based) means `E2E_TOKENS=1 E2E_START_POS=n-1`.
 
-Changing a kernel's arithmetic without changing the engine fails these tests.
-To change the arithmetic itself, change the engine first: its gtests and the
-Hugging Face comparison judge whether the change is acceptable. Then update
-the kernel until `test.sh` passes again.
+Recipes for the examples from review:
 
-Integer sums may run in any order. Float sums must run in the engine's
-order. Lanes that each accumulate over the inner dimension in order are fine,
-and so is the ordered reduction `vfredosum`. An unordered `vfredusum` or a
-fused `vfmacc` is not.
+1. Prefill of 8 tokens, all layers. Use the defaults:
+   embed + 8 × (2·layernorm + qkv + attention + attn_out + fc1 + fc2) + layernorm + lm_head.
+2. Prefill of 16 tokens, one layer. The defaults give block 1. Rebuild
+   `attention.elf` with `-DE2E_START_POS=8` for block 2:
+   2 × (2·layernorm + qkv + attn_out + fc1 + fc2) + attention@0 + attention@8.
+3. Decode of token 17, one layer. Build with `-DE2E_TOKENS=1 -DE2E_START_POS=16`:
+   2·layernorm + qkv + attention + attn_out + fc1 + fc2.
+4. Decode of token 59, all layers. Build with `-DE2E_TOKENS=1 -DE2E_START_POS=58`:
+   embed + 8 × (one layer from 3) + layernorm + lm_head.
 
-## Running it
+To check an estimate, build `e2e.elf` with
+`-DE2E_START_POS=58 -DE2E_NEW_TOKENS=1`. It runs the whole decode step and
+reads mcycle after every kernel.
 
-One-time setup. You need Docker, plus the reef-perf image that
-`tools/docker.sh build` builds at the repo root:
+## Limits
 
-```sh
-coral/tools/setup_toolchain.sh     # Coral's GCC into the coral-toolchain Docker volume
+- **Sequence length (prefill + decode): at most 2048 positions**, the size of
+  the position-embedding table. The kernel ELFs reject a larger
+  `E2E_START_POS + E2E_TOKENS` at compile time.
+- **Flash use:** about 74.5 MB for the model, plus 8 KB of KV cache per
+  position. Space is reserved for `E2E_MAX_CONTEXT` = 2064 positions (16 MB),
+  so the total is about 91 MB. That fits `--ext-mem-mb 160`. A real external
+  memory smaller than this would lower the limit.
+- **Prefill block: 8 tokens**, fixed by the DTCM. Longer prompts run as more
+  blocks.
+
+## Memory
+
+- ITCM at `0x0`: code.
+- DTCM at `0x10000`: the mailbox comes first (`prompt_length`, `new_tokens`,
+  `status`, `tokens[64]`). The host writes the prompt there and reads the
+  generated tokens back.
+- XSPI flash at `0x2000_0000`: the model, laid out by `npu.hpp`.
+- DMA registers at `0x4000_0000`.
+
+## Run
+
+Run reef-perf from the `yuvesh-kernel-integration` branch:
+
+```
+reef_perf --elf build/e2e/e2e.elf \
+  -c configs/machines/m3.yaml -c configs/machines/m3_vme.yaml \
+  -c configs/matrix/coral_vme.yaml -p top.memory.params.host_boot true \
+  -p top.memory.params.ext_mem_latency 1 \
+  -p top.memory.params.ext_mem_bytes_per_cycle 2 --ext-mem-mb 160
 ```
 
-Then, from `inference-engine/`:
-
-```sh
-coral/tools/test.sh                          # golden headers, cross-compile, run every test
-coral/tools/build.sh bench                   # build/coral/bench/*.elf
-coral/tools/run.sh build/coral/bench/linear_w8a8.elf   # reef_perf's cycle summary
-```
-
-`build.sh` uses `riscv64-unknown-elf-g++` from `$CORAL_TOOLCHAIN/bin` or
-`PATH` if it finds one. Otherwise it runs inside a `linux/amd64` container,
-because the toolchain is x86-64 Linux. `run.sh` uses `$CORAL_SIM` if set,
-else `reef_perf` from `$REEF_PERF` or `PATH`, else the reef-perf image.
-
-## CI
-
-`.github/workflows/coral-kernels.yml` runs `test.sh` on every push and pull
-request, natively on an x86-64 runner:
-
-- `setup_toolchain.sh DIR` installs only GCC, stripped, from the pinned
-  archive.
-- `setup_sim.sh PREFIX` builds Spike (reef-perf's `build_deps.sh`) and
-  `sim/coral_sim.cpp`. That's reef-perf's `FuncSim` without the Sparta
-  timing model: same ISA, memory map and `mpause` handling, so pass/fail
-  matches reef_perf, but it builds in minutes rather than an hour.
-
-Both are cached, so a warm run mostly compiles and runs the tests. You can
-reproduce CI on any x86-64 Linux box:
-
-```sh
-coral/tools/setup_sim.sh ~/coral-sim          # needs the reef-perf/ext/spike submodule
-coral/tools/setup_toolchain.sh ~/coral-gcc
-CORAL_TOOLCHAIN=~/coral-gcc CORAL_SIM=~/coral-sim/bin/coral_sim coral/tools/test.sh
-```
-
-## Adding or changing a kernel
-
-1. Make sure the engine function exists and is tested under
-   `../reference/cpp/tests/`.
-2. Declare the kernel in `kernels.hpp` and name the engine function it
-   matches. Implement it in `kernels/`.
-3. Add cases to `host/gen_golden.cpp`. Use odd sizes, so vector strips end
-   partway through, and use edge values. Then check them in a
-   `tests/test_*.cc`.
-4. Add a benchmark under `bench/` if reef-perf should measure the kernel.
-5. Run `coral/tools/test.sh` and `bash tools/check_cpp.sh` (formatting).
-
-Before relying on a new test, mutate the kernel once (for example, fuse a
-multiply-add) and confirm that the test fails.
-
-## Host and firmware
-
-The host packs a checkpoint with `pack_model --model DIR [--precision
-fp32|w8a8] OUT`, writes the blob where the core can read it, fills the
-mailbox at `0x100000`, and releases the core. The firmware feeds the prompt,
-appends greedy tokens, sets `status`, and halts with `mpause` (see
-`host_if.hpp`). One request is one run, and every kernel call happens inside
-`firmware::GptNeo::step`.
-
-## Known limits
-
-- Packed TinyStories models are too big for the simulator. The 28M model is
-  133 MB in W8A8 and 208 MB in fp32, mostly the float token embedding that
-  doubles as `lm_head`. reef_perf only offers the 1 MB highmem map, so the
-  firmware test uses a small random model. Running a real checkpoint needs an
-  external-memory region in reef_perf and on the chip, with the weights
-  streamed into DTCM.
-- CI checks correctness only. Cycle counts still need reef_perf (the
-  Docker image), so benchmarks are not tracked in CI.
-- `bench/` programs count the input fill as well as the kernel. Use
-  reef-perf's `reef_trace` to isolate the kernel.
+reef-perf reports cycle counts only. It moves no data, so the outputs are
+meaningless.

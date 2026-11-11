@@ -4,9 +4,8 @@ A minimal GPT-Neo inference engine for Reef, in two parts:
 
 - `reference/`: the host C++ engine, which is the **source of truth** for
   the arithmetic, and its Python interface.
-- `coral/`: RVV kernels, firmware and benchmarks for the Coral NPU core.
-  Each kernel reproduces an engine function bit for bit, and
-  `coral/tools/test.sh` fails on any difference. See
+- `coral/`: GPT-Neo firmware and per-kernel ELFs for the NPU (M3 + Zvt +
+  DMA), for cycle estimates on reef-perf. See
   [coral/README.md](coral/README.md).
 
 ```
@@ -19,18 +18,16 @@ reference/
     inference_engine/           Python interface (model.py), for runs and sweeps
     tests/test_reference.py     pytest: C++ tests, Python interface, lint, docs
 coral/
-  tests/test_coral.py           pytest: every kernel against the engine
+  kernels/                      NPU kernels, the whole model, standalone kernels
+  tools/build.sh                builds the ELFs into build/e2e/
 ```
-
-Each part keeps its tests beside its code; `uv run pytest` runs both pytest
-files.
 
 ## Requirements
 
 - Python 3.12 and `uv`
 - CMake 3.20 or newer and a C++17 compiler
 - Doxygen for the full test suite
-- Docker for the Coral kernel tests (see below)
+- Docker or Coral's GCC to build the Coral ELFs
 - Network access on the first CMake build to fetch Google Test
 
 Run the commands below from `inference-engine/`.
@@ -42,13 +39,12 @@ uv sync --locked
 uv run pytest
 ```
 
-This builds the C++ targets, runs their Google Test cases through CTest, runs GPT-Neo from Python through the C++ engine, checks linting and generated C++ documentation, and checks the Coral kernels against the engine on reef_perf.
+This builds the C++ targets, runs their Google Test cases through CTest, runs GPT-Neo from Python through the C++ engine, and checks linting and generated C++ documentation.
 
 To run a subset of tests:
 
 ```sh
 uv run pytest -m "not slow"
-uv run pytest -m "not coral"   # without Docker or the Coral toolchain
 ```
 
 ## Build and test C++ alone
@@ -60,7 +56,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 The build produces the executables `gpt_neo_cli`, `engine_tests` (every
-Google Test case), and coral's host tools `gen_golden` and `pack_model`.
+Google Test case).
 Google Test is fetched during the first CMake configuration.
 
 ## Run a model
@@ -109,15 +105,6 @@ build/bin/gpt_neo_cli --model DIR [--precision fp32|w8a8] --new-tokens 20 7454 2
 From Python, `inference_engine.model.generate()` calls it with token IDs
 and `tell()` with text.
 
-## Check the Coral kernels against the engine
-
-```sh
-coral/tools/setup_toolchain.sh   # once
-coral/tools/test.sh
-```
-
-`uv run pytest` runs `coral/tools/test.sh` through `coral/tests/test_coral.py`.
-
 ## Contributing
 
 When adding a component, put it in a header under
@@ -149,11 +136,8 @@ complete:
 4. `uv run pytest` passes. For C++ changes, also run the C++-only build and
    CTest commands above. The full pytest run checks Ruff, clang-format,
    clang-tidy, and Doxygen in addition to the tests.
-5. The engine is the source of truth for the kernels. A change to a Coral
-   kernel, or to any engine function a kernel matches (see
-   `coral/include/reef_kernels/kernels.hpp`), passes `coral/tools/test.sh`
-   (the `coral` pytest case). To change the arithmetic, change the engine
-   first and its tests, then the kernel.
+5. A change to a Coral kernel still builds with `coral/tools/build.sh`, which
+   fails if the code outgrows the ITCM or the DTCM.
 6. C++ code is templated on its value type (`Tensor<Scalar>`,
    `GPTNeo<Scalar>`), with a separate accumulator type where sums need more
    range than the inputs (`matmul<std::int8_t, std::int32_t>`). Hard-code

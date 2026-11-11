@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Cross-compiles coral/ for the Coral M3 core into build/coral/:
-#   tests/<name>.elf     golden tests (needs build/coral/golden; see test.sh)
-#   bench/<name>.elf     reef-perf benchmarks
-#   firmware/<name>.elf  the firmware
+# Builds coral/kernels for the M3 as built (8 KB ITCM, 32 KB DTCM) into
+# $E2E_OUT (default build/e2e):
+#   e2e.elf        the whole model (main.cc)
+#   <kernel>.elf   one kernel on one block of tokens (standalone.cc)
+# Extra arguments go to the compiler, e.g. -DE2E_TOKENS=1 -DE2E_START_POS=58
+# (see coral/README.md). Give each variant its own E2E_OUT.
+# Fails if code does not fit the ITCM or the DTCM leaves under 1 KB of stack.
 #
-#   coral/tools/build.sh [tests|bench|firmware]...    (default: all three)
-#
-# Uses Coral's GCC (toolchain_coralnpu_v2) from $CORAL_TOOLCHAIN/bin, or
-# from PATH. Without it, reruns itself in a linux/amd64 container that
-# mounts the coral-toolchain Docker volume (see setup_toolchain.sh).
+# Uses Coral's GCC from $CORAL_TOOLCHAIN/bin or PATH; otherwise reruns itself
+# in a container with the toolchain volume $CORAL_VOLUME (default
+# coral-toolchain, filled by coral/tools/setup_toolchain.sh).
 set -euo pipefail
 
 engine="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -17,68 +18,43 @@ cd "$engine"
 cxx="${CORAL_TOOLCHAIN:+$CORAL_TOOLCHAIN/bin/}riscv64-unknown-elf-g++"
 if ! command -v "$cxx" >/dev/null; then
     exec docker run --rm --platform linux/amd64 \
-        -v coral-toolchain:/opt/coral:ro -v "$engine":/engine -w /engine \
+        -v "${CORAL_VOLUME:-coral-toolchain}":/opt/coral:ro \
+        -v "$engine":/engine -w /engine \
         -e CORAL_TOOLCHAIN=/opt/coral/toolchain_coralnpu_v2 \
+        -e E2E_OUT="${E2E_OUT:-}" \
         ubuntu:24.04 bash coral/tools/build.sh "$@"
 fi
+size="${CORAL_TOOLCHAIN:+$CORAL_TOOLCHAIN/bin/}riscv64-unknown-elf-size"
 
-out=build/coral
-# The ISA reef_perf simulates and the M3 implements; Coral's own builds add
-# extensions the model does not run.
+src=coral/kernels
+bin="${E2E_OUT:-build/e2e}"
+obj="$bin/obj"
+mkdir -p "$obj" "$bin"
 arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
-# -ffp-contract=off: every float operation rounds on its own, as in the
-# host reference. No exceptions, RTTI or C library: these run bare-metal.
-cflags=("${arch[@]}" -std=c++17 -O3 -ffp-contract=off -fno-math-errno
-        -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables
-        -ffunction-sections -fdata-sections -Wall -Wextra -Werror
-        -Icoral/include -Icoral/tests -Icoral/firmware -I"$out")
+cflags=("${arch[@]}" -std=c++17 -Os -fno-exceptions -fno-rtti
+        -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections
+        -fno-tree-loop-distribute-patterns -Wall -Wextra -Werror "$@")
 ldflags=("${arch[@]}" -nostdlib -nostartfiles -Tcoral/runtime/link.ld
          -Wl,--gc-sections)
 
-mkdir -p "$out/obj"
-"$cxx" "${arch[@]}" -c coral/runtime/crt0.S -o "$out/obj/crt0.o"
-"$cxx" "${cflags[@]}" -fno-tree-loop-distribute-patterns \
-    -c coral/runtime/libc.cc -o "$out/obj/libc.o"
-objects=("$out/obj/crt0.o" "$out/obj/libc.o")
-for source in coral/kernels/*.cc coral/firmware/gpt_neo.cc; do
-    [[ -f "$source" ]] || continue
-    object="$out/obj/$(basename "${source%.cc}").o"
-    "$cxx" "${cflags[@]}" -c "$source" -o "$object"
-    objects+=("$object")
+"$cxx" "${arch[@]}" -c coral/runtime/crt0.S -o "$obj/crt0.o"
+"$cxx" "${cflags[@]}" -c coral/runtime/libc.cc -o "$obj/libc.o"
+lib=("$obj/crt0.o" "$obj/libc.o")
+for kernel in embed layernorm linear attention lm_head; do
+    "$cxx" "${cflags[@]}" -c "$src/$kernel.cc" -o "$obj/$kernel.o"
+    lib+=("$obj/$kernel.o")
 done
 
-# link SOURCE ELF: compile one program and link it with the library.
-link() {
-    mkdir -p "$(dirname "$2")"
-    "$cxx" "${cflags[@]}" -c "$1" -o "${2%.elf}.o"
-    "$cxx" "${ldflags[@]}" "${objects[@]}" "${2%.elf}.o" -lgcc -o "$2"
-    echo "built $2"
-}
-
-groups=("$@")
-[[ ${#groups[@]} -gt 0 ]] || groups=(tests bench firmware)
-for group in "${groups[@]}"; do
-    case "$group" in
-    tests)
-        for source in coral/tests/test_*.cc; do
-            name="$(basename "${source%.cc}")"
-            link "$source" "$out/tests/$name.elf"
-        done
-        ;;
-    bench)
-        for source in coral/bench/*.cc; do
-            name="$(basename "${source%.cc}")"
-            link "$source" "$out/bench/$name.elf"
-        done
-        ;;
-    firmware)
-        if [[ -f coral/firmware/main.cc ]]; then
-            link coral/firmware/main.cc "$out/firmware/gpt_neo.elf"
-        fi
-        ;;
-    *)
-        echo "unknown group: $group" >&2
-        exit 2
-        ;;
-    esac
+"$cxx" "${cflags[@]}" -c "$src/main.cc" -o "$obj/main.o"
+"$cxx" "${ldflags[@]}" "${lib[@]}" "$obj/main.o" -o "$bin/e2e.elf"
+for kernel in embed layernorm qkv attention attn_out fc1 fc2 lm_head; do
+    define="KERNEL_$(echo "$kernel" | tr '[:lower:]' '[:upper:]')"
+    "$cxx" "${cflags[@]}" "-D$define" -c "$src/standalone.cc" \
+        -o "$obj/standalone_$kernel.o"
+    "$cxx" "${ldflags[@]}" "${lib[@]}" "$obj/standalone_$kernel.o" \
+        -o "$bin/$kernel.elf"
+done
+for elf in "$bin"/*.elf; do
+    printf '%-16s text %6s B\n' "$(basename "$elf")" \
+        "$("$size" -A "$elf" | awk '$1 == ".text" {print $2}')"
 done
