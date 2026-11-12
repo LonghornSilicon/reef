@@ -66,6 +66,16 @@ public:
   /// \returns the instructions handed out so far, including `mpause`.
   uint64_t getNumExecuted() const { return NumExecuted; }
 
+  /// Continues a program halted at `mpause` from the instruction after it,
+  /// as a host does when it releases a core that paused to wait for it.
+  /// Does nothing if the program has not halted.
+  void resume();
+
+  /// \returns the host memory backing [\p Addr, \p Addr + \p Size), for a
+  /// host driver to read and write the program's memory while it is halted,
+  /// or nullptr if any of it is unmapped or it spans two regions.
+  char *getHostMemory(Address Addr, uint32_t Size);
+
 private:
   /// Spike's view of the memory map: flat regions of host RAM. Everything
   /// else is unmapped (Spike raises an access fault); there is no MMIO. The

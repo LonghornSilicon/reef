@@ -160,6 +160,24 @@ InstRef FuncSim::next() {
   return I;
 }
 
+void FuncSim::resume() {
+  if (!Halted)
+    return;
+  // mpause was reported but not executed, so pc still points at it.
+  Proc->get_state()->pc += 4;
+  Halted = false;
+}
+
+char *FuncSim::getHostMemory(Address Addr, uint32_t Size) {
+  if (Size == 0)
+    return nullptr;
+  char *First = Mem.addr_to_mem(Addr);
+  char *Last = Mem.addr_to_mem(static_cast<reg_t>(Addr) + Size - 1);
+  if (!First || Last != First + Size - 1)
+    return nullptr;
+  return First;
+}
+
 void FuncSim::execute(Inst &I) {
   state_t *State = Proc->get_state();
   reg_t CauseBefore = State->mcause->read();

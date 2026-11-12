@@ -29,6 +29,20 @@ foreach(tool gen_golden pack_model)
     )
 endforeach()
 
+# dist-reference/: GPT-Neo split across chips with tensor parallelism, built
+# on the engine's operators.
+add_library(dist_inference INTERFACE)
+target_link_libraries(dist_inference INTERFACE inference_engine)
+target_include_directories(dist_inference INTERFACE dist-reference/include)
+
+foreach(tool tp_cli tp_compare)
+    add_executable(${tool} dist-reference/${tool}.cpp)
+    target_link_libraries(${tool} PRIVATE dist_inference)
+    set_target_properties(${tool} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
+endforeach()
+
 include(CTest)
 if(BUILD_TESTING)
     include(FetchContent)
@@ -62,4 +76,11 @@ if(BUILD_TESTING)
     target_link_libraries(engine_tests PRIVATE inference_engine GTest::gtest_main)
     include(GoogleTest)
     gtest_discover_tests(engine_tests)
+
+    add_executable(dist_tests
+        dist-reference/tests/test_shard.cpp
+        dist-reference/tests/test_tp_model.cpp
+    )
+    target_link_libraries(dist_tests PRIVATE dist_inference GTest::gtest_main)
+    gtest_discover_tests(dist_tests)
 endif()

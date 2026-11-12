@@ -1,6 +1,6 @@
 # Inference Engine
 
-A minimal GPT-Neo inference engine for Reef, in two parts:
+A minimal GPT-Neo inference engine for Reef, in four parts:
 
 - `reference/`: the host C++ engine, which is the **source of truth** for
   the arithmetic, and its Python interface.
@@ -8,6 +8,12 @@ A minimal GPT-Neo inference engine for Reef, in two parts:
   Each kernel reproduces an engine function bit for bit, and
   `coral/tools/test.sh` fails on any difference. See
   [coral/README.md](coral/README.md).
+- `dist-reference/`: the same model split across chips with tensor
+  parallelism, built on the engine's operators. It is the reference for
+  multi-chip runs. See [dist-reference/README.md](dist-reference/README.md).
+- `dist-coral/`: Megatron firmware for N Coral chips, one rank each, and
+  `multi_sim`, which runs them on Spike and checks every token against
+  `dist-reference/` bit for bit. See [dist-coral/README.md](dist-coral/README.md).
 
 ```
 reference/
@@ -20,6 +26,13 @@ reference/
     tests/test_reference.py     pytest: C++ tests, Python interface, lint, docs
 coral/
   tests/test_coral.py           pytest: every kernel against the engine
+dist-reference/
+  include/dist_inference/       the tensor-parallel model
+  tests/                        its Google Test cases, run by CTest
+  tp_cli.cpp                    runs TinyStories split across N chips
+dist-coral/
+  firmware/                     one rank of the split model
+  sim/multi_sim.cpp             N chips on Spike, checked against dist-reference/
 ```
 
 Each part keeps its tests beside its code; `uv run pytest` runs both pytest
