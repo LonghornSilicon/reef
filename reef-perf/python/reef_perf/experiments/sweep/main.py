@@ -10,7 +10,7 @@ microbenchmark, simulation config and parameter overrides that produced it.
 
 import argparse
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -51,27 +51,42 @@ def collect(
     sim_config: Path = DEFAULT_SIM_CONFIG,
     params: Mapping[str, str] | None = None,
     elf: Path | None = None,
+    overlay_configs: Sequence[Path] = (),
+    sim_args: Sequence[str] = (),
 ) -> Path:
-    """Run one microbenchmark and write its artifact.
+    """Run one microbenchmark (or a pre-built program) and write its artifact.
 
     Args:
-        microbenchmark: Microbenchmark name.
+        microbenchmark: Microbenchmark or program name.
         out_path: JSON file to write.
         sim_config: Simulation config file.
         params: Parameter overrides.
         elf: Pre-built ELF; assembled into ELF_DIR when omitted.
+        overlay_configs: Config files applied after sim_config, in order.
+        sim_args: Further simulator options, e.g. ["--ext-mem-mb", "160"].
 
     Returns:
         out_path.
     """
     elf_path = elf or build_microbenchmark(microbenchmark, ELF_DIR)
-    result = run_sim(elf_path, sim_config=sim_config, params=params)
+    result = run_sim(
+        elf_path,
+        sim_config=sim_config,
+        params=params,
+        overlay_configs=overlay_configs,
+        extra_args=sim_args,
+    )
     artifact: dict[str, Any] = {
         "microbenchmark": microbenchmark,
         "sim_config": str(sim_config),
         "params": dict(params or {}),
-        "result": result.to_json(),
     }
+    # Only when used, so artifacts of single-config sweeps keep their layout.
+    if overlay_configs:
+        artifact["overlay_configs"] = [str(path) for path in overlay_configs]
+    if sim_args:
+        artifact["sim_args"] = [str(arg) for arg in sim_args]
+    artifact["result"] = result.to_json()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(artifact, indent=2) + "\n")
     return out_path

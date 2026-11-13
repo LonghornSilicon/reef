@@ -161,6 +161,7 @@ def run_sim(
     binary: Path | None = None,
     timeout: float | None = None,
     overlay_configs: Sequence[Path] = (),
+    extra_args: Sequence[str] = (),
 ) -> SimResult:
     """Run one program on the simulator.
 
@@ -173,6 +174,7 @@ def run_sim(
         timeout: Seconds before the run is abandoned.
         overlay_configs: Configuration files applied after sim_config, in
             order; each overrides the values it lists.
+        extra_args: Further simulator options, e.g. ["--ext-mem-mb", "160"].
 
     Returns:
         The simulator's summary.
@@ -191,6 +193,7 @@ def run_sim(
             cmd += ["-c", str(Path(overlay).resolve())]
         for key, value in (params or {}).items():
             cmd += ["-p", key, str(value)]
+        cmd += [str(arg) for arg in extra_args]
         proc = subprocess.run(
             cmd,
             capture_output=True,
