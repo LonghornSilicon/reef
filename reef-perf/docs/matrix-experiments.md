@@ -121,9 +121,14 @@ or by its own queues?
 How much of a linear kernel goes to reading tiles out (`vtmv`, one per
 slice, each reconfiguring the mode) and requantizing?
 
-- `mtx_move_latency` 0 (RTL), 1, 2; split the epilogue with `reef_trace`
-  or the topdown experiment.
-- Look for the epilogue's share of ROI, at 1 token especially.
+- `mtx_move_latency` 0 (RTL), 1, 2 (`matrix_e6_readout`).
+- The epilogue's share of ROI (`matrix_e6_epilogue`): fc1 builds with
+  `matrix/e6_epilogue.patch`, which reads mcycle just before and after the
+  four epilogue calls of each 64-column group. `matrix/epilogue_share.py`
+  sums the cycles between the paired reads and divides by the ROI; plain
+  fc1 runs alongside show the extra reads do not move the ROI. The interval
+  is wall time, so it can overlap a weight transfer already in flight.
+- Look for the epilogue's share at 1 token especially.
 - Follow-on, for the int16 requantization question in #rtl-design: an fc1
   variant that holds its whole output before requantizing, against today's
   per-tile requantization. Needs a kernel change.
@@ -153,6 +158,72 @@ then commit before running the experiment. After the run, fill `measured`
 and `verdict` (hit, miss). A miss is explained (a waveform-style dig into
 the run, not a retune) before the result goes on a slide. Add rows freely;
 don't edit a prediction after its run.
+
+For the 2026-11-13 run the predictions were written in a separate document
+(its version history dates them) while the sweeps ran, and nobody read the
+results before they were finished; they are copied into the CSV afterwards.
+
+## Reproducing the runs
+
+Everything below is in `python/reef_perf/experiments/sweep/`:
+
+| File | Role |
+| --- | --- |
+| `matrix/build_kernels.sh` | Builds every kernel ELF the configs name, from inference-engine/coral at 83f7152 |
+| `matrix/e6_epilogue.patch` | The mcycle reads around the epilogue (epi_t1, epi_t8) |
+| `matrix/run_all.sh` | Runs every sweep below, then `epilogue_share.py` |
+| `matrix/epilogue_share.py` | E6.1/E6.2 from the `matrix_e6_epilogue` artifacts |
+| `sweeps/matrix_*.yaml`, `sweeps/overlays/` | One config per experiment; the memory overlays |
+
+1. Coral's GCC, once (from the PR #57 branch; checks the archive's
+   sha256):
+   `bash coral/tools/setup_toolchain.sh <toolchain dir>`
+2. The kernel sources at the commit that was run, without checking it out:
+   `git archive 83f7152 inference-engine/coral | tar -x -C <src>`
+3. The ELFs:
+   `CORAL_TOOLCHAIN=<toolchain dir> bash
+   python/reef_perf/experiments/sweep/matrix/build_kernels.sh
+   <src>/inference-engine build/e2e`
+4. The sweeps, from reef-perf/ in the Docker image (as root, so it chowns
+   the outputs back to UID 1000 at the end):
+   `docker run --rm -v <reef checkout>:/app/reef -w /app/reef/reef-perf
+   -e E2E_ROOT=build/e2e akull-reef bash
+   python/reef_perf/experiments/sweep/matrix/run_all.sh results/sweep`
+
+Rerunning into the same results root replaces each sweep's results; use a
+new root (step 4's last argument) to keep an earlier run. Checked on
+2026-11-13: a fresh build from 83f7152 gave all 72 ELFs byte for byte, and
+a full rerun from them gave every `summary.csv` byte for byte and the same
+`epilogue_share.json`.
+
+## Where the results are
+
+The 2026-11-13 run is archived read-only, outside the repository, at
+`~/lhs_reef/results_archive/2026-11-13_matrix_experiments/` on the machine
+that ran it (and as `2026-11-13_matrix_experiments.tar.gz` beside it, with
+its sha256). `MANIFEST.md` there records the reef-perf commit, the Docker
+image, the kernel commit, the toolchain and the build flags;
+`SHA256SUMS` covers all 499 files. Working copies are in
+`results/sweep/` (git-ignored).
+
+| Experiment | Config | Results directory | Runs |
+| --- | --- | --- | ---: |
+| Whole-token baseline | `matrix_baseline_tokens.yaml` | `matrix_baseline_tokens/` | 34 |
+| E1 bandwidth | `matrix_e1_bandwidth.yaml` | `matrix_e1_bandwidth/` | 70 |
+| E2 token count | `matrix_e2_tokens.yaml` | `matrix_e2_tokens/` (E2.7: `inputs/build_b16.log`, `b16_*.log` in the archive) | 16 |
+| E3 presets | `matrix_e3_presets.yaml` | `matrix_e3_presets/` | 35 |
+| E4 latency | `matrix_e4_latency.yaml` | `matrix_e4_latency/` | 40 |
+| E5 feed | `matrix_e5_feed.yaml` | `matrix_e5_feed/` | 21 |
+| E6 move latency | `matrix_e6_readout.yaml` | `matrix_e6_readout/` | 12 |
+| E6 epilogue share | `matrix_e6_epilogue.yaml` | `matrix_e6_epilogue/epilogue_share.json` | 8 |
+| E7 int4 proxies | `matrix_e7_int4.yaml` | `matrix_e7_int4/` | 48 |
+| E8 arrays | `matrix_e8_arrays.yaml` | `matrix_e8_arrays/` | 6 |
+
+Each directory has `summary.csv` (one row per run; the columns are in the
+sweep README) and `<variant>/<program>.json` (the simulator's full output
+for that run), with the sweep's log in `<name>.log` beside it. Whole-token
+numbers (tokens/s, time to first token, E7) add the per-kernel ROI cycles
+up as in Workloads above.
 
 ## Limits
 

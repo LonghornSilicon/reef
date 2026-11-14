@@ -93,3 +93,10 @@ kernels that time their own work), `matrix_*` (utilization, MACs, busy
 cycles, memory beats, area and energy; whole run, not only the ROI; area and
 energy are empty until configured), `overlay_configs`, and one column per
 overridden parameter.
+
+## Matrix-engine experiments
+
+`sweeps/matrix_*.yaml` and `matrix/` hold the matrix-engine experiments on
+the PR #57 kernels: `matrix/build_kernels.sh` builds the kernel ELFs and
+`matrix/run_all.sh` runs every sweep. The plan, how to reproduce a run and
+where the results are kept are in `docs/matrix-experiments.md`.
