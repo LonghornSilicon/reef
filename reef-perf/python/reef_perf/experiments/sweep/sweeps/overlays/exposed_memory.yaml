@@ -1,0 +1,11 @@
+# "Exposed" memory: neither external link is modeled (0 = not modeled), so
+# the matrix engine's own limits show. The DMA still pays its setup and beat
+# costs. Hypothetical; label results that use it (docs/matrix-experiments.md).
+top:
+  memory:
+    params:
+      ext_mem_latency: 0
+      ext_mem_bytes_per_cycle: 0
+      ext_ram_latency: 0
+      ext_ram_write_latency: 0
+      ext_ram_bytes_per_cycle: 0

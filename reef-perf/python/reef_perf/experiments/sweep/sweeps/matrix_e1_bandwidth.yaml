@@ -1,0 +1,34 @@
+# Matrix-engine experiment, docs/matrix-experiments.md. Kernel ELFs from
+# inference-engine/coral (PR #57): set E2E_ROOT to their build directory, with
+# one subdirectory per build: t1 (E2E_TOKENS=1 E2E_START_POS=16), t2, t4,
+# t8 (defaults), t8p8 (E2E_START_POS=8), t1p79 (E2E_TOKENS=1
+# E2E_START_POS=79).
+#
+# E1: at what flash bandwidth does the engine start to matter.
+
+name: matrix_e1_bandwidth
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml
+  - configs/memory/psram_kv.yaml
+sim_args: [--ext-mem-mb, "160"]
+programs:
+  qkv_t1: ${E2E_ROOT}/t1/qkv.elf
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc2_t1: ${E2E_ROOT}/t1/fc2.elf
+  lm_head_t1: ${E2E_ROOT}/t1/lm_head.elf
+  qkv_t8: ${E2E_ROOT}/t8/qkv.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+  fc2_t8: ${E2E_ROOT}/t8/fc2.elf
+variants:
+  pe64: {}
+  pe128: {overlay: configs/matrix/coral_128pe.yaml}
+grid:
+  overlay:
+    - configs/memory/xspi_str.yaml
+    - configs/memory/xspi_dtr.yaml
+    - python/reef_perf/experiments/sweep/sweeps/overlays/flash_4bpc.yaml
+    - python/reef_perf/experiments/sweep/sweeps/overlays/flash_8bpc.yaml
+    - python/reef_perf/experiments/sweep/sweeps/overlays/exposed_memory.yaml
