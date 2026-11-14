@@ -1,0 +1,12 @@
+# Moves the KV cache RAM of psram_kv.yaml to where the end-to-end firmware
+# (inference-engine/coral/kernels, PR #57) keeps its KV cache. The firmware
+# puts the cache at 0x24A73800, after 74.5 MB of weights, and reserves
+# 16.1 MB for it. The SoC plan is 0x24000000 and 8 MB (psram_kv.yaml).
+# Remove this file when the firmware follows the plan.
+#
+# Use it after psram_kv.yaml. docs/e2e-short-runs.md has the full command.
+top:
+  memory:
+    params:
+      ext_ram_base: 0x24A73800
+      ext_ram_mb: 17

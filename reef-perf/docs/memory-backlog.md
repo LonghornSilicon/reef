@@ -51,5 +51,6 @@ are still open:
   latency. It may count the same delay twice.
 - The firmware's memory map. It keeps the KV cache after the weights in one
   region (at `0x24A73800`, with 74.5 MB of model before it), not at
-  `0x24000000` after 64 MB of flash. Runs set `ext_ram_base` and
-  `ext_ram_mb` to the firmware's range until the two agree.
+  `0x24000000` after 64 MB of flash. `configs/memory/psram_kv_e2e.yaml`
+  sets `ext_ram_base` and `ext_ram_mb` to the firmware's range until the
+  two agree (e2e-short-runs.md).
