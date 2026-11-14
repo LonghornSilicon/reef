@@ -22,11 +22,15 @@ static bool isBtfnTaken(uint32_t Encoding) {
   return IsJal || IsBackwardBranch;
 }
 
-/// \returns the predictor named \p Name: "none" or "btfn".
+
+/// \returns the predictor named \p Name.
 static Fetch::PredictorKind getPredictorKind(const std::string &Name) {
   if (Name == "btfn")
     return Fetch::PredictorKind::Btfn;
-  sparta_assert(Name == "none", "frontend.predictor must be none or btfn");
+  if (Name == "bimodal")
+    return Fetch::PredictorKind::Bimodal;
+  sparta_assert(Name == "none",
+                "frontend.predictor must be none, btfn, or bimodal");
   return Fetch::PredictorKind::None;
 }
 
@@ -38,6 +42,7 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       FetchBlockBytes(Params->fetch_block_bytes),
       IbufEntries(Params->ibuf_entries), Zvt(Params->zvt) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
+  BimodalCounters.fill(1); // Weakly not taken.
   // The first group is fetched in cycle 1.
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));
 }
@@ -81,8 +86,35 @@ bool Fetch::isPredictedTaken(const Inst &I) const {
     return false;
   case PredictorKind::Btfn:
     return isBtfnTaken(I.Encoding);
+  case PredictorKind::Bimodal:
+    return isBimodalTaken(I);
   }
   return false;
+}
+
+size_t Fetch::getBimodalIndex(const Inst &I) {
+  return (static_cast<size_t>(I.PC) >> 2) & (BimodalTableEntries - 1);
+}
+
+bool Fetch::isBimodalTaken(const Inst &I) const {
+  uint32_t Opcode = I.Encoding & 0x7f;
+  if (Opcode == 0x6f) // jal has a direct, statically known target.
+    return true;
+  if (Opcode != 0x63) // jalr and non-branches are not predicted taken.
+     return false;
+  return BimodalCounters[getBimodalIndex(I)] >= 2;
+}
+
+void Fetch::updateBimodal(const Inst &I, bool Taken) {
+  if ((I.Encoding & 0x7f) != 0x63)
+    return;
+  uint8_t &Counter = BimodalCounters[getBimodalIndex(I)];
+  if (Taken) {
+    if (Counter < 3)
+      ++Counter;
+  } else if (Counter > 0) {
+    --Counter;
+  }
 }
 
 void Fetch::scheduleFetch(Cycle Earliest) {
@@ -122,6 +154,8 @@ void Fetch::fetchGroup() {
     ++NumFetched;
     bool Taken = I->isRedirect();
     bool PredictedTaken = isPredictedTaken(*I);
+    if (Predictor == PredictorKind::Bimodal)
+      updateBimodal(*I, Taken);
     bool BoundaryCross = FetchBlockBytes > 0 &&
                          I->NextPC / FetchBlockBytes != I->PC / FetchBlockBytes;
     if (Taken)

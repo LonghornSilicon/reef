@@ -13,8 +13,9 @@
 /// - a group ends at any instruction that redirects the PC (taken branch,
 ///   jump, trap) or that the predictor predicts taken; the next group starts
 ///   `redirect_penalty` cycles later if the prediction was wrong. `predictor`
-///   is `none` (nothing predicted taken) or `btfn` (M3's predecode,
-///   UncachedFetch.scala:87-100);
+///   is `none` (nothing predicted taken), `btfn` (M3's predecode,
+///   UncachedFetch.scala:87-100), or `bimodal` (a PC-indexed 2-bit
+///   saturating-counter predictor);
 /// - with `fetch_block_bytes` set, a group never crosses an aligned block of
 ///   that size: it ends at an instruction whose next PC is in another block
 ///   (M3: 16-byte lines, UncachedFetch.scala:56,107-131).
@@ -33,6 +34,7 @@
 #include "sparta/simulation/Unit.hpp"
 #include "sparta/statistics/Counter.hpp"
 
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <string>
@@ -54,8 +56,7 @@ public:
     PARAMETER(uint32_t, redirect_penalty, 1,
               "Extra cycles after a redirect the predictor did not predict")
     PARAMETER(std::string, predictor, "none",
-              "Branch predictor: none (nothing predicted taken) or btfn "
-              "(jal and backward branches predicted taken, as on M3)")
+              "Branch predictor: none, btfn, or bimodal")
     PARAMETER(uint32_t, fetch_block_bytes, 0,
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
@@ -69,7 +70,7 @@ public:
   static constexpr const char *name = "fetch";
   // NOLINTEND(readability-identifier-naming)
   /// Branch predictors fetch can model.
-  enum class PredictorKind { None, Btfn };
+  enum class PredictorKind { None, Btfn, Bimodal };
 
   /// Creates the unit on \p Node with parameters \p Params.
   Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params);
@@ -111,6 +112,14 @@ private:
   uint32_t getFreeEntries(Cycle Now) const;
   /// \returns true if the configured predictor predicts \p I taken.
   bool isPredictedTaken(const Inst &I) const;
+  /// \returns the bimodal table index for \p I.
+  static size_t getBimodalIndex(const Inst &I);
+  /// Updates the bimodal counter with the actual outcome of \p I.
+  void updateBimodal(const Inst &I, bool Taken);
+  /// \returns true if the bimodal predictor predicts \p I taken.
+  bool isBimodalTaken(const Inst &I) const;
+
+  static constexpr size_t BimodalTableEntries = 1024;
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
@@ -130,6 +139,7 @@ private:
   bool LastGroupRedirected = false;
   bool Done = false;   // The program is fully fetched ...
   Cycle DoneCycle = 0; // ... as of this cycle.
+  std::array<uint8_t, BimodalTableEntries> BimodalCounters{};
 
   sparta::UniqueEvent<> FetchEvent{&unit_event_set_, "ev_fetch",
                                    CREATE_SPARTA_HANDLER(Fetch, fetchGroup)};
