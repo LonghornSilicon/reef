@@ -105,7 +105,8 @@ uint64_t TopDownSlots::getTotal() const {
 }
 
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
-    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width) {
+    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
+      LoadWawAdvance(Params->load_waw_advance) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -184,7 +185,8 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     // M3's combinational scoreboard clear lets a following writer dispatch
     // one cycle before a load result is ready. RAW dependencies still wait
     // for ResultReadyCycle.
-    const Cycle WawAdvance = Writer && Writer->Class == InstClass::LOAD ? 1 : 0;
+    const Cycle WawAdvance =
+        Writer && Writer->Class == InstClass::LOAD ? LoadWawAdvance : 0;
     // Two matrix writers of one vector register (vtmv.v.t after vtmv.v.t)
     // need no wait: the matrix module runs them in order.
     if (isMatrixVectorRaw(Reg, Writer) && I->isMatrix())

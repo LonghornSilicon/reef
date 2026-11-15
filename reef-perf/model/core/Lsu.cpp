@@ -5,6 +5,7 @@
 #include "sparta/events/StartupEvent.hpp"
 #include "sparta/utils/SpartaAssert.hpp"
 
+#include <algorithm>
 #include <cstdint>
 
 using namespace reef_perf;
@@ -19,7 +20,12 @@ Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
       TileCost(Params->lsu_tile_cost),
       TileInstOverhead(Params->lsu_tile_inst_overhead),
       TileBeatOverhead(Params->lsu_tile_beat_overhead),
-      TileSwitchCycles(Params->lsu_tile_switch_cycles), Pipe("lsu", 1) {
+      TileSwitchCycles(Params->lsu_tile_switch_cycles), V3(Params->lsu_v3),
+      V3SetupCycles(Params->lsu_v3_setup_cycles),
+      V3ReturnCycles(Params->lsu_v3_return_cycles),
+      V3ScalarStoreCycles(Params->lsu_v3_scalar_store_cycles),
+      V3HandshakeCycles(Params->lsu_v3_handshake_cycles),
+      V3BackendLead(Params->lsu_v3_backend_lead), Pipe("lsu", 1) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Lsu, receiveInst, InstRef));
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Lsu, sendInitialCredits));
@@ -33,6 +39,10 @@ void Lsu::receiveInst(const InstRef &I) {
                                 "vector module");
   Cycle Now = getClock()->currentCycle();
   ++NumExecuted;
+  if (V3) {
+    receiveInstV3(I);
+    return;
+  }
 
   MemRequest Request;
   Request.Requester = RequesterKind::LSU;
@@ -57,6 +67,8 @@ void Lsu::receiveInst(const InstRef &I) {
 VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   sparta_assert(Mem, "memory was not connected to the LSU");
   ++NumVectorRegisters;
+  if (V3 && !(Request.IsTile && TileCost))
+    return accessVectorRegisterV3(Request);
   uint64_t Overhead =
       Request.IsStore ? VectorStoreRegOverhead : VectorLoadRegOverhead;
   uint64_t SwitchCycles = VectorSwitchCycles;
@@ -93,5 +105,77 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   // before the 1-cycle SRAM's data is usable (RTL waveform of vec_add_m1: a
   // load is taken in A, its data is handed back in A + 3 and usable in A + 5).
   Result.Done = Response.Start + Response.Latency - 1;
+  return Result;
+}
+
+// LsuV3, from waveforms of the 8a5e1b31 RTL (docs/pinned.md, "LsuV3"). The
+// slot runs one instruction at a time, in dispatch order. A load reads the
+// bus, hands its data back lsu_v3_return_cycles later, and the next
+// instruction's bus cycle follows that.
+
+void Lsu::receiveInstV3(const InstRef &I) {
+  Cycle Now = getClock()->currentCycle();
+  MemRequest Request;
+  Request.Requester = RequesterKind::LSU;
+  Request.Accesses = I->Mem;
+  Request.Earliest = Pipe.getNextFree(Now + V3SetupCycles);
+  MemResponse Response = Mem->access(Request);
+  Cycle Bus = Response.Start;
+  bool IsStore =
+      I->Class == InstClass::STORE || I->Class == InstClass::FP_STORE;
+  Cycle Done = Bus + Response.Latency - 1 +
+               (IsStore ? V3ScalarStoreCycles : V3ReturnCycles);
+  Cycle Reserved = Pipe.reserve(Bus, Done + 1 - Bus);
+  sparta_assert(Reserved == Bus, "LSU busy at the memory's start");
+  I->IssueCycle = Bus;
+  I->ResultReadyCycle = Done;
+  I->CompleteCycle = Done + 1;
+  OutCreditsPort.send(1, Bus - Now);
+}
+
+VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
+  bool Continues = !Request.FirstRegister;
+  Cycle SlotFree = Continues ? V3NextBus : Pipe.getNextFree(0);
+  // A load that needs nothing from the vector backend follows the core's
+  // dispatch, not the vector pipeline. Anything else is taken when the
+  // backend hands its data over and the slot is free, and reads or writes
+  // the bus lsu_v3_handshake_cycles later.
+  bool Waits = Request.NeedsVectorData || Request.IsStore;
+  Cycle Earliest = 0;
+  if (Waits)
+    Earliest = Continues
+                   ? std::max(SlotFree, Request.Earliest + V3HandshakeCycles)
+                   : std::max(Request.Earliest, SlotFree) + V3HandshakeCycles;
+  else
+    Earliest = std::max(SlotFree, Request.Dispatched > 0
+                                      ? Request.Dispatched + 1 + V3SetupCycles
+                                      : Request.Earliest);
+
+  MemRequest Access;
+  Access.Requester = RequesterKind::LSU;
+  Access.Accesses = Request.Accesses;
+  Access.Earliest = Earliest;
+  MemResponse Response = Mem->access(Access);
+  Cycle Bus = Response.Start;
+  V3NextBus = Bus + Response.Occupancy;
+
+  // The backend takes a loaded register lsu_v3_backend_lead cycles before
+  // the uop could issue (Request.Earliest).
+  VectorLsuResponse Result;
+  Result.Start = std::max(Request.Earliest, Bus);
+  Result.Done = Bus + Response.Latency - 1 + V3ReturnCycles;
+  if (Request.Earliest >= V3BackendLead)
+    Result.Done = std::max(Result.Done, Request.Earliest - V3BackendLead);
+  // The slot is the instruction's from its first register until its last
+  // one is done; a later register extends the booking.
+  Cycle From = Pipe.getNextFree(0);
+  if (!Continues)
+    From = std::max(From, Waits ? Bus - V3HandshakeCycles : Bus);
+  if (Result.Done + 1 > From)
+    Pipe.reserve(From, Result.Done + 1 - From);
+  if (Request.FirstRegister) {
+    Cycle Now = getClock()->currentCycle();
+    OutCreditsPort.send(1, std::max(Bus, Now) - Now);
+  }
   return Result;
 }

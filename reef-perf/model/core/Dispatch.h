@@ -102,6 +102,9 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,
               "Max instructions dispatched per cycle")
+    PARAMETER(uint32_t, load_waw_advance, 1,
+              "Cycles before a load's result is ready that a later writer "
+              "of the same register may dispatch (1 on M3)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -147,6 +150,7 @@ private:
   void sendToTarget(const InstRef &I);
 
   const uint32_t DispatchWidth;
+  const uint32_t LoadWawAdvance;
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;

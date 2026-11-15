@@ -22,9 +22,9 @@
 #
 # Each switch has an ID (F frontend, C core, V vector, X matrix). Sources:
 # RTL = read in ~/coralnpu-pinned at 8a5e1b31; MEASURED = fitted to the
-# programs named, in rtl_pinned.csv. Differences that need new model code
-# (the fetch unit, LsuV3, the external bus, the new vector divider) are not
-# here yet; docs/pinned.md lists them.
+# programs named, in rtl_pinned.csv; TRACE = read from a waveform of this
+# RTL. Differences that need new model code (the fetch unit, the new vector
+# divider) are not here yet; docs/pinned.md lists them.
 top:
   frontend:
     params:
@@ -41,8 +41,23 @@ top:
       params:
         # C1. RTL: Parameters.scala:141 retirementBufferSize = 16. M3: 8
         rob_entries: 16
+    dispatch:
+      params:
+        # C3. A later writer of a load's destination dispatches in the cycle
+        # the load's value is written, not the cycle before. TRACE:
+        # addr_forward (each lw to a1 is dispatched in the previous one's
+        # rd cycle). M3: 1
+        load_waw_advance: 0
     lsu:
       params:
+        # C2. LsuV3 (Lsu.scala, LsuSuperSlot) in place of M3's LSU: the slot
+        # takes a whole instruction and walks its 16-byte registers one bus
+        # cycle each; an unmasked unit-stride or strided load starts when
+        # the core dispatches it, without waiting for the vector backend.
+        # TRACE: microbenchmarks/lsu/ (docs/pinned.md, "LsuV3"). The
+        # lsu_v3_* values keep their defaults, which are this RTL's.
+        # M3: false
+        lsu_v3: true
         # X2. A tile load or store costs 2 cycles per instruction + 1 per
         # 16-byte beat. MEASURED on this RTL: tile_*_burst in
         # microbenchmarks/matrix/rtl_vme.csv (docs/lsu-tile-beats.md).
@@ -66,3 +81,19 @@ top:
       # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
       # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
       vec_fdiv_cycles_per_uop: 9
+      # V6. The LSU reports a vector store complete once, after its last
+      # register. RTL: Lsu.scala:1970-1971. M3: false (after each register)
+      vec_store_completes_on_last_register: true
+      # V7. A vector load or store is marked done in the retirement buffer
+      # one cycle later than an arithmetic instruction. RTL for a store:
+      # RetirementBuffer.scala:86, Pipe(io.storeComplete). MEASURED:
+      # lsu/vload_rob 9, lsu/vstore_rob 11 with lsu/vload_dep_rob 12. M3: 0
+      vec_memory_completion_latency: 1
+  memory:
+    params:
+      # M1. An external read holds the e-bus 4 cycles and a write 5 before
+      # the LSU's own return time. TRACE: ext_load_stream, ext_store_stream,
+      # ext_load_chain. The testbench memory adds no delay (deviations M3).
+      # M3: axi_latency 2, axi_write_latency 0 (as a read)
+      axi_latency: 4
+      axi_write_latency: 5

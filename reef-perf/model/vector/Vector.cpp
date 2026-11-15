@@ -201,6 +201,9 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       VsetLatency(Params->vset_latency),
       CompareFirstUnitOnly(Params->vec_compare_first_unit_only),
       CompletionMatchesPc(Params->vec_completion_matches_pc),
+      StoreCompletesOnLastRegister(
+          Params->vec_store_completes_on_last_register),
+      MemoryCompletionLatency(Params->vec_memory_completion_latency),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -310,6 +313,15 @@ void Vector::recordResults(const Inst &I, const VectorTiming &T) {
   }
 }
 
+/// \returns true if the LSU needs data from the vector backend to run the
+/// vector load or store \p I: store data, an index vector (mop, bits 27:26,
+/// is 1 or 3) or a mask (vm, bit 25, is 0).
+static bool needsVectorData(const Inst &I) {
+  bool Indexed = ((I.Encoding >> 26) & 1) != 0;
+  bool Masked = ((I.Encoding >> 25) & 1) == 0;
+  return I.Class == InstClass::V_STORE || Indexed || Masked;
+}
+
 Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
   bool IsStore = I.Class == InstClass::V_STORE;
   bool WritesVector = std::ranges::any_of(
@@ -320,7 +332,9 @@ Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
   // vector ROB, or for a store, a cycle after the LSU's first store-complete
   // signal (each register sends one).
   if (!CompletionMatchesPc)
-    return IsStore ? T.UopDones.front() + 1 : T.Retire;
+    return !IsStore                       ? T.Retire
+           : StoreCompletesOnLastRegister ? T.UopDones.back() + 1
+                                          : T.UopDones.front() + 1;
 
   // M3 matches those writes to entries by PC (RetirementBuffer.scala:270,
   // :326), so a write for an older instance of the same PC, still in flight
@@ -367,6 +381,8 @@ void Vector::receiveInst(const InstRef &I) {
       Request.Earliest = Earliest;
       Request.FirstRegister = Uop == 0;
       Request.LastRegister = Uop + 1 == Registers.size();
+      Request.Dispatched = I->DispatchCycle;
+      Request.NeedsVectorData = needsVectorData(*I);
       return Lsu->accessVectorRegister(Request);
     };
   } else {
@@ -382,6 +398,8 @@ void Vector::receiveInst(const InstRef &I) {
   if (I->Class == InstClass::V_TO_SCALAR)
     I->ResultReadyCycle += ToScalarLatency;
   I->CompleteCycle = getScalarComplete(*I, T);
+  if (!Registers.empty())
+    I->CompleteCycle += MemoryCompletionLatency;
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

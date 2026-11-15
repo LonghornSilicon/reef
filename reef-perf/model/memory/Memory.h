@@ -52,6 +52,8 @@ public:
               "AXI operations in flight at once")
     PARAMETER(bool, axi_blocking_reads, false,
               "A read holds its requester until its AXI read response returns")
+    PARAMETER(uint32_t, axi_write_latency, 0,
+              "AXI latency of a write; 0 means axi_latency, as for a read")
     PARAMETER(uint32_t, dma_setup_cycles, 20,
               "Cycles from a DMA GO store to its first beat")
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")

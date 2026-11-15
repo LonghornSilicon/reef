@@ -28,8 +28,9 @@ uint32_t reef_perf::countDistinctBlocks(std::span<const MemAccess> Accesses,
 }
 
 AxiModel::AxiModel(uint32_t Latency, uint32_t BytesPerBeat,
-                   uint32_t MaxOutstanding, bool BlockingReads)
-    : Latency(Latency), BytesPerBeat(BytesPerBeat),
+                   uint32_t MaxOutstanding, bool BlockingReads,
+                   uint32_t WriteLatency)
+    : Latency(Latency), WriteLatency(WriteLatency), BytesPerBeat(BytesPerBeat),
       BlockingReads(BlockingReads), Data("axi_data", 1),
       Outstanding("axi_outstanding", MaxOutstanding) {}
 
@@ -44,14 +45,15 @@ MemResponse AxiModel::access(std::span<const MemAccess> Accesses,
                              Cycle Earliest) {
   MemResponse Response;
   Response.Occupancy = countDistinctBlocks(Accesses, BytesPerBeat);
-  Response.Latency = Latency + Response.Occupancy - 1;
+  const bool IsRead = Accesses.empty() || !Accesses.front().IsStore;
+  Response.Latency = (IsRead || WriteLatency == 0 ? Latency : WriteLatency) +
+                     Response.Occupancy - 1;
   // Start when both the data channel and an outstanding slot are free.
   Response.Start =
       std::max(Data.getNextFree(Earliest), Outstanding.getNextFree(Earliest));
   Data.reserve(Response.Start, Response.Occupancy);
   Outstanding.reserve(Response.Start, Response.Latency);
   // A blocking read keeps its requester until the read response is back.
-  const bool IsRead = Accesses.empty() || !Accesses.front().IsStore;
   if (BlockingReads && IsRead)
     Response.Occupancy = Response.Latency;
   return Response;
