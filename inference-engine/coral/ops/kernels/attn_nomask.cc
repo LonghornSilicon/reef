@@ -19,13 +19,24 @@
 //   With more than one chunk (N = 1600, KC = 800): flash-style online softmax
 //   across chunks, O rescaled by alpha = exp(m_old - m_new) once per chunk.
 //
-// Layouts (all chosen by the producing qkv GEMM; bytes per key are fixed):
-//   Q  [head][qtile][DK/2][16]   packed: byte (i,q) = Q[i][q] | Q[i+DK/2][q]<<4
-//   K  [head][keygroup of g][DK/2][g]  same row-pair (d, d+DK/2) packing
-//   V  [head][keygroup of g][g/2][DV]  row pair (key k, key k+g/2)
-//   O  [head][qtile][DV/2][16]   packed, dims (d, d+DV/2)
+// int4 handling (FUSED=1, default): K and V are never unpacked to DTCM. The
+// MAC loop loads the packed B bytes and splits them with shifts straight into
+// the Zvt operand registers (mac4_p4 / mac1_p4). Q is unpacked once per tile
+// (unpack_i4_rows, 512 B); P is int8 by construction. FUSED=0 unpacks each K/V
+// group to an int8 copy first (unpack_i4_rows), for the unpack-cost number.
+// INT8=1 is the same kernel with int8 storage (no unpack), for comparison.
 //
-//   -DN=400|1600 -DDK=32|64 -DRESIDENT=0|1 -DINT8=0|1 -DKC=... -DHEADS=2
+// Layouts (written that way by the producing qkv GEMM; bytes per key fixed):
+//   Q  [head][qtile][DK/2][16]  byte (i,q) = Q[i][q] | Q[i+DK/2][q] << 4
+//   K  [head][64-key group][DK/4 steps][L0 64 keys][L1 64 keys], tail groups
+//      as 16-key blocks [DK/4][L0 16][L1 16]; per 4-dim step L0 = d0 | d2<<4,
+//      L1 = d1 | d3<<4 (FUSED=0: [DK/2][g] with (d, d+DK/2) pairs)
+//   V  [head][4-key step][L0 64 dims][L1 64 dims], L0 = k0 | k2<<4,
+//      L1 = k1 | k3<<4 (FUSED=0: per group [g/2][64], (k, k+g/2) pairs)
+//   O  [head][qtile][DV/2][16]  dims (d, d+DV/2) packed
+//
+//   -DN=400|1600 -DDK=32|64 -DHEADS=2 -DRESIDENT=0|1 -DFUSED=0|1 -DINT8=0|1
+//   -DKC=<keys per softmax chunk> -DEXP2=0|1
 #include "ops.hpp"
 
 using namespace ops;
@@ -59,7 +70,7 @@ using namespace ops;
 #define FUSED 0
 #endif
 #ifndef EXP2
-#define EXP2 1 // softmax exp: 16-entry in-register LUT (vrgather) + shift
+#define EXP2 0 // 1: 16-entry in-register LUT (vrgather) + shift (slower here)
 #endif
 #ifndef SSHIFT
 #define SSHIFT 4 // int32 score -> int8 logit (softmax scale folded in)
@@ -92,13 +103,17 @@ constexpr uint32_t cmin(uint32_t a, uint32_t b) { return a < b ? a : b; }
 
 // ---- DTCM buffers ------------------------------------------------------------
 alignas(64) static int8_t sp[kKC * 16]; // S (int8 logits) then P, [key][query]
+#if INT8
+static int8_t* q8; // Q^T tile, [dim][query]: the current qbuf
+#else
 alignas(64) static int8_t q8[kDK * 16]; // Q^T tile, [dim][query]
+#endif
+alignas(64) static uint8_t qbuf[2][kQTileBytes]; // Q prefetch (double buffer)
 alignas(64) static uint8_t obuf[2][kOTileBytes];
 alignas(64) static uint8_t exp_table[256];
 alignas(64) static int8_t mrep[64];
 alignas(64) static uint8_t exp2_tab[64]; // 127 * 2^(-i/16), i = 0..15, x4
 #if !INT8
-alignas(64) static uint8_t qp[kQTileBytes];
 #endif
 #if !INT8 && !FUSED
 alignas(64) static int8_t opnd[cmax(kKG * kDK, kVG * kDV)]; // unpacked group
@@ -288,6 +303,7 @@ int main() {
     }
     matrix_on();
     roi_begin();
+    dma(kQAddr, addr(qbuf[0]), kQTileBytes);
     for (uint32_t h = 0; h < kHeads; ++h) {
         const uint32_t kbase = kKAddr + h * kN * kKB;
         const uint32_t vbase = kVAddr + h * kN * kVB;
@@ -305,14 +321,18 @@ int main() {
         for (uint32_t t = 0; t < kQTiles; ++t) {
             const uint32_t ob = (h * kQTiles + t) & 1;
             // Q tile: [DK][16] int8.
+            // Q tile (prefetched one tile ahead): [DK][16] int8.
+            const uint32_t qt = h * kQTiles + t;
+            dma_wait();
 #if INT8
-            dma(kQAddr + (h * kQTiles + t) * kQTileBytes, addr(q8), kQTileBytes);
-            dma_wait();
+            q8 = reinterpret_cast<int8_t*>(qbuf[qt & 1]);
 #else
-            dma(kQAddr + (h * kQTiles + t) * kQTileBytes, addr(qp), kQTileBytes);
-            dma_wait();
-            unpack_i4_rows(qp, q8, kQTileBytes);
+            unpack_i4_rows(qbuf[qt & 1], q8, kQTileBytes);
 #endif
+            if (qt > 0) // previous tile's O: issued now so this wait never blocks on it
+                dma(addr(obuf[(qt - 1) & 1]), kOAddr + (qt - 1) * kOTileBytes, kOTileBytes);
+            if (qt + 1 < kHeads * kQTiles)
+                dma(kQAddr + (qt + 1) * kQTileBytes, addr(qbuf[(qt + 1) & 1]), kQTileBytes);
             mark(); // Q load
             vint8m1_t m_run = __riscv_vmv_v_x_i8m1(-128, 16);
             vuint32m4_t rsum = __riscv_vmv_v_x_u32m4(0, 16);
@@ -401,10 +421,10 @@ int main() {
 #else
             epilogue([&](uint32_t d) { return acc_col(d); }, rsum, ob);
 #endif
-            dma(addr(obuf[ob]), kOAddr + (h * kQTiles + t) * kOTileBytes, kOTileBytes);
-            mark(); // epilogue + O write issue
+            mark(); // epilogue (O write issued after the next tile's Q wait)
         }
     }
+    dma(addr(obuf[(kHeads * kQTiles - 1) & 1]), kOAddr + (kHeads * kQTiles - 1) * kOTileBytes, kOTileBytes);
     dma_wait();
     roi_end();
     return 0;
