@@ -4,9 +4,8 @@
 /// Scalar execution: the integer and FP functional units as ResourcePools.
 /// Executes everything Dispatch routes to ExecTarget::Scalar.
 ///
-/// Super-coarse: one flat latency per class (no data-dependent divider), and a
-/// busy unit only delays the start; Dispatch does not see it.
-///
+/// Uses configurable fixed latencies, with optional operand-dependent integer
+/// divide timing. A busy unit only delays the start; Dispatch does not see it.
 /// Scoreboard convention: ResultReadyCycle = start + latency - 1, so with
 /// latency 1 a dependent instruction dispatches in the producer's start cycle.
 ///
@@ -45,6 +44,10 @@ public:
               "Cycles a multiply blocks the multiplier")
     PARAMETER(uint32_t, div_latency, 32, "Divide latency")
     PARAMETER(uint32_t, div_occupancy, 32, "Cycles a divide blocks the divider")
+    PARAMETER(bool, div_data_dependent, false,
+              "Use operand-dependent M3 divide timing")
+    PARAMETER(uint32_t, div_base, 2,
+              "Fixed cycles added to M3's divide iterations")
     PARAMETER(uint32_t, fpu_latency, 3, "FP op latency")
     PARAMETER(uint32_t, fpu_occupancy, 1, "Cycles an FP op blocks the FPU")
     PARAMETER(uint32_t, fdiv_latency, 12, "FP divide/sqrt latency")
@@ -72,6 +75,8 @@ private:
   const uint32_t MULOccupancy;
   const uint32_t DIVLatency;
   const uint32_t DIVOccupancy;
+  const bool DIVDataDependent;
+  const uint32_t DIVBase;
   const uint32_t FPULatency;
   const uint32_t FPUOccupancy;
   const uint32_t FDIVLatency;

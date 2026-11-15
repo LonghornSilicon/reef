@@ -36,13 +36,13 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
       FetchBlockBytes(Params->fetch_block_bytes),
-      IbufEntries(Params->ibuf_entries) {
+      IbufEntries(Params->ibuf_entries), Zvt(Params->zvt) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
   // The first group is fetched in cycle 1.
   sparta::StartupEvent(Node, CREATE_SPARTA_HANDLER(Fetch, scheduleFirstFetch));
 }
 
-void Fetch::scheduleFirstFetch() { FetchEvent.schedule(1); }
+void Fetch::scheduleFirstFetch() { FetchEvent.schedule(1 + StartCycle); }
 
 uint32_t Fetch::getFreeEntries(Cycle Now) const {
   uint64_t Used = Ibuf.size() + (FreedCycle == Now ? FreedAtCycle : 0);
@@ -140,6 +140,15 @@ void Fetch::fetchGroup() {
   if (Fetched > 0) {
     ++NumGroups;
     LastGroupRedirected = Redirect;
+    if (Mem) {
+      const Address Line = Ibuf[Ibuf.size() - Fetched]->PC & ~Address{15};
+      const MemAccess Access{Line, 16, false, 0};
+      MemRequest Request;
+      Request.Requester = RequesterKind::IFetch;
+      Request.Accesses = std::span<const MemAccess>(&Access, 1);
+      Request.Earliest = Now;
+      Mem->access(Request);
+    }
   } else if (Done) {
     ++NumGroups;
   }

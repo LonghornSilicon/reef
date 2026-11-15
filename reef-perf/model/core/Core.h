@@ -3,7 +3,8 @@
 /// \file
 /// The core module (top.core): dispatch, scalar execution, the LSU and
 /// retirement. Vector and matrix instructions leave through OutVector and
-/// OutMatrix; those modules own their timing.
+/// OutMatrix; those modules own their timing. The vector module books the LSU
+/// for vector loads and stores through getVectorLsu().
 ///
 //===----------------------------------------------------------------------===//
 
@@ -50,6 +51,10 @@ public:
 
   /// Connects the memory module \p Mem, which must outlive the simulation.
   void setMemory(MemoryInterface *Mem);
+
+  /// \returns the LSU as the vector module books it for vector loads and
+  /// stores. Valid after bind().
+  VectorLsuInterface *getVectorLsu() const;
 
   /// Connects the frontend's instruction buffer \p Buffer, which must outlive
   /// the simulation.

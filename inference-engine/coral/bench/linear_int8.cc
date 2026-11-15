@@ -18,6 +18,8 @@ int main() {
     fill.int8s(x, kRows * kIn);
     fill.int8s(wt, kIn * kOut);
     fill.integers(bias, kOut, 20);
+    bench::roi_begin();
     reef_kernels::linear_bias_int8(kRows, kIn, kOut, x, wt, bias, 8, y);
+    bench::roi_end();
     return 0;
 }

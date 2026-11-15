@@ -6,6 +6,14 @@
 #
 #   coral/tools/build.sh [tests|bench|firmware]...    (default: all three)
 #
+# CORAL_MAP selects the memory map:
+#   highmem  (default) 1 MB ITCM and 1 MB DTCM. Uses runtime/link.ld.
+#            Writes to build/coral/.
+#   m3       The M3 as built: 8 KB ITCM and 32 KB DTCM. Uses
+#            runtime/link_m3.ld. Writes to build/coral_m3/.
+# If a program does not fit, the script reports it and skips it. Then the
+# script exits non-zero at the end.
+#
 # Uses Coral's GCC (toolchain_coralnpu_v2) from $CORAL_TOOLCHAIN/bin, or
 # from PATH. Without it, reruns itself in a linux/amd64 container that
 # mounts the coral-toolchain Docker volume (see setup_toolchain.sh).
@@ -19,10 +27,18 @@ if ! command -v "$cxx" >/dev/null; then
     exec docker run --rm --platform linux/amd64 \
         -v coral-toolchain:/opt/coral:ro -v "$engine":/engine -w /engine \
         -e CORAL_TOOLCHAIN=/opt/coral/toolchain_coralnpu_v2 \
+        -e CORAL_MAP="${CORAL_MAP:-highmem}" \
         ubuntu:24.04 bash coral/tools/build.sh "$@"
 fi
 
-out=build/coral
+case "${CORAL_MAP:-highmem}" in
+highmem) out=build/coral; ldscript=coral/runtime/link.ld; map_flags=() ;;
+m3) out=build/coral_m3; ldscript=coral/runtime/link_m3.ld; map_flags=(-DREEF_KERNELS_M3_MAP) ;;
+*)
+    echo "unknown CORAL_MAP: $CORAL_MAP" >&2
+    exit 1
+    ;;
+esac
 # The ISA reef_perf simulates and the M3 implements; Coral's own builds add
 # extensions the model does not run.
 arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
@@ -31,8 +47,9 @@ arch=(-march=rv32imf_zicsr_zifencei_zbb_zve32f -mabi=ilp32 -mcmodel=medany)
 cflags=("${arch[@]}" -std=c++17 -O3 -ffp-contract=off -fno-math-errno
         -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables
         -ffunction-sections -fdata-sections -Wall -Wextra -Werror
-        -Icoral/include -Icoral/tests -Icoral/firmware -I"$out")
-ldflags=("${arch[@]}" -nostdlib -nostartfiles -Tcoral/runtime/link.ld
+        -Icoral/include -Icoral/tests -Icoral/firmware -Ibuild/coral
+        ${map_flags[@]+"${map_flags[@]}"})
+ldflags=("${arch[@]}" -nostdlib -nostartfiles -T"$ldscript"
          -Wl,--gc-sections)
 
 mkdir -p "$out/obj"
@@ -47,11 +64,17 @@ for source in coral/kernels/*.cc coral/firmware/gpt_neo.cc; do
     objects+=("$object")
 done
 
+failed=0
+
 # link SOURCE ELF: compile one program and link it with the library.
 link() {
     mkdir -p "$(dirname "$2")"
     "$cxx" "${cflags[@]}" -c "$1" -o "${2%.elf}.o"
-    "$cxx" "${ldflags[@]}" "${objects[@]}" "${2%.elf}.o" -lgcc -o "$2"
+    if ! "$cxx" "${ldflags[@]}" "${objects[@]}" "${2%.elf}.o" -lgcc -o "$2"; then
+        echo "failed to link $2" >&2
+        failed=1
+        return 0
+    fi
     echo "built $2"
 }
 
@@ -82,3 +105,5 @@ for group in "${groups[@]}"; do
         ;;
     esac
 done
+
+exit "$failed"

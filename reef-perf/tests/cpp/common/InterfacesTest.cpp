@@ -26,17 +26,18 @@ TEST(ExecTargetTest, ScalarClassesGoToScalarUnits) {
     EXPECT_EQ(getTargetOf(Class), ExecTarget::Scalar) << getClassName(Class);
 }
 
-TEST(ExecTargetTest, EveryMemoryClassGoesToTheLSU) {
-  for (InstClass Class :
-       {InstClass::LOAD, InstClass::STORE, InstClass::FP_LOAD,
-        InstClass::FP_STORE, InstClass::V_LOAD, InstClass::V_STORE})
+TEST(ExecTargetTest, ScalarAndFpMemoryGoesToTheLSU) {
+  for (InstClass Class : {InstClass::LOAD, InstClass::STORE, InstClass::FP_LOAD,
+                          InstClass::FP_STORE})
     EXPECT_EQ(getTargetOf(Class), ExecTarget::LSU) << getClassName(Class);
 }
 
-TEST(ExecTargetTest, VectorArithmeticGoesToTheVectorModule) {
-  for (InstClass Class : {InstClass::VSET, InstClass::V_ALU, InstClass::V_MUL,
-                          InstClass::V_DIV, InstClass::V_FP, InstClass::V_FDIV,
-                          InstClass::V_PERM, InstClass::V_TO_SCALAR})
+// Vector loads and stores reach the LSU through the vector module.
+TEST(ExecTargetTest, EveryVectorClassGoesToTheVectorModule) {
+  for (InstClass Class :
+       {InstClass::VSET, InstClass::V_ALU, InstClass::V_MUL, InstClass::V_DIV,
+        InstClass::V_FP, InstClass::V_FDIV, InstClass::V_PERM,
+        InstClass::V_LOAD, InstClass::V_STORE, InstClass::V_TO_SCALAR})
     EXPECT_EQ(getTargetOf(Class), ExecTarget::Vector) << getClassName(Class);
 }
 

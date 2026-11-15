@@ -16,8 +16,8 @@ namespace reef_perf {
 
 /// Sets the Mnemonic, Class and Srcs of \p I from its Disasm, Encoding and
 /// vector configuration; leaves Dsts alone. x0 is never listed, since it is
-/// never a dependency.
-void decodeInst(Inst &I);
+/// never a dependency. Zvt encodings are recognized only if \p Zvt is set.
+void decodeInst(Inst &I, bool Zvt = false);
 
 } // namespace reef_perf
 

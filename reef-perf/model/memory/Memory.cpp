@@ -14,7 +14,49 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
       DTCM("dtcm", Params->dtcm_latency, Params->dtcm_line_bytes,
            Params->dtcm_cycles_per_line),
       AXI(Params->axi_latency, Params->axi_bytes_per_beat,
-          Params->axi_max_outstanding) {}
+          Params->axi_max_outstanding, Params->axi_blocking_reads),
+      Ext("ext_mem_link", Params->ext_mem_latency, Params->ext_mem_latency,
+          Params->ext_mem_bytes_per_cycle, Params->ext_mem_max_burst_bytes),
+      Ram("ext_ram_link", Params->ext_ram_latency,
+          Params->ext_ram_write_latency, Params->ext_ram_bytes_per_cycle,
+          Params->ext_ram_max_burst_bytes),
+      RamBase(Params->ext_ram_base),
+      RamBytes(uint64_t{Params->ext_ram_mb} * 1024 * 1024),
+      DMA(
+          Params->dma_setup_cycles, Params->dma_beat_bytes,
+          [this](Address Addr) { return getLink(Addr); },
+          [this](Address Addr) -> Tcm * {
+            switch (getRegionKind(Addr)) {
+            case RegionKind::ITCM:
+              return &ITCM;
+            case RegionKind::DTCM:
+              return &DTCM;
+            case RegionKind::External:
+              break;
+            }
+            return nullptr;
+          },
+          Params->dma_queue_depth),
+      TheHost(Params->host_boot, Params->host_boot_data,
+              Params->host_setup_cycles, Params->host_cycles_per_byte) {}
+
+void Memory::setBootImage(const std::vector<LoadSegment> &Segments) {
+  uint64_t ItcmBytes = 0;
+  uint64_t DataBytes = 0;
+  for (const LoadSegment &Segment : Segments) {
+    switch (getRegionKind(Segment.Addr)) {
+    case RegionKind::ITCM:
+      ItcmBytes += Segment.FileBytes;
+      break;
+    case RegionKind::DTCM:
+      DataBytes += Segment.FileBytes;
+      break;
+    case RegionKind::External:
+      break; // The host does not write external memory in the model.
+    }
+  }
+  TheHost.setBootImage(ItcmBytes, DataBytes);
+}
 
 RegionKind Memory::getRegionKind(Address Addr) const {
   for (const MemoryRegion &Region : Regions)
@@ -24,24 +66,88 @@ RegionKind Memory::getRegionKind(Address Addr) const {
 }
 
 MemResponse Memory::access(const MemRequest &Request) {
+  // No request starts before the current cycle, so older bookings are done.
+  const Cycle Now = getClock()->currentCycle();
+  ITCM.forgetBefore(Now);
+  DTCM.forgetBefore(Now);
+  // Fetch books only the ITCM; fetch over AXI (outside the ITCM) is not
+  // modeled, as before.
+  if (Request.Requester == RequesterKind::IFetch &&
+      (Request.Accesses.empty() ||
+       getRegionKind(Request.Accesses.front().Addr) != RegionKind::ITCM))
+    return {Request.Earliest, 1, 1};
   // An empty access list (e.g. a vector op with vl = 0) is one DTCM line.
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM
                         : getRegionKind(Request.Accesses.front().Addr);
   switch (Kind) {
   case RegionKind::ITCM:
-    return ITCM.access(Request.Accesses, Request.Earliest);
+    return ITCM.access(Request);
   case RegionKind::DTCM:
-    return DTCM.access(Request.Accesses, Request.Earliest);
+    return DTCM.access(Request);
   case RegionKind::External:
     break;
   }
-  return AXI.access(Request.Accesses, Request.Earliest);
+  MemResponse Response = AXI.access(Request.Accesses, Request.Earliest);
+  const MemoryRegion DmaRegs = getDmaRegsRegion();
+  if (Request.Accesses.empty() ||
+      !DmaRegs.contains(Request.Accesses.front().Addr))
+    return addExtMemTime(Request, Response);
+  // A register access reaches the DMA when its AXI operation is done.
+  const Cycle Arrive = Response.Start + Response.Latency;
+  for (const MemAccess &Access : Request.Accesses) {
+    const uint32_t Offset = Access.Addr - DmaRegs.Start;
+    if (Access.IsStore) {
+      // A GO into a full queue holds the e-bus until the DMA takes it.
+      const Cycle Accept = DMA.writeRegister(Offset, Access.Value, Arrive);
+      if (Accept > Arrive) {
+        // The write's outstanding slot stays booked until the DMA takes it.
+        AXI.extend(Arrive, Accept - Arrive);
+        Response.Latency = Accept - Response.Start;
+        Response.Occupancy = Response.Latency;
+      }
+    } else if (Offset == DmaWait && DMA.getFinish() > Arrive)
+      Response.Latency = DMA.getFinish() - Response.Start;
+  }
+  return Response;
+}
+
+ExtMemModel *Memory::getLink(Address Addr) {
+  return Addr >= RamBase && Addr - RamBase < RamBytes ? &Ram : &Ext;
+}
+
+MemResponse Memory::addExtMemTime(const MemRequest &Request,
+                                  MemResponse Response) {
+  const bool IsStore =
+      !Request.Accesses.empty() && Request.Accesses.front().IsStore;
+  ExtMemModel &Link =
+      Request.Accesses.empty() ? Ext : *getLink(Request.Accesses.front().Addr);
+  if (!Link.isTimed())
+    return Response;
+  uint64_t Bytes = 0;
+  for (const MemAccess &Access : Request.Accesses)
+    Bytes += Access.Size;
+  // The link time adds to the e-bus path's own latency (axi_latency). A
+  // blocking read keeps holding its requester until the data is back.
+  const bool Blocking = AXI.hasBlockingReads() && !IsStore;
+  const Cycle LinkDone = Link.transfer(Bytes, Response.Start, IsStore).Done;
+  const uint64_t Extra = LinkDone - Response.Start;
+  // The operation keeps its outstanding slot until the link is done too.
+  AXI.extend(Response.Start + Response.Latency, Extra);
+  Response.Latency += Extra;
+  if (Blocking)
+    Response.Occupancy = Response.Latency;
+  return Response;
 }
 
 std::vector<const ResourcePool *> Memory::getPools() const {
-  std::vector<const ResourcePool *> Pools = {&ITCM.getPort(), &DTCM.getPort()};
+  std::vector<const ResourcePool *> Pools = {
+      &ITCM.getPort(), &ITCM.getFetchUse(), &DTCM.getPort()};
   for (const ResourcePool *Pool : AXI.getPools())
     Pools.push_back(Pool);
+  if (Ext.isTimed())
+    Pools.push_back(&Ext.getLink());
+  if (Ram.isTimed())
+    Pools.push_back(&Ram.getLink());
   return Pools;
 }

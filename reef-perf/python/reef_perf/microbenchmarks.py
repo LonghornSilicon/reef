@@ -8,6 +8,7 @@ so both report the same region-of-interest cycle count.
 """
 
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 from reef_perf.sim import MODULE_ROOT
@@ -34,12 +35,16 @@ def list_microbenchmarks() -> list[str]:
     return sorted(path.stem for path in MICROBENCHMARK_DIR.glob("*.S"))
 
 
-def build_microbenchmark(name: str, out_dir: Path) -> Path:
+def build_microbenchmark(
+    name: str, out_dir: Path, symbols: Mapping[str, int] | None = None
+) -> Path:
     """Assemble and link one microbenchmark.
 
     Args:
         name: Microbenchmark name, e.g. "alu_chain".
         out_dir: Directory for the object file and ELF.
+        symbols: Assembler symbols to define (--defsym), e.g. {"ITERS": 400}
+            for the matrix microbenchmarks' loop count.
 
     Returns:
         Path to the ELF.
@@ -63,6 +68,10 @@ def build_microbenchmark(name: str, out_dir: Path) -> Path:
             "-mabi=ilp32f",
             "-I",
             str(MICROBENCHMARK_DIR),
+            *(
+                f"--defsym={key}={value}"
+                for key, value in (symbols or {}).items()
+            ),
             str(source),
             "-o",
             str(obj),

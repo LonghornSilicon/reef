@@ -1,0 +1,49 @@
+# D4: model predictions for a 128-PE CoralNPU array (COMPRATIO 1/2, PROCESS_DELAY 2), recorded 2026-11-11T00:00:15-06:00
+# before any 128-PE RTL run. Model: akul/matrix-sweeps 5cdafb6 + the Coral mapping generalized to the PE count;
+# m3.yaml + m3_vme.yaml + REFERENCE_CORE_PARAMS + mtx_pe_cols 16, mtx_zero_cycles 2.
+name,n,roi_n,roi_2n,instructions_n,cycles_per_op
+mac_chain,200,822,1622,610,4.000
+mac_indep,50,424,824,311,2.000
+tile_load,20,1411,2811,1724,4.375
+tile_store,20,1401,2801,1720,4.375
+tile_load_behind_mac,50,1518,3018,1013,30.000
+gemm_tile,10,8685,17355,4302,867.000
+tile_load_burst,20,966,1926,1064,3.000
+tile_store_burst,20,957,1917,1060,3.000
+tile_load32_burst,20,1931,3851,1064,6.000
+tile_store32_burst,20,1905,3825,1060,6.000
+vec_load_burst,20,1611,3211,722,5.000
+vec_store_burst,20,1270,2550,720,4.000
+vec_load4_burst,20,5448,10888,722,17.000
+vec_store4_burst,20,4105,8265,720,13.000
+mac_chain_tm4,200,825,1625,613,4.000
+mac_indep_tm4,50,426,826,313,2.000
+mac_chain_tn4,200,826,1626,613,4.000
+mac_indep_tm8tn8,50,427,827,313,2.000
+mac_indep_tn4,50,427,827,313,2.000
+mac_chain_fp32,200,826,1626,613,4.000
+mac_indep_fp32,50,427,827,313,2.000
+mac_chain_bf16,200,826,1626,613,4.000
+mac_indep_bf16,50,427,827,313,2.000
+gemm_multi,10,21366,42716,10312,2135.000
+vtmm_misaligned,100,596,1171,512,5.750
+vtdiscard_after_mac,50,271,520,212,4.980
+gemm_longk,10,27885,55755,13422,2787.000
+zero_burst,20,652,1292,366,2.000
+move_tv_burst,20,1293,2573,706,4.000
+move_tv8_burst,20,495,975,704,1.500
+move_vt_burst,20,1289,2569,702,4.000
+move_vt8_burst,20,491,971,702,1.500
+move_vt_use,100,1401,2801,601,14.000
+load_then_mac,50,814,1614,406,16.000
+move_then_mac,50,814,1614,406,16.000
+mac_then_store,50,815,1615,406,16.000
+load_then_store,20,2091,4171,946,13.000
+mac_rob,50,1015,2015,857,20.000
+zero_rob,50,518,1018,857,10.000
+move_tv_rob,50,616,1216,857,12.000
+mac_queue,50,786,1554,708,15.360
+# Added 2026-11-11T00:30:25-06:00 for D4 (128 PEs; uop reservation station modeled), before their RTL run.
+mac_rob_tm4,50,965,1915,856,19.000
+mac_rob_tn4,50,1015,2015,856,20.000
+mac_rob_tm8tn8,50,1015,2015,856,20.000

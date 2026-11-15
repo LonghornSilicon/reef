@@ -21,10 +21,12 @@ int main() {
     fill.integers(exp_table, 256, 17);
     fill.int8s(x, kValues);
     fill.integers(scores, kRows * kCols, 20);
+    bench::roi_begin();
     reef_kernels::gelu_int8(kValues, x, gelu_table, y);
     for (std::size_t r = 0; r < kRows; ++r) {
         reef_kernels::softmax_int8(kCols, scores + (r * kCols), 4, exp_table,
                                    probs + (r * kCols));
     }
+    bench::roi_end();
     return 0;
 }
