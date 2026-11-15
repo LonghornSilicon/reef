@@ -52,6 +52,9 @@ using namespace ops;
 #ifndef TANH
 #define TANH 0
 #endif
+#ifndef FUSED
+#define FUSED 1 // int4 A rows unpacked straight into v8..v14 inside the MAC loop
+#endif
 
 constexpr uint32_t kW = HIN, kH = HIN;
 constexpr uint32_t kPitch = kW + 1;
@@ -87,7 +90,9 @@ static int8_t wbuf[2][kChunkBytes] __attribute__((aligned(16)));
 static int8_t stage[16 * kStg] __attribute__((aligned(16)));
 #else
 static uint8_t wpk[2][kChunkBytes] __attribute__((aligned(16)));
+#if !FUSED
 static int8_t w8[kKC * 16] __attribute__((aligned(16)));
+#endif
 static uint8_t stage[8 * kStg] __attribute__((aligned(16)));
 #endif
 static int32_t params[kNob * 16 * 2]; // [och] mult, then [och] bias
@@ -102,20 +107,31 @@ static int8_t tanh_lut[256];
     "vle8.v v18, (%[t])\n\tadd %[t], %[t], %[bs]\n\tvle8.v v20, (%[t])\n\t"      \
     "add %[t], %[t], %[bs]\n\tvle8.v v22, (%[t])\n\t"                           \
     ".insn r 0x77, 0, 0x79, " #rd ", x16, x8\n\t"
+#if FUSED && !INT8
+// Packed k-quad (32 B): bytes 0-15 = rows k0 (low nibble) / k1 (high),
+// bytes 16-31 = rows k2 / k3. Two loads + six shifts give v8, v10, v12, v14.
+#define CT_A                                                                   \
+    "vle8.v v24, (%[a])\n\taddi %[a], %[a], 16\n\t"                            \
+    "vle8.v v26, (%[a])\n\taddi %[a], %[a], 16\n\t"                            \
+    "vsll.vi v8, v24, 4\n\tvsra.vi v8, v8, 4\n\tvsra.vi v10, v24, 4\n\t"        \
+    "vsll.vi v12, v26, 4\n\tvsra.vi v12, v12, 4\n\tvsra.vi v14, v26, 4\n\t"
+#else
+#define CT_A                                                                   \
+    "vle8.v v8, (%[a])\n\taddi %[a], %[a], 16\n\t"                             \
+    "vle8.v v10, (%[a])\n\taddi %[a], %[a], 16\n\t"                            \
+    "vle8.v v12, (%[a])\n\taddi %[a], %[a], 16\n\t"                            \
+    "vle8.v v14, (%[a])\n\taddi %[a], %[a], 16\n\t"
+#endif
 #define CT_MAC(name, BLOCKS)                                                   \
     static void name(const int8_t* a, const int8_t* b, uint32_t bs, uint32_t n) { \
         const int8_t* t;                                                       \
-        asm volatile("1:\n\t"                                                  \
-                     "vle8.v v8, (%[a])\n\taddi %[a], %[a], 16\n\t"            \
-                     "vle8.v v10, (%[a])\n\taddi %[a], %[a], 16\n\t"           \
-                     "vle8.v v12, (%[a])\n\taddi %[a], %[a], 16\n\t"           \
-                     "vle8.v v14, (%[a])\n\taddi %[a], %[a], 16\n\t" BLOCKS    \
+        asm volatile("1:\n\t" CT_A BLOCKS                                     \
                      "add %[b], %[b], %[bs4]\n\t"                              \
                      "addi %[n], %[n], -1\n\tbnez %[n], 1b"                    \
                      : [a] "+r"(a), [b] "+r"(b), [n] "+r"(n), [t] "=&r"(t)     \
                      : [bs] "r"(bs), [bs4] "r"(4 * bs)                         \
                      : "v8", "v10", "v12", "v14", "v16", "v18", "v20", "v22",  \
-                       "memory");                                              \
+                       "v24", "v26", "memory");                                \
     }
 CT_MAC(mac_1, CT_B(0, x1))
 CT_MAC(mac_2, CT_B(0, x1) CT_B(1, x9))
@@ -254,6 +270,8 @@ int main() {
             const int8_t* b = act + c0 * kS + 1 + (1 + dy) * int32_t(kPitch) + dx;
 #if INT8
             const int8_t* a = wbuf[flat & 1];
+#elif FUSED
+            const int8_t* a = reinterpret_cast<const int8_t*>(wpk[flat & 1]);
 #else
             unpack_i4_rows(wpk[flat & 1], w8, kChunkBytes);
             const int8_t* a = w8;
