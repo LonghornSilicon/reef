@@ -14,9 +14,9 @@
 top:
   memory:
     params:
-      # ASSUMPTION, pessimistic: the top of the RTL team's 26 to 68 range.
-      # The spec's formula, 48/N + 6 link cycles with the command on N = 8
-      # lines, gives 24.
-      ext_mem_latency: 68
+      # The RTL team's datasheet number at a 25 MHz link clock. It was 68,
+      # the top of an earlier 26 to 68 range. The spec's formula, 48/N + 6
+      # link cycles with the command on N = 8 lines, gives 24.
+      ext_mem_latency: 18
       # 16 lines x 2 edges x 25 MHz = 800 Mb/s = 100 MB/s = 2 B per core cycle.
       ext_mem_bytes_per_cycle: 2

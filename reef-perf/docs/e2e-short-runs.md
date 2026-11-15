@@ -40,16 +40,16 @@ reef_perf --elf e2e.elf \
     --ext-mem-mb 160 --json out.json
 ```
 
-- `xspi_str.yaml`: weight flash at 1 B per cycle, 68 cycles to the first
+- `xspi_str.yaml`: weight flash at 1 B per cycle, 18 cycles to the first
   byte.
-- `psram_kv.yaml`: KV cache RAM at 0.25 B per cycle, 30 cycles to the first
-  byte of a read, 16 of a write, 100-byte bursts.
+- `psram_kv.yaml`: KV cache RAM at 0.25 B per cycle, 28 cycles to the first
+  byte of a read, 16 of a write, 93-byte bursts.
 - `psram_kv_e2e.yaml`: moves the RAM's address range to the firmware's KV
   cache at 0x24A73800. Without it the KV cache uses the flash link.
 - The host boot and the prompt write are before the region of interest.
 
-The link numbers are pessimistic assumptions (deviations.md A7). The DMA
-has 20 setup cycles, 16 B per beat, one channel and no queue limit.
+The link numbers are the RTL team's datasheet values (deviations.md A7).
+The DMA has 20 setup cycles, 16 B per beat, one channel and no queue limit.
 
 The firmware reads `mcycle` after each kernel. `mcycle_reads` in the JSON
 file holds those cycles in order, so one run gives the time of each kernel.
@@ -59,6 +59,20 @@ reads: `embed`, then seven kernels for each of the 8 layers (`layernorm`,
 `layernorm` and `lm_head`.
 
 ## Results
+
+With the configs as they are now, the short runs give:
+
+| Run | Cycles | Time |
+| --- | ---: | ---: |
+| 16-token prefill | 87,278,823 | 1.75 s |
+| Decode of token 17 | 57,400,021 | 1.15 s |
+| Decode of token 18 | 57,400,021 | 1.15 s |
+| Decode of token 80 | 59,114,357 | 1.18 s |
+
+The rest of this file, with the long run, used the earlier link numbers:
+68 cycles to the flash's first byte, and 30 read cycles and 100-byte
+bursts for the RAM. The short runs are about 2% slower there. The method
+does not depend on these numbers.
 
 At b8365e1. Time is at a 50 MHz core clock.
 

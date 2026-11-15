@@ -49,6 +49,6 @@ def test_ram_overlay_times_its_own_address_range(
     ).roi_cycles
     assert flash_only is not None
     assert elsewhere == flash_only
-    # A 4-byte load costs 30 + 16 cycles on the RAM link and 68 + 4 on the
-    # flash link, so these small loads get faster.
-    assert on_buffer < flash_only
+    # A 4-byte load costs 28 + 16 cycles on the RAM link and 18 + 4 on the
+    # flash link, so these small loads get slower.
+    assert on_buffer > flash_only
