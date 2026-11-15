@@ -1,0 +1,25 @@
+# CoralNPU at 8a5e1b31 (VmeCoreMini): the whole pinned RTL, as an overlay on
+# the M3 model. That RTL is M3 plus 409 commits: the Zvt matrix engine and a
+# changed fetch unit, LSU, retirement buffer, vector backend and FP units.
+# It is the only RTL with a matrix engine, so the model's matrix numbers are
+# checked here.
+#
+# This file does not change M3 (m3.yaml) or M3 + Zvt (m3_vme.yaml), and it
+# is not Reef's design. It is a third machine, for correlation:
+#
+#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/coral_pinned.yaml
+#
+# Every difference from M3 is one switch below: a value, or a parameter that
+# turns new model code on. Each line says where its number came from and
+# what the M3 value is. Removing a line turns that change off; with every
+# line removed the model is m3.yaml exactly.
+#
+# Checked by tests/golden/pinned_results.json (cycle counts on this config)
+# and scored against the RTL by
+#   python -m reef_perf.experiments.correlation.pinned
+# RTL numbers: rtl_pinned.csv next to each rtl_m3.csv.
+#
+# No switch is on yet: the model below is M3, scored against the pinned RTL
+# as the starting point.
+top: {}
