@@ -229,7 +229,7 @@ E2E_INLINE void fetch_row(uint32_t r) {
 E2E_INLINE const uint8_t* in_row(int32_t r) {
     return r < 0 ? ring[kRing - 1] : ring[r % kRing];
 }
-static void zero_slot(uint8_t* row) {
+[[maybe_unused]] static void zero_slot(uint8_t* row) {
     for (uint32_t i = 0; i < kInRow; i += 64)
         __riscv_vse8_v_u8m4(row + i, __riscv_vmv_v_x_u8m4(0, 64), 64);
 }
