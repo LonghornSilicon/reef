@@ -20,6 +20,49 @@
 #   python -m reef_perf.experiments.correlation.pinned
 # RTL numbers: rtl_pinned.csv next to each rtl_m3.csv.
 #
-# No switch is on yet: the model below is M3, scored against the pinned RTL
-# as the starting point.
-top: {}
+# Each switch has an ID (F frontend, C core, V vector, X matrix). Sources:
+# RTL = read in ~/coralnpu-pinned at 8a5e1b31; MEASURED = fitted to the
+# programs named, in rtl_pinned.csv. Differences that need new model code
+# (the fetch unit, LsuV3, the external bus, the new vector divider) are not
+# here yet; docs/pinned.md lists them.
+top:
+  frontend:
+    params:
+      # F2. A redirect the predictor did not predict costs one cycle more.
+      # MEASURED: branch_fwd_taken, branch_bwd_not_taken and jalr_chain are
+      # each 1 cycle per iteration slower than on M3; jal_fwd is not. M3: 2
+      redirect_penalty: 3
+      # X1. Zvt instructions decode and run on the matrix module (the
+      # engine's own values are the matrix module's defaults,
+      # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
+      zvt: true
+  core:
+    rob:
+      params:
+        # C1. RTL: Parameters.scala:141 retirementBufferSize = 16. M3: 8
+        rob_entries: 16
+    lsu:
+      params:
+        # X2. A tile load or store costs 2 cycles per instruction + 1 per
+        # 16-byte beat. MEASURED on this RTL: tile_*_burst in
+        # microbenchmarks/matrix/rtl_vme.csv (docs/lsu-tile-beats.md).
+        # M3: lsu_tile_cost false (a tile beat costs a vector register)
+        lsu_tile_cost: true
+        lsu_tile_inst_overhead: 1
+        lsu_tile_beat_overhead: 0
+        lsu_tile_switch_cycles: 1
+  vector:
+    params:
+      # V1. RTL: rvv_backend_define.svh ROB_DEPTH 16. M3: 8
+      vec_rob_entries: 16
+      # V2. The retirement buffer matches a vector result to its entry by
+      # rob_tag, not by PC. RTL: RetirementBuffer.scala:452, :532 (CoralNPU
+      # 302a42d3). MEASURED: vdiv_m8_indep, vdiv_m8_then_vadd_m8. M3: true
+      vec_completion_matches_pc: false
+      # V3. The vector FP add and multiply-add unit has 4 stages. RTL:
+      # FALU_PIPEREGS 4 (rvv_backend_define.svh). MEASURED: vfadd_chain and
+      # vfmacc_chain are 1 cycle per op slower than on M3. M3: 4
+      vec_fp_latency: 5
+      # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
+      # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
+      vec_fdiv_cycles_per_uop: 9

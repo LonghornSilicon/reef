@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from reef_perf.experiments.correlation.pinned import PINNED_CONFIG
 from reef_perf.experiments.matrix_diff.main import (
     BENCHMARKS,
     REFERENCE_CORE_PARAMS,
@@ -186,4 +187,23 @@ def test_matches_rtl_at_128_pes(
     model = _model_cost(bench, tmp_path, RTL_REFERENCE_PE128, (PE128_CONFIG,))
     assert model == pytest.approx(rtl, rel=CORRELATED_PE128[name]), (
         f"{name} at 128 PEs: model {model:.3f} against RTL {rtl:.3f}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("name", sorted(CORRELATED))
+def test_matches_rtl_on_pinned_config(
+    name: str, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """The whole-RTL config keeps every correlated matrix program matched.
+
+    configs/machines/coral_pinned.yaml models the rest of the 8a5e1b31 core
+    too; a switch added there must not cost the matrix engine its match.
+    """
+    del cpp_build_dir
+    bench = _BY_NAME[name]
+    rtl = _rtl_cost(bench)
+    model = _model_cost(bench, tmp_path, overlays=(PINNED_CONFIG,))
+    assert model == pytest.approx(rtl, rel=CORRELATED[name]), (
+        f"{name}: model {model:.3f} against RTL {rtl:.3f} cycles per op"
     )
