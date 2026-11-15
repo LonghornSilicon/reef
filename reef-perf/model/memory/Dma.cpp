@@ -15,12 +15,39 @@
 using namespace reef_perf;
 
 Dma::Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
-         TcmLookup FindTcm, uint32_t QueueDepth)
+         TcmLookup FindTcm, uint32_t QueueDepth, uint32_t Channels)
     : SetupCycles(SetupCycles), BeatBytes(BeatBytes),
       FindLink(std::move(FindLink)), FindTcm(std::move(FindTcm)),
-      QueueDepth(QueueDepth) {
+      QueueDepth(QueueDepth), Chains(Channels) {
   if (BeatBytes == 0 || BeatBytes > 255)
     throw std::invalid_argument("dma_beat_bytes must be 1-255");
+  if (Channels == 0)
+    throw std::invalid_argument("dma_channels must be at least 1");
+}
+
+Cycle Dma::getFinish() const {
+  Cycle Finish = 0;
+  for (const std::vector<size_t> &Chain : Chains)
+    if (!Chain.empty())
+      Finish = std::max(Finish, Jobs[Chain.back()].Finish);
+  return Finish;
+}
+
+uint32_t Dma::getChannel() {
+  if (Chains.size() == 1 || !FindLink)
+    return 0;
+  // The link of the end outside the TCMs names the channel. A transfer
+  // between two TCMs uses the first channel.
+  for (Address End : {Src, Dst}) {
+    if (FindTcm(End))
+      continue;
+    const ExtMemModel *Link = FindLink(End);
+    auto Found = std::find(ChainLinks.begin(), ChainLinks.end(), Link);
+    if (Found == ChainLinks.end())
+      Found = ChainLinks.insert(ChainLinks.end(), Link);
+    return static_cast<uint32_t>(Found - ChainLinks.begin()) % Chains.size();
+  }
+  return 0;
 }
 
 Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
@@ -35,11 +62,12 @@ Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
     Len = static_cast<uint32_t>(Value);
     break;
   case DmaGo: {
-    // Transfers finish in order, so the queue is full exactly when the
-    // QueueDepth-th newest transfer has not finished yet.
+    // A channel's transfers finish in order, so its queue is full exactly
+    // when its QueueDepth-th newest transfer has not finished yet.
     Cycle Accept = Arrive;
-    if (QueueDepth != 0 && Len != 0 && Jobs.size() >= QueueDepth)
-      Accept = std::max(Arrive, Jobs[Jobs.size() - QueueDepth].Finish);
+    const std::vector<size_t> &Chain = Chains[getChannel()];
+    if (QueueDepth != 0 && Len != 0 && Chain.size() >= QueueDepth)
+      Accept = std::max(Arrive, Jobs[Chain[Chain.size() - QueueDepth]].Finish);
     Stats.FullCycles += Accept - Arrive;
     start(Accept);
     return Accept;
@@ -53,12 +81,17 @@ Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
 void Dma::start(Cycle Arrive) {
   if (Len == 0)
     return;
-  const Cycle Begin = std::max(Arrive, getFinish()) + SetupCycles;
+  std::vector<size_t> &Chain = Chains[getChannel()];
+  const Cycle Free = Chain.empty() ? 0 : Jobs[Chain.back()].Finish;
+  const Cycle Begin = std::max(Arrive, Free) + SetupCycles;
   const uint32_t Beats = (Len + BeatBytes - 1) / BeatBytes;
   ++Stats.Transfers;
   Stats.Bytes += Len;
   const size_t J = Jobs.size();
-  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0});
+  if (!Chain.empty())
+    Jobs[Chain.back()].Next = J;
+  Chain.push_back(J);
+  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0, NoJob});
 
   // Book each end that is in a TCM: reads at SRC, writes at DST. An end in
   // external memory books the link, or costs only the setup delay when the
@@ -121,9 +154,9 @@ void Dma::retime(size_t J) {
     Finish = std::max(Finish, End);
   Stats.BusyCycles += Finish - Current.Finish;
   Current.Finish = Finish;
-  if (J + 1 == Jobs.size())
+  if (Current.Next == NoJob)
     return;
-  Job &Next = Jobs[J + 1];
+  Job &Next = Jobs[Current.Next];
   const Cycle Begin = std::max(Next.Arrive, Finish) + SetupCycles;
   if (Begin <= Next.Begin)
     return;
@@ -135,5 +168,5 @@ void Dma::retime(size_t J) {
   Next.Begin = Begin;
   for (size_t I = 0; I < Next.Targets.size(); ++I)
     Next.Targets[I]->delay(Next.Ids[I], Begin);
-  retime(J + 1);
+  retime(Current.Next);
 }

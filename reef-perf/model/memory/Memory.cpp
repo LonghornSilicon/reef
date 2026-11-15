@@ -36,7 +36,7 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
             }
             return nullptr;
           },
-          Params->dma_queue_depth),
+          Params->dma_queue_depth, Params->dma_channels),
       TheHost(Params->host_boot, Params->host_boot_data,
               Params->host_setup_cycles, Params->host_cycles_per_byte) {}
 

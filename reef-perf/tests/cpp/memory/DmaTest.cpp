@@ -234,6 +234,54 @@ TEST_F(DmaTwoLinkFixture, AWriteToTheRamPaysTheWriteLatency) {
   EXPECT_EQ(Ram.getLink().getBusyCycles(), 80U);
 }
 
+/// The two links again, with one DMA channel for each.
+struct DmaTwoChannelFixture : public DmaTwoLinkFixture {
+  Dma ChannelDMA{
+      20,
+      16,
+      [this](Address Addr) { return Addr >= 0x24000000 ? &Ram : &Flash; },
+      [this](Address Addr) -> Tcm * {
+        return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
+      },
+      0,
+      2};
+
+  void programOn(Dma &Target, Address Src, Address Dst, uint32_t Len,
+                 Cycle At) {
+    Target.writeRegister(DmaSrc, Src, At);
+    Target.writeRegister(DmaDst, Dst, At);
+    Target.writeRegister(DmaLen, Len, At);
+    Target.writeRegister(DmaGo, 1, At);
+  }
+};
+
+TEST_F(DmaTwoChannelFixture, OneChannelRunsAFlashAndARamTransferInTurn) {
+  // Flash: begin 20, first byte at 46, 1,024 bytes, done at 1,071. The RAM
+  // transfer waits for it.
+  programOn(TwoDMA, 0x20000000, 0x10000, 1024, 0);
+  const Cycle FlashDone = TwoDMA.getFinish();
+  programOn(TwoDMA, 0x24000000, 0x10400, 16, 0);
+  EXPECT_GT(TwoDMA.getFinish(), FlashDone);
+}
+
+TEST_F(DmaTwoChannelFixture, TwoChannelsRunAFlashAndARamTransferTogether) {
+  programOn(ChannelDMA, 0x20000000, 0x10000, 1024, 0);
+  const Cycle FlashDone = ChannelDMA.getFinish();
+  // The RAM transfer has its own channel: as alone, its beat is at 114.
+  programOn(ChannelDMA, 0x24000000, 0x10400, 16, 0);
+  EXPECT_EQ(Ram.getLink().getBusyCycles(), 94U);
+  // WAIT returns when both channels are done.
+  EXPECT_EQ(ChannelDMA.getFinish(), FlashDone);
+}
+
+TEST_F(DmaTwoChannelFixture, TwoTransfersOnOneLinkStillTakeTurns) {
+  // Keys then values, both from the RAM: the second starts after the first.
+  programOn(ChannelDMA, 0x24000000, 0x10000, 16, 0);
+  EXPECT_EQ(ChannelDMA.getFinish(), 115U);
+  programOn(ChannelDMA, 0x24001000, 0x10400, 16, 0);
+  EXPECT_EQ(ChannelDMA.getFinish(), 115U + 20U + 30U + 64U + 1U);
+}
+
 TEST_F(DmaTwoLinkFixture, TheTwoLinksDoNotWaitForEachOther) {
   // A core read holds the flash link; the RAM link is still free.
   Flash.transfer(1000, 0);

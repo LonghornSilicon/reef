@@ -1,7 +1,7 @@
 //===- Dma.h - The DMA initiator --------------------------------*- C++ -*-===//
 ///
 /// \file
-/// A one-channel DMA that moves data between external memory (HyperRAM) and
+/// A DMA that moves data between external memory (HyperRAM) and
 /// the TCMs through the core's AXI slave port, as in the Reef SoC plan
 /// (atlas-soc/docs/dma.md). Not in M3: it does nothing until a program
 /// writes its registers.
@@ -19,16 +19,18 @@
 /// | 0x10 | WAIT | load: returns when every started transfer is done |
 ///
 /// A transfer starts `dma_setup_cycles` after the GO store arrives, or after
-/// the previous transfer finishes (one at a time). It then moves one
+/// the previous transfer on its channel finishes (one at a time). With
+/// `dma_channels` 2, each external memory link has its own channel, so a
+/// flash transfer and a RAM transfer overlap. It then moves one
 /// `dma_beat_bytes` beat per TCM port cycle the core leaves free; whichever of
 /// SRC and DST is in a TCM is booked there as an AxiSlave requester. An end
 /// outside the TCMs moves its bytes over the external memory link
 /// (ExtMemModel), when that is modeled. A transfer finishes when both ends
 /// are done. When a core access pushes a transfer's finish out, every queued
 /// transfer behind it moves too. With `dma_queue_depth` set, a GO store that
-/// finds that many transfers unfinished waits for the oldest of them to
-/// finish: the full queue back-pressures the e-bus. Only timing is modeled:
-/// Spike's memory is not copied.
+/// finds that many transfers unfinished on its channel waits for the oldest
+/// of them to finish: the full queue back-pressures the e-bus. Only timing is
+/// modeled: Spike's memory is not copied.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -38,6 +40,7 @@
 #include "common/Interfaces.h"
 #include "common/Types.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -77,9 +80,11 @@ public:
   /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names
   /// and, for an end outside them, the link \p FindLink names (\p FindLink
   /// may be empty: no link is modeled). \p QueueDepth caps the unfinished
-  /// transfers (0: no limit).
+  /// transfers of a channel (0: no limit). With \p Channels above 1, each
+  /// link has its own channel. \throws std::invalid_argument for a beat
+  /// size outside 1-255 or no channel.
   Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
-      TcmLookup FindTcm, uint32_t QueueDepth = 0);
+      TcmLookup FindTcm, uint32_t QueueDepth = 0, uint32_t Channels = 1);
 
   /// Applies a store of \p Value to register \p Offset that arrives at
   /// cycle \p Arrive. A GO store starts a transfer. \returns the cycle the
@@ -87,8 +92,8 @@ public:
   /// waits for room in a full queue.
   Cycle writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive);
 
-  /// \returns the cycle the last started transfer finishes, or 0 if none.
-  Cycle getFinish() const { return Jobs.empty() ? 0 : Jobs.back().Finish; }
+  /// \returns the cycle every started transfer is finished, or 0 if none.
+  Cycle getFinish() const;
 
   /// \returns the totals so far.
   const DmaStats &getStats() const { return Stats; }
@@ -104,7 +109,12 @@ private:
     std::vector<uint32_t> Ids;      // Their Tcm::book handles.
     std::vector<Cycle> EndFinishes; // When each booked end finishes.
     Cycle ExtFinish = 0;            // When the link is done, or 0.
+    size_t Next = NoJob;            // The transfer behind it on its channel.
   };
+  static constexpr size_t NoJob = ~size_t{0};
+
+  /// \returns the channel the programmed transfer uses.
+  uint32_t getChannel();
 
   void start(Cycle Arrive);
   /// Recomputes job \p J's finish and moves the job behind it if needed.
@@ -119,6 +129,8 @@ private:
   Address Dst = 0;
   uint32_t Len = 0;
   std::vector<Job> Jobs;
+  std::vector<std::vector<size_t>> Chains;     // Each channel's jobs, in order.
+  std::vector<const ExtMemModel *> ChainLinks; // Links seen, in channel order.
   DmaStats Stats;
 };
 

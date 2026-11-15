@@ -57,6 +57,8 @@ public:
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
     PARAMETER(uint32_t, dma_queue_depth, 0,
               "Unfinished DMA transfers before a GO store waits (0: no limit)")
+    PARAMETER(uint32_t, dma_channels, 1,
+              "DMA channels: 1, or 2 for one per external memory link")
     PARAMETER(bool, host_boot, false,
               "Time the host's ITCM load before the core leaves reset")
     PARAMETER(bool, host_boot_data, false,

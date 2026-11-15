@@ -45,8 +45,11 @@ QSPI PSRAM. These are still open:
 - The controller's own latency and any pipeline stages on the route to the
   DTCM.
 - The controller FIFO depth and what a full FIFO does (`dma_queue_depth`).
-- Whether the DMA has one channel or one per memory. The model has one, so
-  DMA transfers to the two memories do not overlap.
+- Whether the DMA has one channel or one per memory. The default is one, so
+  DMA transfers to the two memories do not overlap; `dma_channels` 2 models
+  one per memory. The end-to-end firmware never has a flash transfer and a
+  RAM transfer in flight together, so a token 512 decode step takes the same
+  cycles either way.
 - What `dma_setup_cycles` (20) stands for now that each link has its own
   latency. It may count the same delay twice.
 - The firmware's memory map. It keeps the KV cache after the weights in one
