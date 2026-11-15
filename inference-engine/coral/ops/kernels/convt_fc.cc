@@ -20,6 +20,13 @@ using namespace ops;
 #ifndef NOUT
 #define NOUT 512
 #endif
+// -DNATIVE4=1: PROXY for native-int4 Zvt (k=8 per vtmm): the int8 mac4 runs
+// on the packed bytes (A = packed z pairs, B = packed weight k-pairs, mac4
+// layout), ceil(K/8) = 13 steps (K padded 100 -> 104), no unpack. DMA sizes
+// as int4. Real MACs = 2x reported useful_macs (incl. the 4 pad rows).
+#ifndef NATIVE4
+#define NATIVE4 0
+#endif
 #ifndef FUSED
 #define FUSED 1 // unpack int4 B rows straight into v16..v22 in the MAC loop
 #endif
@@ -33,7 +40,8 @@ constexpr uint32_t kOutBase = kRam;                  // layer 2 input
 static_assert(NZ % 4 == 0, "K steps");
 
 static uint8_t wpk[2][kGroupBytes] __attribute__((aligned(16)));
-#if !FUSED
+#if NATIVE4
+#elif !FUSED
 static int8_t w8[NZ * 64] __attribute__((aligned(16)));
 #else
 // Packed group layout: per k-quad, per accumulator g: 32 B = rows k0/k1
@@ -57,7 +65,7 @@ static void mac4_fused(const int8_t* a, const uint8_t* b, uint32_t steps) {
 }
 #endif
 static uint8_t zpk[64] __attribute__((aligned(16)));
-static int8_t z8[128 + 16] __attribute__((aligned(16)));
+[[maybe_unused]] static int8_t z8[128 + 16] __attribute__((aligned(16)));
 static uint8_t stage[2][48] __attribute__((aligned(16)));
 // Pixel i of a 4x4 map -> its byte in the padded plane.
 static const uint8_t kScatter[16] = {6,  7,  8,  9,  11, 12, 13, 14,
@@ -79,13 +87,18 @@ int main() {
     issue(0);
     dma(kRam + (6u << 20), addr(zpk), NZ / 2); // latent z, packed
     dma_wait();
+#if !NATIVE4
     unpack_i4_rows(zpk, z8, 64);               // z8[0..100) (row pair split)
+#endif
     const vuint8m1_t scatter = __riscv_vle8_v_u8m1(kScatter, 16);
     for (uint32_t grp = 0; grp < kGroups; ++grp) {
         dma_wait();
         if (grp + 1 < kGroups) issue(grp + 1);
         vtzero(true);
-#if FUSED
+#if NATIVE4
+        config_int8(1);
+        mac4(zpk, 1, wpk[grp & 1], (NZ + 7) / 8);
+#elif FUSED
         config_int8(1);
         mac4_fused(z8, wpk[grp & 1], NZ / 4);
 #else

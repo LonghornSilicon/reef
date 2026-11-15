@@ -52,6 +52,15 @@ using namespace ops;
 #ifndef TANH
 #define TANH 0
 #endif
+// -DNATIVE4=1: PROXY for hypothetical native-int4 Zvt (k=8 per vtmm, same
+// operand bytes and array time as int8). The int8 vtmm runs directly on the
+// packed bytes: no unpack anywhere, K/2 reduction steps (each packed row stands
+// for 2 int4 rows); A = packed weight k-pairs, B = packed channel-pair planes.
+// DMA sizes, epilogue and output are the int4 version's. Real MACs = 2x the
+// reported useful_macs.
+#ifndef NATIVE4
+#define NATIVE4 0
+#endif
 #ifndef FUSED
 #define FUSED 1 // int4 A rows unpacked straight into v8..v14 inside the MAC loop
 #endif
@@ -90,7 +99,7 @@ static int8_t wbuf[2][kChunkBytes] __attribute__((aligned(16)));
 static int8_t stage[16 * kStg] __attribute__((aligned(16)));
 #else
 static uint8_t wpk[2][kChunkBytes] __attribute__((aligned(16)));
-#if !FUSED
+#if !FUSED && !NATIVE4
 static int8_t w8[kKC * 16] __attribute__((aligned(16)));
 #endif
 static uint8_t stage[8 * kStg] __attribute__((aligned(16)));
@@ -107,7 +116,7 @@ static int8_t tanh_lut[256];
     "vle8.v v18, (%[t])\n\tadd %[t], %[t], %[bs]\n\tvle8.v v20, (%[t])\n\t"      \
     "add %[t], %[t], %[bs]\n\tvle8.v v22, (%[t])\n\t"                           \
     ".insn r 0x77, 0, 0x79, " #rd ", x16, x8\n\t"
-#if FUSED && !INT8
+#if FUSED && !INT8 && !NATIVE4
 // Packed k-quad (32 B): bytes 0-15 = rows k0 (low nibble) / k1 (high),
 // bytes 16-31 = rows k2 / k3. Two loads + six shifts give v8, v10, v12, v14.
 #define CT_A                                                                   \
@@ -249,14 +258,20 @@ int main() {
         }
         dma_wait();
 #else
+#if NATIVE4
+        uint8_t* packed = reinterpret_cast<uint8_t*>(act); // stays packed
+#else
         uint8_t* packed = reinterpret_cast<uint8_t*>(act) + CIN / 2 * kS;
+#endif
         for (uint32_t c = 0; c < CIN / 2; ++c) {
             dma(kInBase + c * kLin + p0, addr(packed + c * kS), span);
         }
         dma_wait();
+#if !NATIVE4
         for (uint32_t c = 0; c < CIN / 2; ++c) {
             unpack_i4_rows(packed + c * kS, act + 2 * c * kS, kS);
         }
+#endif
 #endif
         mark();
         for (uint32_t i = 0; i < kChunksPerGroup; ++i, ++flat) {
@@ -267,8 +282,17 @@ int main() {
             const uint32_t row0 = k.c * kKC; // within the 4*CIN block
             const uint32_t tap = row0 / CIN, c0 = row0 % CIN;
             const int32_t dy = tap_d(k.ry, tap / 2), dx = tap_d(k.rx, tap % 2);
+#if NATIVE4
+            // channel-pair planes, kS apart; K/2 packed rows
+            const int8_t* b = act + c0 / 2 * kS + 1 + (1 + dy) * int32_t(kPitch) + dx;
+            const int8_t* a = reinterpret_cast<const int8_t*>(wpk[flat & 1]);
+            constexpr uint32_t kSteps = kKC / 8;
+#else
             const int8_t* b = act + c0 * kS + 1 + (1 + dy) * int32_t(kPitch) + dx;
-#if INT8
+            constexpr uint32_t kSteps = kKC / 4;
+#endif
+#if NATIVE4
+#elif INT8
             const int8_t* a = wbuf[flat & 1];
 #elif FUSED
             const int8_t* a = reinterpret_cast<const int8_t*>(wpk[flat & 1]);
@@ -277,7 +301,7 @@ int main() {
             const int8_t* a = w8;
 #endif
             if (k.c == 0) vtzero(true);
-            mac_n(nacc, a, b, kKC / 4);
+            mac_n(nacc, a, b, kSteps);
             if (k.c == kChunksPerBlock - 1) {
                 epilogue(nacc, k.ob, k.rx);
                 if (k.rx == 1) write_out(k.ry, k.ob, p0, p0 + npos);

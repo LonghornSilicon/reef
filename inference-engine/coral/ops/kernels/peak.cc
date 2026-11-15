@@ -4,6 +4,9 @@
 // 4 accumulators), on a K x 64 weight block, tm = TM rows.
 //   -DTM=8|16       tile rows (pixels / tokens per tile)
 //   -DINT4=1        weights stored packed int4: unpack each 2 KB chunk first
+//   -DNATIVE4=1     proxy for a hypothetical native-int4 Zvt (8 int4 per PE
+//                   lane, k=8 per vtmm): the int8 loop on packed bytes, no
+//                   unpack, half the k-steps. Real MACs = 2x reported.
 #include "ops.hpp"
 
 using namespace ops;
@@ -14,7 +17,10 @@ using namespace ops;
 #ifndef INT4
 #define INT4 0
 #endif
-constexpr uint32_t kK = 512;        // reduction depth
+#ifndef NATIVE4
+#define NATIVE4 0
+#endif
+constexpr uint32_t kK = NATIVE4 ? 256 : 512; // k-steps x 4 (native int4: K=512 packed)
 constexpr uint32_t kRows = 32;      // weight rows per chunk (2 KB at int8)
 constexpr uint32_t kGroups = 8;     // 64-column groups: N = 512
 

@@ -11,6 +11,10 @@
 //                        0: the same kernel with int8 weights/acts (baseline)
 //   -DFUSED=1            int4 only: unpack weights straight into the B operand
 //                        registers inside the MAC loop (no DTCM round trip)
+//   -DNATIVE4=1          int4 only: PROXY for hypothetical native-int4 Zvt
+//                        (k=8 per vtmm, same operand bytes, same array time):
+//                        the int8 mac4 runs directly on the packed bytes, K/2
+//                        steps, no unpack. Real MACs = 2x reported useful MACs.
 //   -DMODE=0|1|2         epilogue: plain | GeLU | += residual
 //
 // int4 layout (row-pair nibble packing, ops.hpp):
@@ -43,6 +47,12 @@ using namespace ops;
 #ifndef INT4
 #define INT4 1
 #endif
+#ifndef NATIVE4
+#define NATIVE4 0
+#endif
+#if NATIVE4 && !INT4
+#error "NATIVE4 needs INT4=1"
+#endif
 #ifndef FUSED
 #define FUSED 0
 #endif
@@ -65,12 +75,13 @@ constexpr uint32_t kShift = INT4 ? 12 : 8; // placeholder requant scale
 static uint8_t act_in[kActBytes + 16];     // input activations (packed if int4)
 static uint8_t out[kOutBytes + 16];        // output (packed if int4)
 static uint8_t wdma[2][kChunkBytes + 256]; // DMA double buffer (+ bias trailer)
-#if INT4
+#if INT4 && !NATIVE4
 static int8_t act8[K * kT + 16];           // activations unpacked once per call
-#if !FUSED
+#endif
+#if INT4 && !NATIVE4 && !FUSED
 static int8_t wbuf[kRows * 64];            // one unpacked int8 weight chunk
 #endif
-#else
+#if !INT4
 static int8_t gelu_table[256];
 #endif
 
@@ -188,7 +199,10 @@ static void epilogue(uint32_t g, const int32_t* bias) {
 static void linear(uint32_t mat) {
     constexpr uint32_t total = kGroups * kChunks;
     issue(mat, 0);
-#if INT4
+#if NATIVE4
+    // Native int4 proxy: packed activations used as-is (K/2 rows of kT bytes).
+    const int8_t* act = reinterpret_cast<const int8_t*>(act_in);
+#elif INT4
     // Activations: unpacked once per call, reused by all N/64 column groups.
     for (uint32_t b = 0; b < K / 32; ++b) {
         unpack_i4_rows(act_in + b * 128, act8 + b * 256, 128);
@@ -203,7 +217,11 @@ static void linear(uint32_t mat) {
         const uint32_t chunk = i % kChunks;
         const uint8_t* buf = wdma[i & 1];
         if (chunk == 0) vtzero(true);
-#if INT4 && FUSED
+#if NATIVE4
+        // One packed 1 KB chunk = 16 rows of 64 B, each byte 2 k-values: 4 steps.
+        config_int8(TOKENS);
+        mac4(act + chunk * (kRows / 2) * kT, kT, buf, kRows / 8);
+#elif INT4 && FUSED
         mac4_i4(act + chunk * kRows * kT, buf);
 #else
 #if INT4

@@ -154,6 +154,56 @@ At fast, int4 helps only when fused (1.17× on fc1), and the naive unpack loses 
 
 An int4 KV cache halves the bytes per position: 16 heads × 32 dims × 2 (K and V) × 0.5 B = 512 B per layer per position, against 1 KB in int8. Attention at base is 99% PSRAM-bound, so this should roughly halve it. Estimated, not run: layer 0 drops from 4.7 M to about 2.4 M cycles at base. That would take the int4 decode step to about 43 M cycles, roughly 1.15 tok/s at base, before the unpack cost. That unpack is per use, since each position is read once per token.
 
+## 3. Native int4 (estimated, proxy)
+
+**Assumption.** A hypothetical Zvt int4 type in which each PE lane takes 8 int4 values per cycle, for a peak of 512 MAC/cycle. A native vtmm reads the same 16-byte operand registers and occupies the array for the same time as an int8 vtmm, but covers k = 8 instead of k = 4. There is no unpack.
+
+**Proxy.** reef-perf cannot model a new type, so I emulated it with `llm_linear_i4.cc -DINT4=1 -DNATIVE4=1`:
+- The int8 `mac4` runs directly on the packed weight and activation bytes, as if they were int8.
+- It takes 4 steps per 1 KB chunk, which is K/2 steps over the reduction.
+- DMA is int4-packed, and the epilogue and packed output are the same as in i4f.
+- Real MACs = 2 × the useful MACs reef-perf reports.
+
+The cycles below are measured on the proxy. What they represent is an estimate.
+
+| Shape | tm | base i8 / i4f / **n4** | fast i8 / i4f / **n4** | ideal i8 / i4f / **n4** | Real MAC/c, ideal (n4) | n4 vs i8 (base / fast / ideal) |
+|---|---:|---|---|---|---:|---|
+| fc1 512→2048 | 1 | 1,190,449 / 663,546 / **650,687** | 693,809 / 594,969 / **400,319** | 650,382 / 594,969 / **357,819** | 2.93 | 1.83 / 1.73 / 1.82× |
+| fc1 512→2048 | 8 | 1,193,521 / 665,340 / **652,255** | 703,217 / 631,323 / **401,887** | 698,574 / 631,323 / **382,427** | 21.9 | 1.83 / 1.75 / 1.83× |
+| qkv 3×512² | 1 | 872,043 / 491,772 / **479,238** | 497,259 / 439,569 / **290,310** | 462,999 / 439,569 / **257,637** | 3.05 | 1.82 / 1.71 / 1.80× |
+| qkv 3×512² | 8 | 874,371 / 493,500 / **480,390** | 504,795 / 467,220 / **291,462** | 499,176 / 467,220 / **275,349** | 22.9 | 1.82 / 1.73 / 1.81× |
+| fc2 2048→512 | 1 | 1,132,503 / 612,106 / **605,751** | 614,359 / 546,193 / **346,167** | 572,218 / 546,193 / **304,437** | 3.44 | 1.87 / 1.77 / 1.88× |
+| fc2 2048→512 | 8 | 1,133,270 / 612,172 / **606,143** | 623,230 / 582,547 / **346,559** | 621,370 / 582,547 / **329,020** | 25.5 | 1.87 / 1.80 / 1.89× |
+| attn_out 512² | 1 | 300,375 / 169,258 / **165,687** | 175,447 / 152,113 / **102,711** | 164,026 / 152,113 / **91,699** | 2.86 | 1.81 / 1.71 / 1.79× |
+| attn_out 512² | 8 | 301,142 / 169,708 / **166,079** | 178,174 / 161,203 / **103,103** | 176,314 / 161,203 / **97,851** | 21.4 | 1.81 / 1.73 / 1.80× |
+
+**What native int4 adds:**
+- **At base** it is still flash-bound (85–93% busy). Native int4 adds only about 2% over the fused unpack (i4f). The byte halving is the whole win, and i4f already gets it.
+- **At fast and ideal** the gain is real. Native int4 is 1.5–1.8× faster than i4f, because the LSU work per MAC halves. The kernel is LSU-bound again (65–79%).
+- **Utilization at ideal** is 0.6% (tm = 1) and 4.3–5% (tm = 8) of the 512 peak.
+- **Fast is now flash-bound:** at 2 B/cycle, n4 is 1.1–1.15× above ideal.
+
+### Whole decode step at context 1024, native int4 (estimated)
+
+**How the estimate is built:**
+- The linears use the measured n4 proxy, tm = 1.
+- `lm_head` is the firmware's cycles × the fc1 n4/i8 ratio for each config: 15.1 M / 8.6 M / 7.8 M cycles.
+- Embed and layernorm stay int8, as measured.
+- **int4 KV with native-int4 attention (estimated).** The attention MAC loops are about 14% of the per-block ideal cycles (about 160 of about 1,150 cycles per head-block). Native int4 halves them, so attention compute ≈ 0.93 × the ideal measured. The memory stall (config − ideal) halves with the KV bytes. This gives:
+  - L0: 2.88 M / 1.26 M / 1.11 M cycles
+  - L1: 0.78 M / 0.35 M / 0.30 M cycles
+
+  (base / fast / ideal.)
+
+| Variant | base tok/s | fast tok/s | ideal tok/s | Cycles (base / fast / ideal) |
+|---|---:|---:|---:|---|
+| int8 firmware (measured) | 0.62 | 1.26 | 1.36 | 80.8 M / 39.6 M / 36.6 M |
+| int4 W, fused unpack (est) | 0.90 | 1.43 | 1.49 | 55.6 M / 34.9 M / 33.6 M |
+| native int4 linears + lm_head, int8 KV (est) | 0.91 | 1.92 | 2.21 | 55.0 M / 26.0 M / 22.6 M |
+| **native int4 + int4 KV (est)** | **1.10** | **2.02** | **2.25** | 45.6 M / 24.8 M / 22.2 M |
+
+With native int4 and int4 KV, the base step splits about evenly: linears 33%, attention 32%, lm_head 33%. At base, flash and PSRAM bandwidth decide the result. Native int4 compute pays off only once the links are at least at fast.
+
 ## Design notes
 
 - **Tiling (same as `coral/kernels/linear.cc`):**
@@ -183,4 +233,5 @@ An int4 KV cache halves the bytes per position: 16 heads × 32 dims × 2 (K and 
 - **Pool busy %** covers the whole run, including boot. For tiny ROIs (embed, layernorm) it is above 100% and meaningless. Layernorm always processes all 8 token columns, so its decode and prefill numbers are equal.
 - **Attention MACs** are the matrix unit's useful MACs, which include the masked lanes of the tail block.
 - **The int4 kernel** treats V like Q and K: feature-major, not token-major as in the firmware's `kValueRows`. Its requant shift and GeLU are placeholders. reef-perf checks timing only, so no outputs were verified.
+- **The native int4 numbers come from a proxy.** The proxy runs real int8 vtmm on packed bytes, which is the same operand traffic and array time as the assumed native op. The attention and lm_head numbers there are scaled estimates.
 - **Estimates are marked:** the int4 `lm_head` (ratio-scaled), the int4 whole step, and the int4 KV.

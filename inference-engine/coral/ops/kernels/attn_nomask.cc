@@ -72,6 +72,15 @@ using namespace ops;
 #ifndef EXP2
 #define EXP2 0 // 1: 16-entry in-register LUT (vrgather) + shift (slower here)
 #endif
+#ifndef NATIVE4
+#define NATIVE4 0 // proxy for a native int4 Zvt type (k=8 per vtmm, 512 MAC/cyc)
+#endif
+#ifndef PINT4
+#define PINT4 1 // with NATIVE4: P quantized to u4 (0..15) so PV is int4 x int4 too
+#endif
+#if NATIVE4 && INT8
+#error "NATIVE4 is an int4 mode"
+#endif
 #ifndef SSHIFT
 #define SSHIFT 4 // int32 score -> int8 logit (softmax scale folded in)
 #endif
@@ -105,7 +114,7 @@ constexpr uint32_t cmin(uint32_t a, uint32_t b) { return a < b ? a : b; }
 alignas(64) static int8_t sp[kKC * 16]; // S (int8 logits) then P, [key][query]
 #if INT8
 static int8_t* q8; // Q^T tile, [dim][query]: the current qbuf
-#else
+#elif !NATIVE4
 alignas(64) static int8_t q8[kDK * 16]; // Q^T tile, [dim][query]
 #endif
 alignas(64) static uint8_t qbuf[2][kQTileBytes]; // Q prefetch (double buffer)
@@ -255,8 +264,20 @@ static inline vuint32m4_t softmax_chunk(vint8m1_t& m_io, vuint32m4_t& alpha_out)
 #else
         const vuint8m4_t p = __riscv_vluxei8_v_u8m4(exp_table, gap, 64);
 #endif
+#if NATIVE4 && PINT4
+        // P -> u4 (0..15); keys (4i, 4i+1) and (4i+2, 4i+3) packed per byte,
+        // written in place at row pair 2i, 2i+1 ([keys/2][16]).
+        const vuint8m4_t p4 = __riscv_vsrl_vx_u8m4(p, 3, 64);
+        sum = __riscv_vwaddu_wv_u16m8(sum, p4, 64);
+        uint8_t* prow = reinterpret_cast<uint8_t*>(sp) + 32 * i;
+        __riscv_vse8_v_u8m1(prow, __riscv_vor_vv_u8m1(__riscv_vget_v_u8m4_u8m1(p4, 0),
+            __riscv_vsll_vx_u8m1(__riscv_vget_v_u8m4_u8m1(p4, 1), 4, 16), 16), 16);
+        __riscv_vse8_v_u8m1(prow + 16, __riscv_vor_vv_u8m1(__riscv_vget_v_u8m4_u8m1(p4, 2),
+            __riscv_vsll_vx_u8m1(__riscv_vget_v_u8m4_u8m1(p4, 3), 4, 16), 16), 16);
+#else
         sum = __riscv_vwaddu_wv_u16m8(sum, p, 64);
         __riscv_vse8_v_u8m4(reinterpret_cast<uint8_t*>(row), p, 64);
+#endif
     }
     return __riscv_vadd_vv_u32m4(
         __riscv_vwaddu_vv_u32m4(__riscv_vget_v_u16m8_u16m2(sum, 0), __riscv_vget_v_u16m8_u16m2(sum, 1), 16),
@@ -326,6 +347,9 @@ int main() {
             dma_wait();
 #if INT8
             q8 = reinterpret_cast<int8_t*>(qbuf[qt & 1]);
+#elif NATIVE4
+            // Native int4: Q^T packed [DK/2][16] is the A operand as is.
+            const auto* qa = reinterpret_cast<const int8_t*>(qbuf[qt & 1]);
 #else
             unpack_i4_rows(qbuf[qt & 1], q8, kQTileBytes);
 #endif
@@ -351,7 +375,10 @@ int main() {
                     if (g == kKG) {
                         vtzero(true);
                         config_int8(16);
-#if FUSED
+#if NATIVE4
+                        // PROXY: packed bytes fed as int8, DK/8 steps = k=8 per vtmm.
+                        mac4(qa, 16, k8, kDK / 8);
+#elif FUSED
                         mac4_p4(q8, 16, k8, kDK / 4);
 #else
                         mac4(q8, 16, k8, kDK / 4);
@@ -362,7 +389,9 @@ int main() {
                         for (uint32_t b = 0; b < g / 16; ++b) {
                             vtzero();
                             config_int8(16);
-#if FUSED
+#if NATIVE4
+                            mac<true>(qa, 16, k8 + 16 * b, g, kDK / 8); // [DK/2][g]
+#elif FUSED
                             mac1_p4(q8, 16, k8 + b * 16 * kKB, kDK / 4); // 16-key blocks
 #else
                             mac<true>(q8, 16, k8 + 16 * b, g, kDK / 4);
@@ -388,7 +417,10 @@ int main() {
 #endif
                     mark(); // V wait + unpack
                     config_int8(16);
-#if FUSED
+#if NATIVE4 && PINT4
+                    // PROXY: P packed u4 [keys/2][16], V packed [g/2][64]: g/8 steps.
+                    mac4(sp + (k - c0) * 8, 16, v8, g / 8);
+#elif FUSED
                     mac4_p4(sp + (k - c0) * 16, 16, v8, g / 4);
 #else
                     mac4(sp + (k - c0) * 16, 16, v8, g / 4);

@@ -61,6 +61,12 @@ using namespace ops;
 #ifndef RELU
 #define RELU 1
 #endif
+#ifndef NATIVE4
+// Proxy for hypothetical native int4 Zvt (k = 8 per vtmm, no unpack): runs
+// the int8 MAC body directly on the packed bytes over K/2 steps. Real MACs =
+// 2 x reef-perf's useful_macs. DMA sizes, epilogue and output stay int4.
+#define NATIVE4 0
+#endif
 #ifndef INT8
 #define INT8 0
 #endif
@@ -104,6 +110,8 @@ constexpr uint32_t kOutPlanes = kCout / kChPerPlane;
 constexpr uint32_t kStepBytes = INT8 ? 128 : 64;
 constexpr uint32_t kKc = (kCin / 4 * kStepBytes <= 2048) ? kCin : 2048 / kStepBytes * 4;
 static_assert(kCin % kKc == 0, "K chunking");
+static_assert(!(NATIVE4 && INT8), "NATIVE4 is an int4 variant");
+static_assert(!NATIVE4 || kKc % 16 == 0, "NATIVE4 needs an even number of k=8 steps");
 constexpr uint32_t kChunk = kKc / 4 * kStepBytes;
 constexpr uint32_t kKChunks = kCin / kKc;
 constexpr uint32_t kOcBlocks = kCout / 32;
@@ -216,7 +224,7 @@ E2E_INLINE Stream out_stream(uint32_t g, const uint8_t* buf) {
 //    other set's vtmms. 2 k-steps per iteration; steps must be even. The
 //    loop reads one k-step past the end (guard bytes after the buffers).
 // mt0 = t0 x g0, mt4 = t0 x g1, mt8 = t1 x g0, mt12 = t1 x g1.
-#if INT8
+#if INT8 || NATIVE4 // NATIVE4: the int8 body on packed bytes (no unpack), 8 channels per step
 #define MAC22_BODY \
         "vsetvli x0, %[n64], e8, m4, ta, ma\n\t" \
         "vle8.v v16, (%[b])\n\t" \
@@ -638,7 +646,7 @@ int main() {
                     const uint8_t* a = strip + gi * 32 + tap_off[t] +
                                        kc * (kKc / kChPerPlane) * kPlaneStride;
 #if ABL != 2 && ABL != 3
-                    mac22(a, kPlaneStride, b, kKc / 4);
+                    mac22(a, kPlaneStride, b, NATIVE4 ? kKc / 8 : kKc / 4);
 #else
                     (void)a; (void)b;
 #endif

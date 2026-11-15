@@ -158,3 +158,52 @@ MAC utilization is 16.6 / 256 = 6.5% overall, and about 12% during the matrix ph
 - N=1600 2-head figures are 2x a 1-head run (estimated).
 - The resident variant's K/V load per head is exposed under base (166K cycles). Splitting it so QKᵀ waits only on K would hide part of it. Not done.
 - Phase marks add about 3 csrr per group (negligible).
+
+## Native int4 (estimated, proxy)
+
+**Hypothetical hardware.** Zvt gains an int4 type: each PE takes one 32-bit word, which is 8 int4 values per cycle, for a **512 MAC/cycle** peak. A native-int4 vtmm reads the same 16-byte operand registers and occupies the array for the same time as an int8 vtmm, but covers k=8. There is no unpack.
+
+**How the proxy works (`-DNATIVE4=1`).** reef-perf cannot model a new type, so the kernel emulates it:
+- The QKᵀ and PV loops run plain `mac4` / `mac` directly on the **packed** bytes as if they were int8, with half the k-steps:
+  - QKᵀ: DK/8 steps, reducing over the key dim. Q packed [DK/2][16] is the A operand as is (no Q unpack). K is packed [DK/2][g].
+  - PV: g/8 steps, reducing over the keys. V is packed [g/2][64].
+- DMA bytes stay int4-packed and are the same as in the int4 runs above. The softmax/vector path is unchanged.
+- Real MACs = 2x the useful_macs that reef-perf reports. All MAC/cycle figures below use real MACs.
+
+**Choice of P: P is int4 (u4, 0..15) in the main proxy.**
+- A mixed int8 P x int4 V product would still be k=4, so PV would gain nothing.
+- The softmax therefore requantizes P to 4 bits (`p >> 3`) and packs pairs of keys per byte, in place. This costs +31K cycles over the int8-P softmax (389K vs 358K).
+- 16 probability levels is coarse. Accuracy is unverified.
+- I also ran `-DPINT4=0`: P stays int8, so only QKᵀ is native, and PV uses the fused int4 V unpack at the int8 rate.
+
+| Variant (all native-int4 proxy) | base | fast | ideal | real MAC/cyc (ideal) | vs. int4 today (ideal) |
+|---|---:|---:|---:|---:|---:|
+| **N=400 resident, P u4** | **1,541,209** | **1,423,705** | **1,375,288** | 22.3 | 1.35x (1.85M) |
+| N=400 resident, P int8 (QKᵀ native only) | 1,838,761 | 1,721,257 | 1,672,837 | 18.4 | 1.11x |
+| N=400 streamed, P u4 | 4,930,646 | 2,038,846 | 1,409,593 | 21.8 | 1.33x (base 1.01x) |
+| N=1600 streamed, P u4, 1 head | 38,102,172 | 15,597,572 | 11,091,404 | 22.2 | 1.34x (base 1.00x) |
+| N=1600, x2 heads (est.) | 76.2M | 31.2M | 22.2M | | |
+
+N=400 resident at 50 MHz: 30.8 ms (base), 27.5 ms (ideal).
+
+**Phase split, N=400 resident, P u4, ideal** (today's int4 numbers in brackets):
+
+| Phase | Cycles | % | Notes |
+|---|---:|---:|---|
+| QKᵀ mac | 191,300 (359,100) | 13.9 (19.4) | 53.5 real MAC/cyc |
+| PV mac | 335,350 (663,500) | 24.4 (35.9) | 61.1 real MAC/cyc |
+| **Matrix total** | **526,650** | **38.3 (55.3)** |
+| S readout + requant | 322,550 | 23.5 (17.4) |
+| Softmax (incl. P→u4 pack) | 389,000 | 28.3 (19.4) |
+| Epilogue | 111,400 | 8.1 (6.0) |
+| **Vector total** | **822,950** | **59.9 (42.8)** |
+| Q / DMA waits | about 25,600 | 1.9 |
+
+N=1600 under ideal has the same shape: matrix 38%, softmax 29%, readout 23%, rescale 4%.
+
+**Takeaways:**
+- Native int4 halves the matrix phases: the LSU-bound mac loops issue half the vtmm and half the operand loads. The whole kernel gains only **1.35x**, because 60% of the time is now vector work on the softmax path (readout, exp LUT, P pack, epilogue).
+- The ~0.82M-cycle vector floor (Amdahl) caps any further matrix speedup at about 1.65x over today.
+- With streaming under base, native int4 gains nothing: the PSRAM link (87–88% busy) still sets the time, since the bytes are unchanged.
+- The array sits at about 4% busy against the 512-MAC peak. The next lever is the vector path (vtmv readout, gather LUT), not the PE array.
+- **Caveat:** the proxy assumes the native vtmm takes the same issue time and operand loads as an int8 vtmm, as specified. The u4 P quantization and the signed/unsigned mix are timing stand-ins only.

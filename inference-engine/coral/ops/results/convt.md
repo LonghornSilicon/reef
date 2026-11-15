@@ -39,6 +39,34 @@ Machine balance, from the ideal useful MAC/c divided by link B/c. Base flash (1 
 
 The fused unpack also halves L1: 813,534 → 485,278 base and 770,788 → 417,387 ideal. int4 halves the bytes moved, and with the fused unpack it is 16% faster than int8 at base and 3.5% faster at ideal, because the A operand needs 2 loads instead of 4.
 
+## Native int4 (estimated, proxy)
+
+**Hypothetical hardware.** Zvt gets an int4 type: 8 int4 values per PE lane per cycle, so the peak is 512 MAC/cycle. A native-int4 `vtmm` reads the same 16-byte operand registers and holds the array for the same time as an int8 `vtmm`, but covers k=8 instead of k=4. There is no unpack.
+
+**Proxy method (`-DNATIVE4=1` in `convt.cc` and `convt_fc.cc`).** reef-perf cannot model a new type, so I emulated it:
+- The int8 MAC path runs directly on the PACKED bytes, with no unpack anywhere: A is the packed weight k-pairs, and B is the packed channel-pair activation planes (or packed z in L1).
+- The reduction runs K/2 steps.
+- DMA byte counts (int4-packed), the epilogue and the output are unchanged from the int4 version.
+- Real MACs = 2× the `useful_macs` reef-perf reports.
+- L1 pads K from 100 to 104 (13 steps).
+- Builds: `build/ops/convt/n4_l{1..5}`.
+
+| Layer | native-int4 base / fast / ideal (cycles) | real MAC/c ideal, useful (computed) | vs fused int4, base / fast / ideal | Bound |
+|---|---|---:|---|---|
+| L1 GEMV | 483,847 / 253,104 / 244,252 | 3.4 (3.5) | 1.00× / 1.68× / 1.71× | Flash: 87% busy at base, 85% at fast |
+| L2 512→256 | 1,692,305 / 1,632,401 / 1,590,859 | 21.1 (42.2) | 1.78× / 1.81× / 1.83× | LSU (compute); flash 66% busy at base |
+| L3 256→128 | 1,182,105 / 1,053,560 / 1,005,413 | 33.4 (41.7) | 1.66× / 1.77× / 1.81× | LSU; flash 47% at base |
+| L4 128→64 | 1,159,178 / 966,418 / 886,168 | 37.9 (40.2) | 1.56× / 1.68× / 1.76× | LSU; base +31% (flash 30%, PSRAM 24%) |
+| L5 64→3 | 764,074 / 526,826 / 423,489 | 7.4 (40.9) | 1.49× / 1.71× / 1.88× | PSRAM at base (46% busy), plus lane under-use |
+| **Generator** | **5,281,509 / 4,432,309 / 4,150,181** | 25.2 (whole model, ideal) | **1.59× / 1.75× / 1.81×** | |
+
+**Whole generator, native int4:** 105.6 ms, or 9.47 img/s (base); 88.6 ms, or 11.28 img/s (fast); 83.0 ms, or 12.05 img/s (ideal). Fused int4 on today's hardware gives 5.95 / 6.44 / 6.66 img/s.
+
+**Takeaways.**
+- At the ideal config, native int4 is close to 2× (1.76–1.88×) on the conv layers. The k=8 `vtmm` halves both the operand loads and the matrix instructions, and the activation unpack pass goes away.
+- The machine is still LSU-bound: about 40 computed MAC/c, which is 8% of the 512 peak.
+- At base, the links eat into the gain. L1 gains nothing (it is purely a flash weight stream), and L4 and L5 expose the unhidden activation loads. The memory system, not the array, sets the base-config ceiling.
+
 ## Design notes
 
 - **Phase decomposition (s2, k4, p1).** Output (2m+ry, 2n+rx) uses taps ky∈{1,3} (dy 0, −1) when ry=0 and ky∈{0,2} (dy +1, 0) when ry=1, and likewise in x. Each phase is a 2×2 conv with K = 4·Cin.
@@ -55,8 +83,8 @@ The fused unpack also halves L1: 813,534 → 485,278 base and 770,788 → 417,38
   - Activations: channel-pair planes, unpacked once per group with `unpack_i4_rows`, in place.
   - Outputs: `pack_i4` of channel pairs.
 - **Files.**
-  - `coral/ops/kernels/convt.cc`: L2–L5; `-DCIN -DCOUT -DHIN -DTANH -DINT8 -DFUSED`.
-  - `coral/ops/kernels/convt_fc.cc`: L1; `-DFUSED`.
+  - `coral/ops/kernels/convt.cc`: L2–L5; `-DCIN -DCOUT -DHIN -DTANH -DINT8 -DFUSED -DNATIVE4`.
+  - `coral/ops/kernels/convt_fc.cc`: L1; `-DFUSED -DNATIVE4`.
   - Builds: `build/ops/convt/{l1f,l2,l3,l4f,l5,l4_i8,l4_unfused,l1_unfused,*_unfused}`.
 
 ## Caveats and known inefficiencies (gains marked estimated were not run)

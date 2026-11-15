@@ -83,3 +83,22 @@ The matrix array is 20–27% busy, and its useful-MAC utilization is 22–24% of
 - layer4 (512 ch at 7×7) does not fit the current DTCM plan: output buffers are 2 × 8 KB. Its numbers are estimated. Running it needs a single output buffer plus a narrower strip.
 - About 13% of S1's ideal time is DMA and loop bookkeeping: a DMA issue costs about 16 cycles and a `dma_wait` about 13 cycles, even when idle. The epilogue is another ~8%.
 - `-DABL=1/2/3` (no epilogue / no MAC / neither) are profiling switches only.
+
+## Native int4 (estimated, proxy)
+
+Hypothesis: Zvt gains an int4 type, so one vtmm covers k = 8 using the same 16-byte registers and the same array time. Peak becomes 512 MAC/cycle and there is no unpack. reef-perf cannot model the new type, so `-DNATIVE4=1` runs the int8 MAC body directly on the packed bytes for K/2 steps. Each step does four 32-byte A loads (pair planes), two 64-byte B loads and 4 vtmm, with no unpack ops. DMA sizes, the int4 epilogue and the packed output stay the same. Real MACs = 2 × reef-perf's useful_macs (for example, S1: 2 × 63.7 M = 127.4 M executed). The builds are in `build/ops/conv2d/s*_n4/`.
+
+| Shape | Native-int4 cycles base / fast / ideal | Real MAC/cycle, ideal (useful) | vs fused int4 (ideal) | vs int8 (ideal) | Bound (base) | Top busy units (ideal) |
+|---|---|---:|---:|---:|---|---|
+| S1 3×3 128→128 @28 | 2,765,606 / 1,700,055 / 1,681,491 | **68.8** | 1.19× (57.6) | 1.89× (36.4) | flash (74%), 1.64× ideal | lsu 88%, dtcm 24%, array 15% |
+| S2 3×3 64→64 @56 | 2,201,476 / 2,176,068 / 2,160,318 | 53.5 | 1.13× (47.4) | — | compute (LSU), 1.02× | lsu 84%, dtcm 23%, array 11% |
+| S3 1×1 64→64 @80 | 2,066,773 / 1,260,072 / 1,240,098 | 21.1 | 1.05× (20.1) | — | PSRAM (89.5%), 1.67× | lsu 57%, alu 20% (epilogue) |
+| S4 3×3 s2 64→128 @56 | 2,118,611 / 1,263,368 / 1,083,295 | 53.4 | 1.13× (47.2) | — | flash 48% + PSRAM 37%, 1.96× | lsu 84%, dtcm 20%, array 11% |
+| S5 3×3 256→256 @14 | 2,570,654 / 1,638,346 / 1,582,148 | **73.1** | 1.21× (60.2) | — | flash (83%), 1.62× | lsu 90%, dtcm 25%, array 16% |
+
+S1 with a 16-entry ROB: 1,564,481 cycles = 73.9 MAC/cycle.
+
+**Why the gain is only 5–21%.** Native int4 doubles the array's peak, but the array was already only 15–25% busy. The binding unit is still the LSU, and per real MAC it loads exactly the same bytes as the fused-unpack kernel: both bring packed int4 into the registers. Native int4 does halve the vtmm count, and it removes the 8 unpack ops plus the extra ROB pressure. That gives +19–21% on large-K 3×3 layers, +13% at Cin = 64, and +5% on 1×1, which stays epilogue-bound. Base gains almost nothing on flash- or PSRAM-bound shapes, because external bytes do not change. So the int8→int4 step is worth about 1.6–2× and mostly comes from packing (bytes). Native int4 MACs are worth another ~1.2×. More would need a faster operand path (LSU) or more operand reuse per load.
+
+**ResNet-18 convs, native int4 (estimated).** Each measured shape is replaced by its native run. The estimated layers are scaled by their class's native/fused ratio: stem ÷1.13 (S4), layer3.0 and layer4 ÷1.21 (S5), downsamples ÷1.05 (S3). Base is held at the fused value wherever that layer is flash-bound.
+**Ideal: 33.1 M cycles ≈ 662 ms at 50 MHz (54.8 MAC/cycle). Base: 44.4 M cycles ≈ 888 ms (40.8 MAC/cycle).** For comparison, fused int4 is 38.6 M / 46.4 M cycles: native int4 saves 14% at ideal and 4% at base.
