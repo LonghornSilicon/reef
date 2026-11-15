@@ -105,6 +105,11 @@ E2E_INLINE void row(const uint8_t* a8, const uint8_t* b8, const uint8_t* c8, uin
     VI pr, pl, er, el, orr, ol;
     pl = el = ol = V(vmv_v_x_,i8)(0, vl);
     column(a, b, c, 0, vl, pr, pl); // slot pixel 0: left halo / pad
+#ifdef UNROLL
+#define PRAGMA_(x) _Pragma(#x)
+#define PRAGMA(x) PRAGMA_(x)
+    PRAGMA(GCC unroll UNROLL)
+#endif
     for (uint32_t x = 0; x < OWT; ++x) {
         const uint32_t p = (2 * x + 1) * kPB;
         column(a, b, c, p, vl, er, el);
