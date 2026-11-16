@@ -60,6 +60,12 @@ top:
         # fmadd.s and fadd.s are checked; divide and square root are not.
         # M3: 3 (B11, unmeasured there)
         fpu_latency: 2
+        # C7b. MEASURED after the fact (the predictions were 12):
+        # pinned/fdiv_indep and pinned/fsqrt_chain take 13 cycles per
+        # operation. The divider is data-dependent: pinned/fdiv_chain, whose
+        # operands change, takes 18, which this does not model. M3: 12, 12
+        fdiv_latency: 13
+        fdiv_occupancy: 13
     rob:
       params:
         # C1. RTL: Parameters.scala:141 retirementBufferSize = 16. M3: 8

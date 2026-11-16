@@ -236,6 +236,34 @@ v5, v6, v7 takes 13, 13, 14, 15 cycles on the RTL). The floor of 2 is
 observed, not explained; it may be the reader's uop waiting behind the
 move's four uops in the shared RVV dispatch.
 
+## Coverage
+
+`microbenchmarks/pinned/` holds 31 programs written for behavior no earlier
+program exercised, each with the model's prediction recorded before its RTL
+run (`heldout_predictions.csv` there; committed in `caba13e`, RTL numbers a
+commit later). 25 of the 31 predictions were exact. The six that were not:
+
+| Program | RTL | Predicted | What it shows |
+| --- | ---: | ---: | --- |
+| `fetch_mispredict_rob` | 17 | 28 | a mispredict with the retirement buffer full. Not explained: the waveform converter aborts on this trace |
+| `fcvt_chain` | 48 | 17 | `fcvt` between an x and an f register takes 6 cycles, not the FPU's 2 |
+| `fdiv_chain` | 144 | 96 | 18 cycles per divide: the FP divider's time depends on its operands |
+| `fdiv_indep`, `fsqrt_chain` | 104 | 96 | 13 cycles per operation, not 12. Now set (C7b), after the fact |
+| `flw_fsw` | 57 | 49 | an `fsw` of a just-loaded f register is a cycle later |
+
+The first four stay as known gaps in `test_pinned_lsu.py`. What the other 25
+cover and confirm: a loop longer than the instruction buffer, jump targets
+in the middle of a line, a taken jump in every line, a mispredict that waits
+for its branch to dispatch; masked and indexed accesses, accesses that cross
+a line, e16 and e32 widths, a short `vl`, scalar and vector accesses
+interleaved; `fmul`, an FP result feeding a vector op; `vsext.vf4`, `vid`,
+`viota`, `vfsqrt`, a masked chain, a reduction through `vmv.x.s`, more uops
+than the vector ROB holds; MACs with vector adds, operand loads with MACs,
+tile stores with vector loads.
+
+Still not covered: the 4 large Coral kernels (no highmem verification build)
+and the Zvt firmware kernels (they need a variant without the DMA).
+
 ## Audit against the goal (2026-11-15)
 
 The goal: each switch is a piece of the RTL's behavior, read from the source

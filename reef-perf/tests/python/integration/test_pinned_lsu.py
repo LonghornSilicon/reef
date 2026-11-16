@@ -20,8 +20,18 @@ SUITES = ("lsu", "pinned")
 TOLERANCE = 0.02
 """Allowed relative error in cycles per loop iteration."""
 
-KNOWN_GAP: dict[str, str] = {}
-"""Programs with a known error, and why. None at present."""
+KNOWN_GAP = {
+    "pinned/fdiv_chain": "core: the FP divider's time depends on its operands "
+    "(18 cycles per divide here, 13 in fdiv_indep)",
+    "pinned/fcvt_chain": "core: fcvt between an x and an f register takes 6 "
+    "cycles on the RTL, 2 in the model",
+    "pinned/flw_fsw": "core: an fsw of a just-loaded f register is a cycle "
+    "later on the RTL (7.1 cycles per pair against 6.1)",
+    "pinned/fetch_mispredict_rob": "frontend or core: a mispredict with the "
+    "retirement buffer full takes 17 cycles on the RTL, 28 in the model; no "
+    "waveform yet (fst2vcd aborts on this trace)",
+}
+"""Programs with a known error, and why (docs/pinned.md, "Coverage")."""
 
 
 def _rtl() -> dict[str, list[tuple[int, int, int]]]:
