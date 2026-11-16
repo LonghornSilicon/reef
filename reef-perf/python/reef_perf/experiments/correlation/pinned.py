@@ -18,7 +18,6 @@ import argparse
 import csv
 import json
 import os
-import warnings
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
@@ -38,23 +37,21 @@ PINNED_BINARY = "reef_perf_pinned"
 def find_pinned_binary() -> Path:
     """Locate reef_perf_pinned, the simulator for the pinned config.
 
-    Falls back to reef_perf, with a warning, where it is not built (no
-    pinned Spike installed). The two give identical results on every
-    program today; the fallback keeps the pinned tests running there.
-
     Returns:
         Path to the executable.
+
+    Raises:
+        FileNotFoundError: If it is not built. coral_pinned.yaml has Spike
+            execute Zvt, which only this binary's Spike can.
     """
     try:
         return find_binary(PINNED_BINARY)
-    except FileNotFoundError:
-        warnings.warn(
-            f"{PINNED_BINARY} is not built; running the pinned config on "
-            "reef_perf (M3's Spike). Build the pinned Spike with "
-            "scripts/build_deps.sh build/deps spike-pinned.",
-            stacklevel=2,
-        )
-        return find_binary()
+    except FileNotFoundError as error:
+        raise FileNotFoundError(
+            f"{PINNED_BINARY} is not built: install the pinned Spike "
+            "(scripts/build_deps.sh build/deps spike-pinned, inside Docker) "
+            "and rebuild"
+        ) from error
 
 
 KERNEL_DIR = MODULE_ROOT / "kernel_correlation"

@@ -25,18 +25,39 @@ functional simulators CoralNPU runs in lockstep with this RTL (with MPACT,
 `m3_vme.yaml` and the M3 golden cannot be affected.
 
 `experiments/correlation/pinned.py`, the pinned golden, `test_pinned_lsu.py`
-and the pinned matrix gate run `reef_perf_pinned` (`find_pinned_binary()`).
-Where it is not built they fall back to `reef_perf` with a warning. To build
+and the pinned matrix gate run `reef_perf_pinned` (`find_pinned_binary()`),
+and fail if it is not built. To build
 it in the current image: `bash scripts/build_deps.sh build/deps spike-pinned`
 inside Docker, then reconfigure. The Dockerfile now installs it in the image
 as well (`/opt/reef-perf/spike-pinned`).
 
-Zvt instructions are still executed by reef-perf's own layer
-(`frontend/Zvt.cpp`), ahead of Spike, as before. On all 267 runs of the
-pinned config (suites, kernels, the LSU and coverage probes at two loop
-counts, the 44 matrix programs at two loop counts) the two simulators give
-identical instruction counts and cycles. Next is letting the pinned Spike
-execute Zvt itself, which also computes tile contents.
+Spike executes every instruction when it is fetched, before the timing
+model times it (execute-at-fetch), in both simulators.
+
+**Zvt.** In `reef_perf_pinned` Spike executes Zvt too (`zvt_in_spike`, X6),
+tile contents included. Its ISA string is CoralNPU's co-simulation string
+(`sw/coralnpu_sim/spike_simulator.h`) without the placeholder RoCC extension
+`xdummy`; it adds BF16 and Zvt v0.4. reef-perf's Zvt layer
+(`frontend/Zvt.cpp`) still runs beside Spike, without touching its state, to
+supply what the timing model needs (op, tile group, tm/tn/tk, element type),
+and on every Zvt instruction it is checked against what Spike did: memory
+accesses, destination registers and traps. The summary reports disagreements
+as `zvt_mismatches`; there are none on any program.
+
+One disagreement is between CoralNPU's Spike and its own RTL: a `vtmm` with
+misaligned vector operands traps in Spike (illegal instruction) and retires
+as a no-op on the RTL (`matrix/vtmm_misaligned`, measured). The model follows
+the RTL: shapes the RTL retires as no-ops are not run in Spike, only the PC
+moves on, and the summary counts them as `zvt_rtl_nops`. Worth reporting to
+the RTL team.
+
+`reef_perf` is unchanged: M3's Spike has no Zvt, the layer executes Zvt as
+before (`m3_vme.yaml`), and `zvt_in_spike` is refused there.
+
+On all 267 runs of the pinned config (suites, kernels, the LSU and coverage
+probes and the 44 matrix programs, each at two loop counts),
+`reef_perf_pinned` with Spike executing Zvt gives the same instruction counts
+and cycles as `reef_perf` with the layer. Both goldens are unchanged.
 
 ## Out of scope: floating point
 
@@ -101,6 +122,7 @@ else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
 | V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
 | C9 | `vector_scalar_waw_delay` (new) | 0 | 1 | waveform of `vcpop_indep` | `vcpop_indep` -9.9% to 0.0% |
 | V9 | `vec_to_scalar_writes_per_cycle` (new) | 0 (no limit) | not set | `RvvCore` `async_rd` is one port | moves nothing today; left off |
+| X6 | `zvt_in_spike` (new) | off (`m3_vme.yaml`) | on | CoralNPU `b4be3e79` | Spike executes Zvt; identical timing, 0 mismatches |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 
 ## Differences not modeled yet

@@ -34,8 +34,21 @@ namespace reef_perf {
 /// Encoding of `mpause`, the instruction that ends a program on Reef.
 constexpr uint32_t MpauseEncoding = 0x08000073;
 
+#ifdef REEF_PERF_PINNED_SPIKE
+/// ISA string of reef_perf_pinned: CoralNPU 8a5e1b31's Spike co-simulation
+/// string (sw/coralnpu_sim/spike_simulator.h) without its placeholder RoCC
+/// extension, xdummy. It adds BF16 and Zvt v0.4 to M3's.
+constexpr const char *DefaultISA =
+    "rv32imf_zve32f_zvl128b_zicsr_zifencei_zbb_zicclsm_zfbfmin_zvfbfmin_"
+    "zvfbfwma_zvfbfa_zvt16t_zvti8i32mm_zvtbf16fmm_zvtfmm";
+/// This binary's Spike implements Zvt (setZvtInSpike).
+constexpr bool SpikeHasZvt = true;
+#else
 /// ISA string for Reef's M3 baseline: RV32IMF + Zbb + Zve32f, VLEN = 128.
 constexpr const char *DefaultISA = "rv32imf_zicsr_zifencei_zbb_zve32f_zvl128b";
+/// This binary's Spike (M3's) does not know Zvt.
+constexpr bool SpikeHasZvt = false;
+#endif
 
 /// Configuration of the simulated machine.
 struct SpikeOptions {
@@ -46,6 +59,9 @@ struct SpikeOptions {
 
 /// Runs a RISC-V ELF in Spike and hands out decoded instructions in order.
 class FuncSim {
+  /// Thrown by executeZvt in shadow mode where it would trap.
+  struct ZvtShadowTrap {};
+
 public:
   /// Loads the 32-bit RISC-V ELF \p ElfPath into a machine configured by
   /// \p Options. \throws std::runtime_error if the ELF cannot be loaded.
@@ -64,6 +80,20 @@ public:
   /// Turns Zvt on or off (default off). Off, next() never looks for Zvt, so a
   /// Zvt word goes to Spike, which traps on it.
   void setZvt(bool Enabled) { ZvtEnabled = Enabled; }
+  /// With Zvt on, has Spike execute Zvt instructions (default off: reef-perf's
+  /// own layer, frontend/Zvt.h, executes them). The layer still runs beside
+  /// Spike, without touching its state, for the matrix details the timing
+  /// model needs, and is checked against Spike on every instruction.
+  /// \throws std::runtime_error if this binary's Spike lacks Zvt.
+  void setZvtInSpike(bool Enabled);
+  /// Zvt instructions whose memory accesses, destination registers or trap
+  /// differed between reef-perf's layer and Spike (zvt_in_spike).
+  uint64_t getNumZvtMismatches() const { return NumZvtMismatches; }
+  /// Zvt instructions the RTL retires as no-ops, which Spike did not run
+  /// (zvt_in_spike; CoralNPU's Spike traps on some of them).
+  uint64_t getNumZvtRtlNops() const { return NumZvtRtlNops; }
+  /// \returns true if Spike executes Zvt instructions (setZvtInSpike).
+  bool isZvtInSpike() const { return ZvtInSpike; }
   /// Decodes the unary vector forms' vs1 field as a sub-opcode (decodeInst).
   void setUnaryVs1IsOpcode(bool Enabled) { UnaryVs1IsOpcode = Enabled; }
 
@@ -77,6 +107,9 @@ public:
   const std::vector<LoadSegment> &getLoadSegments() const { return Segments; }
 
 private:
+  /// Executes a Zvt instruction in Spike, with reef-perf's layer beside it
+  /// for the matrix details (setZvtInSpike).
+  void executeZvtInSpike(Inst &I, const ZvtInst &Z);
   /// Records the element operands of a vector divide before Spike runs it.
   void captureDivOperands(Inst &I);
   /// Spike's view of the memory map: flat regions of host RAM. Everything
@@ -131,6 +164,10 @@ private:
   bool Halted = false;
   bool ZvtEnabled = false;
   bool UnaryVs1IsOpcode = false;
+  bool ZvtInSpike = false;
+  bool ZvtShadow = false; // executeZvt leaves Spike's state alone.
+  uint64_t NumZvtMismatches = 0;
+  uint64_t NumZvtRtlNops = 0;
   ZvtConfig Zvt; // Matrix configuration Spike does not hold.
 };
 

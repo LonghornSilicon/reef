@@ -84,6 +84,10 @@ class SimResult:
         matrix: Matrix-engine statistics (ops by kind, MACs, utilization,
             memory beats, and area/energy estimates when configured); empty
             for output written before the matrix module reported them.
+        zvt_mismatches: With frontend.zvt_in_spike, the Zvt instructions on
+            which reef-perf's Zvt layer and Spike disagreed; None otherwise.
+        zvt_rtl_nops: With frontend.zvt_in_spike, the Zvt instructions the
+            RTL retires as no-ops, which Spike did not run; None otherwise.
     """
 
     program: str
@@ -99,6 +103,8 @@ class SimResult:
     pools: dict[str, dict[str, int]]
     topdown: dict[str, Any]
     matrix: dict[str, Any] = field(default_factory=dict)
+    zvt_mismatches: int | None = None
+    zvt_rtl_nops: int | None = None
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -133,6 +139,14 @@ class SimResult:
             },
             topdown=dict(data["topdown"]),
             matrix=dict(data.get("matrix", {})),
+            zvt_mismatches=(
+                int(data["zvt_mismatches"])
+                if "zvt_mismatches" in data
+                else None
+            ),
+            zvt_rtl_nops=(
+                int(data["zvt_rtl_nops"]) if "zvt_rtl_nops" in data else None
+            ),
         )
 
     def to_json(self) -> dict[str, Any]:

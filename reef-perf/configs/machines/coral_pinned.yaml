@@ -7,8 +7,11 @@
 # This file does not change M3 (m3.yaml) or M3 + Zvt (m3_vme.yaml), and it
 # is not Reef's design. It is a third machine, for correlation:
 #
-#   reef_perf --elf x.elf -c configs/machines/m3.yaml \
+#   reef_perf_pinned --elf x.elf -c configs/machines/m3.yaml \
 #       -c configs/machines/coral_pinned.yaml
+#
+# reef_perf_pinned is the simulator built on the pinned commit's Spike
+# (docs/pinned.md, "Functional model"); reef_perf rejects this config
 #
 # Every difference from M3 is one switch below: a value, or a parameter that
 # turns new model code on. Each line says where its number came from and
@@ -51,6 +54,14 @@ top:
       # engine's own values are the matrix module's defaults,
       # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
       zvt: true
+      # X6. Spike executes Zvt, as CoralNPU's own co-simulation does
+      # (b4be3e79), with reef-perf's Zvt layer beside it for the matrix
+      # details and checked against it on every instruction (zvt_mismatches
+      # in the summary). Shapes the RTL retires as no-ops are not run in
+      # Spike, which traps on some of them (zvt_rtl_nops). Needs
+      # reef_perf_pinned. m3_vme.yaml: off (the layer executes Zvt on M3's
+      # Spike)
+      zvt_in_spike: true
   core:
     scalar_exec:
       params:

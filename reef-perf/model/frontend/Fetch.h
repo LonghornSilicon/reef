@@ -83,6 +83,11 @@ public:
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
+    PARAMETER(bool, zvt_in_spike, false,
+              "With zvt: Spike executes Zvt instructions, and reef-perf's "
+              "own Zvt layer runs beside it for the matrix details and is "
+              "checked against it. Needs reef_perf_pinned (a Spike with "
+              "Zvt). Off: the layer executes them, as on reef_perf")
     PARAMETER(bool, decode_unary_vs1_is_opcode, false,
               "Decode the vs1 field of vzext/vsext, vmsbf/vmsif/vmsof, "
               "viota/vid, vfsqrt, vfcvt and vfclass as the sub-opcode it is, "
@@ -108,6 +113,7 @@ public:
     TheFuncSim = Sim;
     TheFuncSim->setZvt(Zvt);
     TheFuncSim->setUnaryVs1IsOpcode(UnaryVs1IsOpcode);
+    TheFuncSim->setZvtInSpike(Zvt && ZvtInSpike);
   }
 
   /// Connects the memory module \p NewMem, where each fetch group books its
@@ -154,6 +160,7 @@ private:
   const uint32_t IbufEntries;
   const bool Zvt;
   const bool UnaryVs1IsOpcode;
+  const bool ZvtInSpike;
 
   FuncSim *TheFuncSim = nullptr;
   MemoryInterface *Mem = nullptr;

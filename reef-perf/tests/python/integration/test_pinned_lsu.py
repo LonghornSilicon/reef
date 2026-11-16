@@ -16,7 +16,7 @@ from reef_perf.experiments.correlation.pinned import (
     find_pinned_binary,
 )
 from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
-from reef_perf.sim import run_sim
+from reef_perf.sim import SimulationError, run_sim
 
 SUITES = ("lsu", "pinned")
 """Directories of differenced programs with an rtl_pinned.csv."""
@@ -119,3 +119,38 @@ def test_lsu_v3_is_off_without_the_pinned_config(
         cost[label] = (roi[1] - roi[0]) / (20 * 16)
     assert cost["m3"] == pytest.approx(17.0, abs=0.1)
     assert cost["pinned"] == pytest.approx(6.0, abs=0.1)
+
+
+@pytest.mark.integration
+def test_spike_and_layer_agree_on_every_zvt_instruction(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """On the pinned config Spike executes Zvt; reef-perf's layer agrees.
+
+    Covers every matrix program at its default loop count. vtmm_misaligned
+    has the shapes the RTL retires as no-ops and Spike traps on.
+    """
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    rtl_nops = 0
+    for src in sorted((MICROBENCHMARK_DIR / "matrix").glob("*.S")):
+        elf = build_microbenchmark(f"matrix/{src.stem}", tmp_path)
+        result = run_sim(
+            elf, overlay_configs=[PINNED_CONFIG], binary=find_pinned_binary()
+        )
+        assert result.zvt_mismatches == 0, src.stem
+        assert result.instructions == result.functional_instructions
+        rtl_nops += result.zvt_rtl_nops or 0
+    assert rtl_nops > 0
+
+
+@pytest.mark.integration
+def test_m3_binary_rejects_zvt_in_spike(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """reef_perf's Spike (M3's) has no Zvt, so it refuses the switch."""
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    elf = build_microbenchmark("matrix/mac_chain", tmp_path)
+    with pytest.raises(SimulationError, match="zvt_in_spike"):
+        run_sim(elf, overlay_configs=[PINNED_CONFIG])
