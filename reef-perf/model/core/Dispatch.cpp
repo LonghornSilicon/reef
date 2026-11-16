@@ -58,6 +58,30 @@ static bool readsRegistered(const Inst &I, RegId Reg) {
   return I.Class == InstClass::STORE && Reg.getIndex() == Rs2;
 }
 
+/// \returns true if \p I must dispatch first in its cycle with nothing else
+/// (Decode.scala, forceSlot0Only): CSR, fence, system and FP instructions,
+/// a vector instruction that reads or writes an f register, and vtdiscard.
+static bool isSlot0Only(const Inst &I) {
+  switch (I.Class) {
+  case InstClass::CSR:
+  case InstClass::FENCE:
+  case InstClass::SYSTEM:
+  case InstClass::FP:
+  case InstClass::FP_DIV:
+  case InstClass::FP_LOAD:
+  case InstClass::FP_STORE:
+    return true;
+  default:
+    break;
+  }
+  if (I.Mtx.Op == MatrixOp::Discard)
+    return true;
+  if (!I.isVector())
+    return false;
+  auto IsF = [](RegId Reg) { return Reg.getFile() == RegFile::F; };
+  return std::ranges::any_of(I.Srcs, IsF) || std::ranges::any_of(I.Dsts, IsF);
+}
+
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
   case StallReason::IbufEmpty:
@@ -74,6 +98,8 @@ const char *reef_perf::getStallReasonName(StallReason Reason) {
     return "vector_queue_full";
   case StallReason::MtxFull:
     return "matrix_queue_full";
+  case StallReason::CsrDrain:
+    return "csr_drain";
   case StallReason::NumReasons:
     break;
   }
@@ -107,7 +133,11 @@ uint64_t TopDownSlots::getTotal() const {
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
     : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
       LoadWawAdvance(Params->load_waw_advance),
-      BranchEndsGroup(Params->branch_ends_group) {
+      BranchEndsGroup(Params->branch_ends_group),
+      Slot0OnlyRule(Params->slot0_only_rule),
+      JumpEndsGroup(Params->jump_ends_group),
+      CsrWaitsForEmptyRob(Params->csr_waits_for_empty_rob),
+      VtdiscardInterlock(Params->vtdiscard_interlock) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -131,6 +161,8 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
 }
 
 void Dispatch::receiveRobCredits(const uint32_t &Credits) {
+  if (RobSize == 0)
+    RobSize = Credits;
   RobCredits += Credits;
   scheduleDispatch();
 }
@@ -159,6 +191,17 @@ void Dispatch::scheduleDispatch() {
 
 bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
                            ExecTarget &Blamed) const {
+  // A CSR instruction, and vtdiscard, wait for an empty Rob. Every credit
+  // back means it is empty; they return the cycle after the last retire, as
+  // the RTL's registered count does.
+  bool Drains = (CsrWaitsForEmptyRob && I->Class == InstClass::CSR) ||
+                (VtdiscardInterlock && I->Mtx.Op == MatrixOp::Discard);
+  if (Drains && RobCredits < RobSize) {
+    Why = StallReason::CsrDrain;
+    InstRef Oldest = TheRob ? TheRob->getOldest() : nullptr;
+    Blamed = Oldest ? getExecTarget(*Oldest) : ExecTarget::Scalar;
+    return false;
+  }
   // A register hazard is blamed on the unit producing the register. A
   // registered read sees the value one cycle after a forwarded read. A
   // writer not scheduled yet (Never) blocks as is: Never + 1 would wrap to 0.
@@ -271,7 +314,12 @@ void Dispatch::dispatchGroup() {
 
   while (Count < DispatchWidth) {
     InstRef I = Frontend->peek(Now);
-    if (!I || !canDispatch(I, Now, Why, Blamed))
+    if (!I)
+      break;
+    bool Alone = Slot0OnlyRule && isSlot0Only(*I);
+    if (Alone && Count > 0)
+      break;
+    if (!canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
     for (RegId Reg : I->Dsts)
@@ -281,7 +329,10 @@ void Dispatch::dispatchGroup() {
     OutRobPort.send(I);
     Frontend->pop(Now);
     ++Count;
-    if (BranchEndsGroup && I->Class == InstClass::BRANCH)
+    if (Alone || (BranchEndsGroup && I->Class == InstClass::BRANCH))
+      break;
+    if (JumpEndsGroup &&
+        (I->Class == InstClass::JUMP || I->Class == InstClass::SYSTEM))
       break;
   }
 

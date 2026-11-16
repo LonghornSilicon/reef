@@ -41,6 +41,7 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | V3b | `vec_fdiv_cycles_per_uop` | 8 | 9 | measured | `vfdiv_indep` -11.3% to -0.5% |
 | C2 | `lsu_v3` | false | true | waveforms (below) | vector memory: `vec_memcpy` +174% to -0.5%, `vec_add_m4` +118% to +0.1%; kernels 38% to 4.4% mean |
 | C4 | `branch_ends_group` | false (the M3 model omits the rule) | true | `Decode.scala:419-422`; waveform of `matrix/mac_rob` | `branch_group` -14.3% to 0.0%, `vec_pingpong` -6.0% to -0.1% |
+| C5 | `slot0_only_rule`, `jump_ends_group`, `csr_waits_for_empty_rob`, `vtdiscard_interlock` (new, four switches) | false (the M3 model omits them) | true | `Decode.scala:196-205`, `:601-607`, `:707-708` | `vdiv_m8_indep` -14% to -0.1%; every chain's -0.5% to 0.0%; `vtdiscard_after_mac` 5.5 to 24.0 (RTL 24.0) |
 | C3 | `load_waw_advance` | 1 | 0 | waveform of `addr_forward` | keeps `addr_forward` at 4 cycles per load with LsuV3's 3-cycle loads |
 | V6 | `vec_store_completes_on_last_register` | false | true | `Lsu.scala:1970-1971` | multi-register stores |
 | M1 | `axi_latency`, `axi_write_latency` | 2, as a read | 4, 5 | waveforms of `ext_*` | `ext_load_chain` -25% to +0.2%, the two streams to -1.8% |
@@ -56,10 +57,7 @@ Each needs model code behind a new switch.
 | --- | --- | --- | --- |
 | V8 | `vmv.x.s` of a loaded register | `lsu/vload_use` +8% (1 cycle per link); `vec_pingpong` -6% | the vector-to-scalar path, not the LSU |
 | C8 | Scalar FP divide and square root in kernels | `layernorm` +18% | with C7 |
-| V4 | The new integer divider at LMUL 8 | `vdiv_m8_indep` -14% | not looked at yet |
 | V5 | Independent vector streams run 7% to 10% fast | `vadd_indep`, `vmul_indep`, `vcpop_indep`, `vfadd_indep`, `vmixed_lmul` | fetch, the result arbiter or the registered completion token; to separate after F1 |
-| C5 | A CSR waits for an empty retirement buffer | matrix ROIs end early (matrix.md, open case 2) | no such rule in Dispatch |
-| C6 | `vtdiscard` dispatches alone, with the core idle | `vtdiscard_after_mac` 24.0 against 5.5 | no such rule in Dispatch |
 | C7 | Scalar FP | `fp_chain` +41%, `fp_mix` +20% | `fp_chain` is the same on both RTLs, so part of this is M3's |
 
 Gaps the model already has on M3, unchanged on this RTL: `vdiv_small_*`
@@ -205,9 +203,14 @@ one.
 | X2 tile cost | fitted (`lsu_tile_*`) | still fitted. `lsu_v3_tile` runs tile beats through the LsuV3 slot and is off: see "Tile beats" |
 | X3 tile retire cycle | waveform | read; set on this config only |
 
-Rules that are in the RTL and in neither model yet: instructions that must
-dispatch alone from slot 0 (FP, CSR), a CSR waiting for an empty retirement
-buffer, the `vtdiscard` interlock, and the vector read-port limit.
+The dispatch rules that were missing (slot 0 only, nothing after a jump, a
+CSR waiting for an empty retirement buffer, the `vtdiscard` interlock) are
+C5. Two results came with them. The LMUL 8 divide programs were 14% fast
+not because of the new divider but because their closing `csrr mcycle` did
+not wait for the divide uops still in flight. And `vtdiscard_after_mac`
+matches with the retirement-buffer half of the interlock alone; the RVV-idle
+and LSU-idle halves are still not modeled. Still in neither model: the
+vector register file's read-port limit.
 
 ## Score
 
@@ -220,6 +223,7 @@ Mean absolute ROI error against the pinned RTL, and programs within 5%.
 | + LsuV3, external bus, completion (C2, C3, V6, V7, M1) | 9.9% | 0.1% | 19.1% | 4.4% | 13.0% | 47 |
 | + fetch structure (F1); V7 removed; scalar load retire cycle | 4.8% | 0.1% | 19.4% | 4.6% | 11.6% | 48 |
 | + stalled redirect, branch rule, MAC retire cycle (C4, X3) | 3.5% | 0.1% | 19.0% | 4.2% | 11.0% | 52 |
+| + stores by PC, dispatch rules (V2b, C5) | 3.4% | 0.1% | 17.9% | 4.9% | 10.4% | 54 |
 
 Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 
@@ -230,10 +234,12 @@ Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 | This config with LsuV3 | 35 | +10%, +4%, +12% |
 | This config with LsuV3 and fetch | 37 | +10%, +4%, +12% |
 | This config with C4 and X3 as well | 39 | +7%, +3%, +8% |
+| This config with the dispatch rules (C5) | 40 | +6%, +1%, +8% |
 
 `vec_load_burst`, `vec_load4_burst`, `vec_store4_burst` and `gemm_multi`
 joined with LsuV3; `tile_load`, `tile_store`, `move_tv8_burst` and
 `move_vt8_burst` (short loops, +7% to +27% before) with fetch and the branch
-rule. None was used to build either. The five outside 5% are the two
-longer GEMMs (+7%, +8%), `move_vt_use` (V8), `load_then_store` and
-`vtdiscard_after_mac`.
+rule; `vtdiscard_after_mac` (-77% before) with C5. None was used to build
+any of them. The four outside 5% are `gemm_tile` (+5.6%), `gemm_longk`
+(+7.5%), `move_vt_use` (+15%, V8) and `load_then_store` (-7%, which
+`lsu_v3_tile` would fix).

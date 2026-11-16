@@ -57,6 +57,15 @@ top:
         # TRACE: matrix/mac_rob (the loop's bnez is dispatched alone, the
         # MAC behind it a cycle later). M3 model: false
         branch_ends_group: true
+        # C5. Dispatch rules of Decode.scala that the M3 RTL has too and the
+        # M3 model leaves out (deviations D3, M2). RTL: forceSlot0Only
+        # (:196-198), isJump (:202-205), the CSR term of canDispatch
+        # (:707-708), vmeDiscardVillInterlock (:601-607). M3 model: all false
+        slot0_only_rule: true          # CSR, fence, FP and vtdiscard dispatch alone
+        jump_ends_group: true          # nothing follows a jump in its cycle
+        csr_waits_for_empty_rob: true  # so a csrr mcycle waits for older work
+        vtdiscard_interlock: true      # empty retirement buffer only; the RTL
+                                       # also waits for an idle RVV backend and LSU
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
