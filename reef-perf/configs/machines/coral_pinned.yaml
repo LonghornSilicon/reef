@@ -54,11 +54,22 @@ top:
   core:
     scalar_exec:
       params:
+        # Scalar FP (C7, C7b) is out of scope for now: Reef will most likely
+        # have no scalar FPU (2026-11-16). The two values below were set
+        # before that and are left as measured; the FP programs are not scored.
         # C7. The scalar FPU answers a cycle after it takes an operation
         # and takes the next one the cycle after that. TRACE: fp_chain
         # (io_inst fires every 2 cycles, the write in between). Only
         # fmadd.s and fadd.s are checked; divide and square root are not.
         # M3: 3 (B11, unmeasured there)
+        # C8. The scalar divider takes its next request only the cycle after
+        # its result is taken: req.ready waits for count to clear, which
+        # happens the cycle after rd fires. RTL: Dvu.scala (io.req.ready,
+        # count). MEASURED: div_chain -4.4% to 0.0%, and
+        # pinned/fetch_mispredict_wait, whose branch reads the result, stays
+        # exact (so the result itself is not later). M3: 0 (the M3 model has
+        # the same gap, -4.5% there)
+        div_release_cycles: 1
         fpu_latency: 2
         # C7b. MEASURED after the fact (the predictions were 12):
         # pinned/fdiv_indep and pinned/fsqrt_chain take 13 cycles per
@@ -138,6 +149,14 @@ top:
       # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
       # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
       vec_fdiv_cycles_per_uop: 9
+      # V8. The integer divider's time depends on its operands
+      # (intdivider.sv): 1 cycle to start, one per 3 quotient bits of the
+      # dividend, 1 to hand the result over; 2 for a divisor of 0, signed
+      # overflow, or the same operands as that divider's last operation. A
+      # uop takes its slowest element. MEASURED: vdiv_small_chain +200% and
+      # vdiv_small_indep +333% to 0.0%, pinned/fetch_mispredict_rob 28 to 17
+      # (RTL 17; its vdiv repeats its operands). M3: false (13 per uop)
+      vec_div_data_dependent: true
       # V4. The retirement buffer sees a vector instruction done a cycle
       # after its last uop leaves the vector ROB (CoralNPU a0974da8
       # registers the completion token). MEASURED: lsu/vload_rob 9,

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -205,6 +206,7 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
           Params->vec_store_completes_on_last_register),
       StoreCompletionMatchesPc(Params->vec_store_completion_matches_pc),
       CompletionTokenLatency(Params->vec_completion_token_latency),
+      DivDataDependent(Params->vec_div_data_dependent),
       ResultsForwardFromRob(Params->vec_results_forward_from_rob),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
@@ -213,6 +215,49 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
 }
 
 void Vector::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
+
+std::vector<uint64_t> Vector::getDivUopCycles(const Inst &I) {
+  uint32_t Bits = uint32_t{I.SEWBytes} * 8;
+  uint32_t Mask = Bits >= 32 ? ~0U : (1U << Bits) - 1;
+  uint32_t SignBit = 1U << (Bits - 1);
+  uint32_t PerReg = VectorRegisterBytes / I.SEWBytes;
+  // vdiv and vrem (funct6 0x21, 0x23) are signed; vdivu and vremu are not.
+  bool Signed = ((I.Encoding >> 26) & 1) != 0;
+  std::vector<uint64_t> Cycles(getVectorUops(I), 2);
+  for (size_t N = 0; N < I.DivOperands.size(); ++N) {
+    uint32_t Dividend = I.DivOperands[N].first & Mask;
+    uint32_t Divisor = I.DivOperands[N].second & Mask;
+    DivState &Last = Dividers[{Bits, static_cast<uint32_t>(N % PerReg)}];
+    uint64_t Time = 2;
+    bool Overflow = Signed && Dividend == SignBit && Divisor == Mask;
+    if (Divisor == 0 || Overflow) {
+      Last = {}; // intdivider.sv clears its dividend and divisor here.
+    } else {
+      DivState Now;
+      Now.QSign = Signed && (((Dividend ^ Divisor) & SignBit) != 0);
+      Now.RSign = Signed && (Dividend & SignBit) != 0;
+      Now.Dividend =
+          Signed && (Dividend & SignBit) ? (~Dividend + 1) & Mask : Dividend;
+      Now.Divisor =
+          Signed && (Divisor & SignBit) ? (~Divisor + 1) & Mask : Divisor;
+      bool Reuse = Now.Dividend == Last.Dividend &&
+                   Now.Divisor == Last.Divisor && Now.QSign == Last.QSign &&
+                   Now.RSign == Last.RSign;
+      if (!Reuse) {
+        // count = width + 1 - clz(dividend), then 3 bits a cycle down to 1.
+        uint32_t Clz =
+            static_cast<uint32_t>(std::countl_zero(Now.Dividend)) - (32 - Bits);
+        uint64_t Count = Bits + 1 - Clz;
+        Time = 1 + (Count - 1 + 2) / 3 + 1;
+        Last = Now;
+      }
+    }
+    size_t Uop = N / PerReg;
+    if (Uop < Cycles.size())
+      Cycles[Uop] = std::max(Cycles[Uop], Time);
+  }
+  return Cycles;
+}
 
 VectorOp Vector::getOp(const Inst &I) const {
   VectorGroup Group = getVectorGroup(I);
@@ -396,6 +441,8 @@ void Vector::receiveInst(const InstRef &I) {
     };
   } else {
     Op = getOp(*I);
+    if (DivDataDependent && !I->DivOperands.empty())
+      Op.UopCycles = getDivUopCycles(*I);
   }
   VectorTiming T =
       Pipeline.schedule(I->DispatchCycle, Op, getSourcesReady(*I, Op.Uops));

@@ -77,6 +77,8 @@ public:
   const std::vector<LoadSegment> &getLoadSegments() const { return Segments; }
 
 private:
+  /// Records the element operands of a vector divide before Spike runs it.
+  void captureDivOperands(Inst &I);
   /// Spike's view of the memory map: flat regions of host RAM. Everything
   /// else is unmapped (Spike raises an access fault); there is no MMIO. The
   /// overridden methods keep Spike's names.

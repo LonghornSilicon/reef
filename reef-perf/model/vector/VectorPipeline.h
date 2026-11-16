@@ -127,6 +127,9 @@ struct VectorOp {
   bool FirstUnitOnly = false;
   /// Only its last uop takes a vector ROB entry (compares, reductions).
   bool OneRobEntry = false;
+  /// Per uop: cycles it spends in its unit and keeps it busy, in place of
+  /// Latency and Occupancy. Empty: every uop takes those.
+  std::vector<uint64_t> UopCycles;
   /// Set for loads and stores: books uop `Uop` in the core's LSU, starting no
   /// earlier than `Earliest`. Its uops wait in the LSU reservation station,
   /// and Pool, Latency, Occupancy and FirstUnitOnly don't apply.

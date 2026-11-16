@@ -14,6 +14,25 @@ reef_perf --elf x.elf -c configs/machines/m3.yaml -c configs/machines/coral_pinn
 uv run python -m reef_perf.experiments.correlation.pinned   # score against the RTL
 ```
 
+## Out of scope: floating point
+
+Reef will most likely have no scalar floating-point unit (decided
+2026-11-16). Until that changes, the floating-point programs are run but not
+scored, and no further FP model changes are made:
+
+- core: `fp_chain`, `fp_mix`;
+- kernels: `attention`, `layernorm` (their work is FP: 96 and 38 FP
+  instructions; the other kernels have 2);
+- coverage: `pinned/fcvt_chain`, `fdiv_chain`, `fdiv_indep`, `fsqrt_chain`,
+  `fmul_chain`, `flw_fsw`, `fp_to_vector`.
+
+`OUT_OF_SCOPE` in `experiments/correlation/pinned.py` and in
+`tests/python/integration/test_pinned_lsu.py` holds the list. Two FP values
+were set before the decision and are left in `coral_pinned.yaml` as
+measured (C7 `fpu_latency` 2, C7b `fdiv_latency` 13); they change nothing
+else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
+`vfredusum_*`) are still scored: they match, and they are the RVV backend's.
+
 ## Rules
 
 - Every difference from M3 is one switch in the file: a value, or a
@@ -54,6 +73,8 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | V4 | `vec_completion_token_latency` (new) | 0 | 1 | CoralNPU `a0974da8`; measured (`lsu/vload_rob`, `vload_dep_rob`) | independent streams -7.7% to within 1% |
 | V5 | `vec_results_forward_from_rob` (new) | false | true | measured (`pinned/vwmacc_m2_chain` 5 to 4) | a slow older uop no longer delays readers of a younger one |
 | X5 | `mtx_move_vector_latency` 1, `mtx_move_vector_floor` 2 (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | set | measured: `move_vt_use` and three probes | `move_vt_use` +15% to 0.0% |
+| C8 | `div_release_cycles` (new) | 0 | 1 | `Dvu.scala` (`io.req.ready`, `count`) | `div_chain` -4.4% to 0.0% |
+| V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 
 ## Differences not modeled yet
@@ -236,8 +257,36 @@ v5, v6, v7 takes 13, 13, 14, 15 cycles on the RTL). The floor of 2 is
 observed, not explained; it may be the reader's uop waiting behind the
 move's four uops in the shared RVV dispatch.
 
-## Coverage
+## Dividers
 
+The vector integer divider (`intdivider.sv`, one instance per element lane)
+takes, per element:
+
+| Case | Cycles |
+| --- | --- |
+| dividend of b significant bits (after taking the magnitude) | 1 + ceil(b / 3) + 1: 13 for 31 bits, 3 for 1 bit |
+| divisor 0, or signed overflow | 2 |
+| the same dividend, divisor and signs as that instance's previous operation | 2: the result is reused |
+
+A uop takes its slowest element. The functional side records each element's
+operands before Spike runs the instruction (`Inst::DivOperands`), and
+`vec_div_data_dependent` uses them. This was also the cause of
+`pinned/fetch_mispredict_rob`: its loop repeats one `vdiv` with the same
+operands, so every divide after the first takes 2 cycles, not 13, and the
+branch behind it waits that much less. The fetch unit was right.
+
+The scalar divider (`Dvu.scala`) iterates once per quotient bit as the M3
+model already had, and its result is on time. But it takes the next divide
+only the cycle after its result is taken: `io.req.ready` waits for `count`
+to clear, which happens the cycle after `rd` fires. `div_release_cycles` 1
+holds the divider that extra cycle. A first attempt, `div_base` 3, also
+fixed `div_chain` but made `pinned/fetch_mispredict_wait` (a branch reading
+the result) a cycle slow, which ruled out a later result. The M3 model has
+the same gap (`div_chain` -4.5% on M3).
+
+| C8 | `div_release_cycles` (new) | 0 | 1 | `Dvu.scala` (`io.req.ready`, `count`) | `div_chain` -4.4% to 0.0% |
+| V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
+| X1 | `zvt` |
 `microbenchmarks/pinned/` holds 31 programs written for behavior no earlier
 program exercised, each with the model's prediction recorded before its RTL
 run (`heldout_predictions.csv` there; committed in `caba13e`, RTL numbers a
@@ -245,13 +294,13 @@ commit later). 25 of the 31 predictions were exact. The six that were not:
 
 | Program | RTL | Predicted | What it shows |
 | --- | ---: | ---: | --- |
-| `fetch_mispredict_rob` | 17 | 28 | a mispredict with the retirement buffer full. Not explained: the waveform converter aborts on this trace |
-| `fcvt_chain` | 48 | 17 | `fcvt` between an x and an f register takes 6 cycles, not the FPU's 2 |
-| `fdiv_chain` | 144 | 96 | 18 cycles per divide: the FP divider's time depends on its operands |
-| `fdiv_indep`, `fsqrt_chain` | 104 | 96 | 13 cycles per operation, not 12. Now set (C7b), after the fact |
-| `flw_fsw` | 57 | 49 | an `fsw` of a just-loaded f register is a cycle later |
+| `fetch_mispredict_rob` | 17 | 28 | the vector divider reuses its last result for repeated operands; now modeled (V8), exact |
+| `fcvt_chain` | 48 | 17 | out of scope (FP) |
+| `fdiv_chain` | 144 | 96 | out of scope (FP) |
+| `fdiv_indep`, `fsqrt_chain` | 104 | 96 | out of scope (FP) |
+| `flw_fsw` | 57 | 49 | out of scope (FP) |
 
-The first four stay as known gaps in `test_pinned_lsu.py`. What the other 25
+No known gaps remain among the in-scope programs. What the other 25
 cover and confirm: a loop longer than the instruction buffer, jump targets
 in the middle of a line, a taken jump in every line, a mispredict that waits
 for its branch to dispatch; masked and indexed accesses, accesses that cross

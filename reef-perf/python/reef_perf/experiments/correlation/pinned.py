@@ -39,6 +39,15 @@ SUITES = {
 }
 """Microbenchmark suites: a directory of sources with its RTL CSVs."""
 
+OUT_OF_SCOPE = {
+    ("core", "fp_chain"),
+    ("core", "fp_mix"),
+    ("kernels", "attention"),
+    ("kernels", "layernorm"),
+}
+"""Floating-point programs, not scored for now: Reef will most likely have no
+scalar FPU (docs/pinned.md, "Out of scope"). They still run and are listed."""
+
 RESULTS_ROOT = MODULE_ROOT / "results" / "correlation_pinned"
 """Where the experiment writes artifacts by default."""
 
@@ -69,6 +78,11 @@ class Row:
     def same_region(self) -> bool:
         """Whether the model and the RTL retired the same ROI instructions."""
         return self.model_roi_instructions == self.rtl_roi_instructions
+
+    @property
+    def in_scope(self) -> bool:
+        """Whether the program counts toward the score (see OUT_OF_SCOPE)."""
+        return (self.suite, self.name) not in OUT_OF_SCOPE
 
     @property
     def error(self) -> float | None:
@@ -217,22 +231,25 @@ def render_markdown(rows: Sequence[Row], title: str) -> str:
         "",
         "ROI cycles on the model and on the CoralNPU `8a5e1b31` RTL "
         "(`rtl_pinned.csv`). Error = (model - RTL) / RTL. RTL vs M3 = how far "
-        "the RTL itself moved from M3 (`rtl_m3.csv`).",
+        "the RTL itself moved from M3 (`rtl_m3.csv`). Floating-point "
+        "programs are listed but not scored (OUT_OF_SCOPE).",
         "",
-        "| Suite | Programs | Mean abs error | Within 5% | Worst |",
+        "| Suite | Programs | Mean abs error | Within 3% | Worst |",
         "| --- | ---: | ---: | ---: | --- |",
     ]
     for suite in [*suites, "all"]:
         scored = [
             row
             for row in rows
-            if row.error is not None and suite in (row.suite, "all")
+            if row.error is not None
+            and row.in_scope
+            and suite in (row.suite, "all")
         ]
         mean = mean_abs_error(scored)
         if mean is None:
             continue
         worst = max(scored, key=lambda row: abs(row.error or 0.0))
-        within = sum(abs(row.error or 0.0) <= 0.05 for row in scored)
+        within = sum(abs(row.error or 0.0) <= 0.03 for row in scored)
         lines.append(
             f"| {suite} | {len(scored)} | {mean:.1%} | {within} "
             f"| `{worst.name}` {worst.error:+.1%} |"
@@ -249,6 +266,8 @@ def render_markdown(rows: Sequence[Row], title: str) -> str:
             if row.suite != suite:
                 continue
             error = "insts differ" if row.error is None else f"{row.error:+.1%}"
+            if not row.in_scope:
+                error += " (not scored)"
             moved = "-"
             if row.m3_rtl_roi_cycles:
                 moved = f"{row.rtl_roi_cycles / row.m3_rtl_roi_cycles - 1:+.1%}"

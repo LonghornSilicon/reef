@@ -53,6 +53,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -193,6 +194,13 @@ public:
               "the vector ROB, whether or not older uops have retired. Off: "
               "only once it retires, in order, so an older slow uop delays "
               "readers of a younger independent one")
+    PARAMETER(bool, vec_div_data_dependent, false,
+              "Time each integer divide uop by its operands, as CoralNPU's "
+              "intdivider does: 1 cycle to start, one per 3 quotient bits "
+              "of the dividend, 1 to hand the result over; 2 for a divisor "
+              "of 0, signed overflow, or the same operands as that "
+              "divider's previous operation. A uop takes its slowest "
+              "element. Off: every uop takes vec_div_cycles_per_uop")
     PARAMETER(uint32_t, vec_completion_token_latency, 0,
               "Cycles from a vector instruction's last uop retiring from the "
               "vector ROB to the retirement buffer marking it done. Stores "
@@ -245,6 +253,9 @@ private:
   void sendInitialCredits();
   /// \returns what \p I needs from the backend.
   VectorOp getOp(const Inst &I) const;
+  /// \returns the cycles of each uop of the vector divide \p I, and
+  /// updates each divider's last operands (vec_div_data_dependent).
+  std::vector<uint64_t> getDivUopCycles(const Inst &I);
   /// \returns per uop of \p I's \p Uops, the first cycle the vector
   /// registers it reads allow it to start.
   std::vector<Cycle> getSourcesReady(const Inst &I, uint32_t Uops) const;
@@ -275,6 +286,14 @@ private:
   const bool StoreCompletesOnLastRegister;
   const bool StoreCompletionMatchesPc;
   const uint32_t CompletionTokenLatency;
+  const bool DivDataDependent;
+  /// Per divider instance (element width, lane): the operands and signs of
+  /// its previous operation, for the reuse check.
+  struct DivState {
+    uint32_t Dividend = 0, Divisor = 0;
+    bool QSign = false, RSign = false;
+  };
+  std::map<std::pair<uint32_t, uint32_t>, DivState> Dividers;
   const bool ResultsForwardFromRob;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;

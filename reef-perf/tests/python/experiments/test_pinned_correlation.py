@@ -60,4 +60,10 @@ def test_report_scores_each_suite() -> None:
     assert "| `skewed` | 90 | 100 | insts differ | - |" in report
     assert "| core | 2 | 5.0% | 1 | `fast` +10.0% |" in report
     assert "| all | 2 | 5.0% | 1 | `fast` +10.0% |" in report
+    # Floating-point programs are listed but left out of the score.
+    fp = [Row("core", "fp_chain", 200, 50, 100, 50, 100), *rows]
+    fp_report = render_markdown(fp, "title")
+    fp_row = "| `fp_chain` | 200 | 100 | +100.0% (not scored) | +0.0% |"
+    assert fp_row in fp_report
+    assert "| core | 2 | 5.0% | 1 | `fast` +10.0% |" in fp_report
     assert "| kernels |" not in report

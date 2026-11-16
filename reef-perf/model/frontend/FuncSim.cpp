@@ -168,6 +168,34 @@ InstRef FuncSim::next() {
   return I;
 }
 
+void FuncSim::captureDivOperands(Inst &I) {
+  // OP-V (0x57), funct6 0x20-0x23 (vdivu, vdiv, vremu, vrem), OPMVV (2) or
+  // OPMVX (6).
+  uint32_t Funct3 = (I.Encoding >> 12) & 7;
+  uint32_t Funct6 = I.Encoding >> 26;
+  if ((I.Encoding & 0x7f) != 0x57 || (Funct3 != 2 && Funct3 != 6) ||
+      Funct6 < 0x20 || Funct6 > 0x23 || !Proc->VU.vl || Proc->VU.vill)
+    return;
+  uint32_t Vs2 = (I.Encoding >> 20) & 0x1f;
+  uint32_t Vs1 = (I.Encoding >> 15) & 0x1f;
+  reg_t Vl = Proc->VU.vl->read();
+  reg_t Sew = Proc->VU.vsew;
+  auto Elt = [&](uint32_t Reg, reg_t N) -> uint32_t {
+    switch (Sew) {
+    case 8:
+      return Proc->VU.elt<uint8_t>(Reg, N);
+    case 16:
+      return Proc->VU.elt<uint16_t>(Reg, N);
+    default:
+      return Proc->VU.elt<uint32_t>(Reg, N);
+    }
+  };
+  uint32_t Mask = Sew >= 32 ? ~0U : (1U << Sew) - 1;
+  for (reg_t N = 0; N < Vl; ++N)
+    I.DivOperands.emplace_back(Elt(Vs2, N),
+                               Funct3 == 6 ? I.Rs1Val & Mask : Elt(Vs1, N));
+}
+
 void FuncSim::execute(Inst &I) {
   state_t *State = Proc->get_state();
   reg_t CauseBefore = State->mcause->read();
@@ -180,6 +208,7 @@ void FuncSim::execute(Inst &I) {
   uint32_t Rs2 = (I.Encoding >> 20) & 0x1f;
   I.Rs1Val = static_cast<uint32_t>(State->XPR[Rs1]);
   I.Rs2Val = static_cast<uint32_t>(State->XPR[Rs2]);
+  captureDivOperands(I);
   Proc->step(1);
   if (State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore)
     throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +

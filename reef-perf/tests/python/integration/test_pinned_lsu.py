@@ -20,17 +20,19 @@ SUITES = ("lsu", "pinned")
 TOLERANCE = 0.02
 """Allowed relative error in cycles per loop iteration."""
 
-KNOWN_GAP = {
-    "pinned/fdiv_chain": "core: the FP divider's time depends on its operands "
-    "(18 cycles per divide here, 13 in fdiv_indep)",
-    "pinned/fcvt_chain": "core: fcvt between an x and an f register takes 6 "
-    "cycles on the RTL, 2 in the model",
-    "pinned/flw_fsw": "core: an fsw of a just-loaded f register is a cycle "
-    "later on the RTL (7.1 cycles per pair against 6.1)",
-    "pinned/fetch_mispredict_rob": "frontend or core: a mispredict with the "
-    "retirement buffer full takes 17 cycles on the RTL, 28 in the model; no "
-    "waveform yet (fst2vcd aborts on this trace)",
+KNOWN_GAP: dict[str, str] = {}
+
+OUT_OF_SCOPE = {
+    "pinned/fcvt_chain",
+    "pinned/fdiv_chain",
+    "pinned/fdiv_indep",
+    "pinned/fsqrt_chain",
+    "pinned/fmul_chain",
+    "pinned/flw_fsw",
+    "pinned/fp_to_vector",
 }
+"""Scalar floating-point programs, not checked for now: Reef will most likely
+have no scalar FPU (docs/pinned.md, "Out of scope")."""
 """Programs with a known error, and why (docs/pinned.md, "Coverage")."""
 
 
@@ -63,11 +65,13 @@ def test_every_lsu_program_has_rtl() -> None:
     rtl = _rtl()
     assert sorted(rtl) == PROGRAMS
     assert all(len(runs) == 2 for runs in rtl.values())
-    assert set(KNOWN_GAP) <= set(PROGRAMS)
+    assert set(KNOWN_GAP) | OUT_OF_SCOPE <= set(PROGRAMS)
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("name", [n for n in PROGRAMS if n not in KNOWN_GAP])
+@pytest.mark.parametrize(
+    "name", [n for n in PROGRAMS if n not in set(KNOWN_GAP) | OUT_OF_SCOPE]
+)
 def test_lsu_program_matches_pinned_rtl(
     name: str, cpp_build_dir: Path, tmp_path: Path
 ) -> None:
