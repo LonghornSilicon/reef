@@ -14,6 +14,30 @@ reef_perf --elf x.elf -c configs/machines/m3.yaml -c configs/machines/coral_pinn
 uv run python -m reef_perf.experiments.correlation.pinned   # score against the RTL
 ```
 
+## Functional model
+
+The pinned config runs on its own simulator, `reef_perf_pinned`. It is the
+same model built against Spike as CoralNPU `8a5e1b31` builds it: Spike
+`93a10ae` (`ext/spike-pinned`) with CoralNPU's 9 patches
+(`third_party/spike-pinned/`, copied unchanged). That is one of the two
+functional simulators CoralNPU runs in lockstep with this RTL (with MPACT,
+`b4be3e79`). `reef_perf` keeps M3's Spike (`fd72ee2d`), so `m3.yaml`,
+`m3_vme.yaml` and the M3 golden cannot be affected.
+
+`experiments/correlation/pinned.py`, the pinned golden, `test_pinned_lsu.py`
+and the pinned matrix gate run `reef_perf_pinned` (`find_pinned_binary()`).
+Where it is not built they fall back to `reef_perf` with a warning. To build
+it in the current image: `bash scripts/build_deps.sh build/deps spike-pinned`
+inside Docker, then reconfigure. The Dockerfile now installs it in the image
+as well (`/opt/reef-perf/spike-pinned`).
+
+Zvt instructions are still executed by reef-perf's own layer
+(`frontend/Zvt.cpp`), ahead of Spike, as before. On all 267 runs of the
+pinned config (suites, kernels, the LSU and coverage probes at two loop
+counts, the 44 matrix programs at two loop counts) the two simulators give
+identical instruction counts and cycles. Next is letting the pinned Spike
+execute Zvt itself, which also computes tile contents.
+
 ## Out of scope: floating point
 
 Reef will most likely have no scalar floating-point unit (decided

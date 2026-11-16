@@ -83,6 +83,7 @@ ARG JOBS=4
 RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" yaml-cpp
 RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" sparta
 RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" spike
+RUN bash scripts/build_deps.sh /opt/reef-perf "${JOBS}" spike-pinned
 ENV REEF_PERF_DEPS=/opt/reef-perf
 RUN uv sync --frozen
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && \

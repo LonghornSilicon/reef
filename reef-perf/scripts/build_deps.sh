@@ -88,11 +88,38 @@ build_spike() {
     )
 }
 
+# Spike as CoralNPU 8a5e1b31 builds it: ext/spike-pinned (93a10ae) with
+# CoralNPU's patches (third_party/spike-pinned/). It installs into
+# PREFIX/spike-pinned, apart from ext/spike, and only reef_perf_pinned links
+# it.
+build_spike_pinned() {
+    echo "== Spike (pinned RTL)"
+    local src="${WORK}/spike-pinned-src"
+    local prefix="${PREFIX}/spike-pinned"
+    rm -rf "${src}"
+    mkdir -p "${src}" "${WORK}/spike-pinned" "${prefix}"
+    tar -C "${ROOT}/ext/spike-pinned" --exclude=.git -cf - . | tar -x -C "${src}"
+    for patch in "${ROOT}"/third_party/spike-pinned/*.patch; do
+        patch -s -p1 -d "${src}" < "${patch}"
+    done
+    materialize_link_stub "${src}/spike_dasm/spike_dasm_option_parser.cc"
+    (
+        cd "${WORK}/spike-pinned"
+        quiet "${src}/configure" --prefix="${prefix}"
+        quiet make -j "${JOBS}"
+        quiet make install
+        cp libriscv.a libdisasm.a libsoftfloat.a libfesvr.a libfdt.a \
+            "${prefix}/lib/"
+        cp config.h "${prefix}/include/riscv/"
+    )
+}
+
 for component in "$@"; do
     case "${component}" in
     yaml-cpp) build_yaml_cpp ;;
     sparta) build_sparta ;;
     spike) build_spike ;;
+    spike-pinned) build_spike_pinned ;;
     *)
         echo "unknown component: ${component}" >&2
         exit 2

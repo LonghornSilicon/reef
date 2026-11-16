@@ -158,7 +158,9 @@ def test_pinned_timing_matches_golden(
         results = list(
             pool.map(
                 lambda n: run_sim(
-                    elfs[n], overlay_configs=[pinned.PINNED_CONFIG]
+                    elfs[n],
+                    overlay_configs=[pinned.PINNED_CONFIG],
+                    binary=pinned.find_pinned_binary(),
                 ),
                 names,
             )

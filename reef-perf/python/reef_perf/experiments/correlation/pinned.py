@@ -18,16 +18,44 @@ import argparse
 import csv
 import json
 import os
+import warnings
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
-from reef_perf.sim import MODULE_ROOT, run_sim
+from reef_perf.sim import MODULE_ROOT, find_binary, run_sim
 
 PINNED_CONFIG = MODULE_ROOT / "configs" / "machines" / "coral_pinned.yaml"
 """The pinned RTL's differences from M3, applied after m3.yaml."""
+
+PINNED_BINARY = "reef_perf_pinned"
+"""The simulator built with Spike as CoralNPU 8a5e1b31 builds it
+(third_party/spike-pinned/README.md)."""
+
+
+def find_pinned_binary() -> Path:
+    """Locate reef_perf_pinned, the simulator for the pinned config.
+
+    Falls back to reef_perf, with a warning, where it is not built (no
+    pinned Spike installed). The two give identical results on every
+    program today; the fallback keeps the pinned tests running there.
+
+    Returns:
+        Path to the executable.
+    """
+    try:
+        return find_binary(PINNED_BINARY)
+    except FileNotFoundError:
+        warnings.warn(
+            f"{PINNED_BINARY} is not built; running the pinned config on "
+            "reef_perf (M3's Spike). Build the pinned Spike with "
+            "scripts/build_deps.sh build/deps spike-pinned.",
+            stacklevel=2,
+        )
+        return find_binary()
+
 
 KERNEL_DIR = MODULE_ROOT / "kernel_correlation"
 """The kernel ELFs and their RTL measurements."""
@@ -161,6 +189,7 @@ def correlate(
     elf_dir: Path,
     overlay_configs: Sequence[Path] = (PINNED_CONFIG,),
     jobs: int | None = None,
+    binary: Path | None = None,
 ) -> list[Row]:
     """Run every program and compare it with the pinned RTL.
 
@@ -168,6 +197,7 @@ def correlate(
         elf_dir: Directory for the assembled microbenchmarks.
         overlay_configs: Configs applied after m3.yaml.
         jobs: Parallel simulator processes; one per CPU by default.
+        binary: Simulator; reef_perf_pinned by default.
 
     Returns:
         One row per program with a pinned RTL measurement.
@@ -184,7 +214,11 @@ def correlate(
     with ThreadPoolExecutor(max_workers=jobs or os.cpu_count()) as pool:
         results = list(
             pool.map(
-                lambda key: run_sim(elfs[key], overlay_configs=overlay_configs),
+                lambda key: run_sim(
+                    elfs[key],
+                    overlay_configs=overlay_configs,
+                    binary=binary or find_pinned_binary(),
+                ),
                 keys,
             )
         )
@@ -306,7 +340,9 @@ def main(argv: list[str] | None = None) -> int:
     overlays = () if args.no_overlay else (PINNED_CONFIG,)
     config = "m3.yaml" if args.no_overlay else "m3.yaml + coral_pinned.yaml"
     args.out.mkdir(parents=True, exist_ok=True)
-    rows = correlate(args.out / "elfs", overlays, args.jobs)
+    # m3.yaml alone is M3's machine, so it runs on M3's Spike.
+    binary = find_binary() if args.no_overlay else find_pinned_binary()
+    rows = correlate(args.out / "elfs", overlays, args.jobs, binary)
     report = render_markdown(rows, f"Model ({config}) against the pinned RTL")
     (args.out / "pinned.json").write_text(
         json.dumps(

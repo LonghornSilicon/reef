@@ -11,7 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from reef_perf.experiments.correlation.pinned import PINNED_CONFIG
+from reef_perf.experiments.correlation.pinned import (
+    PINNED_CONFIG,
+    find_pinned_binary,
+)
 from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
 from reef_perf.sim import run_sim
 
@@ -83,7 +86,9 @@ def test_lsu_program_matches_pinned_rtl(
         out = tmp_path / str(iters)
         (out / name).parent.mkdir(parents=True)
         elf = build_microbenchmark(name, out, {"ITERS": iters})
-        result = run_sim(elf, overlay_configs=[PINNED_CONFIG])
+        result = run_sim(
+            elf, overlay_configs=[PINNED_CONFIG], binary=find_pinned_binary()
+        )
         assert result.roi_instructions == insts, name
         assert result.roi_cycles is not None
         model.append(result.roi_cycles)
@@ -108,7 +113,9 @@ def test_lsu_v3_is_off_without_the_pinned_config(
             out = tmp_path / label / str(iters)
             (out / "lsu").mkdir(parents=True)
             elf = build_microbenchmark("lsu/vload_m4", out, {"ITERS": iters})
-            roi.append(run_sim(elf, overlay_configs=overlays).roi_cycles)
+            binary = find_pinned_binary() if overlays else None
+            result = run_sim(elf, overlay_configs=overlays, binary=binary)
+            roi.append(result.roi_cycles)
         cost[label] = (roi[1] - roi[0]) / (20 * 16)
     assert cost["m3"] == pytest.approx(17.0, abs=0.1)
     assert cost["pinned"] == pytest.approx(6.0, abs=0.1)

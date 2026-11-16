@@ -17,7 +17,10 @@ from pathlib import Path
 
 import pytest
 
-from reef_perf.experiments.correlation.pinned import PINNED_CONFIG
+from reef_perf.experiments.correlation.pinned import (
+    PINNED_CONFIG,
+    find_pinned_binary,
+)
 from reef_perf.experiments.matrix_diff.main import (
     BENCHMARKS,
     REFERENCE_CORE_PARAMS,
@@ -129,6 +132,7 @@ def _model_cost(
     tmp_path: Path,
     reference: Path = RTL_REFERENCE,
     overlays: tuple[Path, ...] = (),
+    binary: Path | None = None,
 ) -> float:
     rtl_insts = [
         int(row["roi_instructions"]) for row in _rtl_rows(bench, reference)
@@ -142,6 +146,7 @@ def _model_cost(
             elf,
             params=REFERENCE_CORE_PARAMS,
             overlay_configs=(VME_CONFIG, *overlays),
+            binary=binary,
         )
         assert result.instructions == result.functional_instructions
         assert result.roi_cycles is not None
@@ -203,7 +208,12 @@ def test_matches_rtl_on_pinned_config(
     del cpp_build_dir
     bench = _BY_NAME[name]
     rtl = _rtl_cost(bench)
-    model = _model_cost(bench, tmp_path, overlays=(PINNED_CONFIG,))
+    model = _model_cost(
+        bench,
+        tmp_path,
+        overlays=(PINNED_CONFIG,),
+        binary=find_pinned_binary(),
+    )
     assert model == pytest.approx(rtl, rel=CORRELATED[name]), (
         f"{name}: model {model:.3f} against RTL {rtl:.3f} cycles per op"
     )
