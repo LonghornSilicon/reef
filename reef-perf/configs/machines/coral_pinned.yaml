@@ -81,20 +81,16 @@ top:
         # lsu_v3_* values keep their defaults, which are this RTL's.
         # M3: false
         lsu_v3: true
-        # C2b (off). lsu_v3_tile runs tile beats through the same slot in
-        # place of X2's fitted cost. Tile stores then follow the RTL (bus
-        # the cycle after the engine's data, done a cycle later), but tile
-        # loads show that the matrix module expects a beat's data in its
-        # bus cycle where the RTL hands it over 2 cycles later, so it needs
-        # a change in the matrix module first (docs/pinned.md, "Tile beats").
-        # X2. A tile load or store costs 2 cycles per instruction + 1 per
-        # 16-byte beat. MEASURED on this RTL: tile_*_burst in
-        # microbenchmarks/matrix/rtl_vme.csv (docs/lsu-tile-beats.md).
-        # M3: lsu_tile_cost false (a tile beat costs a vector register)
-        lsu_tile_cost: true
-        lsu_tile_inst_overhead: 1
-        lsu_tile_beat_overhead: 0
-        lsu_tile_switch_cycles: 1
+        # C2b. Zvt tile beats run through the same slot. A tile load is an
+        # unmasked unit-stride load: bus read 2 cycles after dispatch, one
+        # 16-byte beat per cycle, each pushed to the engine (lsu2vme) 2
+        # cycles after its read. A tile store's beat is written the cycle
+        # after the engine hands it over (vme2lsu), and the instruction is
+        # complete a cycle after its last write. TRACE: matrix/
+        # tile_load32_burst, tile_store32_burst, load_then_store. Needs X4
+        # below. M3 + Zvt: false, with lsu_tile_cost false (a tile beat
+        # costs a vector register on M3's LSU)
+        lsu_v3_tile: true
   vector:
     params:
       # V1. RTL: rvv_backend_define.svh ROB_DEPTH 16. M3: 8
@@ -135,3 +131,9 @@ top:
       # without the fetch unit's stalled redirect (docs/pinned.md, "The
       # branch rule"). m3_vme.yaml: 1 (unchanged)
       mtx_complete_latency: 0
+      # X4. A tile-load beat that finds the 2-entry lsu2vme FIFO full
+      # waits in the LSU after its bus read; the module's default starts
+      # the read later instead, which is right only while the LSU reports
+      # a beat's data in its bus cycle. With C2b the LSU reports the push,
+      # 2 cycles later, as the RTL does. m3_vme.yaml: false (unchanged)
+      mtx_lsu_holds_full_fifo_beat: true

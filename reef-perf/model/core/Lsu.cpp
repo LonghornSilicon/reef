@@ -178,6 +178,7 @@ VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
                                                    : V3ReturnCycles);
   if (Request.Earliest >= V3BackendLead)
     Result.Done = std::max(Result.Done, Request.Earliest - V3BackendLead);
+  Result.Done = std::max(Result.Done, Request.ReceiverReady);
   // The slot is the instruction's from its first register until its last
   // one is done; a later register extends the booking.
   Cycle From = Pipe.getNextFree(0);

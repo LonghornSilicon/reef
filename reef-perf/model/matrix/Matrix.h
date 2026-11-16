@@ -141,6 +141,12 @@ public:
     PARAMETER(uint32_t, mtx_lsu_fifo_entries, 2,
               "Entries in each FIFO between the LSU and the controller "
               "(lsu2vme for tile loads, vme2lsu for tile stores)")
+    PARAMETER(bool, mtx_lsu_holds_full_fifo_beat, false,
+              "A tile-load beat that finds lsu2vme full waits in the LSU "
+              "after its bus read, as on the RTL. Off: the beat starts "
+              "later instead, which is the same stall only while the LSU "
+              "reports a beat's data in its bus cycle (lsu_tile_cost). Set "
+              "with the core's lsu_v3_tile, which reports the push cycle")
     PARAMETER(bool, mtx_ctrl_waits_for_array_drain, true,
               "vtzero, moves, tile loads and stores wait until no MAC is "
               "in flight")
@@ -244,6 +250,7 @@ private:
   const uint32_t TileWriteLatency;
   const uint32_t TileReadLatency;
   const uint32_t LsuFifoEntries;
+  const bool LsuHoldsFullFifoBeat;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;

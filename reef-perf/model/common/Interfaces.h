@@ -89,6 +89,10 @@ struct VectorLsuRequest {
   /// the register: store data, an index vector or a mask. False for an
   /// unmasked unit-stride or strided load. Only lsu_v3 reads it.
   bool NeedsVectorData = true;
+  /// First cycle the sender can take a loaded register back (0: at once).
+  /// An LSU that hands data back itself (lsu_v3) holds the register, and
+  /// its slot, until then; the matrix module sets it when lsu2vme is full.
+  Cycle ReceiverReady = 0;
 };
 
 /// The LSU's answer to a VectorLsuRequest.

@@ -45,9 +45,10 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | C3 | `load_waw_advance` | 1 | 0 | waveform of `addr_forward` | keeps `addr_forward` at 4 cycles per load with LsuV3's 3-cycle loads |
 | V6 | `vec_store_completes_on_last_register` | false | true | `Lsu.scala:1970-1971` | multi-register stores |
 | M1 | `axi_latency`, `axi_write_latency` | 2, as a read | 4, 5 | waveforms of `ext_*` | `ext_load_chain` -25% to +0.2%, the two streams to -1.8% |
+| C2b | `lsu_v3_tile` | false | true | waveforms of `tile_load32_burst`, `tile_store32_burst`, `load_then_store` | replaces the fitted `lsu_tile_*` cost; `load_then_store` -7% to 0.0% |
+| X4 | `mtx_lsu_holds_full_fifo_beat` (new, matrix module) | false (`m3_vme.yaml`, unchanged) | true | waveform of `tile_load_behind_mac`; `zvt.sv:188-193`, `multi_fifo.sv:44`, `:111-114` | needed by C2b |
 | X3 | `mtx_complete_latency` | 1 (`m3_vme.yaml`, unchanged) | 0 | waveform of `matrix/mac_rob` | with C4, the `*_rob` matrix programs and `mac_queue` stay exact |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
-| X2 | `lsu_tile_cost` and `lsu_tile_*` | off | 1 + 0 per beat + 1 | measured (`tile_*_burst`) | tile loads and stores |
 
 ## Differences not modeled yet
 
@@ -169,17 +170,27 @@ Waveforms of `tile_load32_burst`, `tile_store32_burst` and `load_then_store`:
 - a store waiting for its data holds the slot (`load_then_store`: the next
   load's bus read follows the store's completion).
 
-`lsu_v3_tile` (default false) runs tile beats through the LsuV3 slot this
-way. With it on, the store programs match (`tile_store32_burst` 6.0,
-`tile_store` 3.50 against 3.56). The load programs do not: `load_then_mac`
-reads 20 against 18, `tile_load_behind_mac` 34 against 32,
-`tile_load32_burst` 8.0 against 6.0. The matrix module was calibrated with
-the fitted cost, under which the LSU reports a beat's data in its bus cycle;
-the RTL pushes it 2 cycles later. So the module's own path from that push to
-the tile write is 2 cycles longer than the RTL's, and its rule that a beat
-starts only when the 2-deep FIFO has room then throttles a 4-beat load.
-Turning the switch on needs those two things changed in the matrix module.
-It stays off, and X2's fitted cost stays, until that is decided.
+`lsu_v3_tile` runs tile beats through the LsuV3 slot this way, in place of
+the fitted `lsu_tile_*` cost, which this config no longer sets.
+
+It needed one change in the matrix module, `mtx_lsu_holds_full_fifo_beat`
+(on for this config only). The module used to delay the *start* of a beat
+that would find the 2-entry `lsu2vme` FIFO full. That equals the RTL's stall
+only while the LSU reports a beat's data in its bus cycle, as the fitted
+cost did. The LsuV3 path reports the push, 2 cycles after the read, so the
+module now passes the FIFO's room to the LSU (`ReceiverReady`), which reads
+the beat at once and holds it, and its slot, until then. Waveform of
+`tile_load_behind_mac`: the third beat is read in cycle 71, offered from 73
+and taken in 82, and the next bus read is 83.
+
+The room itself is one cycle later than the module assumed: `lsu2vme` is
+built without `FULL_PUSH`, so a full FIFO shows room the cycle after a pop,
+not in the same cycle. The old rule had the two errors cancel.
+
+With both, every tile program matches: `tile_load32_burst` 6.0,
+`tile_store32_burst` 6.0, `load_then_mac` 18, `mac_then_store` 18,
+`tile_load_behind_mac` 32, and `load_then_store` 14 (13 before, a known
+gap).
 
 ## Audit against the goal (2026-11-15)
 
@@ -200,7 +211,7 @@ one.
 | V3b `vec_fdiv_cycles_per_uop` | fitted | measured only; no RTL reason found yet |
 | V6 store completion | RTL source | read |
 | M1 external bus | waveform | observed bus hold times; the RTL stages behind them not located |
-| X2 tile cost | fitted (`lsu_tile_*`) | still fitted. `lsu_v3_tile` runs tile beats through the LsuV3 slot and is off: see "Tile beats" |
+| C2b, X4 tile beats | waveforms and RTL source | read; the fitted `lsu_tile_*` cost is no longer used here |
 | X3 tile retire cycle | waveform | read; set on this config only |
 
 The dispatch rules that were missing (slot 0 only, nothing after a jump, a
@@ -235,11 +246,11 @@ Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 | This config with LsuV3 and fetch | 37 | +10%, +4%, +12% |
 | This config with C4 and X3 as well | 39 | +7%, +3%, +8% |
 | This config with the dispatch rules (C5) | 40 | +6%, +1%, +8% |
+| This config with tile beats on LsuV3 (C2b, X4) | 41 | +6%, +1%, +8% |
 
 `vec_load_burst`, `vec_load4_burst`, `vec_store4_burst` and `gemm_multi`
 joined with LsuV3; `tile_load`, `tile_store`, `move_tv8_burst` and
 `move_vt8_burst` (short loops, +7% to +27% before) with fetch and the branch
 rule; `vtdiscard_after_mac` (-77% before) with C5. None was used to build
-any of them. The four outside 5% are `gemm_tile` (+5.6%), `gemm_longk`
-(+7.5%), `move_vt_use` (+15%, V8) and `load_then_store` (-7%, which
-`lsu_v3_tile` would fix).
+any of them. The three outside 5% are `gemm_tile` (+5.6%), `gemm_longk`
+(+7.5%) and `move_vt_use` (+15%, V8).
