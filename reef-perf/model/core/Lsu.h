@@ -94,9 +94,10 @@ public:
               "loaded value back, or a vector store's register being done")
     PARAMETER(uint32_t, lsu_v3_scalar_store_cycles, 1,
               "Cycles from a scalar store's bus cycle to its completion")
-    PARAMETER(uint32_t, lsu_v3_backend_lead, 0,
-              "Cycles before a load uop could issue that the vector backend "
-              "can already take its loaded register")
+    PARAMETER(uint32_t, lsu_v3_backend_lead, 1,
+              "A loaded register is in the vector ROB no earlier than this "
+              "many cycles before its uop could issue: 1 is the cycle the "
+              "uop is dispatched and gets its ROB entry")
     PARAMETER(bool, lsu_v3_tile, false,
               "With lsu_v3: Zvt tile beats run through the LsuV3 slot too, "
               "in place of lsu_tile_*. A tile load is an unmasked "

@@ -39,3 +39,5 @@ vstore_rob,50,556,851
 vstore_rob,100,1106,1701
 lw_rob,50,309,853
 lw_rob,100,609,1703
+vload_macc,50,463,352
+vload_macc,100,913,702

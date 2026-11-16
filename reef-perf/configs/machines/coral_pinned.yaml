@@ -40,11 +40,26 @@ top:
       # M3: false (one fetch every other cycle; fetch_interval,
       # redirect_penalty)
       fetch_reorder_buffer: true
+      # F3. The unary vector forms (vzext/vsext, vmsbf/vmsif/vmsof,
+      # viota/vid, vfsqrt, vfcvt, vfclass) carry a sub-opcode in their vs1
+      # field. The M3 model reads it as a source register, which makes
+      # vsext.vf2 depend on v6 or v7. A decode fix, not an RTL difference:
+      # RVV 1.0, and pinned/vwmacc_m2_chain (4 cycles; 8 without). M3
+      # model: false
+      decode_unary_vs1_is_opcode: true
       # X1. Zvt instructions decode and run on the matrix module (the
       # engine's own values are the matrix module's defaults,
       # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
       zvt: true
   core:
+    scalar_exec:
+      params:
+        # C7. The scalar FPU answers a cycle after it takes an operation
+        # and takes the next one the cycle after that. TRACE: fp_chain
+        # (io_inst fires every 2 cycles, the write in between). Only
+        # fmadd.s and fadd.s are checked; divide and square root are not.
+        # M3: 3 (B11, unmeasured there)
+        fpu_latency: 2
     rob:
       params:
         # C1. RTL: Parameters.scala:141 retirementBufferSize = 16. M3: 8
@@ -66,6 +81,12 @@ top:
         csr_waits_for_empty_rob: true  # so a csrr mcycle waits for older work
         vtdiscard_interlock: true      # empty retirement buffer only; the RTL
                                        # also waits for an idle RVV backend and LSU
+        # C6. A vector or tile load or store is not dispatched in the cycle
+        # after any vector-engine instruction was. RTL: RvvFrontEnd.sv:86-93
+        # (config_state_valid is low while inst_q holds an instruction),
+        # Decode.scala rvvConfigInterlock. TRACE: lsu/vload_macc (the next
+        # iteration's vle8.v waits a cycle behind vwmacc.vx). M3 model: false
+        rvv_config_interlock: true
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
@@ -111,6 +132,17 @@ top:
       # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
       # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
       vec_fdiv_cycles_per_uop: 9
+      # V4. The retirement buffer sees a vector instruction done a cycle
+      # after its last uop leaves the vector ROB (CoralNPU a0974da8
+      # registers the completion token). MEASURED: lsu/vload_rob 9,
+      # lsu/vload_dep_rob 12; the independent streams (vadd_indep -7.7% to
+      # within 1%). M3: 0
+      vec_completion_token_latency: 1
+      # V5. A dependent uop reads a result once it is in the vector ROB,
+      # not only once it retires in order. MEASURED: pinned/vwmacc_m2_chain
+      # 5 to 4 (RTL 4): a vsext behind a slow vwmacc no longer delays its
+      # own reader. Not checked on the M3 RTL. M3 model: false
+      vec_results_forward_from_rob: true
       # V6. The LSU reports a vector store complete once, after its last
       # register. RTL: Lsu.scala:1970-1971. M3: false (after each register)
       vec_store_completes_on_last_register: true

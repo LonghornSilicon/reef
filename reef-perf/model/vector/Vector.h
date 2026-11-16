@@ -188,6 +188,16 @@ public:
               "The core's retirement buffer matches vector results and "
               "store completions to entries by PC, so an older instance of "
               "the same PC completes newer ones (M3's RTL bug)")
+    PARAMETER(bool, vec_results_forward_from_rob, false,
+              "A uop's result can be read by a dependent uop once it is in "
+              "the vector ROB, whether or not older uops have retired. Off: "
+              "only once it retires, in order, so an older slow uop delays "
+              "readers of a younger independent one")
+    PARAMETER(uint32_t, vec_completion_token_latency, 0,
+              "Cycles from a vector instruction's last uop retiring from the "
+              "vector ROB to the retirement buffer marking it done. Stores "
+              "complete through the LSU instead. 0 on M3; CoralNPU a0974da8 "
+              "registers the token")
     PARAMETER(bool, vec_store_completion_matches_pc, false,
               "With vec_completion_matches_pc off: vector stores are still "
               "matched to retirement-buffer entries by PC, so an older "
@@ -264,6 +274,8 @@ private:
   const bool CompletionMatchesPc;
   const bool StoreCompletesOnLastRegister;
   const bool StoreCompletionMatchesPc;
+  const uint32_t CompletionTokenLatency;
+  const bool ResultsForwardFromRob;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
   VectorLsuInterface *Lsu = nullptr;

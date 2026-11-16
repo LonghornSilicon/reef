@@ -123,6 +123,12 @@ public:
               "vtdiscard is dispatched only when the retirement buffer is "
               "empty. The RTL also waits for the RVV backend and the LSU "
               "to be idle, which this does not model")
+    PARAMETER(bool, rvv_config_interlock, false,
+              "A vector or tile load or store is not dispatched in the cycle "
+              "after a vector-engine instruction was, nor behind a vset* in "
+              "its own cycle: the RVV front end's config state is invalid "
+              "while it holds an instruction (RvvFrontEnd.sv:86-93, "
+              "Decode.scala rvvConfigInterlock)")
     PARAMETER(uint32_t, load_waw_advance, 1,
               "Cycles before a load's result is ready that a later writer "
               "of the same register may dispatch (1 on M3)")
@@ -177,6 +183,7 @@ private:
   const bool JumpEndsGroup;
   const bool CsrWaitsForEmptyRob;
   const bool VtdiscardInterlock;
+  const bool RvvConfigInterlock;
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;
@@ -185,6 +192,8 @@ private:
   std::array<InstRef, RegId::NumDense> LastWriter{};
 
   uint32_t RobCredits = 0;
+  Cycle LastRvvDispatch = Inst::Never; // Latest vector-engine dispatch.
+  Cycle LastVsetDispatch = Inst::Never;
   uint32_t RobSize = 0; // The Rob's first credits: its entries.
   uint32_t LsuCredits = 0;
   uint32_t VecCredits = 0;

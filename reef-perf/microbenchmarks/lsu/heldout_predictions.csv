@@ -11,3 +11,13 @@ lsu/vstore_rob,lead1,50,506,1006,851,10.000
 lsu/vstore_rob,lead0,50,506,1006,851,10.000
 lsu/lw_rob,lead1,50,505,1005,853,10.000
 lsu/lw_rob,lead0,50,505,1005,853,10.000
+# vload_macc: predictions recorded 2026-11-16T05:07:11Z before its RTL run. Model: akul/pinned-model
+# fddda32 + uncommitted vec_completion_token_latency 1 and fpu_latency 2 on coral_pinned.yaml.
+# variant = lsu_v3_backend_lead.
+lsu/vload_macc,lead0,50,465,915,352,9.000
+lsu/vload_macc,lead1,50,415,815,352,8.000
+# vwmacc_m2_chain, vwmacc_m2_only (microbenchmarks/pinned/): predictions recorded
+# 2026-11-16T05:07:50Z before their RTL run, same model as vload_macc (the hand-back variant does
+# not matter: no load).
+pinned/vwmacc_m2_chain,token,50,410,810,252,8.000
+pinned/vwmacc_m2_only,token,50,211,411,202,4.000

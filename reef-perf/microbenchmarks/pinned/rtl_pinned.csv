@@ -1,0 +1,5 @@
+name,iters,roi_cycles,roi_instructions
+vwmacc_m2_chain,50,213,252
+vwmacc_m2_chain,100,413,502
+vwmacc_m2_only,50,210,202
+vwmacc_m2_only,100,410,402

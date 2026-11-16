@@ -137,7 +137,8 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
       Slot0OnlyRule(Params->slot0_only_rule),
       JumpEndsGroup(Params->jump_ends_group),
       CsrWaitsForEmptyRob(Params->csr_waits_for_empty_rob),
-      VtdiscardInterlock(Params->vtdiscard_interlock) {
+      VtdiscardInterlock(Params->vtdiscard_interlock),
+      RvvConfigInterlock(Params->rvv_config_interlock) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -200,6 +201,14 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     Why = StallReason::CsrDrain;
     InstRef Oldest = TheRob ? TheRob->getOldest() : nullptr;
     Blamed = Oldest ? getExecTarget(*Oldest) : ExecTarget::Scalar;
+    return false;
+  }
+  // The RVV front end holds each instruction for a cycle, and its config
+  // state is not valid for a load or store meanwhile.
+  if (RvvConfigInterlock && (isVectorMemory(*I) || isMatrixMemory(*I)) &&
+      (LastRvvDispatch + 1 == Now || LastVsetDispatch == Now)) {
+    Why = StallReason::VecFull;
+    Blamed = ExecTarget::Vector;
     return false;
   }
   // A register hazard is blamed on the unit producing the register. A
@@ -322,6 +331,10 @@ void Dispatch::dispatchGroup() {
     if (!canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
+    if (I->isVector() || I->isMatrix())
+      LastRvvDispatch = Now;
+    if (I->Class == InstClass::VSET)
+      LastVsetDispatch = Now;
     for (RegId Reg : I->Dsts)
       LastWriter.at(Reg.getDense()) = I;
     --RobCredits;

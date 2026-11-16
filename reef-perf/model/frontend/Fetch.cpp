@@ -40,7 +40,8 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
       FetchBlockBytes(Params->fetch_block_bytes),
-      IbufEntries(Params->ibuf_entries), Zvt(Params->zvt) {
+      IbufEntries(Params->ibuf_entries), Zvt(Params->zvt),
+      UnaryVs1IsOpcode(Params->decode_unary_vs1_is_opcode) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
   sparta_assert(!ReorderBuffer || (MaxInFlight > 0 && ResponseCycles > 0));
   sparta_assert(!ReorderBuffer || FetchWidth <= IbufEntries,

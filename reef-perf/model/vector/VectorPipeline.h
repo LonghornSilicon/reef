@@ -139,6 +139,9 @@ struct VectorTiming {
   Cycle FirstStart = 0;      ///< Its first uop entered a unit.
   /// Per uop: when its result came back from its unit or the LSU.
   std::vector<Cycle> UopDones;
+  /// Per uop: the cycle its result is in the vector ROB (retire, were no
+  /// older uop still ahead of it).
+  std::vector<Cycle> UopInRob;
   Cycle Retire = 0; ///< Its last uop retired from the vector ROB.
   /// Per uop: when it retired, or for a uop without a ROB entry, when the
   /// instruction did.

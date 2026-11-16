@@ -64,6 +64,8 @@ public:
   /// Turns Zvt on or off (default off). Off, next() never looks for Zvt, so a
   /// Zvt word goes to Spike, which traps on it.
   void setZvt(bool Enabled) { ZvtEnabled = Enabled; }
+  /// Decodes the unary vector forms' vs1 field as a sub-opcode (decodeInst).
+  void setUnaryVs1IsOpcode(bool Enabled) { UnaryVs1IsOpcode = Enabled; }
 
   /// \returns true once next() has returned nullptr.
   bool isHalted() const { return Halted; }
@@ -126,6 +128,7 @@ private:
   uint64_t NumExecuted = 0;
   bool Halted = false;
   bool ZvtEnabled = false;
+  bool UnaryVs1IsOpcode = false;
   ZvtConfig Zvt; // Matrix configuration Spike does not hold.
 };
 

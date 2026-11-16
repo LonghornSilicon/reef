@@ -1,6 +1,6 @@
 """The LSU microbenchmarks on the pinned-RTL config match the pinned RTL.
 
-microbenchmarks/lsu/ measures CoralNPU 8a5e1b31's LSU (LsuV3) by
+microbenchmarks/lsu/ and microbenchmarks/pinned/ measure CoralNPU 8a5e1b31 by
 differencing N and 2N iterations, as the matrix programs do
 (rtl_pinned.csv, from vme_core_mini_verification_axi_sim). The model runs
 m3.yaml + configs/machines/coral_pinned.yaml, which turns lsu_v3 on.
@@ -15,31 +15,36 @@ from reef_perf.experiments.correlation.pinned import PINNED_CONFIG
 from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
 from reef_perf.sim import run_sim
 
-LSU_DIR = MICROBENCHMARK_DIR / "lsu"
+SUITES = ("lsu", "pinned")
+"""Directories of differenced programs with an rtl_pinned.csv."""
 TOLERANCE = 0.02
 """Allowed relative error in cycles per loop iteration."""
 
-KNOWN_GAP = {
-    "vload_use": "vector: vmv.x.s of a loaded register (docs/pinned.md, V8)",
-}
-"""Programs with a known error outside the LSU, and why."""
+KNOWN_GAP: dict[str, str] = {}
+"""Programs with a known error, and why. None at present."""
 
 
 def _rtl() -> dict[str, list[tuple[int, int, int]]]:
     rows: dict[str, list[tuple[int, int, int]]] = {}
-    with (LSU_DIR / "rtl_pinned.csv").open(newline="") as handle:
-        for row in csv.DictReader(handle):
-            rows.setdefault(row["name"], []).append(
-                (
-                    int(row["iters"]),
-                    int(row["roi_cycles"]),
-                    int(row["roi_instructions"]),
+    for suite in SUITES:
+        path = MICROBENCHMARK_DIR / suite / "rtl_pinned.csv"
+        with path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                rows.setdefault(f"{suite}/{row['name']}", []).append(
+                    (
+                        int(row["iters"]),
+                        int(row["roi_cycles"]),
+                        int(row["roi_instructions"]),
+                    )
                 )
-            )
     return {name: sorted(runs) for name, runs in rows.items()}
 
 
-PROGRAMS = sorted(path.stem for path in LSU_DIR.glob("*.S"))
+PROGRAMS = sorted(
+    f"{suite}/{path.stem}"
+    for suite in SUITES
+    for path in (MICROBENCHMARK_DIR / suite).glob("*.S")
+)
 
 
 @pytest.mark.unit
@@ -62,8 +67,8 @@ def test_lsu_program_matches_pinned_rtl(
     model = []
     for iters, _, insts in _rtl()[name]:
         out = tmp_path / str(iters)
-        (out / "lsu").mkdir(parents=True)
-        elf = build_microbenchmark(f"lsu/{name}", out, {"ITERS": iters})
+        (out / name).parent.mkdir(parents=True)
+        elf = build_microbenchmark(name, out, {"ITERS": iters})
         result = run_sim(elf, overlay_configs=[PINNED_CONFIG])
         assert result.roi_instructions == insts, name
         assert result.roi_cycles is not None

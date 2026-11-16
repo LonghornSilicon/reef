@@ -164,7 +164,7 @@ InstRef FuncSim::next() {
     if (ZvtEnabled && isStandardVset(I->Encoding))
       Zvt = {}; // vset* also clears mtype (RvvFrontEnd.sv:205).
   }
-  decodeInst(*I, ZvtEnabled);
+  decodeInst(*I, ZvtEnabled, UnaryVs1IsOpcode);
   return I;
 }
 

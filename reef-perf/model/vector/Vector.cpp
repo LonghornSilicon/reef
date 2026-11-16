@@ -204,6 +204,8 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       StoreCompletesOnLastRegister(
           Params->vec_store_completes_on_last_register),
       StoreCompletionMatchesPc(Params->vec_store_completion_matches_pc),
+      CompletionTokenLatency(Params->vec_completion_token_latency),
+      ResultsForwardFromRob(Params->vec_results_forward_from_rob),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -309,7 +311,9 @@ void Vector::recordResults(const Inst &I, const VectorTiming &T) {
   size_t Uops = T.UopRetires.size();
   for (size_t K = 0; K < Regs.size(); ++K) {
     size_t Writer = std::min(Uops, (K + 1) * Uops / Regs.size());
-    RegReady[Regs[K]] = T.UopRetires[Writer > 0 ? Writer - 1 : 0] + 1;
+    const std::vector<Cycle> &Visible =
+        ResultsForwardFromRob ? T.UopInRob : T.UopRetires;
+    RegReady[Regs[K]] = Visible[Writer > 0 ? Writer - 1 : 0] + 1;
   }
 }
 
@@ -403,6 +407,8 @@ void Vector::receiveInst(const InstRef &I) {
   if (I->Class == InstClass::V_TO_SCALAR)
     I->ResultReadyCycle += ToScalarLatency;
   I->CompleteCycle = getScalarComplete(*I, T);
+  if (I->Class != InstClass::V_STORE)
+    I->CompleteCycle += CompletionTokenLatency;
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

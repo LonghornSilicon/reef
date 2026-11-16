@@ -83,6 +83,11 @@ public:
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
+    PARAMETER(bool, decode_unary_vs1_is_opcode, false,
+              "Decode the vs1 field of vzext/vsext, vmsbf/vmsif/vmsof, "
+              "viota/vid, vfsqrt, vfcvt and vfclass as the sub-opcode it is, "
+              "and give vzext/vsext their narrower source. Off: the M3 "
+              "model, which reads it as a source register")
     PARAMETER(bool, zvt, false,
               "Run and decode Zvt matrix instructions, as CoralNPU builds "
               "with VME do. Off, a Zvt word traps, as on M3")
@@ -102,6 +107,7 @@ public:
   void setFuncSim(FuncSim *Sim) {
     TheFuncSim = Sim;
     TheFuncSim->setZvt(Zvt);
+    TheFuncSim->setUnaryVs1IsOpcode(UnaryVs1IsOpcode);
   }
 
   /// Connects the memory module \p NewMem, where each fetch group books its
@@ -147,6 +153,7 @@ private:
   const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
   const bool Zvt;
+  const bool UnaryVs1IsOpcode;
 
   FuncSim *TheFuncSim = nullptr;
   MemoryInterface *Mem = nullptr;
