@@ -79,6 +79,8 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       LsuFifoEntries(
           atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
       LsuHoldsFullFifoBeat(Params->mtx_lsu_holds_full_fifo_beat),
+      MoveVectorLatency(Params->mtx_move_vector_latency),
+      MoveVectorFloor(Params->mtx_move_vector_floor),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
@@ -384,12 +386,21 @@ void Matrix::executeInst(const InstRef &I) {
       setTilesReady(*I, TileMacReady, Done);
       Stats.SubtileWrites += SliceSubtiles;
     } else {
+      uint64_t Uop = 0;
       for (RegId Reg : I->Dsts)
         if (Reg.getFile() == RegFile::V) {
-          OwnVReady.at(Reg.getIndex()) = Done;
+          // The controller writes one register per uop; a reader of the
+          // first does not wait for the last.
+          Cycle Ready = Done;
+          if (MoveVectorLatency != 0)
+            Ready = Start +
+                    std::max<uint64_t>(MoveVectorFloor, Uop * MoveCyclesPerUop +
+                                                            MoveVectorLatency);
+          ++Uop;
+          OwnVReady.at(Reg.getIndex()) = Ready;
           // Vector readers wait for it in the vector module.
           if (VectorRegs)
-            VectorRegs->setRegisterReady(Reg.getIndex(), Done);
+            VectorRegs->setRegisterReady(Reg.getIndex(), Ready);
         }
       Stats.SubtileReads += SliceSubtiles;
     }

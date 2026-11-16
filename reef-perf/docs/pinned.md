@@ -48,6 +48,12 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | C2b | `lsu_v3_tile` | false | true | waveforms of `tile_load32_burst`, `tile_store32_burst`, `load_then_store` | replaces the fitted `lsu_tile_*` cost; `load_then_store` -7% to 0.0% |
 | X4 | `mtx_lsu_holds_full_fifo_beat` (new, matrix module) | false (`m3_vme.yaml`, unchanged) | true | waveform of `tile_load_behind_mac`; `zvt.sv:188-193`, `multi_fifo.sv:44`, `:111-114` | needed by C2b |
 | X3 | `mtx_complete_latency` | 1 (`m3_vme.yaml`, unchanged) | 0 | waveform of `matrix/mac_rob` | with C4, the `*_rob` matrix programs and `mac_queue` stay exact |
+| C6 | `rvv_config_interlock` (new) | false | true | `RvvFrontEnd.sv:86-93`, `Decode.scala` `rvvConfigInterlock`; waveform of `lsu/vload_macc` | `linear_int8`, `mlp_int8` |
+| C7 | `fpu_latency` | 3 | 2 | waveform of `fp_chain` | `fp_chain` +41% to 0.0%, `fp_mix` +20% to 0.0% |
+| F3 | `decode_unary_vs1_is_opcode` (new) | false | true | RVV 1.0 encoding; `pinned/vwmacc_m2_chain` | a decode fix, see "A decode bug" |
+| V4 | `vec_completion_token_latency` (new) | 0 | 1 | CoralNPU `a0974da8`; measured (`lsu/vload_rob`, `vload_dep_rob`) | independent streams -7.7% to within 1% |
+| V5 | `vec_results_forward_from_rob` (new) | false | true | measured (`pinned/vwmacc_m2_chain` 5 to 4) | a slow older uop no longer delays readers of a younger one |
+| X5 | `mtx_move_vector_latency` 1, `mtx_move_vector_floor` 2 (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | set | measured: `move_vt_use` and three probes | `move_vt_use` +15% to 0.0% |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 
 ## Differences not modeled yet
@@ -56,10 +62,6 @@ Each needs model code behind a new switch.
 
 | ID | Difference | Evidence | Why not a value |
 | --- | --- | --- | --- |
-| V8 | `vmv.x.s` of a loaded register | `lsu/vload_use` +8% (1 cycle per link); `vec_pingpong` -6% | the vector-to-scalar path, not the LSU |
-| C8 | Scalar FP divide and square root in kernels | `layernorm` +18% | with C7 |
-| V5 | Independent vector streams run 7% to 10% fast | `vadd_indep`, `vmul_indep`, `vcpop_indep`, `vfadd_indep`, `vmixed_lmul` | fetch, the result arbiter or the registered completion token; to separate after F1 |
-| C7 | Scalar FP | `fp_chain` +41%, `fp_mix` +20% | `fp_chain` is the same on both RTLs, so part of this is M3's |
 
 Gaps the model already has on M3, unchanged on this RTL: `vdiv_small_*`
 (the divider's early finish), `alu_chain` -6%, `vec_pingpong` -6%.
@@ -192,6 +194,48 @@ With both, every tile program matches: `tile_load32_burst` 6.0,
 `tile_load_behind_mac` 32, and `load_then_store` 14 (13 before, a known
 gap).
 
+## A decode bug
+
+`vsext.vf2`, `vzext`, `vmsbf`/`vmsif`/`vmsof`, `viota`/`vid`, `vfsqrt`, `vfcvt`
+and `vfclass` carry a sub-opcode in their vs1 field. The frontend read it as
+a source register, so `vsext.vf2 v2, v1` (vs1 field 7) depended on v7. In the
+quantized linear kernel v7 is part of the accumulator, which chained every
+`vsext` behind the previous `vwmacc`. `pinned/vwmacc_m2_chain` isolates it:
+8 cycles per iteration with the bug, 4 on the RTL.
+
+This is in the M3 model too. `decode_unary_vs1_is_opcode` fixes it and is on
+here only, so M3's numbers stay as they are; the M3 kernel results that
+match today (`linear_int8` +0.1% on M3) do so with this bug in place, where
+the slower LSU hides it.
+
+## The vector-to-scalar path and the linear loop
+
+Four things, found one at a time with probes whose predictions were recorded
+first (`microbenchmarks/lsu/heldout_predictions.csv`):
+
+- **V4.** The retirement buffer sees a vector instruction done a cycle after
+  its last uop leaves the vector ROB.
+- **`lsu_v3_backend_lead` 1.** The waveform of `lsu/vload_macc` shows the LSU
+  never waits for the vector backend: a loaded register is handed over 2
+  cycles after its bus read, always. It is in the vector ROB from the cycle
+  its uop is dispatched. The earlier value of 0 had been standing in for V4.
+- **V5.** A dependent uop reads a result once it is in the vector ROB, not
+  only after it retires in order.
+- **C6.** A vector or tile load or store is not dispatched in the cycle
+  after any vector-engine instruction, because the RVV front end reports
+  its config state invalid while it holds an instruction. In the linear
+  kernel's loop this is one idle dispatch cycle per iteration.
+
+With F3 they bring `linear_int8` and `mlp_int8` to within 1%, and all 26
+differenced probes in `lsu/` and `pinned/` match the RTL within 2% with no
+known gap.
+
+X5 is the matrix half: a `vtmv.v.t` register is readable the cycle after its
+own uop and none sooner than 2 cycles after the first (the chain through v4,
+v5, v6, v7 takes 13, 13, 14, 15 cycles on the RTL). The floor of 2 is
+observed, not explained; it may be the reader's uop waiting behind the
+move's four uops in the shared RVV dispatch.
+
 ## Audit against the goal (2026-11-15)
 
 The goal: each switch is a piece of the RTL's behavior, read from the source
@@ -203,7 +247,7 @@ one.
 | F1 fetch | RTL structure | read, not fitted |
 | C1, V1 buffer sizes | RTL parameters | read |
 | C2 `lsu_v3`, with `lsu_v3_skip_handshake` separate | waveforms | read; the handshake skip can be turned off alone |
-| `lsu_v3_backend_lead` | fitted | one value, chosen by a held-out prediction |
+| `lsu_v3_backend_lead` | waveform of `lsu/vload_macc` | read: the LSU never waits for the backend |
 | C3 `load_waw_advance` | waveform | observed; the RTL lines behind it not located |
 | C4 branch rule | RTL source and waveform | read |
 | V2, V2b tag matching | RTL source | read: results by tag, stores by PC |
@@ -235,6 +279,12 @@ Mean absolute ROI error against the pinned RTL, and programs within 5%.
 | + fetch structure (F1); V7 removed; scalar load retire cycle | 4.8% | 0.1% | 19.4% | 4.6% | 11.6% | 48 |
 | + stalled redirect, branch rule, MAC retire cycle (C4, X3) | 3.5% | 0.1% | 19.0% | 4.2% | 11.0% | 52 |
 | + stores by PC, dispatch rules (V2b, C5) | 3.4% | 0.1% | 17.9% | 4.9% | 10.4% | 54 |
+| + FPU, completion token, ROB forwarding, config interlock, decode fix (C6, C7, F3, V4, V5) | 0.2% | 0.1% | 17.0% | 1.4% | 8.6% | 61 |
+
+Against the 3% target (set 2026-11-15), 59 of 65 are inside. Outside:
+`vdiv_small_chain` and `vdiv_small_indep` (the divider's early finish, which
+is all of the vector-unit mean), `vcpop_indep` -9.9%, `layernorm` +6.8%,
+`div_chain` -4.4%, `attention` +3.4%.
 
 Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 
@@ -247,10 +297,11 @@ Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 | This config with C4 and X3 as well | 39 | +7%, +3%, +8% |
 | This config with the dispatch rules (C5) | 40 | +6%, +1%, +8% |
 | This config with tile beats on LsuV3 (C2b, X4) | 41 | +6%, +1%, +8% |
+| This config with steps 1 and 2 (C6, C7, F3, V4, V5, X5) | 44 | +2%, +1%, +4% |
 
 `vec_load_burst`, `vec_load4_burst`, `vec_store4_burst` and `gemm_multi`
 joined with LsuV3; `tile_load`, `tile_store`, `move_tv8_burst` and
 `move_vt8_burst` (short loops, +7% to +27% before) with fetch and the branch
 rule; `vtdiscard_after_mac` (-77% before) with C5. None was used to build
-any of them. The three outside 5% are `gemm_tile` (+5.6%), `gemm_longk`
-(+7.5%) and `move_vt_use` (+15%, V8).
+any of them. Against the 3% target, 42 of 44 are inside; outside are
+`vtmm_misaligned` (-4.2%) and `gemm_longk` (+3.6%).

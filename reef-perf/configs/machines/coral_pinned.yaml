@@ -169,3 +169,12 @@ top:
       # a beat's data in its bus cycle. With C2b the LSU reports the push,
       # 2 cycles later, as the RTL does. m3_vme.yaml: false (unchanged)
       mtx_lsu_holds_full_fifo_beat: true
+      # X5. vtmv.v.t writes one vector register per uop, and a reader of an
+      # early register does not wait for the last. MEASURED:
+      # matrix/move_vt_use and move_vt_use_v5, _v6, _last (the chain through
+      # v4, v5, v6, v7 takes 13, 13, 14, 15 cycles): a register is readable
+      # the cycle after its uop, and none sooner than 2 cycles after the
+      # first. The module's default has all four readable when the move is
+      # done. m3_vme.yaml: 0 (unchanged)
+      mtx_move_vector_latency: 1
+      mtx_move_vector_floor: 2

@@ -141,6 +141,15 @@ public:
     PARAMETER(uint32_t, mtx_lsu_fifo_entries, 2,
               "Entries in each FIFO between the LSU and the controller "
               "(lsu2vme for tile loads, vme2lsu for tile stores)")
+    PARAMETER(uint32_t, mtx_move_vector_latency, 0,
+              "vtmv.v.t: cycles from the controller cycle of a uop to its "
+              "vector register being readable. 0: every register is "
+              "readable when the whole move is done (the module's first "
+              "model); 1 on CoralNPU")
+    PARAMETER(uint32_t, mtx_move_vector_floor, 0,
+              "vtmv.v.t: no register is readable sooner than this many "
+              "cycles after the move's first controller cycle (2 on "
+              "CoralNPU). Read only with mtx_move_vector_latency set")
     PARAMETER(bool, mtx_lsu_holds_full_fifo_beat, false,
               "A tile-load beat that finds lsu2vme full waits in the LSU "
               "after its bus read, as on the RTL. Off: the beat starts "
@@ -251,6 +260,8 @@ private:
   const uint32_t TileReadLatency;
   const uint32_t LsuFifoEntries;
   const bool LsuHoldsFullFifoBeat;
+  const uint32_t MoveVectorLatency;
+  const uint32_t MoveVectorFloor;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;

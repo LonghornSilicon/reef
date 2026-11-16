@@ -21,3 +21,12 @@ lsu/vload_macc,lead1,50,415,815,352,8.000
 # not matter: no load).
 pinned/vwmacc_m2_chain,token,50,410,810,252,8.000
 pinned/vwmacc_m2_only,token,50,211,411,202,4.000
+# pinned/move_vt_use_last: predictions recorded 2026-11-16T17:34:56Z before its RTL run. Model:
+# akul/pinned-model eb4dec7 + uncommitted mtx_move_vector_latency. variant = that value (0 or 2).
+pinned/move_vt_use_last,lat0,100,1508,3008,601,15.000
+pinned/move_vt_use_last,lat2,100,1608,3208,601,16.000
+# pinned/move_vt_use_v5, _v6: predictions recorded 2026-11-16T17:35:24Z before their RTL run, with
+# mtx_move_vector_latency 2 (one register per cycle), which move_vt_use_last had already shown
+# to be wrong for the last register (RTL 15, predicted 16).
+pinned/move_vt_use_v5,lat2,100,1408,2808,601,14.000
+pinned/move_vt_use_v6,lat2,100,1508,3008,601,15.000

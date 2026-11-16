@@ -3,3 +3,9 @@ vwmacc_m2_chain,50,213,252
 vwmacc_m2_chain,100,413,502
 vwmacc_m2_only,50,210,202
 vwmacc_m2_only,100,410,402
+move_vt_use_last,100,1507,601
+move_vt_use_last,200,3007,1201
+move_vt_use_v5,100,1307,601
+move_vt_use_v5,200,2607,1201
+move_vt_use_v6,100,1407,601
+move_vt_use_v6,200,2807,1201
