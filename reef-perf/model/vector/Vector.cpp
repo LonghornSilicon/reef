@@ -199,6 +199,7 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       FpReduceLatency(Params->vec_fp_reduce_latency),
       FpReduceCyclesPerUop(Params->vec_fp_reduce_cycles_per_uop),
       ToScalarLatency(Params->vec_to_scalar_latency),
+      ToScalarWritesPerCycle(Params->vec_to_scalar_writes_per_cycle),
       VsetLatency(Params->vset_latency),
       CompareFirstUnitOnly(Params->vec_compare_first_unit_only),
       CompletionMatchesPc(Params->vec_completion_matches_pc),
@@ -451,9 +452,16 @@ void Vector::receiveInst(const InstRef &I) {
 
   I->IssueCycle = T.FirstStart;
   I->ResultReadyCycle = T.Retire;
+  // One scalar write port (async_rd, RvvCore): a scalar result waits for a
+  // free cycle on it, and the instruction completes with its write.
+  Cycle PortDelay = 0;
+  if (I->Class == InstClass::V_TO_SCALAR && ToScalarWritesPerCycle > 0) {
+    Cycle Write = ToScalarPort.reserve(T.Retire, 1);
+    PortDelay = Write - T.Retire;
+  }
   if (I->Class == InstClass::V_TO_SCALAR)
-    I->ResultReadyCycle += ToScalarLatency;
-  I->CompleteCycle = getScalarComplete(*I, T);
+    I->ResultReadyCycle += ToScalarLatency + PortDelay;
+  I->CompleteCycle = getScalarComplete(*I, T) + PortDelay;
   if (I->Class != InstClass::V_STORE)
     I->CompleteCycle += CompletionTokenLatency;
 

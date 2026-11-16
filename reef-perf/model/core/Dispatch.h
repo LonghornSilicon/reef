@@ -129,6 +129,11 @@ public:
               "its own cycle: the RVV front end's config state is invalid "
               "while it holds an instruction (RvvFrontEnd.sv:86-93, "
               "Decode.scala rvvConfigInterlock)")
+    PARAMETER(uint32_t, vector_scalar_waw_delay, 0,
+              "Cycles after a vector instruction's scalar result is written "
+              "(vmv.x.s, vcpop, vfirst) before a later vector instruction "
+              "writing the same x register may dispatch (0 on M3's model). "
+              "A scalar writer does not wait")
     PARAMETER(uint32_t, load_waw_advance, 1,
               "Cycles before a load's result is ready that a later writer "
               "of the same register may dispatch (1 on M3)")
@@ -178,6 +183,7 @@ private:
 
   const uint32_t DispatchWidth;
   const uint32_t LoadWawAdvance;
+  const uint32_t VectorScalarWawDelay;
   const bool BranchEndsGroup;
   const bool Slot0OnlyRule;
   const bool JumpEndsGroup;

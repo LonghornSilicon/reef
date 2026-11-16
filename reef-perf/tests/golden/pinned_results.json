@@ -495,7 +495,7 @@
   "vector_units/vcpop_indep": {
     "instructions": 2514,
     "functional_instructions": 2514,
-    "cycles": 2283,
+    "cycles": 2532,
     "taken_redirects": 249,
     "dispatch": {
       "cycles_with_dispatch": 2255,
@@ -506,7 +506,7 @@
       "stall_raw_hazard": 0,
       "stall_rob_full": 0,
       "stall_vector_queue_full": 0,
-      "stall_waw_hazard": 3
+      "stall_waw_hazard": 252
     }
   },
   "vector_units/vdiv_chain": {

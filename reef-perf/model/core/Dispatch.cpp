@@ -133,6 +133,7 @@ uint64_t TopDownSlots::getTotal() const {
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
     : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
       LoadWawAdvance(Params->load_waw_advance),
+      VectorScalarWawDelay(Params->vector_scalar_waw_delay),
       BranchEndsGroup(Params->branch_ends_group),
       Slot0OnlyRule(Params->slot0_only_rule),
       JumpEndsGroup(Params->jump_ends_group),
@@ -244,7 +245,15 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     // need no wait: the matrix module runs them in order.
     if (isMatrixVectorRaw(Reg, Writer) && I->isMatrix())
       continue;
-    if (isTracked(Reg, Writer) && Writer->ResultReadyCycle > Now + WawAdvance) {
+    // A vector instruction that writes an x register last written by
+    // another vector instruction waits a cycle more than a scalar writer.
+    const Cycle WawDelay = Writer && Writer->isVector() && I->isVector() &&
+                                   Reg.getFile() == RegFile::X
+                               ? VectorScalarWawDelay
+                               : 0;
+    if (isTracked(Reg, Writer) &&
+        (Writer->ResultReadyCycle == Inst::Never ||
+         Writer->ResultReadyCycle + WawDelay > Now + WawAdvance)) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;

@@ -194,6 +194,10 @@ public:
               "the vector ROB, whether or not older uops have retired. Off: "
               "only once it retires, in order, so an older slow uop delays "
               "readers of a younger independent one")
+    PARAMETER(uint32_t, vec_to_scalar_writes_per_cycle, 0,
+              "Scalar results (vmv.x.s, vcpop, vfirst, vfmv.f.s) the vector "
+              "engine hands the core per cycle, after the instruction "
+              "retires; 0: no limit, as on M3's model")
     PARAMETER(bool, vec_div_data_dependent, false,
               "Time each integer divide uop by its operands, as CoralNPU's "
               "intdivider does: 1 cycle to start, one per 3 quotient bits "
@@ -280,6 +284,8 @@ private:
   const uint32_t FpReduceLatency;
   const uint32_t FpReduceCyclesPerUop;
   const uint32_t ToScalarLatency;
+  const uint32_t ToScalarWritesPerCycle;
+  ResourcePool ToScalarPort{"vec_to_scalar", 1}; // Read with the limit only.
   const uint32_t VsetLatency;
   const bool CompareFirstUnitOnly;
   const bool CompletionMatchesPc;

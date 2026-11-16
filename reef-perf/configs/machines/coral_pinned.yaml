@@ -104,6 +104,13 @@ top:
         # Decode.scala rvvConfigInterlock. TRACE: lsu/vload_macc (the next
         # iteration's vle8.v waits a cycle behind vwmacc.vx). M3 model: false
         rvv_config_interlock: true
+        # C9. A vector instruction that writes an x register last written by
+        # another vector instruction (vcpop, vmv.x.s, vfirst) dispatches the
+        # cycle after that write, not in it; a scalar writer goes in the
+        # write cycle. TRACE: vcpop_indep (a0, a1 written in 62, 63; the next
+        # iteration's vcpop a0, a1 dispatched in 64). MEASURED: vcpop_indep
+        # -9.9% to 0.0%, vec_pingpong unchanged. M3 model: 0
+        vector_scalar_waw_delay: 1
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's

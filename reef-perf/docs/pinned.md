@@ -75,6 +75,8 @@ else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
 | X5 | `mtx_move_vector_latency` 1, `mtx_move_vector_floor` 2 (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | set | measured: `move_vt_use` and three probes | `move_vt_use` +15% to 0.0% |
 | C8 | `div_release_cycles` (new) | 0 | 1 | `Dvu.scala` (`io.req.ready`, `count`) | `div_chain` -4.4% to 0.0% |
 | V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
+| C9 | `vector_scalar_waw_delay` (new) | 0 | 1 | waveform of `vcpop_indep` | `vcpop_indep` -9.9% to 0.0% |
+| V9 | `vec_to_scalar_writes_per_cycle` (new) | 0 (no limit) | not set | `RvvCore` `async_rd` is one port | moves nothing today; left off |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 
 ## Differences not modeled yet
@@ -284,9 +286,22 @@ fixed `div_chain` but made `pinned/fetch_mispredict_wait` (a branch reading
 the result) a cycle slow, which ruled out a later result. The M3 model has
 the same gap (`div_chain` -4.5% on M3).
 
-| C8 | `div_release_cycles` (new) | 0 | 1 | `Dvu.scala` (`io.req.ready`, `count`) | `div_chain` -4.4% to 0.0% |
-| V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
-| X1 | `zvt` |
+## Vector writes to x registers
+
+`vcpop_indep` rewrites a0 to a7 with `vcpop.m` every iteration. On the RTL a
+`vcpop` that overwrites an x register last written by another vector
+instruction dispatches the cycle after that write (a0 and a1 written in
+cycles 62 and 63, the next iteration's pair dispatched in 64). A scalar
+instruction overwriting the result goes in the write cycle itself
+(`vec_pingpong`: `addi t0` after `vmv.x.s t0`), so the rule is only for a
+vector writer (`vector_scalar_waw_delay`). The RTL lines behind it are not
+located; `rvvRdMark` and the scoreboard's registered read are the likely
+place. The vector engine also hands scalar results over one per cycle
+(`async_rd`); `vec_to_scalar_writes_per_cycle` models that limit, but no
+program reaches it, so it is off.
+
+## Coverage
+
 `microbenchmarks/pinned/` holds 31 programs written for behavior no earlier
 program exercised, each with the model's prediction recorded before its RTL
 run (`heldout_predictions.csv` there; committed in `caba13e`, RTL numbers a
@@ -362,6 +377,11 @@ Against the 3% target (set 2026-11-15), 59 of 65 are inside. Outside:
 `vdiv_small_chain` and `vdiv_small_indep` (the divider's early finish, which
 is all of the vector-unit mean), `vcpop_indep` -9.9%, `layernorm` +6.8%,
 `div_chain` -4.4%, `attention` +3.4%.
+| + dividers, vector x-register WAW; FP not scored (C8, C9, V8) | 0.0% | 0.1% | 0.0% | 0.2% | 0.0% | 61 of 61 within 3% |
+
+Matrix programs: 44 of 44 within 5%, 42 within 3%. Outside 3%:
+`vtmm_misaligned` (5.75 against 6.0; ROB-bound, bursty on the RTL, no
+mechanism found yet) and `gemm_longk` (+3.6%).
 
 Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 
