@@ -23,15 +23,23 @@
 # Each switch has an ID (F frontend, C core, V vector, X matrix). Sources:
 # RTL = read in ~/coralnpu-pinned at 8a5e1b31; MEASURED = fitted to the
 # programs named, in rtl_pinned.csv; TRACE = read from a waveform of this
-# RTL. Differences that need new model code (the fetch unit, the new vector
-# divider) are not here yet; docs/pinned.md lists them.
+# RTL. docs/pinned.md lists the differences not modeled yet.
 top:
   frontend:
     params:
-      # F2. A redirect the predictor did not predict costs one cycle more.
-      # MEASURED: branch_fwd_taken, branch_bwd_not_taken and jalr_chain are
-      # each 1 cycle per iteration slower than on M3; jal_fwd is not. M3: 2
-      redirect_penalty: 3
+      # F1. The fetch unit after M3 (UncachedFetch.scala: FetchControl,
+      # Fetcher, FetchReorderBuffer): a fetch every cycle down the next
+      # 16-byte line, two in flight (maxConcurrentTx = 2), each line written
+      # to the instruction buffer 2 cycles after its fetch (the bus response
+      # is registered, then the reorder buffer's state), in order and whole.
+      # A predicted jump's target is fetched in the cycle its line is
+      # written; a mispredicted one 2 cycles after the core dispatches it
+      # (the BRU resolves it the next cycle, fetch follows). The three
+      # values are the defaults of fetch_max_in_flight,
+      # fetch_response_cycles and redirect_from_dispatch_cycles.
+      # M3: false (one fetch every other cycle; fetch_interval,
+      # redirect_penalty)
+      fetch_reorder_buffer: true
       # X1. Zvt instructions decode and run on the matrix module (the
       # engine's own values are the matrix module's defaults,
       # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
@@ -43,6 +51,13 @@ top:
         rob_entries: 16
     dispatch:
       params:
+        # C4 (off). branch_ends_group: a conditional branch is the last
+        # instruction dispatched in its cycle (Decode.scala:419-422, and the
+        # waveform of matrix/mac_rob). It is right, but with it the matrix
+        # programs only match if a MAC retires a cycle earlier than the
+        # matrix module's mtx_complete_latency 1 gives, and that value is
+        # not to change until matrix/mac_queue is explained (docs/pinned.md,
+        # "The branch rule"). Off until then.
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
@@ -84,11 +99,6 @@ top:
       # V6. The LSU reports a vector store complete once, after its last
       # register. RTL: Lsu.scala:1970-1971. M3: false (after each register)
       vec_store_completes_on_last_register: true
-      # V7. A vector load or store is marked done in the retirement buffer
-      # one cycle later than an arithmetic instruction. RTL for a store:
-      # RetirementBuffer.scala:86, Pipe(io.storeComplete). MEASURED:
-      # lsu/vload_rob 9, lsu/vstore_rob 11 with lsu/vload_dep_rob 12. M3: 0
-      vec_memory_completion_latency: 1
   memory:
     params:
       # M1. An external read holds the e-bus 4 cycles and a write 5 before

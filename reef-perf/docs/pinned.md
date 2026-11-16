@@ -32,7 +32,7 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 
 | ID | Switch | M3 | Pinned | Source | Fixes |
 | --- | --- | --- | --- | --- | --- |
-| F2 | `redirect_penalty` | 2 | 3 | measured | `branch_fwd_taken`, `branch_bwd_not_taken`, `jalr_chain`: -14.3% to 0.0% |
+| F1 | `fetch_reorder_buffer` (with `fetch_max_in_flight` 2, `fetch_response_cycles` 2, `redirect_from_dispatch_cycles` 2) | false | true | `UncachedFetch.scala`: `FetchControl`, `Fetcher`, `FetchReorderBuffer` | `alu_indep` +71% to 0.0%; every frontend program within 0.1% |
 | C1 | `rob_entries` | 8 | 16 | `Parameters.scala:141` | independent vector streams, `vec_add_m1` +50% to +19%, MAC chains |
 | V1 | `vec_rob_entries` | 8 | 16 | `rvv_backend_define.svh` `ROB_DEPTH` | little on its own |
 | V2 | `vec_completion_matches_pc` | true | false | `RetirementBuffer.scala:452`, `:532` | `vdiv_m8_indep` -37% to -14% |
@@ -41,7 +41,6 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | C2 | `lsu_v3` | false | true | waveforms (below) | vector memory: `vec_memcpy` +174% to -0.5%, `vec_add_m4` +118% to +0.1%; kernels 38% to 4.4% mean |
 | C3 | `load_waw_advance` | 1 | 0 | waveform of `addr_forward` | keeps `addr_forward` at 4 cycles per load with LsuV3's 3-cycle loads |
 | V6 | `vec_store_completes_on_last_register` | false | true | `Lsu.scala:1970-1971` | multi-register stores |
-| V7 | `vec_memory_completion_latency` | 0 | 1 | `RetirementBuffer.scala:86`; measured | `lsu/vload_rob`, `lsu/vstore_rob` |
 | M1 | `axi_latency`, `axi_write_latency` | 2, as a read | 4, 5 | waveforms of `ext_*` | `ext_load_chain` -25% to +0.2%, the two streams to -1.8% |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 | X2 | `lsu_tile_cost` and `lsu_tile_*` | off | 1 + 0 per beat + 1 | measured (`tile_*_burst`) | tile loads and stores |
@@ -52,7 +51,7 @@ Each needs model code behind a new switch.
 
 | ID | Difference | Evidence | Why not a value |
 | --- | --- | --- | --- |
-| F1 | Fetch: two fetches in flight through a reorder buffer (`UncachedFetch.scala`, `maxConcurrentTx = 2`) | `alu_indep` +71%, `branch_group` +43% | `fetch_interval 1` matches both, but makes `branch_tight`, `jal_fwd` and `branch_fwd_not_taken` 42% to 50% fast: a taken branch still costs a cycle |
+| C4 | A conditional branch ends the dispatch group. The switch exists (`branch_ends_group`) and is **off**, waiting on a matrix value; see "The branch rule" | `branch_group` -14%, `vec_pingpong` -6%, `lsu/vload_rob` 8 against 9, `lsu/vstore_rob` 10 against 11 | below |
 | V8 | `vmv.x.s` of a loaded register | `lsu/vload_use` +8% (1 cycle per link); `vec_pingpong` -6% | the vector-to-scalar path, not the LSU |
 | C8 | Scalar FP divide and square root in kernels | `layernorm` +18% | with C7 |
 | V4 | The new integer divider at LMUL 8 | `vdiv_m8_indep` -14% | not looked at yet |
@@ -89,12 +88,90 @@ issue. Two candidates (0 and 1) were recorded as predictions for four new
 probe programs before their RTL run (`microbenchmarks/lsu/heldout_predictions.csv`).
 `vload_dep_rob` measured 12.0 cycles; 0 predicted 12.0 and 1 predicted 11.0.
 
-`tests/python/integration/test_pinned_lsu.py` holds 16 of the 20 LSU
-programs within 2% of the RTL; the other four are listed there with the
-reason (three are fetch-bound, one is V8).
+`tests/python/integration/test_pinned_lsu.py` holds 17 of the 20 LSU
+programs within 2% of the RTL; the others are V8 and the two that wait for
+C4.
 
 Tile beats keep their own cost (`lsu_tile_*`) and do not go through the new
 path.
+
+## Fetch
+
+The model follows the RTL's structure (`fetch_reorder_buffer`), not a fitted
+rate:
+
+- `FetchControl` issues a fetch every cycle, speculatively down the next
+  16-byte line, while the reorder buffer has room (`fetch_max_in_flight` 2,
+  `maxConcurrentTx`).
+- A line is written to the instruction buffer `fetch_response_cycles` (2)
+  after its fetch: the bus response is registered, then the reorder buffer's
+  state. Lines are written in order, one per cycle, and only when the whole
+  line fits (`sufficientBuffer`), so a full buffer stalls the reorder buffer
+  and then the fetches.
+- Predecode sees a predicted-taken branch or jump when its line is written
+  and fetches the target in that cycle; the sequential fetches behind it are
+  dropped. That is 2 cycles per taken jump (`branch_tight`, `jal_fwd`).
+- A mispredicted branch or a `jalr` is resolved after the core dispatches it:
+  its target is fetched `redirect_from_dispatch_cycles` (2) later. If the
+  branch waits in the buffer, the redirect waits with it.
+
+Not modeled: wrong-path instructions entering the buffer after a
+mispredict (they are flushed; only the time is charged), and fetch from
+outside the ITCM.
+
+## The branch rule
+
+A conditional branch is the last instruction dispatched in its cycle
+(`branch_ends_group`, C4; `Decode.scala:419-422`). The waveform of
+`matrix/mac_rob` shows it: the loop's `bnez` is dispatched alone and the MAC
+behind it a cycle later. **The switch is off on this config for now.**
+
+Turned on, it brings `branch_group` from -14.3% to 0.0% and `vec_pingpong`
+from -6.0% to -0.1%, and `lsu/vload_rob` and `lsu/vstore_rob` match (9 and
+11). It also makes six matrix programs that match today one cycle slow
+(`mac_rob` 22 to 23). The same waveform says why: the RTL retires the MAC
+dispatched in D in cycle D + 20, and the matrix module retires it in D + 21
+(`mtx_complete_latency` 1). Without the rule the two errors cancel.
+
+Setting `mtx_complete_latency` 0 with the rule on restores those six, but
+`mac_queue` then reads 18.5 against 19.0 (it is 19.0 today). On the RTL its
+iterations alternate 22 and 16 cycles. Until that is explained the matrix
+value stays 1, and so the rule stays off (decided 2026-11-15).
+
+Two things this investigation did settle, both in the model now:
+
+- the LsuV3 path retired a scalar load a cycle after its value was written;
+  the RTL retires it in that cycle (`lsu/lw_rob`: dispatched D, retired
+  D + 4);
+- an extra completion cycle for vector loads and stores, fitted in step 3 to
+  `vload_rob` and `vstore_rob`, was standing in for the missing rule. It is
+  removed, which leaves those two programs a cycle fast until the rule is on.
+
+## Audit against the goal (2026-11-15)
+
+The goal: each switch is a piece of the RTL's behavior, read from the source
+or a waveform, and separate enough to build a machine between M3 and this
+one.
+
+| Switch | Basis | Standing |
+| --- | --- | --- |
+| F1 fetch | RTL structure | read, not fitted |
+| C1, V1 buffer sizes | RTL parameters | read |
+| C2 `lsu_v3`, with `lsu_v3_skip_handshake` separate | waveforms | read; the handshake skip can be turned off alone |
+| `lsu_v3_backend_lead` | fitted | one value, chosen by a held-out prediction |
+| C3 `load_waw_advance` | waveform | observed; the RTL lines behind it not located |
+| C4 branch rule | RTL source and waveform | read; **off**, waiting on `mac_queue` |
+| V2 tag matching | RTL source | results only; the RTL still matches **stores** by PC, which the model does not do on this config |
+| V3 `vec_fp_latency` | RTL parameter and measurement | read |
+| V3b `vec_fdiv_cycles_per_uop` | fitted | measured only; no RTL reason found yet |
+| V6 store completion | RTL source | read |
+| M1 external bus | waveform | observed bus hold times; the RTL stages behind them not located |
+| X2 tile cost | fitted (`lsu_tile_*`) | tile beats bypass the LsuV3 path; they should run through it, with the tile store's data coming from the engine's FIFO |
+| tile retire cycle (`mtx_complete_latency`) | waveform says 0; the config keeps the module's 1 | open, with C4 |
+
+Rules that are in the RTL and in neither model yet: instructions that must
+dispatch alone from slot 0 (FP, CSR), a CSR waiting for an empty retirement
+buffer, the `vtdiscard` interlock, and the vector read-port limit.
 
 ## Score
 
@@ -105,6 +182,8 @@ Mean absolute ROI error against the pinned RTL, and programs within 5%.
 | M3 model, no switch | 42.3% | 8.6% | 29.4% | 43.5% | 33.5% | 26 |
 | Values only (the table above) | 41.0% | 0.1% | 19.1% | 38.2% | 26.7% | 33 |
 | + LsuV3, external bus, completion (C2, C3, V6, V7, M1) | 9.9% | 0.1% | 19.1% | 4.4% | 13.0% | 47 |
+| + fetch structure (F1); V7 removed; scalar load retire cycle | 4.8% | 0.1% | 19.4% | 4.6% | 11.6% | 48 |
+| (not on) the same with C4 and `mtx_complete_latency` 0 | 3.5% | 0.0% | 19.0% | 4.2% | 11.0% | 52 |
 
 Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 
@@ -113,6 +192,9 @@ Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 | `m3_vme.yaml` + `REFERENCE_CORE_PARAMS` (unchanged) | 31 | +67%, +55%, +67% |
 | This config, values only | 31 | +67%, +56%, +67% |
 | This config with LsuV3 | 35 | +10%, +4%, +12% |
+| This config with LsuV3 and fetch | 37 | +10%, +4%, +12% |
+| (not on) the same with C4 and `mtx_complete_latency` 0 | 39 | +7%, +3%, +8% |
 
-The four that joined are `vec_load_burst`, `vec_load4_burst`,
-`vec_store4_burst` and `gemm_multi`. None was used to build the LsuV3 path.
+`vec_load_burst`, `vec_load4_burst`, `vec_store4_burst` and `gemm_multi`
+joined with LsuV3, `tile_load` and `tile_store` (one branch per row, +27%
+and +23% before) with fetch. None was used to build either.

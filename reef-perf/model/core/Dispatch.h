@@ -102,6 +102,10 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,
               "Max instructions dispatched per cycle")
+    PARAMETER(bool, branch_ends_group, false,
+              "A conditional branch is the last instruction dispatched in "
+              "its cycle (Decode.scala). Off: the M3 model, whose fetch "
+              "rate hides the rule")
     PARAMETER(uint32_t, load_waw_advance, 1,
               "Cycles before a load's result is ready that a later writer "
               "of the same register may dispatch (1 on M3)")
@@ -151,6 +155,7 @@ private:
 
   const uint32_t DispatchWidth;
   const uint32_t LoadWawAdvance;
+  const bool BranchEndsGroup;
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;

@@ -15,6 +15,13 @@
 ///   `redirect_penalty` cycles later if the prediction was wrong. `predictor`
 ///   is `none` (nothing predicted taken) or `btfn` (M3's predecode,
 ///   UncachedFetch.scala:87-100);
+/// - with `fetch_reorder_buffer` on, the fetch unit CoralNPU has after M3
+///   instead: a fetch is issued every cycle down the next line while fewer
+///   than `fetch_max_in_flight` are outstanding; a line is written to the
+///   buffer `fetch_response_cycles` later, in order, and only when all of it
+///   fits. A predicted jump is seen when its line is written, and its target
+///   is fetched in that cycle. A mispredicted one is fetched
+///   `redirect_from_dispatch_cycles` after the core dispatches it;
 /// - with `fetch_block_bytes` set, a group never crosses an aligned block of
 ///   that size: it ends at an instruction whose next PC is in another block
 ///   (M3: 16-byte lines, UncachedFetch.scala:56,107-131).
@@ -36,6 +43,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <vector>
 
 namespace reef_perf {
 
@@ -53,6 +61,21 @@ public:
               "Cycles between the starts of two fetch groups")
     PARAMETER(uint32_t, redirect_penalty, 1,
               "Extra cycles after a redirect the predictor did not predict")
+    // CoralNPU's fetch unit after M3 (UncachedFetch.scala at 8a5e1b31:
+    // FetchControl, Fetcher, FetchReorderBuffer). With fetch_reorder_buffer
+    // off, the default and M3, the three values after it are not read; on,
+    // fetch_interval and redirect_penalty are not.
+    PARAMETER(bool, fetch_reorder_buffer, false,
+              "Fetch a line every cycle, speculatively down the next line, "
+              "through a reorder buffer that commits whole lines in order")
+    PARAMETER(uint32_t, fetch_max_in_flight, 2,
+              "Reorder buffer entries: fetches issued and not yet committed")
+    PARAMETER(uint32_t, fetch_response_cycles, 2,
+              "Cycles from issuing a fetch to the earliest cycle its line "
+              "can be written to the instruction buffer")
+    PARAMETER(uint32_t, redirect_from_dispatch_cycles, 2,
+              "Cycles from the core dispatching a mispredicted branch or "
+              "jump to the fetch of its real target")
     PARAMETER(std::string, predictor, "none",
               "Branch predictor: none (nothing predicted taken) or btfn "
               "(jal and backward branches predicted taken, as on M3)")
@@ -104,6 +127,7 @@ public:
 
 private:
   void fetchGroup();
+  void fetchSpeculative();
   void scheduleFirstFetch();
   void scheduleFetch(Cycle Earliest);
   /// \returns the entries fetch may fill at \p Now. Entries the core freed
@@ -114,6 +138,10 @@ private:
 
   const uint32_t FetchWidth;
   const uint32_t FetchInterval;
+  const bool ReorderBuffer;
+  const uint32_t MaxInFlight;
+  const uint32_t ResponseCycles;
+  const uint32_t RedirectFromDispatch;
   const uint32_t RedirectPenalty;
   const PredictorKind Predictor;
   const uint32_t FetchBlockBytes;
@@ -128,8 +156,19 @@ private:
   uint32_t FreedAtCycle = 0; // ... and how many entries they freed.
   Cycle NextFetchCycle = 0;  // Earliest start of the next group.
   bool LastGroupRedirected = false;
-  bool Done = false;   // The program is fully fetched ...
-  Cycle DoneCycle = 0; // ... as of this cycle.
+  /// A fetched line in the reorder buffer.
+  struct Line {
+    Cycle Ready = 0;            ///< First cycle it can be committed.
+    std::vector<InstRef> Insts; ///< Its instructions on the executed path.
+    bool Redirects = false;     ///< Ends in a taken or predicted-taken jump.
+  };
+  std::deque<Line> InFlight;   // Issued, not yet committed; oldest first.
+  Cycle NextIssue = 0;         // Earliest cycle of the next fetch.
+  bool WaitsForCommit = false; // A predicted jump's line is in flight.
+  InstRef WaitsForDispatch;    // A mispredicted jump the core has not taken.
+  bool Exhausted = false;      // FuncSim has no more instructions.
+  bool Done = false;           // The program is fully fetched ...
+  Cycle DoneCycle = 0;         // ... as of this cycle.
 
   sparta::UniqueEvent<> FetchEvent{&unit_event_set_, "ev_fetch",
                                    CREATE_SPARTA_HANDLER(Fetch, fetchGroup)};

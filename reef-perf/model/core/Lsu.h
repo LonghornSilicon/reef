@@ -81,6 +81,11 @@ public:
     // core dispatches it (docs/pinned.md, "LsuV3"). Tile beats keep
     // lsu_tile_* when lsu_tile_cost is on.
     PARAMETER(bool, lsu_v3, false, "Model CoralNPU's LsuV3 instead of M3's LSU")
+    PARAMETER(bool, lsu_v3_skip_handshake, true,
+              "With lsu_v3: an unmasked unit-stride or strided vector load "
+              "starts from the core's dispatch, without waiting for the "
+              "vector backend (CoralNPU 3ca02cc6). Off, it waits like a "
+              "store")
     PARAMETER(uint32_t, lsu_v3_setup_cycles, 1,
               "Cycles between an instruction reaching an idle LSU and its "
               "first bus cycle")
@@ -132,6 +137,7 @@ private:
   const uint32_t TileBeatOverhead;
   const uint32_t TileSwitchCycles;
   const bool V3;
+  const bool V3SkipHandshake;
   const uint32_t V3SetupCycles;
   const uint32_t V3ReturnCycles;
   const uint32_t V3ScalarStoreCycles;

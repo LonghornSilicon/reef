@@ -203,7 +203,6 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       CompletionMatchesPc(Params->vec_completion_matches_pc),
       StoreCompletesOnLastRegister(
           Params->vec_store_completes_on_last_register),
-      MemoryCompletionLatency(Params->vec_memory_completion_latency),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -398,8 +397,6 @@ void Vector::receiveInst(const InstRef &I) {
   if (I->Class == InstClass::V_TO_SCALAR)
     I->ResultReadyCycle += ToScalarLatency;
   I->CompleteCycle = getScalarComplete(*I, T);
-  if (!Registers.empty())
-    I->CompleteCycle += MemoryCompletionLatency;
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

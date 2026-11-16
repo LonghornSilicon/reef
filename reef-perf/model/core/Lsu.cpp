@@ -21,6 +21,7 @@ Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
       TileInstOverhead(Params->lsu_tile_inst_overhead),
       TileBeatOverhead(Params->lsu_tile_beat_overhead),
       TileSwitchCycles(Params->lsu_tile_switch_cycles), V3(Params->lsu_v3),
+      V3SkipHandshake(Params->lsu_v3_skip_handshake),
       V3SetupCycles(Params->lsu_v3_setup_cycles),
       V3ReturnCycles(Params->lsu_v3_return_cycles),
       V3ScalarStoreCycles(Params->lsu_v3_scalar_store_cycles),
@@ -128,8 +129,10 @@ void Lsu::receiveInstV3(const InstRef &I) {
   Cycle Reserved = Pipe.reserve(Bus, Done + 1 - Bus);
   sparta_assert(Reserved == Bus, "LSU busy at the memory's start");
   I->IssueCycle = Bus;
+  // The retirement buffer retires it in the cycle the value is written
+  // (waveform of lsu/lw_rob: dispatched in D, retired in D + 4).
   I->ResultReadyCycle = Done;
-  I->CompleteCycle = Done + 1;
+  I->CompleteCycle = Done;
   OutCreditsPort.send(1, Bus - Now);
 }
 
@@ -140,7 +143,7 @@ VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
   // dispatch, not the vector pipeline. Anything else is taken when the
   // backend hands its data over and the slot is free, and reads or writes
   // the bus lsu_v3_handshake_cycles later.
-  bool Waits = Request.NeedsVectorData || Request.IsStore;
+  bool Waits = Request.NeedsVectorData || Request.IsStore || !V3SkipHandshake;
   Cycle Earliest = 0;
   if (Waits)
     Earliest = Continues

@@ -188,9 +188,6 @@ public:
               "The core's retirement buffer matches vector results and "
               "store completions to entries by PC, so an older instance of "
               "the same PC completes newer ones (M3's RTL bug)")
-    PARAMETER(uint32_t, vec_memory_completion_latency, 0,
-              "Extra cycles before the retirement buffer marks a vector load "
-              "or store done (0 on M3)")
     PARAMETER(bool, vec_store_completes_on_last_register, false,
               "The retirement buffer hears a vector store is complete after "
               "its last register (LsuV3), not its first (M3). Read only with "
@@ -261,7 +258,6 @@ private:
   const bool CompareFirstUnitOnly;
   const bool CompletionMatchesPc;
   const bool StoreCompletesOnLastRegister;
-  const uint32_t MemoryCompletionLatency;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
   VectorLsuInterface *Lsu = nullptr;

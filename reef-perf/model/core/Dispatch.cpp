@@ -106,7 +106,8 @@ uint64_t TopDownSlots::getTotal() const {
 
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
     : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
-      LoadWawAdvance(Params->load_waw_advance) {
+      LoadWawAdvance(Params->load_waw_advance),
+      BranchEndsGroup(Params->branch_ends_group) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -280,6 +281,8 @@ void Dispatch::dispatchGroup() {
     OutRobPort.send(I);
     Frontend->pop(Now);
     ++Count;
+    if (BranchEndsGroup && I->Class == InstClass::BRANCH)
+      break;
   }
 
   if (Count > 0) {
