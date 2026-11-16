@@ -72,6 +72,12 @@ top:
         # lsu_v3_* values keep their defaults, which are this RTL's.
         # M3: false
         lsu_v3: true
+        # C2b (off). lsu_v3_tile runs tile beats through the same slot in
+        # place of X2's fitted cost. Tile stores then follow the RTL (bus
+        # the cycle after the engine's data, done a cycle later), but tile
+        # loads show that the matrix module expects a beat's data in its
+        # bus cycle where the RTL hands it over 2 cycles later, so it needs
+        # a change in the matrix module first (docs/pinned.md, "Tile beats").
         # X2. A tile load or store costs 2 cycles per instruction + 1 per
         # 16-byte beat. MEASURED on this RTL: tile_*_burst in
         # microbenchmarks/matrix/rtl_vme.csv (docs/lsu-tile-beats.md).
@@ -88,6 +94,11 @@ top:
       # rob_tag, not by PC. RTL: RetirementBuffer.scala:452, :532 (CoralNPU
       # 302a42d3). MEASURED: vdiv_m8_indep, vdiv_m8_then_vadd_m8. M3: true
       vec_completion_matches_pc: false
+      # V2b. Vector stores are still matched to their entry by the store's
+      # PC. RTL: RetirementBuffer.scala:558 (storeComplete.bits ===
+      # bufferEntry.addr). M3: false, where vec_completion_matches_pc
+      # covers stores too
+      vec_store_completion_matches_pc: true
       # V3. The vector FP add and multiply-add unit has 4 stages. RTL:
       # FALU_PIPEREGS 4 (rvv_backend_define.svh). MEASURED: vfadd_chain and
       # vfmacc_chain are 1 cycle per op slower than on M3. M3: 4

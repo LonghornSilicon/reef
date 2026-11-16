@@ -97,6 +97,12 @@ public:
     PARAMETER(uint32_t, lsu_v3_backend_lead, 0,
               "Cycles before a load uop could issue that the vector backend "
               "can already take its loaded register")
+    PARAMETER(bool, lsu_v3_tile, false,
+              "With lsu_v3: Zvt tile beats run through the LsuV3 slot too, "
+              "in place of lsu_tile_*. A tile load is an unmasked "
+              "unit-stride load; a tile store takes its data from the "
+              "engine's FIFO and is done lsu_v3_scalar_store_cycles after "
+              "its last bus cycle")
     PARAMETER(uint32_t, lsu_v3_handshake_cycles, 1,
               "Cycles from the vector backend handing over store data, an "
               "index or a mask to the register's first bus cycle")
@@ -138,6 +144,7 @@ private:
   const uint32_t TileSwitchCycles;
   const bool V3;
   const bool V3SkipHandshake;
+  const bool V3Tile;
   const uint32_t V3SetupCycles;
   const uint32_t V3ReturnCycles;
   const uint32_t V3ScalarStoreCycles;

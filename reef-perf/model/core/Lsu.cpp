@@ -22,7 +22,7 @@ Lsu::Lsu(sparta::TreeNode *Node, const LsuParameterSet *Params)
       TileBeatOverhead(Params->lsu_tile_beat_overhead),
       TileSwitchCycles(Params->lsu_tile_switch_cycles), V3(Params->lsu_v3),
       V3SkipHandshake(Params->lsu_v3_skip_handshake),
-      V3SetupCycles(Params->lsu_v3_setup_cycles),
+      V3Tile(Params->lsu_v3_tile), V3SetupCycles(Params->lsu_v3_setup_cycles),
       V3ReturnCycles(Params->lsu_v3_return_cycles),
       V3ScalarStoreCycles(Params->lsu_v3_scalar_store_cycles),
       V3HandshakeCycles(Params->lsu_v3_handshake_cycles),
@@ -68,7 +68,7 @@ void Lsu::receiveInst(const InstRef &I) {
 VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   sparta_assert(Mem, "memory was not connected to the LSU");
   ++NumVectorRegisters;
-  if (V3 && !(Request.IsTile && TileCost))
+  if (V3 && (V3Tile || !(Request.IsTile && TileCost)))
     return accessVectorRegisterV3(Request);
   uint64_t Overhead =
       Request.IsStore ? VectorStoreRegOverhead : VectorLoadRegOverhead;
@@ -144,6 +144,10 @@ VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
   // backend hands its data over and the slot is free, and reads or writes
   // the bus lsu_v3_handshake_cycles later.
   bool Waits = Request.NeedsVectorData || Request.IsStore || !V3SkipHandshake;
+  // A tile load needs nothing from a backend; a tile store waits for the
+  // engine's data (Request.Earliest), as a vector store waits for RVV's.
+  if (Request.IsTile)
+    Waits = Request.IsStore;
   Cycle Earliest = 0;
   if (Waits)
     Earliest = Continues
@@ -152,7 +156,7 @@ VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
   else
     Earliest = std::max(SlotFree, Request.Dispatched > 0
                                       ? Request.Dispatched + 1 + V3SetupCycles
-                                      : Request.Earliest);
+                                      : Request.Earliest + V3SetupCycles);
 
   MemRequest Access;
   Access.Requester = RequesterKind::LSU;
@@ -165,8 +169,13 @@ VectorLsuResponse Lsu::accessVectorRegisterV3(const VectorLsuRequest &Request) {
   // The backend takes a loaded register lsu_v3_backend_lead cycles before
   // the uop could issue (Request.Earliest).
   VectorLsuResponse Result;
-  Result.Start = std::max(Request.Earliest, Bus);
-  Result.Done = Bus + Response.Latency - 1 + V3ReturnCycles;
+  Result.Start =
+      Waits ? Bus - V3HandshakeCycles : std::max(Request.Earliest, Bus);
+  // A tile store has no writeback to a backend: it is done when a scalar
+  // store would be.
+  Result.Done = Bus + Response.Latency - 1 +
+                (Request.IsTile && Request.IsStore ? V3ScalarStoreCycles
+                                                   : V3ReturnCycles);
   if (Request.Earliest >= V3BackendLead)
     Result.Done = std::max(Result.Done, Request.Earliest - V3BackendLead);
   // The slot is the instruction's from its first register until its last

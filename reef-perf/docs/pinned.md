@@ -36,6 +36,7 @@ uv run python -m reef_perf.experiments.correlation.pinned   # score against the 
 | C1 | `rob_entries` | 8 | 16 | `Parameters.scala:141` | independent vector streams, `vec_add_m1` +50% to +19%, MAC chains |
 | V1 | `vec_rob_entries` | 8 | 16 | `rvv_backend_define.svh` `ROB_DEPTH` | little on its own |
 | V2 | `vec_completion_matches_pc` | true | false | `RetirementBuffer.scala:452`, `:532` | `vdiv_m8_indep` -37% to -14% |
+| V2b | `vec_store_completion_matches_pc` (new) | false | true | `RetirementBuffer.scala:558` | at most 0.2% on the current programs |
 | V3 | `vec_fp_latency` | 4 | 5 | `FALU_PIPEREGS` 4; measured | `vfadd_chain`, `vfmacc_chain`: -14.5% to -0.5% |
 | V3b | `vec_fdiv_cycles_per_uop` | 8 | 9 | measured | `vfdiv_indep` -11.3% to -0.5% |
 | C2 | `lsu_v3` | false | true | waveforms (below) | vector memory: `vec_memcpy` +174% to -0.5%, `vec_add_m4` +118% to +0.1%; kernels 38% to 4.4% mean |
@@ -156,6 +157,32 @@ missing. With all of it on, the nine probe loops match exactly: `mac_rob`
 `vload_rob` 9, `vload_dep_rob` 12, `vstore_rob` 11, `lw_rob` 6. Without the
 rule `mac_queue` is now the one that is off (19.5).
 
+## Tile beats
+
+Waveforms of `tile_load32_burst`, `tile_store32_burst` and `load_then_store`:
+
+- a tile load is an unmasked unit-stride load: first bus read in D + 2, one
+  16-byte beat per cycle, each beat pushed to the engine (`lsu2vme`) 2 cycles
+  after its read;
+- a tile store's beat is taken from the engine's FIFO (`vme2lsu`), written
+  to the bus the next cycle, and the instruction is complete the cycle after
+  its last write: 2 + 1 per beat, one less than a vector store, which also
+  hands each register back to the RVV backend;
+- a store waiting for its data holds the slot (`load_then_store`: the next
+  load's bus read follows the store's completion).
+
+`lsu_v3_tile` (default false) runs tile beats through the LsuV3 slot this
+way. With it on, the store programs match (`tile_store32_burst` 6.0,
+`tile_store` 3.50 against 3.56). The load programs do not: `load_then_mac`
+reads 20 against 18, `tile_load_behind_mac` 34 against 32,
+`tile_load32_burst` 8.0 against 6.0. The matrix module was calibrated with
+the fitted cost, under which the LSU reports a beat's data in its bus cycle;
+the RTL pushes it 2 cycles later. So the module's own path from that push to
+the tile write is 2 cycles longer than the RTL's, and its rule that a beat
+starts only when the 2-deep FIFO has room then throttles a 4-beat load.
+Turning the switch on needs those two things changed in the matrix module.
+It stays off, and X2's fitted cost stays, until that is decided.
+
 ## Audit against the goal (2026-11-15)
 
 The goal: each switch is a piece of the RTL's behavior, read from the source
@@ -170,12 +197,12 @@ one.
 | `lsu_v3_backend_lead` | fitted | one value, chosen by a held-out prediction |
 | C3 `load_waw_advance` | waveform | observed; the RTL lines behind it not located |
 | C4 branch rule | RTL source and waveform | read |
-| V2 tag matching | RTL source | results only; the RTL still matches **stores** by PC, which the model does not do on this config |
+| V2, V2b tag matching | RTL source | read: results by tag, stores by PC |
 | V3 `vec_fp_latency` | RTL parameter and measurement | read |
 | V3b `vec_fdiv_cycles_per_uop` | fitted | measured only; no RTL reason found yet |
 | V6 store completion | RTL source | read |
 | M1 external bus | waveform | observed bus hold times; the RTL stages behind them not located |
-| X2 tile cost | fitted (`lsu_tile_*`) | tile beats bypass the LsuV3 path; they should run through it, with the tile store's data coming from the engine's FIFO |
+| X2 tile cost | fitted (`lsu_tile_*`) | still fitted. `lsu_v3_tile` runs tile beats through the LsuV3 slot and is off: see "Tile beats" |
 | X3 tile retire cycle | waveform | read; set on this config only |
 
 Rules that are in the RTL and in neither model yet: instructions that must

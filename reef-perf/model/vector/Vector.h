@@ -188,6 +188,11 @@ public:
               "The core's retirement buffer matches vector results and "
               "store completions to entries by PC, so an older instance of "
               "the same PC completes newer ones (M3's RTL bug)")
+    PARAMETER(bool, vec_store_completion_matches_pc, false,
+              "With vec_completion_matches_pc off: vector stores are still "
+              "matched to retirement-buffer entries by PC, so an older "
+              "instance of the same store completes newer ones (CoralNPU "
+              "after 302a42d3 tags results but not stores)")
     PARAMETER(bool, vec_store_completes_on_last_register, false,
               "The retirement buffer hears a vector store is complete after "
               "its last register (LsuV3), not its first (M3). Read only with "
@@ -258,6 +263,7 @@ private:
   const bool CompareFirstUnitOnly;
   const bool CompletionMatchesPc;
   const bool StoreCompletesOnLastRegister;
+  const bool StoreCompletionMatchesPc;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
   VectorLsuInterface *Lsu = nullptr;

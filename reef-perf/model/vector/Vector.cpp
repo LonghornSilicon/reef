@@ -203,6 +203,7 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       CompletionMatchesPc(Params->vec_completion_matches_pc),
       StoreCompletesOnLastRegister(
           Params->vec_store_completes_on_last_register),
+      StoreCompletionMatchesPc(Params->vec_store_completion_matches_pc),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -330,18 +331,23 @@ Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
   // The retirement buffer marks an entry done on its last uop leaving the
   // vector ROB, or for a store, a cycle after the LSU's first store-complete
   // signal (each register sends one).
-  if (!CompletionMatchesPc)
+  Cycle LastStoreDone = IsStore ? T.UopDones.back() + 1 : 0;
+  bool ByPc = CompletionMatchesPc || (IsStore && StoreCompletionMatchesPc);
+  if (!ByPc)
     return !IsStore                       ? T.Retire
-           : StoreCompletesOnLastRegister ? T.UopDones.back() + 1
+           : StoreCompletesOnLastRegister ? LastStoreDone
                                           : T.UopDones.front() + 1;
 
   // M3 matches those writes to entries by PC (RetirementBuffer.scala:270,
   // :326), so a write for an older instance of the same PC, still in flight
   // when this one was dispatched, completes this one too. An RTL bug, fixed
-  // after M3 (rtl_bugs.md at the top of the Reef repository).
+  // for results after M3 (rtl_bugs.md at the top of the Reef repository);
+  // stores are still matched by PC at 8a5e1b31 (RetirementBuffer.scala:558).
   std::vector<Cycle> &Events = PcDoneEvents[I.PC];
   std::erase_if(Events, [&](Cycle C) { return C <= I.DispatchCycle; });
-  if (IsStore)
+  if (IsStore && StoreCompletesOnLastRegister)
+    Events.push_back(LastStoreDone);
+  else if (IsStore)
     for (Cycle Done : T.UopDones)
       Events.push_back(Done + 1);
   else
