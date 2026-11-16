@@ -57,6 +57,9 @@ public:
     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
     PARAMETER(uint32_t, dma_queue_depth, 0,
               "Unfinished DMA transfers before a GO store waits (0: no limit)")
+    PARAMETER(bool, dma_stream_loads, false,
+              "A core load from an unfinished DMA transfer's destination "
+              "waits for its own bytes, not for the whole transfer")
     PARAMETER(bool, host_boot, false,
               "Time the host's ITCM load before the core leaves reset")
     PARAMETER(bool, host_boot_data, false,
@@ -137,6 +140,7 @@ private:
   Address RamBase;
   uint64_t RamBytes;
   Dma DMA;
+  bool StreamLoads;
   Host TheHost;
 };
 

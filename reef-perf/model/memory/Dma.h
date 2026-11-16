@@ -24,10 +24,12 @@
 /// SRC and DST is in a TCM is booked there as an AxiSlave requester. An end
 /// outside the TCMs moves its bytes over the external memory link
 /// (ExtMemModel), when that is modeled. A transfer finishes when both ends
-/// are done. When a core access pushes a transfer's finish out, every queued
-/// transfer behind it moves too. With `dma_queue_depth` set, a GO store that
-/// finds that many transfers unfinished waits for the oldest of them to
-/// finish: the full queue back-pressures the e-bus. Only timing is modeled:
+/// are done. getArrival() gives the cycle a part of a destination is written,
+/// for a core that reads a transfer's bytes before the whole transfer is in
+/// (`dma_stream_loads`). When a core access pushes a transfer's finish out,
+/// every queued transfer behind it moves too. With `dma_queue_depth` set, a GO
+/// store that finds that many transfers unfinished waits for the oldest of them
+/// to finish: the full queue back-pressures the e-bus. Only timing is modeled:
 /// Spike's memory is not copied.
 ///
 //===----------------------------------------------------------------------===//
@@ -90,6 +92,11 @@ public:
   /// \returns the cycle the last started transfer finishes, or 0 if none.
   Cycle getFinish() const { return Jobs.empty() ? 0 : Jobs.back().Finish; }
 
+  /// \returns the cycle the bytes [\p Addr, \p Addr + \p Size) are in their
+  /// TCM, for the newest recent transfer whose destination holds them, or 0
+  /// if no recent transfer does.
+  Cycle getArrival(Address Addr, uint32_t Size) const;
+
   /// \returns the totals so far.
   const DmaStats &getStats() const { return Stats; }
 
@@ -104,6 +111,9 @@ private:
     std::vector<uint32_t> Ids;      // Their Tcm::book handles.
     std::vector<Cycle> EndFinishes; // When each booked end finishes.
     Cycle ExtFinish = 0;            // When the link is done, or 0.
+    Address DstBase = 0;            // The TCM destination, if there is one.
+    uint32_t DstLen = 0;            // Its bytes, or 0.
+    std::vector<Cycle> Ready;       // When the link has each beat's bytes.
   };
 
   void start(Cycle Arrive);

@@ -234,6 +234,16 @@ TEST_F(DmaTwoLinkFixture, AWriteToTheRamPaysTheWriteLatency) {
   EXPECT_EQ(Ram.getLink().getBusyCycles(), 80U);
 }
 
+TEST_F(DmaTwoLinkFixture, EachPartOfATransferHasItsOwnArrival) {
+  // Begin 20; the flash's first byte at 46, then 1 B per cycle. The beat of
+  // bytes 0-15 is written at 62 and usable at 63; the last beat at 111.
+  programTwo(0x20000000, 0x10000, 64, 0);
+  EXPECT_EQ(TwoDMA.getFinish(), 111U);
+  EXPECT_EQ(TwoDMA.getArrival(0x10000, 16), 63U);
+  EXPECT_EQ(TwoDMA.getArrival(0x10030, 16), 111U);
+  EXPECT_EQ(TwoDMA.getArrival(0x10100, 16), 0U); // Not a destination.
+}
+
 TEST_F(DmaTwoLinkFixture, TheTwoLinksDoNotWaitForEachOther) {
   // A core read holds the flash link; the RAM link is still free.
   Flash.transfer(1000, 0);

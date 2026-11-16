@@ -11,6 +11,21 @@ inference runs. Then the core does not wait for the host after each run, and
 the compute units stay busy. The cost is DTCM space for the waiting prompt.
 This is a sweep: measure the time saved against the DTCM used.
 
+### Use a chunk while it arrives
+
+`dma_stream_loads` makes a core load from the destination of an unfinished
+DMA transfer wait for its own bytes, not for the whole transfer
+(`Dma::getArrival`). With it, a firmware loop can start on a chunk before
+the chunk is all in. Hardware for this would let the LSU see how far a
+transfer is.
+
+Measured on a token 200 decode step with the wait removed from `linear()`
+of the end-to-end firmware: +2.8% at 50 MB/s of flash, +4.4% at 87.5 MB/s,
++0.4% at 100 MB/s and +0.2% above. The gain is from transfers that run back
+to back; the link rate still sets the time below 100 MB/s, and the core
+sets it above. The arrival time does not include a beat that a core access
+pushed out.
+
 ### LSU occupancy
 
 The LSU starts one memory instruction every 4 cycles. A load-heavy kernel is

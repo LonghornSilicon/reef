@@ -58,7 +58,7 @@ void Dma::start(Cycle Arrive) {
   ++Stats.Transfers;
   Stats.Bytes += Len;
   const size_t J = Jobs.size();
-  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0});
+  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0, 0, 0, {}});
 
   // Book each end that is in a TCM: reads at SRC, writes at DST. An end in
   // external memory books the link, or costs only the setup delay when the
@@ -99,6 +99,11 @@ void Dma::start(Cycle Arrive) {
       Jobs[J].EndFinishes[End] = Moved;
       retime(J);
     };
+    if (IsStore) {
+      Jobs[J].DstBase = Base;
+      Jobs[J].DstLen = Len;
+      Jobs[J].Ready = Ready;
+    }
     // A DST beat waits for its bytes; a SRC read does not wait for the link.
     const Tcm::Booking Booked =
         Target->book(Request, IsStore ? std::span<const Cycle>(Ready)
@@ -109,6 +114,28 @@ void Dma::start(Cycle Arrive) {
                                   Booked.Response.Latency);
   }
   retime(J);
+}
+
+Cycle Dma::getArrival(Address Addr, uint32_t Size) const {
+  // A program reads the buffer of the transfer in flight or the one before
+  // it, so the newest few transfers are enough.
+  const size_t Oldest = Jobs.size() > 4 ? Jobs.size() - 4 : 0;
+  for (size_t J = Jobs.size(); J-- > Oldest;) {
+    const Job &Current = Jobs[J];
+    if (Current.DstLen == 0 || Addr < Current.DstBase ||
+        Addr - Current.DstBase >= Current.DstLen)
+      continue;
+    // The beat that holds the last byte asked for: written when its turn
+    // comes and its bytes are in, and usable a cycle later.
+    const uint32_t Last = std::min<uint64_t>(
+        (Addr - Current.DstBase + std::max<uint32_t>(Size, 1) - 1) / BeatBytes,
+        Current.Beats - 1);
+    Cycle Written = Current.Begin + Last;
+    if (Last < Current.Ready.size())
+      Written = std::max(Written, Current.Ready[Last]);
+    return std::min(Written + 1, Current.Finish);
+  }
+  return 0;
 }
 
 void Dma::retime(size_t J) {

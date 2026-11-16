@@ -2,6 +2,7 @@
 
 #include "memory/Memory.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 
@@ -37,6 +38,7 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
             return nullptr;
           },
           Params->dma_queue_depth),
+      StreamLoads(Params->dma_stream_loads),
       TheHost(Params->host_boot, Params->host_boot_data,
               Params->host_setup_cycles, Params->host_cycles_per_byte) {}
 
@@ -80,13 +82,17 @@ MemResponse Memory::access(const MemRequest &Request) {
   RegionKind Kind = Request.Accesses.empty()
                         ? RegionKind::DTCM
                         : getRegionKind(Request.Accesses.front().Addr);
-  switch (Kind) {
-  case RegionKind::ITCM:
-    return ITCM.access(Request);
-  case RegionKind::DTCM:
-    return DTCM.access(Request);
-  case RegionKind::External:
-    break;
+  if (Kind != RegionKind::External) {
+    Tcm &Target = Kind == RegionKind::ITCM ? ITCM : DTCM;
+    if (!StreamLoads || Request.Requester == RequesterKind::IFetch)
+      return Target.access(Request);
+    // A load of bytes a DMA transfer has not written yet waits for them.
+    MemRequest Timed = Request;
+    for (const MemAccess &Access : Request.Accesses)
+      if (!Access.IsStore)
+        Timed.Earliest =
+            std::max(Timed.Earliest, DMA.getArrival(Access.Addr, Access.Size));
+    return Target.access(Timed);
   }
   MemResponse Response = AXI.access(Request.Accesses, Request.Earliest);
   const MemoryRegion DmaRegs = getDmaRegsRegion();
