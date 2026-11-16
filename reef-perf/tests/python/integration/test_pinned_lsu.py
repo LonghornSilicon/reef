@@ -21,8 +21,6 @@ TOLERANCE = 0.02
 
 KNOWN_GAP = {
     "vload_use": "vector: vmv.x.s of a loaded register (docs/pinned.md, V8)",
-    "vload_rob": "core: 8 against 9 until the branch rule is on (C4)",
-    "vstore_rob": "core: 10 against 11 until the branch rule is on (C4)",
 }
 """Programs with a known error outside the LSU, and why."""
 

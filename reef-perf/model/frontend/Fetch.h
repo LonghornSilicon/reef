@@ -161,14 +161,19 @@ private:
     Cycle Ready = 0;            ///< First cycle it can be committed.
     std::vector<InstRef> Insts; ///< Its instructions on the executed path.
     bool Redirects = false;     ///< Ends in a taken or predicted-taken jump.
+    bool WrongPath = false;     ///< A sequential fetch behind a predicted jump.
   };
   std::deque<Line> InFlight;   // Issued, not yet committed; oldest first.
   Cycle NextIssue = 0;         // Earliest cycle of the next fetch.
   bool WaitsForCommit = false; // A predicted jump's line is in flight.
   InstRef WaitsForDispatch;    // A mispredicted jump the core has not taken.
   bool Exhausted = false;      // FuncSim has no more instructions.
-  bool Done = false;           // The program is fully fetched ...
-  Cycle DoneCycle = 0;         // ... as of this cycle.
+  /// With the reorder buffer full behind a predicted jump, FetchControl
+  /// holds a request for the next sequential line that it cannot withdraw
+  /// (io.fetchAddr is Irrevocable, ongoingFetch).
+  bool PendingWrongPath = false;
+  bool Done = false;   // The program is fully fetched ...
+  Cycle DoneCycle = 0; // ... as of this cycle.
 
   sparta::UniqueEvent<> FetchEvent{&unit_event_set_, "ev_fetch",
                                    CREATE_SPARTA_HANDLER(Fetch, fetchGroup)};

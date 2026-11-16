@@ -51,13 +51,12 @@ top:
         rob_entries: 16
     dispatch:
       params:
-        # C4 (off). branch_ends_group: a conditional branch is the last
-        # instruction dispatched in its cycle (Decode.scala:419-422, and the
-        # waveform of matrix/mac_rob). It is right, but with it the matrix
-        # programs only match if a MAC retires a cycle earlier than the
-        # matrix module's mtx_complete_latency 1 gives, and that value is
-        # not to change until matrix/mac_queue is explained (docs/pinned.md,
-        # "The branch rule"). Off until then.
+        # C4. A conditional branch is the last instruction dispatched in
+        # its cycle. RTL: Decode.scala:419-422 (branchInterlock); M3 has
+        # the rule too (deviations D2), and the M3 model leaves it out.
+        # TRACE: matrix/mac_rob (the loop's bnez is dispatched alone, the
+        # MAC behind it a cycle later). M3 model: false
+        branch_ends_group: true
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
@@ -107,3 +106,12 @@ top:
       # M3: axi_latency 2, axi_write_latency 0 (as a read)
       axi_latency: 4
       axi_write_latency: 5
+  matrix:
+    params:
+      # X3. The retirement buffer retires a tile instruction in the cycle
+      # the engine reports it. TRACE: matrix/mac_rob, the MAC dispatched in
+      # D is retired in D + 20. The matrix module's default of 1 retires it
+      # in D + 21, which gives the same loop time only without C4 and
+      # without the fetch unit's stalled redirect (docs/pinned.md, "The
+      # branch rule"). m3_vme.yaml: 1 (unchanged)
+      mtx_complete_latency: 0

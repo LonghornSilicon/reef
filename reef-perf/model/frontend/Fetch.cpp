@@ -192,12 +192,34 @@ void Fetch::fetchSpeculative() {
       LastGroupRedirected = L.Redirects;
       // Predecode sees a predicted jump now and fetches its target in this
       // cycle; the sequential fetches behind it are dropped.
-      if (L.Redirects)
-        WaitsForCommit = false;
+      bool WasPredictedJump = WaitsForCommit && L.Redirects;
       InFlight.pop_front();
+      if (WasPredictedJump) {
+        WaitsForCommit = false;
+        std::erase_if(InFlight, [](const Line &X) { return X.WrongPath; });
+        // A request held while the reorder buffer was full goes out now,
+        // wasted, and the target is fetched the cycle after.
+        if (PendingWrongPath)
+          NextIssue = Now + 1;
+        PendingWrongPath = false;
+      }
     } else {
       ++CyclesNoCredit;
     }
+  }
+
+  // Behind a predicted jump whose line is still in flight, fetch runs on
+  // down the next lines; they are dropped when the jump's line is written.
+  if (WaitsForCommit && Now >= NextIssue) {
+    if (InFlight.size() < MaxInFlight) {
+      Line Wrong;
+      Wrong.Ready = Now + ResponseCycles;
+      Wrong.WrongPath = true;
+      InFlight.push_back(std::move(Wrong));
+    } else {
+      PendingWrongPath = true;
+    }
+    NextIssue = Now + 1;
   }
 
   // Issue the next fetch. Behind a jump there is nothing useful to fetch
