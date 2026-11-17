@@ -57,6 +57,7 @@ enum class StallReason : uint8_t {
   LsuFull,   ///< LSU queue full.
   VecFull,   ///< Vector command queue full.
   MtxFull,   ///< Matrix command queue full.
+  CsrDrain,  ///< A CSR or vtdiscard waits for an empty Rob.
   NumReasons ///< Number of reasons (not a reason).
 };
 
@@ -102,6 +103,47 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,
               "Max instructions dispatched per cycle")
+    PARAMETER(bool, branch_ends_group, false,
+              "A conditional branch is the last instruction dispatched in "
+              "its cycle (Decode.scala). Off: the M3 model, whose fetch "
+              "rate hides the rule")
+    // Dispatch rules of CoralNPU's Decode.scala that the M3 model leaves
+    // out (deviations D3, M2). Each is off by default.
+    PARAMETER(bool, slot0_only_rule, false,
+              "CSR, fence, system and FP instructions, vector instructions "
+              "that read or write an f register, and vtdiscard dispatch "
+              "first in their cycle, with nothing else (forceSlot0Only)")
+    PARAMETER(bool, jump_ends_group, false,
+              "jal, jalr, ecall, ebreak, mret and mpause are the last "
+              "instruction dispatched in their cycle (isJump)")
+    PARAMETER(bool, csr_waits_for_empty_rob, false,
+              "A CSR instruction is dispatched only when the retirement "
+              "buffer is empty")
+    PARAMETER(bool, vtdiscard_interlock, false,
+              "vtdiscard is dispatched only when the retirement buffer is "
+              "empty. The RTL also waits for the RVV backend and the LSU "
+              "to be idle, which this does not model")
+    PARAMETER(bool, rvv_config_interlock, false,
+              "A vector or tile load or store is not dispatched in the cycle "
+              "after a vector-engine instruction was, nor behind a vset* in "
+              "its own cycle: the RVV front end's config state is invalid "
+              "while it holds an instruction (RvvFrontEnd.sv:86-93, "
+              "Decode.scala rvvConfigInterlock)")
+    PARAMETER(uint32_t, vector_scalar_waw_delay, 0,
+              "Cycles after a vector instruction's scalar result is written "
+              "(vmv.x.s, vcpop, vfirst) before a later vector instruction "
+              "writing the same x register may dispatch (0 on M3's model). "
+              "A scalar writer does not wait")
+    PARAMETER(bool, rd_field_waw, false,
+              "CoralNPU's decoder treats bits 11:7 of every instruction but "
+              "an integer store or a conditional branch as an x destination "
+              "for WAW (Decode.scala writesRd), vector, Zvt and FP ones "
+              "included: such an instruction waits for an in-flight scalar "
+              "write of that x register, and for an earlier instruction in "
+              "its cycle with the same field, x0 included")
+    PARAMETER(uint32_t, load_waw_advance, 1,
+              "Cycles before a load's result is ready that a later writer "
+              "of the same register may dispatch (1 on M3)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -147,6 +189,17 @@ private:
   void sendToTarget(const InstRef &I);
 
   const uint32_t DispatchWidth;
+  const uint32_t LoadWawAdvance;
+  const uint32_t VectorScalarWawDelay;
+  const bool BranchEndsGroup;
+  const bool Slot0OnlyRule;
+  const bool JumpEndsGroup;
+  const bool CsrWaitsForEmptyRob;
+  const bool VtdiscardInterlock;
+  const bool RvvConfigInterlock;
+  const bool RdFieldWaw;
+  std::vector<uint32_t>
+      GroupRdFields; // rd_field_waw: fields dispatched this cycle.
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;
@@ -155,6 +208,9 @@ private:
   std::array<InstRef, RegId::NumDense> LastWriter{};
 
   uint32_t RobCredits = 0;
+  Cycle LastRvvDispatch = Inst::Never; // Latest vector-engine dispatch.
+  Cycle LastVsetDispatch = Inst::Never;
+  uint32_t RobSize = 0; // The Rob's first credits: its entries.
   uint32_t LsuCredits = 0;
   uint32_t VecCredits = 0;
   uint32_t MtxCredits = 0;

@@ -1,0 +1,30 @@
+# Matrix-engine experiment, docs/matrix-experiments.md. Kernel ELFs from
+# inference-engine/coral (PR #57): set E2E_ROOT to their build directory, with
+# one subdirectory per build: t1 (E2E_TOKENS=1 E2E_START_POS=16), t2, t4,
+# t8 (defaults), t8p8 (E2E_START_POS=8), t1p79 (E2E_TOKENS=1
+# E2E_START_POS=79).
+#
+# E5: with memory exposed, is the engine limited by the core's loads or its
+# own queues. lsu_load1 and rob16 change the core; they only expose the engine.
+
+name: matrix_e5_feed
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml
+  - configs/memory/psram_kv.yaml
+  - python/reef_perf/experiments/sweep/sweeps/overlays/exposed_memory.yaml
+sim_args: [--ext-mem-mb, "160"]
+programs:
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+  qkv_t8: ${E2E_ROOT}/t8/qkv.elf
+variants:
+  baseline: {}
+  lsu_load1: {top.core.lsu.params.lsu_vector_load_reg_overhead: 1}
+  rob16: {top.core.rob.params.rob_entries: 16}
+  uop4: {top.matrix.params.mtx_uop_buffer_entries: 4}
+  uop16: {top.matrix.params.mtx_uop_buffer_entries: 16}
+  queue16: {top.matrix.params.mtx_queue_entries: 16}
+  fifo4: {top.matrix.params.mtx_lsu_fifo_entries: 4}

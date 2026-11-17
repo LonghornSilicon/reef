@@ -1,0 +1,15 @@
+--- a/coral/kernels/linear.cc	2026-11-10 18:41:03.000000000 -0600
++++ b/coral/kernels/linear.cc	2026-11-13 18:37:30.844607085 -0600
+@@ -99,10 +99,12 @@
+         if (chunk == chunks - 1) {
+             const auto* bias =
+                 reinterpret_cast<const int32_t*>(buf + rows * 64);
++            (void)mcycle(); // E6 instrumentation: epilogue start
+             for (uint32_t acc = 0; acc < 4; ++acc) {
+                 epilogue(mode, i / chunks * 4 + acc, acc_tile(acc),
+                          bias + acc * 16, out, tokens);
+             }
++            (void)mcycle(); // E6 instrumentation: epilogue end
+         }
+     }
+ }

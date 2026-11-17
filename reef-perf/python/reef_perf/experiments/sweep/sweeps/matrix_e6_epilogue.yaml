@@ -1,0 +1,26 @@
+# Matrix-engine experiment, docs/matrix-experiments.md. Kernel ELFs from
+# inference-engine/coral (PR #57): set E2E_ROOT to their build directory.
+#
+# E6.1/E6.2: the epilogue's share of fc1. epi_t1 and epi_t8 are fc1 builds
+# whose linear.cc reads mcycle just before and after each epilogue (the four
+# per column group); nothing else changes. Sum the cycles between those
+# paired reads (mcycle_reads[1:-1]) and divide by roi_cycles. The plain
+# builds run alongside to check the extra reads do not move the ROI.
+
+name: matrix_e6_epilogue
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml
+  - configs/memory/psram_kv.yaml
+sim_args: [--ext-mem-mb, "160"]
+programs:
+  fc1_epi_t1: ${E2E_ROOT}/epi_t1/fc1.elf
+  fc1_epi_t8: ${E2E_ROOT}/epi_t8/fc1.elf
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+grid:
+  overlay:
+    - configs/memory/xspi_str.yaml
+    - python/reef_perf/experiments/sweep/sweeps/overlays/exposed_memory.yaml

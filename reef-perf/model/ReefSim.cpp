@@ -241,6 +241,10 @@ void ReefSim::writeJSON(std::ostream &OS) const {
      << "  \"ipc\": " << getIPC(Insts, Cycles) << ",\n"
      << "  \"taken_redirects\": " << FrontendModule.getUnit()->getNumRedirects()
      << ",\n";
+  // Only when Spike executes Zvt, so other runs keep their keys.
+  if (TheFuncSim->isZvtInSpike())
+    OS << "  \"zvt_mismatches\": " << TheFuncSim->getNumZvtMismatches() << ",\n"
+       << "  \"zvt_rtl_nops\": " << TheFuncSim->getNumZvtRtlNops() << ",\n";
   // Only with the host's boot load on, so the golden files keep their keys.
   if (Cycle Boot = MemoryModule.getUnit()->getHost().getBootCycles())
     OS << "  \"boot_cycles\": " << Boot << ",\n";

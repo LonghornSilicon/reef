@@ -48,6 +48,10 @@ public:
               "Use operand-dependent M3 divide timing")
     PARAMETER(uint32_t, div_base, 2,
               "Fixed cycles added to M3's divide iterations")
+    PARAMETER(uint32_t, div_release_cycles, 0,
+              "With div_data_dependent: cycles the divider stays busy after "
+              "its result is ready, before it takes the next divide (0 on "
+              "M3)")
     PARAMETER(uint32_t, fpu_latency, 3, "FP op latency")
     PARAMETER(uint32_t, fpu_occupancy, 1, "Cycles an FP op blocks the FPU")
     PARAMETER(uint32_t, fdiv_latency, 12, "FP divide/sqrt latency")
@@ -77,6 +81,7 @@ private:
   const uint32_t DIVOccupancy;
   const bool DIVDataDependent;
   const uint32_t DIVBase;
+  const uint32_t DIVReleaseCycles;
   const uint32_t FPULatency;
   const uint32_t FPUOccupancy;
   const uint32_t FDIVLatency;

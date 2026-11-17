@@ -1,0 +1,6 @@
+microbenchmark,rtl_roi_cycles,rtl_retired_insts,notes
+branch_bwd_not_taken,7006,3001,
+branch_fwd_not_taken,2007,3001,
+branch_fwd_taken,7006,3001,
+jal_fwd,4001,3001,
+jalr_chain,7008,3003,

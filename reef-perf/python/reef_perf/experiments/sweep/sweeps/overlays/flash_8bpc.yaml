@@ -1,0 +1,6 @@
+# Weight flash at 8 B/cycle (latency as xspi_str.yaml). Beyond XSPI: used to
+# find where the matrix engine starts to matter (docs/matrix-experiments.md).
+top:
+  memory:
+    params:
+      ext_mem_bytes_per_cycle: 8

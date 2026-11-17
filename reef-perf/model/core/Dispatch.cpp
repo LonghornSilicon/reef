@@ -58,6 +58,37 @@ static bool readsRegistered(const Inst &I, RegId Reg) {
   return I.Class == InstClass::STORE && Reg.getIndex() == Rs2;
 }
 
+/// \returns true if CoralNPU's decoder counts bits 11:7 of \p I as an x
+/// destination (Decode.scala writesRd): anything but an integer store or a
+/// conditional branch.
+static bool hasRdField(const Inst &I) {
+  return I.Class != InstClass::STORE && I.Class != InstClass::BRANCH;
+}
+
+/// \returns true if \p I must dispatch first in its cycle with nothing else
+/// (Decode.scala, forceSlot0Only): CSR, fence, system and FP instructions,
+/// a vector instruction that reads or writes an f register, and vtdiscard.
+static bool isSlot0Only(const Inst &I) {
+  switch (I.Class) {
+  case InstClass::CSR:
+  case InstClass::FENCE:
+  case InstClass::SYSTEM:
+  case InstClass::FP:
+  case InstClass::FP_DIV:
+  case InstClass::FP_LOAD:
+  case InstClass::FP_STORE:
+    return true;
+  default:
+    break;
+  }
+  if (I.Mtx.Op == MatrixOp::Discard)
+    return true;
+  if (!I.isVector())
+    return false;
+  auto IsF = [](RegId Reg) { return Reg.getFile() == RegFile::F; };
+  return std::ranges::any_of(I.Srcs, IsF) || std::ranges::any_of(I.Dsts, IsF);
+}
+
 const char *reef_perf::getStallReasonName(StallReason Reason) {
   switch (Reason) {
   case StallReason::IbufEmpty:
@@ -74,6 +105,8 @@ const char *reef_perf::getStallReasonName(StallReason Reason) {
     return "vector_queue_full";
   case StallReason::MtxFull:
     return "matrix_queue_full";
+  case StallReason::CsrDrain:
+    return "csr_drain";
   case StallReason::NumReasons:
     break;
   }
@@ -105,7 +138,16 @@ uint64_t TopDownSlots::getTotal() const {
 }
 
 Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
-    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width) {
+    : sparta::Unit(Node, name), DispatchWidth(Params->dispatch_width),
+      LoadWawAdvance(Params->load_waw_advance),
+      VectorScalarWawDelay(Params->vector_scalar_waw_delay),
+      BranchEndsGroup(Params->branch_ends_group),
+      Slot0OnlyRule(Params->slot0_only_rule),
+      JumpEndsGroup(Params->jump_ends_group),
+      CsrWaitsForEmptyRob(Params->csr_waits_for_empty_rob),
+      VtdiscardInterlock(Params->vtdiscard_interlock),
+      RvvConfigInterlock(Params->rvv_config_interlock),
+      RdFieldWaw(Params->rd_field_waw) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -129,6 +171,8 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
 }
 
 void Dispatch::receiveRobCredits(const uint32_t &Credits) {
+  if (RobSize == 0)
+    RobSize = Credits;
   RobCredits += Credits;
   scheduleDispatch();
 }
@@ -157,6 +201,49 @@ void Dispatch::scheduleDispatch() {
 
 bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
                            ExecTarget &Blamed) const {
+  // A CSR instruction, and vtdiscard, wait for an empty Rob. Every credit
+  // back means it is empty; they return the cycle after the last retire, as
+  // the RTL's registered count does.
+  bool Drains = (CsrWaitsForEmptyRob && I->Class == InstClass::CSR) ||
+                (VtdiscardInterlock && I->Mtx.Op == MatrixOp::Discard);
+  if (Drains && RobCredits < RobSize) {
+    Why = StallReason::CsrDrain;
+    InstRef Oldest = TheRob ? TheRob->getOldest() : nullptr;
+    Blamed = Oldest ? getExecTarget(*Oldest) : ExecTarget::Scalar;
+    return false;
+  }
+  // The RVV front end holds each instruction for a cycle, and its config
+  // state is not valid for a load or store meanwhile.
+  if (RvvConfigInterlock && (isVectorMemory(*I) || isMatrixMemory(*I)) &&
+      (LastRvvDispatch + 1 == Now || LastVsetDispatch == Now)) {
+    Why = StallReason::VecFull;
+    Blamed = ExecTarget::Vector;
+    return false;
+  }
+  // rd_field_waw: bits 11:7 as an x destination, against this cycle's
+  // earlier instructions and against in-flight scalar writes.
+  if (RdFieldWaw && hasRdField(*I)) {
+    const uint32_t Field = (I->Encoding >> 7) & 31;
+    if (std::ranges::find(GroupRdFields, Field) != GroupRdFields.end()) {
+      Why = StallReason::Waw;
+      Blamed = ExecTarget::Scalar;
+      return false;
+    }
+    // Where the field is the instruction's real x destination, the WAW
+    // check below already covers it.
+    const bool RealRd =
+        std::ranges::find(I->Dsts, RegId::x(Field)) != I->Dsts.end();
+    if (Field != 0 && !RealRd) {
+      const InstRef &Writer = LastWriter.at(RegId::x(Field).getDense());
+      if (Writer && !Writer->isVector() && !Writer->isMatrix() &&
+          (Writer->ResultReadyCycle == Inst::Never ||
+           Writer->ResultReadyCycle > Now)) {
+        Why = StallReason::Waw;
+        Blamed = getExecTarget(*Writer);
+        return false;
+      }
+    }
+  }
   // A register hazard is blamed on the unit producing the register. A
   // registered read sees the value one cycle after a forwarded read. A
   // writer not scheduled yet (Never) blocks as is: Never + 1 would wrap to 0.
@@ -184,12 +271,21 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     // M3's combinational scoreboard clear lets a following writer dispatch
     // one cycle before a load result is ready. RAW dependencies still wait
     // for ResultReadyCycle.
-    const Cycle WawAdvance = Writer && Writer->Class == InstClass::LOAD ? 1 : 0;
+    const Cycle WawAdvance =
+        Writer && Writer->Class == InstClass::LOAD ? LoadWawAdvance : 0;
     // Two matrix writers of one vector register (vtmv.v.t after vtmv.v.t)
     // need no wait: the matrix module runs them in order.
     if (isMatrixVectorRaw(Reg, Writer) && I->isMatrix())
       continue;
-    if (isTracked(Reg, Writer) && Writer->ResultReadyCycle > Now + WawAdvance) {
+    // A vector instruction that writes an x register last written by
+    // another vector instruction waits a cycle more than a scalar writer.
+    const Cycle WawDelay = Writer && Writer->isVector() && I->isVector() &&
+                                   Reg.getFile() == RegFile::X
+                               ? VectorScalarWawDelay
+                               : 0;
+    if (isTracked(Reg, Writer) &&
+        (Writer->ResultReadyCycle == Inst::Never ||
+         Writer->ResultReadyCycle + WawDelay > Now + WawAdvance)) {
       Why = StallReason::Waw;
       Blamed = getExecTarget(*Writer);
       return false;
@@ -266,11 +362,23 @@ void Dispatch::dispatchGroup() {
   StallReason Why = StallReason::IbufEmpty;
   ExecTarget Blamed = ExecTarget::Scalar;
 
+  GroupRdFields.clear();
   while (Count < DispatchWidth) {
     InstRef I = Frontend->peek(Now);
-    if (!I || !canDispatch(I, Now, Why, Blamed))
+    if (!I)
+      break;
+    bool Alone = Slot0OnlyRule && isSlot0Only(*I);
+    if (Alone && Count > 0)
+      break;
+    if (!canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
+    if (RdFieldWaw && hasRdField(*I))
+      GroupRdFields.push_back((I->Encoding >> 7) & 31);
+    if (I->isVector() || I->isMatrix())
+      LastRvvDispatch = Now;
+    if (I->Class == InstClass::VSET)
+      LastVsetDispatch = Now;
     for (RegId Reg : I->Dsts)
       LastWriter.at(Reg.getDense()) = I;
     --RobCredits;
@@ -278,6 +386,11 @@ void Dispatch::dispatchGroup() {
     OutRobPort.send(I);
     Frontend->pop(Now);
     ++Count;
+    if (Alone || (BranchEndsGroup && I->Class == InstClass::BRANCH))
+      break;
+    if (JumpEndsGroup &&
+        (I->Class == InstClass::JUMP || I->Class == InstClass::SYSTEM))
+      break;
   }
 
   if (Count > 0) {

@@ -27,9 +27,13 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from reef_perf.experiments.correlation import rtl_trace
 from reef_perf.sim import DEFAULT_SIM_CONFIG, MODULE_ROOT
+
+if TYPE_CHECKING:
+    from reef_perf.sim import SimResult
 
 RESULTS_ROOT = MODULE_ROOT / "results" / "matrix_diff"
 """Where the experiment writes artifacts by default."""
@@ -170,22 +174,49 @@ def _write(path: Path, rows: list[dict[str, object]]) -> None:
     print(f"wrote {path}")
 
 
-def model(out: Path) -> None:
-    """Run every built ELF on the model.
+MACHINES = ("m3_vme", "pinned")
+"""Machines the model step can run: m3_vme is m3.yaml + m3_vme.yaml with
+REFERENCE_CORE_PARAMS on reef_perf; pinned is m3.yaml + coral_pinned.yaml on
+reef_perf_pinned (docs/pinned.md)."""
 
-    The machine is m3.yaml + m3_vme.yaml with REFERENCE_CORE_PARAMS.
+
+def run_model(elf: Path, machine: str = "m3_vme") -> "SimResult":
+    r"""Run one program on the model as \p machine.
+
+    Args:
+        elf: Program to run.
+        machine: One of MACHINES.
+
+    Returns:
+        The simulator's summary.
     """
+    from reef_perf.experiments.correlation.pinned import (
+        PINNED_CONFIG,
+        find_pinned_binary,
+    )
     from reef_perf.sim import run_sim
 
+    if machine == "pinned":
+        return run_sim(
+            elf,
+            sim_config=DEFAULT_SIM_CONFIG,
+            overlay_configs=(PINNED_CONFIG,),
+            binary=find_pinned_binary(),
+        )
+    return run_sim(
+        elf,
+        sim_config=DEFAULT_SIM_CONFIG,
+        params=REFERENCE_CORE_PARAMS,
+        overlay_configs=(VME_CONFIG,),
+    )
+
+
+def model(out: Path, machine: str = "m3_vme") -> None:
+    r"""Run every built ELF on the model as \p machine (MACHINES)."""
     rows: list[dict[str, object]] = []
     for bench in BENCHMARKS:
         for iters in _variants(bench):
-            result = run_sim(
-                _elf(out, bench, iters),
-                sim_config=DEFAULT_SIM_CONFIG,
-                params=REFERENCE_CORE_PARAMS,
-                overlay_configs=(VME_CONFIG,),
-            )
+            result = run_model(_elf(out, bench, iters), machine)
             rows.append(
                 {
                     "name": bench.name,
@@ -297,6 +328,12 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=RESULTS_ROOT)
     parser.add_argument("--sim", type=Path, help="VME simulator (rtl step)")
     parser.add_argument(
+        "--machine",
+        choices=MACHINES,
+        default="m3_vme",
+        help="model step: m3_vme (default) or pinned (coral_pinned.yaml)",
+    )
+    parser.add_argument(
         "--record",
         action="store_true",
         help="rtl step: also update microbenchmarks/matrix/rtl_vme.csv",
@@ -305,7 +342,7 @@ def main() -> None:
     if args.step == "build":
         build(args.out)
     elif args.step == "model":
-        model(args.out)
+        model(args.out, args.machine)
     elif args.step == "rtl":
         if args.sim is None:
             parser.error("the rtl step needs --sim")

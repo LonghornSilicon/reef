@@ -1,0 +1,183 @@
+# CoralNPU at 8a5e1b31 (VmeCoreMini): the whole pinned RTL, as an overlay on
+# the M3 model. That RTL is M3 plus 409 commits: the Zvt matrix engine and a
+# changed fetch unit, LSU, retirement buffer, vector backend and FP units.
+# It is the only RTL with a matrix engine, so the model's matrix numbers are
+# checked here.
+#
+# This file does not change M3 (m3.yaml) or M3 + Zvt (m3_vme.yaml), and it
+# is not Reef's design. It is a third machine, for correlation:
+#
+#   reef_perf_pinned --elf x.elf -c configs/machines/m3.yaml \
+#       -c configs/machines/coral_pinned.yaml
+#
+# reef_perf_pinned is the simulator built on the pinned commit's Spike
+# (docs/pinned.md, "Functional model"); reef_perf rejects this config
+#
+# Every difference from M3 is one switch below: a value, or a parameter that
+# turns new model code on. Each line says where its number came from and
+# what the M3 value is. Removing a line turns that change off; with every
+# line removed the model is m3.yaml exactly.
+#
+# Checked by tests/golden/pinned_results.json (cycle counts on this config)
+# and scored against the RTL by
+#   python -m reef_perf.experiments.correlation.pinned
+# RTL numbers: rtl_pinned.csv next to each rtl_m3.csv.
+#
+# Each switch has an ID (F frontend, C core, V vector, X matrix). Sources:
+# RTL = read in ~/coralnpu-pinned at 8a5e1b31; MEASURED = fitted to the
+# programs named, in rtl_pinned.csv; TRACE = read from a waveform of this
+# RTL. docs/pinned.md lists the differences not modeled yet.
+#
+# Behavior M3's RTL shares with this one, and that the M3 model lacked, is
+# fixed in m3.yaml itself (2026-11-16: the dispatch rules, the scalar
+# divider's release cycle, the data-dependent vector divider, the unary
+# vector decode) and so is not listed here.
+top:
+  frontend:
+    params:
+      # F1. The fetch unit after M3 (UncachedFetch.scala: FetchControl,
+      # Fetcher, FetchReorderBuffer): a fetch every cycle down the next
+      # 16-byte line, two in flight (maxConcurrentTx = 2), each line written
+      # to the instruction buffer 2 cycles after its fetch (the bus response
+      # is registered, then the reorder buffer's state), in order and whole.
+      # A predicted jump's target is fetched in the cycle its line is
+      # written; a mispredicted one 2 cycles after the core dispatches it
+      # (the BRU resolves it the next cycle, fetch follows). The three
+      # values are the defaults of fetch_max_in_flight,
+      # fetch_response_cycles and redirect_from_dispatch_cycles.
+      # M3: false (one fetch every other cycle; fetch_interval,
+      # redirect_penalty)
+      fetch_reorder_buffer: true
+      # X1. Zvt instructions decode and run on the matrix module (the
+      # engine's own values are the matrix module's defaults,
+      # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
+      zvt: true
+      # X6. Spike executes Zvt, as CoralNPU's own co-simulation does
+      # (b4be3e79), with reef-perf's Zvt layer beside it for the matrix
+      # details and checked against it on every instruction (zvt_mismatches
+      # in the summary). Shapes the RTL retires as no-ops are not run in
+      # Spike, which traps on some of them (zvt_rtl_nops). Needs
+      # reef_perf_pinned. m3_vme.yaml: off (the layer executes Zvt on M3's
+      # Spike)
+      zvt_in_spike: true
+  core:
+    scalar_exec:
+      params:
+        fpu_latency: 2
+        # C7b. MEASURED after the fact (the predictions were 12):
+        # pinned/fdiv_indep and pinned/fsqrt_chain take 13 cycles per
+        # operation. The divider is data-dependent: pinned/fdiv_chain, whose
+        # operands change, takes 18, which this does not model. M3: 12, 12
+        fdiv_latency: 13
+        fdiv_occupancy: 13
+    rob:
+      params:
+        # C1. RTL: Parameters.scala:141 retirementBufferSize = 16. M3: 8
+        rob_entries: 16
+    dispatch:
+      params:
+        vtdiscard_interlock: true      # empty retirement buffer only; the RTL
+                                       # also waits for an idle RVV backend and LSU
+        # C6. A vector or tile load or store is not dispatched in the cycle
+        # after any vector-engine instruction was. RTL: RvvFrontEnd.sv:86-93
+        # (config_state_valid is low while inst_q holds an instruction),
+        # Decode.scala rvvConfigInterlock. TRACE: lsu/vload_macc (the next
+        # iteration's vle8.v waits a cycle behind vwmacc.vx). M3 model: false
+        rvv_config_interlock: true
+        # C9. A vector instruction that writes an x register last written by
+        # another vector instruction (vcpop, vmv.x.s, vfirst) dispatches the
+        # cycle after that write, not in it; a scalar writer goes in the
+        # write cycle. TRACE: vcpop_indep (a0, a1 written in 62, 63; the next
+        # iteration's vcpop a0, a1 dispatched in 64). MEASURED: vcpop_indep
+        # -9.9% to 0.0%, vec_pingpong unchanged. M3 model: 0
+        vector_scalar_waw_delay: 1
+        # C3. A later writer of a load's destination dispatches in the cycle
+        # the load's value is written, not the cycle before. TRACE:
+        # addr_forward (each lw to a1 is dispatched in the previous one's
+        # rd cycle). M3: 1
+        load_waw_advance: 0
+    lsu:
+      params:
+        # C2. LsuV3 (Lsu.scala, LsuSuperSlot) in place of M3's LSU: the slot
+        # takes a whole instruction and walks its 16-byte registers one bus
+        # cycle each; an unmasked unit-stride or strided load starts when
+        # the core dispatches it, without waiting for the vector backend.
+        # TRACE: microbenchmarks/lsu/ (docs/pinned.md, "LsuV3"). The
+        # lsu_v3_* values keep their defaults, which are this RTL's.
+        # M3: false
+        lsu_v3: true
+        # C2b. Zvt tile beats run through the same slot. A tile load is an
+        # unmasked unit-stride load: bus read 2 cycles after dispatch, one
+        # 16-byte beat per cycle, each pushed to the engine (lsu2vme) 2
+        # cycles after its read. A tile store's beat is written the cycle
+        # after the engine hands it over (vme2lsu), and the instruction is
+        # complete a cycle after its last write. TRACE: matrix/
+        # tile_load32_burst, tile_store32_burst, load_then_store. Needs X4
+        # below. M3 + Zvt: false, with lsu_tile_cost false (a tile beat
+        # costs a vector register on M3's LSU)
+        lsu_v3_tile: true
+  vector:
+    params:
+      # V1. RTL: rvv_backend_define.svh ROB_DEPTH 16. M3: 8
+      vec_rob_entries: 16
+      # V2. The retirement buffer matches a vector result to its entry by
+      # rob_tag, not by PC. RTL: RetirementBuffer.scala:452, :532 (CoralNPU
+      # 302a42d3). MEASURED: vdiv_m8_indep, vdiv_m8_then_vadd_m8. M3: true
+      vec_completion_matches_pc: false
+      # V2b. Vector stores are still matched to their entry by the store's
+      # PC. RTL: RetirementBuffer.scala:558 (storeComplete.bits ===
+      # bufferEntry.addr). M3: false, where vec_completion_matches_pc
+      # covers stores too
+      vec_store_completion_matches_pc: true
+      # V3. The vector FP add and multiply-add unit has 4 stages. RTL:
+      # FALU_PIPEREGS 4 (rvv_backend_define.svh). MEASURED: vfadd_chain and
+      # vfmacc_chain are 1 cycle per op slower than on M3. M3: 4
+      vec_fp_latency: 5
+      # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
+      # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
+      vec_fdiv_cycles_per_uop: 9
+      # V4. The retirement buffer sees a vector instruction done a cycle
+      # after its last uop leaves the vector ROB (CoralNPU a0974da8
+      # registers the completion token). MEASURED: lsu/vload_rob 9,
+      # lsu/vload_dep_rob 12; the independent streams (vadd_indep -7.7% to
+      # within 1%). M3: 0
+      vec_completion_token_latency: 1
+      # V5. A dependent uop reads a result once it is in the vector ROB,
+      # not only once it retires in order. MEASURED: pinned/vwmacc_m2_chain
+      # 5 to 4 (RTL 4): a vsext behind a slow vwmacc no longer delays its
+      # own reader. Not checked on the M3 RTL. M3 model: false
+      vec_results_forward_from_rob: true
+      # V6. The LSU reports a vector store complete once, after its last
+      # register. RTL: Lsu.scala:1970-1971. M3: false (after each register)
+      vec_store_completes_on_last_register: true
+  memory:
+    params:
+      # M1. An external read holds the e-bus 4 cycles and a write 5 before
+      # the LSU's own return time. TRACE: ext_load_stream, ext_store_stream,
+      # ext_load_chain. The testbench memory adds no delay (deviations M3).
+      # M3: axi_latency 2, axi_write_latency 0 (as a read)
+      axi_latency: 4
+      axi_write_latency: 5
+  matrix:
+    params:
+      # X4. A tile-load beat that finds the 2-entry lsu2vme FIFO full
+      # waits in the LSU after its bus read; the module's default starts
+      # the read later instead, which is right only while the LSU reports
+      # a beat's data in its bus cycle. With C2b the LSU reports the push,
+      # 2 cycles later, as the RTL does. m3_vme.yaml: false (unchanged)
+      mtx_lsu_holds_full_fifo_beat: true
+      # X5. vtmv.v.t writes one vector register per uop, and a reader of an
+      # early register does not wait for the last. MEASURED:
+      # matrix/move_vt_use and move_vt_use_v5, _v6, _last (the chain through
+      # v4, v5, v6, v7 takes 13, 13, 14, 15 cycles): a register is readable
+      # the cycle after its uop, and none sooner than 2 cycles after the
+      # first. The module's default has all four readable when the move is
+      # done. m3_vme.yaml: 0 (unchanged)
+      mtx_move_vector_latency: 1
+      mtx_move_vector_floor: 2
+      # X7. A Zvt uop that reads a vector instruction's result enters the
+      # uop buffer as a vector uop is dispatched: the cycle before the
+      # result is readable. The RVV backend dispatches both (the ZVT RS is
+      # one of its stations, rvv_backend.sv:782). MEASURED: gemm_longk +3.6%
+      # to -0.2%, gemm_tile +2.3% to -0.8%. m3_vme.yaml: 0 (unchanged)
+      mtx_vector_source_lead: 1

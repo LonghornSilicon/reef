@@ -73,6 +73,40 @@ public:
     PARAMETER(uint32_t, lsu_tile_switch_cycles, 0,
               "Cycles the slot stays busy after a tile instruction's last "
               "beat")
+    // CoralNPU's LsuV3 (after M3; in 8a5e1b31). With lsu_v3 off, the
+    // default and M3, none of the values below is read. On, it replaces
+    // the lsu_scalar_* and lsu_vector_* costs above: the slot takes a whole
+    // instruction and walks its 16-byte registers one bus cycle each, and a
+    // load that needs nothing from the vector backend starts as soon as the
+    // core dispatches it (docs/pinned.md, "LsuV3"). Tile beats take this
+    // path only with lsu_v3_tile; otherwise they keep M3's (lsu_tile_*).
+    PARAMETER(bool, lsu_v3, false, "Model CoralNPU's LsuV3 instead of M3's LSU")
+    PARAMETER(bool, lsu_v3_skip_handshake, true,
+              "With lsu_v3: an unmasked unit-stride or strided vector load "
+              "starts from the core's dispatch, without waiting for the "
+              "vector backend (CoralNPU 3ca02cc6). Off, it waits like a "
+              "store")
+    PARAMETER(uint32_t, lsu_v3_setup_cycles, 1,
+              "Cycles between an instruction reaching an idle LSU and its "
+              "first bus cycle")
+    PARAMETER(uint32_t, lsu_v3_return_cycles, 2,
+              "Cycles from a register's last bus cycle to the LSU handing a "
+              "loaded value back, or a vector store's register being done")
+    PARAMETER(uint32_t, lsu_v3_scalar_store_cycles, 1,
+              "Cycles from a scalar store's bus cycle to its completion")
+    PARAMETER(uint32_t, lsu_v3_backend_lead, 1,
+              "A loaded register is in the vector ROB no earlier than this "
+              "many cycles before its uop could issue: 1 is the cycle the "
+              "uop is dispatched and gets its ROB entry")
+    PARAMETER(bool, lsu_v3_tile, false,
+              "With lsu_v3: Zvt tile beats run through the LsuV3 slot too, "
+              "in place of lsu_tile_*. A tile load is an unmasked "
+              "unit-stride load; a tile store takes its data from the "
+              "engine's FIFO and is done lsu_v3_scalar_store_cycles after "
+              "its last bus cycle")
+    PARAMETER(uint32_t, lsu_v3_handshake_cycles, 1,
+              "Cycles from the vector backend handing over store data, an "
+              "index or a mask to the register's first bus cycle")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -95,6 +129,8 @@ public:
 
 private:
   void receiveInst(const InstRef &I);
+  void receiveInstV3(const InstRef &I);
+  VectorLsuResponse accessVectorRegisterV3(const VectorLsuRequest &Request);
   void sendInitialCredits();
 
   const uint32_t QueueEntries;
@@ -107,6 +143,16 @@ private:
   const uint32_t TileInstOverhead;
   const uint32_t TileBeatOverhead;
   const uint32_t TileSwitchCycles;
+  const bool V3;
+  const bool V3SkipHandshake;
+  const bool V3Tile;
+  const uint32_t V3SetupCycles;
+  const uint32_t V3ReturnCycles;
+  const uint32_t V3ScalarStoreCycles;
+  const uint32_t V3HandshakeCycles;
+  const uint32_t V3BackendLead;
+  Cycle V3NextBus =
+      0; // First bus cycle the instruction's next register can use.
   MemoryInterface *Mem = nullptr;
   ResourcePool Pipe; // One memory instruction at a time.
 

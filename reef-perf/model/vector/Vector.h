@@ -53,6 +53,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -188,6 +189,36 @@ public:
               "The core's retirement buffer matches vector results and "
               "store completions to entries by PC, so an older instance of "
               "the same PC completes newer ones (M3's RTL bug)")
+    PARAMETER(bool, vec_results_forward_from_rob, false,
+              "A uop's result can be read by a dependent uop once it is in "
+              "the vector ROB, whether or not older uops have retired. Off: "
+              "only once it retires, in order, so an older slow uop delays "
+              "readers of a younger independent one")
+    PARAMETER(uint32_t, vec_to_scalar_writes_per_cycle, 0,
+              "Scalar results (vmv.x.s, vcpop, vfirst, vfmv.f.s) the vector "
+              "engine hands the core per cycle, after the instruction "
+              "retires; 0: no limit, as on M3's model")
+    PARAMETER(bool, vec_div_data_dependent, false,
+              "Time each integer divide uop by its operands, as CoralNPU's "
+              "intdivider does: 1 cycle to start, one per 3 quotient bits "
+              "of the dividend, 1 to hand the result over; 2 for a divisor "
+              "of 0, signed overflow, or the same operands as that "
+              "divider's previous operation. A uop takes its slowest "
+              "element. Off: every uop takes vec_div_cycles_per_uop")
+    PARAMETER(uint32_t, vec_completion_token_latency, 0,
+              "Cycles from a vector instruction's last uop retiring from the "
+              "vector ROB to the retirement buffer marking it done. Stores "
+              "complete through the LSU instead. 0 on M3; CoralNPU a0974da8 "
+              "registers the token")
+    PARAMETER(bool, vec_store_completion_matches_pc, false,
+              "With vec_completion_matches_pc off: vector stores are still "
+              "matched to retirement-buffer entries by PC, so an older "
+              "instance of the same store completes newer ones (CoralNPU "
+              "after 302a42d3 tags results but not stores)")
+    PARAMETER(bool, vec_store_completes_on_last_register, false,
+              "The retirement buffer hears a vector store is complete after "
+              "its last register (LsuV3), not its first (M3). Read only with "
+              "vec_completion_matches_pc off")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -226,6 +257,9 @@ private:
   void sendInitialCredits();
   /// \returns what \p I needs from the backend.
   VectorOp getOp(const Inst &I) const;
+  /// \returns the cycles of each uop of the vector divide \p I, and
+  /// updates each divider's last operands (vec_div_data_dependent).
+  std::vector<uint64_t> getDivUopCycles(const Inst &I);
   /// \returns per uop of \p I's \p Uops, the first cycle the vector
   /// registers it reads allow it to start.
   std::vector<Cycle> getSourcesReady(const Inst &I, uint32_t Uops) const;
@@ -250,9 +284,23 @@ private:
   const uint32_t FpReduceLatency;
   const uint32_t FpReduceCyclesPerUop;
   const uint32_t ToScalarLatency;
+  const uint32_t ToScalarWritesPerCycle;
+  ResourcePool ToScalarPort{"vec_to_scalar", 1}; // Read with the limit only.
   const uint32_t VsetLatency;
   const bool CompareFirstUnitOnly;
   const bool CompletionMatchesPc;
+  const bool StoreCompletesOnLastRegister;
+  const bool StoreCompletionMatchesPc;
+  const uint32_t CompletionTokenLatency;
+  const bool DivDataDependent;
+  /// Per divider instance (element width, lane): the operands and signs of
+  /// its previous operation, for the reuse check.
+  struct DivState {
+    uint32_t Dividend = 0, Divisor = 0;
+    bool QSign = false, RSign = false;
+  };
+  std::map<std::pair<uint32_t, uint32_t>, DivState> Dividers;
+  const bool ResultsForwardFromRob;
   std::array<size_t, NumVectorGroups> GroupPools; // Pool of each group.
   VectorPipeline Pipeline;
   VectorLsuInterface *Lsu = nullptr;

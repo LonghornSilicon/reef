@@ -172,7 +172,7 @@ Each default is tagged with where it comes from:
 | `mtx_cmd_latency` | 4 | TRACE | Dispatch to a uop entering the buffer. A MAC's first step comes 6 cycles after dispatch (its 4 uops take 2 cycles), a move's first uop 5 (`mac_chain`, `move_tv_rob`). |
 | `mtx_uops_per_cycle` | 3 | RTL | Uops pushed into the buffer per cycle (`NUM_DP_UOP`). |
 | `mtx_uop_buffer_entries` | 8 | RTL + TRACE | The Zvt reservation station (`ZVT_RS_DEPTH`): 2 MACs or 8 one-uop ops. Pushes see the room before that cycle's pops (`rvv_backend.sv:776-807`; 128-PE `mac_indep_tm4`). |
-| `mtx_complete_latency` | 1 | TRACE | Result to the core seeing completion: `vmeRtVld` 2 cycles after an op's last controller cycle, retired that cycle (`mac_rob`, `zero_rob`, `move_tv_rob`). |
+| `mtx_complete_latency` | 0 | TRACE | Result to the core seeing completion: a MAC dispatched in D retires in D + 20 (`mac_rob` waveform). It was 1 until 2026-11-16, which matched only while the core lacked CoralNPU's branch dispatch rule; with the rule in `m3.yaml`, 0 matches `mac_rob`, `zero_rob`, `move_tv_rob` and `mac_queue` (`docs/pinned.md`, "The branch rule"). |
 
 ### Array (`MatrixFabric`)
 

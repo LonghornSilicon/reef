@@ -78,6 +78,10 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       TileReadLatency(Params->mtx_tile_read_latency),
       LsuFifoEntries(
           atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
+      LsuHoldsFullFifoBeat(Params->mtx_lsu_holds_full_fifo_beat),
+      MoveVectorLatency(Params->mtx_move_vector_latency),
+      MoveVectorFloor(Params->mtx_move_vector_floor),
+      VectorSourceLead(Params->mtx_vector_source_lead),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
@@ -131,8 +135,14 @@ Cycle Matrix::getVectorSourcesReady(const Inst &I) const {
       continue;
     unsigned Idx = Reg.getIndex();
     Ready = std::max(Ready, OwnVReady.at(Idx));
-    if (VectorRegs)
-      Ready = std::max(Ready, VectorRegs->getRegisterReady(Idx));
+    if (VectorRegs) {
+      // With mtx_vector_source_lead, a uop reading a vector instruction's
+      // result is pushed as a vector uop is dispatched: in the cycle before
+      // the result is readable (VectorPipeline.cpp).
+      Cycle Vec = VectorRegs->getRegisterReady(Idx);
+      Ready = std::max(Ready, Vec > VectorSourceLead ? Vec - VectorSourceLead
+                                                     : Cycle{0});
+    }
   }
   return Ready;
 }
@@ -186,11 +196,18 @@ Matrix::Transfer Matrix::runTileLoad(const Inst &I, Cycle Now,
     // The LSU takes a beat once lsu2vme has room for it. The RTL holds the
     // finished beat in the LSU instead; starting it later is the same stall
     // without modeling the LSU's hold.
-    Request.Earliest = std::max(Now, getFifoFree(LoadFifoPops));
+    Cycle Room = getFifoFree(LoadFifoPops);
+    Request.Earliest = LsuHoldsFullFifoBeat ? Now : std::max(Now, Room);
     // Dispatch gave the instruction an LSU queue entry; the LSU frees it
     // when the first beat starts.
     Request.FirstRegister = B == 0;
     Request.LastRegister = B + 1 == Beats.size();
+    // With mtx_lsu_holds_full_fifo_beat the LSU reads the beat at once and
+    // holds it, and its slot, until lsu2vme has room.
+    // lsu2vme is built without FULL_PUSH (zvt.sv:188-193, multi_fifo.sv:44,
+    // :111-114), so a full FIFO shows room the cycle after a pop, not in it.
+    if (LsuHoldsFullFifoBeat)
+      Request.ReceiverReady = Room > 0 ? Room + 1 : 0;
     Cycle Data = Lsu->accessVectorRegister(Request).Done;
     // The controller pops one beat per cycle and writes it to the tile
     // (isLsu2Vme, zvt_ctrl.sv:106), no earlier than the cycle after the LSU
@@ -376,12 +393,21 @@ void Matrix::executeInst(const InstRef &I) {
       setTilesReady(*I, TileMacReady, Done);
       Stats.SubtileWrites += SliceSubtiles;
     } else {
+      uint64_t Uop = 0;
       for (RegId Reg : I->Dsts)
         if (Reg.getFile() == RegFile::V) {
-          OwnVReady.at(Reg.getIndex()) = Done;
+          // The controller writes one register per uop; a reader of the
+          // first does not wait for the last.
+          Cycle Ready = Done;
+          if (MoveVectorLatency != 0)
+            Ready = Start +
+                    std::max<uint64_t>(MoveVectorFloor, Uop * MoveCyclesPerUop +
+                                                            MoveVectorLatency);
+          ++Uop;
+          OwnVReady.at(Reg.getIndex()) = Ready;
           // Vector readers wait for it in the vector module.
           if (VectorRegs)
-            VectorRegs->setRegisterReady(Reg.getIndex(), Done);
+            VectorRegs->setRegisterReady(Reg.getIndex(), Ready);
         }
       Stats.SubtileReads += SliceSubtiles;
     }

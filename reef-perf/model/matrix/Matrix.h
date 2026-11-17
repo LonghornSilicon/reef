@@ -82,7 +82,7 @@ public:
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
     PARAMETER(uint32_t, mtx_uop_buffer_entries, 8,
               "Uops the engine's reservation station holds (ZVT_RS_DEPTH)")
-    PARAMETER(uint32_t, mtx_complete_latency, 1,
+    PARAMETER(uint32_t, mtx_complete_latency, 0,
               "Cycles from the result being written to the core seeing the "
               "instruction complete")
     // Compute fabric (MatrixFabric).
@@ -141,6 +141,26 @@ public:
     PARAMETER(uint32_t, mtx_lsu_fifo_entries, 2,
               "Entries in each FIFO between the LSU and the controller "
               "(lsu2vme for tile loads, vme2lsu for tile stores)")
+    PARAMETER(uint32_t, mtx_move_vector_latency, 0,
+              "vtmv.v.t: cycles from the controller cycle of a uop to its "
+              "vector register being readable. 0: every register is "
+              "readable when the whole move is done (the module's first "
+              "model); 1 on CoralNPU")
+    PARAMETER(uint32_t, mtx_move_vector_floor, 0,
+              "vtmv.v.t: no register is readable sooner than this many "
+              "cycles after the move's first controller cycle (2 on "
+              "CoralNPU). Read only with mtx_move_vector_latency set")
+    PARAMETER(uint32_t, mtx_vector_source_lead, 0,
+              "Cycles before a vector instruction's result is readable that "
+              "a Zvt uop reading it may enter the uop buffer. 0: when it is "
+              "readable (the module's calibration on M3's core); 1: as a "
+              "vector uop is dispatched, in the cycle before")
+    PARAMETER(bool, mtx_lsu_holds_full_fifo_beat, false,
+              "A tile-load beat that finds lsu2vme full waits in the LSU "
+              "after its bus read, as on the RTL. Off: the beat starts "
+              "later instead, which is the same stall only while the LSU "
+              "reports a beat's data in its bus cycle (lsu_tile_cost). Set "
+              "with the core's lsu_v3_tile, which reports the push cycle")
     PARAMETER(bool, mtx_ctrl_waits_for_array_drain, true,
               "vtzero, moves, tile loads and stores wait until no MAC is "
               "in flight")
@@ -244,6 +264,10 @@ private:
   const uint32_t TileWriteLatency;
   const uint32_t TileReadLatency;
   const uint32_t LsuFifoEntries;
+  const bool LsuHoldsFullFifoBeat;
+  const uint32_t MoveVectorLatency;
+  const uint32_t MoveVectorFloor;
+  const uint32_t VectorSourceLead;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;

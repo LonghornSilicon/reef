@@ -19,6 +19,7 @@
 #include <ostream>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace reef_perf {
@@ -135,6 +136,10 @@ struct Inst {
       0; ///< Value of integer source register rs1 before execution.
   uint32_t Rs2Val =
       0; ///< Value of integer source register rs2 before execution.
+  /// Per element of a vector integer divide or remainder (vdiv*, vrem*):
+  /// the dividend (vs2) and divisor (vs1 or rs1) before execution, in
+  /// element order up to vl. Empty for every other instruction.
+  std::vector<std::pair<uint32_t, uint32_t>> DivOperands;
   std::string Disasm;         ///< Spike's disassembly.
   std::string Mnemonic;       ///< First token of Disasm, e.g. "addi".
   std::vector<MemAccess> Mem; ///< Accesses; one per element for vectors.
