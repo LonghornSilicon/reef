@@ -461,6 +461,48 @@ tile stores with vector loads.
 Still not covered: the 4 large Coral kernels (no highmem verification build)
 and the Zvt firmware kernels (they need a variant without the DMA).
 
+## Firmware (e2e-npu-firmware, 83f7152)
+
+The GPT-Neo firmware on the `e2e-npu-firmware` branch, built with Coral GCC
+into `build/e2e-fw/` (not committed): its eight kernels for an 8-token
+prefill block (`prefill8`) and for one decode step at position 58 (`dec59`),
+the whole model for both, and `e2e_nomatrix.elf`, the whole model built
+without Zvt. Run with the branch README's settings (flash at 1-cycle
+latency, 2 B/cycle, host boot, `--ext-mem-mb 160`).
+`sweeps/e2e_firmware_m3_vme.yaml` and `e2e_firmware_pinned.yaml` run them.
+
+ROI cycles, 2026-11-16 (M3 + Zvt with the M3 fixes in `m3.yaml`):
+
+| ELF | M3 + Zvt | Pinned | Pinned / M3 + Zvt |
+| --- | ---: | ---: | ---: |
+| `prefill8/embed` | 11,221 | 10,401 | 0.93 |
+| `prefill8/layernorm` | 36,530 | 32,949 | 0.90 |
+| `prefill8/qkv` | 529,743 | 476,079 | 0.90 |
+| `prefill8/attention` | 115,461 | 80,579 | 0.70 |
+| `prefill8/attn_out` | 185,843 | 163,105 | 0.88 |
+| `prefill8/fc1` | 714,977 | 635,319 | 0.89 |
+| `prefill8/fc2` | 653,524 | 596,924 | 0.91 |
+| `prefill8/lm_head` | 14,125,165 | 13,859,972 | 0.98 |
+| `dec59/embed` | 1,449 | 1,357 | 0.94 |
+| `dec59/layernorm` | 36,530 | 32,949 | 0.90 |
+| `dec59/qkv` | 490,166 | 465,027 | 0.95 |
+| `dec59/attention` | 95,529 | 67,126 | 0.70 |
+| `dec59/attn_out` | 176,384 | 162,969 | 0.92 |
+| `dec59/fc1` | 675,534 | 634,775 | 0.94 |
+| `dec59/fc2` | 612,905 | 596,788 | 0.97 |
+| `dec59/lm_head` | 14,081,573 | 13,859,956 | 0.98 |
+| `dec59/e2e` (whole decode step) | 32,510,928 | 29,998,780 | 0.92 |
+| `prefill8/e2e` (32-token prompt, 8 new tokens) | 318,983,808 | 289,524,274 | 0.91 |
+| `e2e_nomatrix` (no Zvt) | 839,272,939 | 581,919,044 | 0.69 |
+
+Every run retired every instruction. On the pinned machine Spike executed
+every Zvt instruction with reef-perf's layer agreeing on all of them
+(`zvt_mismatches` 0). Neither machine is correlated on this firmware: the
+RTL testbench has no DMA (the firmware writes its registers at
+`0x4000_0000`) and 4 MB of memory at `0x2000_0000`, where the model's
+weights take about 50 MB. Correlating it needs a variant that fits in 4 MB
+and copies weights with the core instead of the DMA.
+
 ## Audit against the goal (2026-11-15)
 
 The goal: each switch is a piece of the RTL's behavior, read from the source
