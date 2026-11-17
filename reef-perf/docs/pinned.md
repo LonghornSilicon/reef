@@ -80,6 +80,26 @@ measured (C7 `fpu_latency` 2, C7b `fdiv_latency` 13); they change nothing
 else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
 `vfredusum_*`) are still scored: they match, and they are the RVV backend's.
 
+## Gates
+
+| Test | Holds |
+| --- | --- |
+| `tests/python/integration/test_pinned_rtl.py` | every in-scope core, frontend, vector-unit and kernel program within 3% of the pinned RTL |
+| `test_matrix_correlation.py::test_matches_rtl_on_pinned_config` | every matrix program within 3% on m3.yaml + coral_pinned.yaml (`matrix_diff --machine pinned`), except `PINNED_KNOWN_GAP` |
+| `test_pinned_lsu.py` | the LSU and coverage probes within 2%; Spike and reef-perf's Zvt layer agree on every Zvt instruction |
+| `test_pinned_switches.py` | each switch works on its own on m3.yaml + m3_vme.yaml, with only the switches it needs (`REQUIRES`), and moves at least one program (or `NO_EFFECT` says why not) |
+| `test_golden.py` | the model's own numbers: M3 (`m3_results.json`) and pinned (`pinned_results.json`) |
+
+`REQUIRES` in `test_pinned_switches.py` is also the list of switches that
+only make sense together, for building the intermediate machines:
+`lsu_v3_tile` and `load_waw_advance` need `lsu_v3`;
+`mtx_lsu_holds_full_fifo_beat` needs `lsu_v3_tile`;
+`vec_store_completion_matches_pc` needs `vec_completion_matches_pc` off;
+`mtx_move_vector_floor` needs `mtx_move_vector_latency`; `jump_ends_group`
+needs `fetch_reorder_buffer`. And for the matrix programs to match:
+`mtx_complete_latency` 0 goes with `branch_ends_group` (see "The branch
+rule").
+
 ## Rules
 
 - Every difference from M3 is one switch in the file: a value, or a

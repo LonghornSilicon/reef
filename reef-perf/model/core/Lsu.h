@@ -78,8 +78,8 @@ public:
     // the lsu_scalar_* and lsu_vector_* costs above: the slot takes a whole
     // instruction and walks its 16-byte registers one bus cycle each, and a
     // load that needs nothing from the vector backend starts as soon as the
-    // core dispatches it (docs/pinned.md, "LsuV3"). Tile beats keep
-    // lsu_tile_* when lsu_tile_cost is on.
+    // core dispatches it (docs/pinned.md, "LsuV3"). Tile beats take this
+    // path only with lsu_v3_tile; otherwise they keep M3's (lsu_tile_*).
     PARAMETER(bool, lsu_v3, false, "Model CoralNPU's LsuV3 instead of M3's LSU")
     PARAMETER(bool, lsu_v3_skip_handshake, true,
               "With lsu_v3: an unmasked unit-stride or strided vector load "

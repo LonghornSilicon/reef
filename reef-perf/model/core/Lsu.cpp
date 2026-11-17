@@ -68,7 +68,9 @@ void Lsu::receiveInst(const InstRef &I) {
 VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   sparta_assert(Mem, "memory was not connected to the LSU");
   ++NumVectorRegisters;
-  if (V3 && (V3Tile || !(Request.IsTile && TileCost)))
+  // Tile beats take the LsuV3 path only with lsu_v3_tile; otherwise they
+  // keep M3's path (lsu_tile_cost, or a vector register's cost).
+  if (V3 && (!Request.IsTile || V3Tile))
     return accessVectorRegisterV3(Request);
   uint64_t Overhead =
       Request.IsStore ? VectorStoreRegOverhead : VectorLoadRegOverhead;
@@ -106,6 +108,15 @@ VectorLsuResponse Lsu::accessVectorRegister(const VectorLsuRequest &Request) {
   // before the 1-cycle SRAM's data is usable (RTL waveform of vec_add_m1: a
   // load is taken in A, its data is handed back in A + 3 and usable in A + 5).
   Result.Done = Response.Start + Response.Latency - 1;
+  // A sender that cannot take the register yet (Request.ReceiverReady) leaves
+  // it, and the slot, in the LSU until it can. 0, as the vector module and
+  // the matrix module by default send it, never holds.
+  if (Request.ReceiverReady > Result.Done) {
+    Cycle Free = Pipe.getNextFree(0);
+    if (Request.ReceiverReady + 1 > Free)
+      Pipe.reserve(Free, Request.ReceiverReady + 1 - Free);
+    Result.Done = Request.ReceiverReady;
+  }
   return Result;
 }
 

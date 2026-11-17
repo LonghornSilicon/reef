@@ -190,7 +190,7 @@ through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
 | `IsTile` | a 16-byte beat of a Zvt tile load or store, set only by the matrix module (default false). With `lsu_tile_cost` on, the LSU charges it the `lsu_tile_*` cost instead of the vector-register cost; off, or false, it costs a vector register (`docs/lsu-tile-beats.md`) |
 | `Dispatched` | the cycle the core dispatched the instruction (0 if the sender does not say). Read only with `lsu_v3`, where an unmasked unit-stride or strided load starts from the core's dispatch |
 | `NeedsVectorData` | the LSU needs store data, an index vector or a mask from the vector backend before it can start (default true). Read only with `lsu_v3` |
-| `ReceiverReady` | first cycle the sender can take a loaded register back (default 0, at once). Read only with `lsu_v3`, which holds the register and its slot until then; the matrix module sets it when its `lsu2vme` FIFO is full (`mtx_lsu_holds_full_fifo_beat`) |
+| `ReceiverReady` | first cycle the sender can take a loaded register back (default 0, at once). The LSU, either path, holds the register and its slot until then; the matrix module sets it when its `lsu2vme` FIFO is full (`mtx_lsu_holds_full_fifo_beat`) |
 
 | `VectorLsuResponse` field | Meaning |
 | --- | --- |
