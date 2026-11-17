@@ -29,7 +29,9 @@ and the pinned matrix gate run `reef_perf_pinned` (`find_pinned_binary()`),
 and fail if it is not built. To build
 it in the current image: `bash scripts/build_deps.sh build/deps spike-pinned`
 inside Docker, then reconfigure. The Dockerfile now installs it in the image
-as well (`/opt/reef-perf/spike-pinned`).
+as well (`/opt/reef-perf/spike-pinned`). The install keeps only the static
+archives, without debug information, and the headers: 45 MB, where the full
+`make install` is 2.8 GB.
 
 Spike executes every instruction when it is fetched, before the timing
 model times it (execute-at-fetch), in both simulators.

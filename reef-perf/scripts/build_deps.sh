@@ -112,6 +112,12 @@ build_spike_pinned() {
             "${prefix}/lib/"
         cp config.h "${prefix}/include/riscv/"
     )
+    # reef_perf_pinned links only the static archives and the headers. The
+    # tools and shared libraries `make install` adds, and the archives' debug
+    # information, would add 2.7 GB to the image.
+    rm -rf "${prefix}/bin" "${prefix}/lib/pkgconfig"
+    rm -f "${prefix}"/lib/*.so*
+    strip --strip-debug "${prefix}"/lib/*.a
 }
 
 for component in "$@"; do
