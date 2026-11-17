@@ -52,6 +52,11 @@ They cover the whole run, not only the ROI.
 """
 
 
+def _keys(dicts: list[dict[str, Any]]) -> list[str]:
+    """Every key of dicts, in first-seen order."""
+    return list(dict.fromkeys(k for d in dicts for k in d))
+
+
 @dataclass(frozen=True)
 class SweepConfig:
     """A sweep, as described by a sweeps/*.yaml file.
@@ -325,7 +330,8 @@ def write_summary(artifacts: list[Path], out_path: Path) -> None:
     """Write one CSV row per artifact.
 
     The first five columns are the original layout; the ROI, matrix,
-    overlay and parameter columns follow them.
+    array-time (ROI), rob_full_head, overlay and parameter columns follow
+    them.
 
     Args:
         artifacts: Artifact JSON files.
@@ -336,11 +342,22 @@ def write_summary(artifacts: list[Path], out_path: Path) -> None:
     fields = ["variant", "microbenchmark", "instructions", "cycles", "ipc"]
     fields += ["roi_cycles", "roi_instructions"]
     fields += [f"matrix_{name}" for name in MATRIX_FIELDS]
+    array_times = [
+        (a["result"].get("matrix") or {}).get("array_time_roi") or {}
+        for _, a in loaded
+    ]
+    heads = [a["result"].get("rob_full_head") or {} for _, a in loaded]
+    array_keys = _keys(array_times)
+    head_keys = _keys(heads)
+    fields += [f"array_roi_{name}" for name in array_keys]
+    fields += [f"rob_head_{name}" for name in head_keys]
     fields += ["overlay_configs", *param_keys]
     with out_path.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        for path, artifact in loaded:
+        for (path, artifact), array_time, head in zip(
+            loaded, array_times, heads, strict=True
+        ):
             result = artifact["result"]
             matrix = result.get("matrix") or {}
             row = {
@@ -359,6 +376,10 @@ def write_summary(artifacts: list[Path], out_path: Path) -> None:
             row.update(
                 {f"matrix_{name}": matrix.get(name) for name in MATRIX_FIELDS}
             )
+            row.update(
+                {f"array_roi_{k}": array_time.get(k) for k in array_keys}
+            )
+            row.update({f"rob_head_{k}": head.get(k, 0) for k in head_keys})
             row.update(artifact.get("params", {}))
             writer.writerow(row)
 

@@ -398,6 +398,15 @@ void Dispatch::dispatchGroup() {
     ++CyclesWithDispatch;
   } else {
     ++(*StallCounters.at(static_cast<size_t>(Why)));
+    if (Why == StallReason::RobFull) {
+      InstRef Oldest = TheRob ? TheRob->getOldest() : nullptr;
+      if (!Oldest)
+        ++RobHead.CreditReturn;
+      else if (Oldest->isMatrix())
+        ++RobHead.ByMatrixOp.at(static_cast<size_t>(Oldest->Mtx.Op));
+      else
+        ++RobHead.ByClass.at(static_cast<size_t>(Oldest->Class));
+    }
   }
 
   // The slots left over this cycle go to whatever stopped the group.

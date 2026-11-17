@@ -105,6 +105,32 @@ capacity MACs, `mac_utilization`, array busy cycles, 16-byte memory beats,
 16-byte tile reads and writes, and `area_um2` and `energy_pj` (`null` while
 their cost parameters are 0).
 
+#### Array time
+
+`array_time` says what the MAC arrays did in every cycle of the run, and
+`array_time_roi` the same between the first and last `mcycle` read (`null`
+without two reads). Each cycle is in exactly one state, so each object adds up
+to `cycles` or `roi_cycles`. `summary.csv` of a sweep has the ROI one as
+`array_roi_<state>`.
+
+| State | The array is idle because |
+| --- | --- |
+| `busy` | It is not: at least one array is in a MAC's compute steps |
+| `core_not_issued` | The core has not dispatched the next MAC yet. The core's own counters say why (`rob_full_head`, top-down) |
+| `vector_operands` | The next MAC is dispatched and waits for the vector registers it reads, usually vector loads |
+| `uop_buffer_full` | The next MAC waits for room in the uop buffer |
+| `cmd_path` | The next MAC is in the command path (`mtx_cmd_latency`, uop issue, in-order issue behind the matrix instruction before it) |
+| `tile_dependency` | The next MAC waits for its tiles: an earlier MAC's accumulator or a tile load |
+| `controller_busy` | vtzero, vtmv or a tile load or store ahead of it holds the controller |
+| `no_matrix_work` | No MAC comes later in the window |
+
+The time between two MACs is split once: up to the next MAC's dispatch it is
+`core_not_issued`, after it the whole wait goes to the latest of the MAC's
+three limits (command path, tiles, controller). The other limits may have
+been close behind, so removing the one charged can expose the next. With
+several arrays (`mtx_num_arrays`), `busy` is the union of their busy time and
+can be less than `array_busy_cycles`, which sums them.
+
 ### Errors
 
 A configuration the engine cannot be stops the run with the parameter's name:

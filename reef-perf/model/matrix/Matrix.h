@@ -65,6 +65,27 @@ struct MatrixStats {
   uint64_t SubtileWrites = 0;   ///< 16-byte tile writes (coarse count).
 };
 
+/// What the MAC arrays were doing in a cycle: computing, or why the next MAC
+/// had not started (docs/matrix.md, "Array time").
+enum class ArrayState : uint8_t {
+  Busy,           ///< At least one array in its compute steps.
+  CoreNotIssued,  ///< The core had not dispatched the next MAC yet.
+  VectorOperands, ///< The MAC waits for its vector-register operands.
+  UopBufferFull,  ///< The MAC waits for room in the uop buffer.
+  CmdPath,        ///< The MAC is in the command path (latency, uop issue).
+  TileDependency, ///< The MAC waits for its tiles (an earlier MAC or load).
+  ControllerBusy, ///< vtzero, vtmv or a tile load or store holds the head.
+  NoMatrixWork,   ///< No later MAC.
+  NumStates       ///< Number of states (not a state).
+};
+
+/// \returns the name of \p State in JSON, e.g. "vector_operands".
+const char *getArrayStateName(ArrayState State);
+
+/// Cycles per ArrayState.
+using ArrayTime =
+    std::array<uint64_t, static_cast<size_t>(ArrayState::NumStates)>;
+
 /// The matrix module. Tree location: top.matrix.
 class Matrix : public sparta::Unit {
 public:
@@ -205,6 +226,9 @@ public:
   /// \returns the end-of-run statistics.
   const MatrixStats &getStats() const { return Stats; }
 
+  /// \returns the cycles in [\p From, \p To) spent in each ArrayState.
+  ArrayTime getArrayTime(Cycle From, Cycle To) const;
+
   /// \returns the area estimate in um^2, or a negative value if no area
   /// parameter is set.
   double getAreaUm2() const;
@@ -249,6 +273,12 @@ private:
   /// Sets the pop cycles of the newest \p Uops uops: all at \p Last for a
   /// MAC (\p Together), else spread one per cycle ending at \p Last.
   void popUops(uint32_t Uops, Cycle Last, bool Together);
+  /// Records a MAC computing over [\p Start, \p End) and the idle time
+  /// before it: CoreNotIssued until \p Dispatched, \p Waiting after.
+  void recordArrayTime(Cycle Dispatched, Cycle Start, Cycle End,
+                       ArrayState Waiting);
+  /// Appends [\p Begin, \p End) in \p State to the array timeline.
+  void addArraySegment(Cycle Begin, Cycle End, ArrayState State);
 
   const uint32_t QueueEntries;
   const uint32_t CmdLatency;
@@ -296,6 +326,15 @@ private:
   std::deque<Cycle> LoadFifoPops;  // lsu2vme: the controller pops.
   std::deque<Cycle> StoreFifoPops; // vme2lsu: the LSU pops.
   MatrixStats Stats;
+  // The array timeline from cycle 0 to ArrayBusyEnd, in order, with
+  // adjacent segments of one state merged.
+  struct ArraySegment {
+    Cycle Begin;
+    Cycle End;
+    ArrayState State;
+  };
+  std::vector<ArraySegment> ArraySegments;
+  Cycle ArrayBusyEnd = 0; // End of the latest MAC's compute steps.
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

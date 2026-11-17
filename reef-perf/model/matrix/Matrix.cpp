@@ -37,6 +37,30 @@ static uint32_t getZeroCycles(const Matrix::MatrixParameterSet *Params,
   return 4;
 }
 
+const char *reef_perf::getArrayStateName(ArrayState State) {
+  switch (State) {
+  case ArrayState::Busy:
+    return "busy";
+  case ArrayState::CoreNotIssued:
+    return "core_not_issued";
+  case ArrayState::VectorOperands:
+    return "vector_operands";
+  case ArrayState::UopBufferFull:
+    return "uop_buffer_full";
+  case ArrayState::CmdPath:
+    return "cmd_path";
+  case ArrayState::TileDependency:
+    return "tile_dependency";
+  case ArrayState::ControllerBusy:
+    return "controller_busy";
+  case ArrayState::NoMatrixWork:
+    return "no_matrix_work";
+  case ArrayState::NumStates:
+    break;
+  }
+  return "unknown";
+}
+
 static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   FabricConfig F;
   F.Rows = Params->mtx_pe_rows;
@@ -309,8 +333,9 @@ void Matrix::executeInst(const InstRef &I) {
   // once vector sources are ready; a uop can leave the cycle after it
   // enters.
   uint32_t Uops = getUops(*I);
-  Cycle CmdEarliest = std::max(
-      {Cycle{Now + CmdLatency}, getVectorSourcesReady(*I), LastCmdStart});
+  Cycle VectorReady = getVectorSourcesReady(*I);
+  Cycle CmdEarliest =
+      std::max({Cycle{Now + CmdLatency}, VectorReady, LastCmdStart});
   auto [CmdStart, LastPush] = pushUops(Uops, CmdEarliest);
   Cycle CmdDone = LastPush + 1;
   LastCmdStart = CmdStart;
@@ -354,6 +379,18 @@ void Matrix::executeInst(const InstRef &I) {
     FabricCost Cost = getMacCost(Fabric, M.TM, M.TN, M.TK, M.Type);
     Start = Arrays.reserve(Earliest, Cost.Occupancy);
     Done = Start + Cost.Latency;
+    // What held the MAC back, by the latest of the three limits above.
+    ArrayState Waiting = ArrayState::ControllerBusy;
+    if (Earliest == CmdReady) {
+      Waiting = ArrayState::CmdPath;
+      if (CmdStart > CmdEarliest)
+        Waiting = ArrayState::UopBufferFull;
+      else if (VectorReady == CmdEarliest && VectorReady > Now + CmdLatency)
+        Waiting = ArrayState::VectorOperands;
+    } else if (Earliest == TilesReady) {
+      Waiting = ArrayState::TileDependency;
+    }
+    recordArrayTime(Now, Start, Start + Cost.Busy, Waiting);
     // CoralNPU's one array holds the controller's head until its compute
     // steps end (canStart && cntCr). With more arrays the controller hands
     // the MAC to a free one and moves on the next cycle, so MACs on
@@ -465,6 +502,46 @@ void Matrix::executeInst(const InstRef &I) {
   I->IssueCycle = CmdStart;
   I->ResultReadyCycle = Done;
   I->CompleteCycle = Done + CompleteLatency;
+}
+
+void Matrix::addArraySegment(Cycle Begin, Cycle End, ArrayState State) {
+  if (End <= Begin)
+    return;
+  if (!ArraySegments.empty() && ArraySegments.back().State == State &&
+      ArraySegments.back().End == Begin) {
+    ArraySegments.back().End = End;
+    return;
+  }
+  ArraySegments.push_back({Begin, End, State});
+}
+
+void Matrix::recordArrayTime(Cycle Dispatched, Cycle Start, Cycle End,
+                             ArrayState Waiting) {
+  if (Start > ArrayBusyEnd) {
+    Cycle Issued = std::clamp(Dispatched, ArrayBusyEnd, Start);
+    addArraySegment(ArrayBusyEnd, Issued, ArrayState::CoreNotIssued);
+    addArraySegment(Issued, Start, Waiting);
+  }
+  // With several arrays, MACs overlap: busy is their union.
+  Cycle From = std::max(Start, ArrayBusyEnd);
+  if (End > From) {
+    addArraySegment(From, End, ArrayState::Busy);
+    ArrayBusyEnd = End;
+  }
+}
+
+ArrayTime Matrix::getArrayTime(Cycle From, Cycle To) const {
+  ArrayTime Time{};
+  for (const ArraySegment &S : ArraySegments) {
+    Cycle Begin = std::max(S.Begin, From);
+    Cycle End = std::min(S.End, To);
+    if (End > Begin)
+      Time.at(static_cast<size_t>(S.State)) += End - Begin;
+  }
+  Cycle Tail = std::max(From, ArrayBusyEnd);
+  if (To > Tail)
+    Time.at(static_cast<size_t>(ArrayState::NoMatrixWork)) += To - Tail;
+  return Time;
 }
 
 double Matrix::getAreaUm2() const {

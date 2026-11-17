@@ -88,6 +88,9 @@ class SimResult:
             which reef-perf's Zvt layer and Spike disagreed; None otherwise.
         zvt_rtl_nops: With frontend.zvt_in_spike, the Zvt instructions the
             RTL retires as no-ops, which Spike did not run; None otherwise.
+        rob_full_head: The rob_full stall cycles by the Rob's oldest
+            instruction: its class, or matrix_<op>; empty for output
+            written before the simulator reported it.
     """
 
     program: str
@@ -105,6 +108,7 @@ class SimResult:
     matrix: dict[str, Any] = field(default_factory=dict)
     zvt_mismatches: int | None = None
     zvt_rtl_nops: int | None = None
+    rob_full_head: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -147,6 +151,9 @@ class SimResult:
             zvt_rtl_nops=(
                 int(data["zvt_rtl_nops"]) if "zvt_rtl_nops" in data else None
             ),
+            rob_full_head={
+                k: int(v) for k, v in data.get("rob_full_head", {}).items()
+            },
         )
 
     def to_json(self) -> dict[str, Any]:

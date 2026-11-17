@@ -79,6 +79,9 @@ public:
   /// \returns where the dispatch slots went (top-down analysis).
   const TopDownSlots &getTopDownSlots() const;
 
+  /// \returns the rob_full stall cycles by the Rob's oldest instruction.
+  const RobFullHead &getRobFullHead() const;
+
   /// \returns every retired read of mcycle, in program order.
   const std::vector<McycleRead> &getMcycleReads() const;
 

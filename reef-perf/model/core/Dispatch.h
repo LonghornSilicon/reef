@@ -91,6 +91,18 @@ struct TopDownSlots {
   uint64_t getTotal() const;
 };
 
+/// Cycles with no dispatch because the Rob was full, by the Rob's oldest
+/// instruction: its InstClass, or for a matrix instruction its MatrixOp.
+/// The entries add up to the rob_full stall cycles.
+struct RobFullHead {
+  /// Cycles by the oldest instruction's InstClass (not MATRIX).
+  std::array<uint64_t, static_cast<size_t>(InstClass::NUM_CLASSES)> ByClass{};
+  /// Cycles by the oldest matrix instruction's MatrixOp.
+  std::array<uint64_t, static_cast<size_t>(MatrixOp::NumOps)> ByMatrixOp{};
+  /// The Rob had emptied, but its credits were still on their way back.
+  uint64_t CreditReturn = 0;
+};
+
 class Rob;
 
 /// The dispatch unit. Tree location: top.core.dispatch.
@@ -164,6 +176,9 @@ public:
   /// \returns where the dispatch slots went.
   const TopDownSlots &getTopDownSlots() const { return Slots; }
 
+  /// \returns the rob_full stall cycles by the Rob's oldest instruction.
+  const RobFullHead &getRobFullHead() const { return RobHead; }
+
   /// \returns the cycles in which at least one instruction dispatched.
   uint64_t getCyclesWithDispatch() const { return CyclesWithDispatch.get(); }
 
@@ -204,6 +219,7 @@ private:
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;
   TopDownSlots Slots;
+  RobFullHead RobHead;
   // Scoreboard: the in-flight instruction that last wrote each register.
   std::array<InstRef, RegId::NumDense> LastWriter{};
 
