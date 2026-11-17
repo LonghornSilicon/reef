@@ -53,6 +53,7 @@ def collect(
     elf: Path | None = None,
     overlay_configs: Sequence[Path] = (),
     sim_args: Sequence[str] = (),
+    binary: Path | None = None,
 ) -> Path:
     """Run one microbenchmark (or a pre-built program) and write its artifact.
 
@@ -64,6 +65,7 @@ def collect(
         elf: Pre-built ELF; assembled into ELF_DIR when omitted.
         overlay_configs: Config files applied after sim_config, in order.
         sim_args: Further simulator options, e.g. ["--ext-mem-mb", "160"].
+        binary: Simulator executable; reef_perf when omitted.
 
     Returns:
         out_path.
@@ -75,6 +77,7 @@ def collect(
         params=params,
         overlay_configs=overlay_configs,
         extra_args=sim_args,
+        binary=binary,
     )
     artifact: dict[str, Any] = {
         "microbenchmark": microbenchmark,
@@ -86,6 +89,8 @@ def collect(
         artifact["overlay_configs"] = [str(path) for path in overlay_configs]
     if sim_args:
         artifact["sim_args"] = [str(arg) for arg in sim_args]
+    if binary:
+        artifact["binary"] = Path(binary).name
     artifact["result"] = result.to_json()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(artifact, indent=2) + "\n")

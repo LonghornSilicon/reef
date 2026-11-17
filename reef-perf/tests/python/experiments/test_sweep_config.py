@@ -81,6 +81,24 @@ def test_e2e_kernels_crosses_variants_with_grid(
     assert describe(config).endswith("64 runs")
 
 
+def test_e2e_firmware_names_its_machine_and_binary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The firmware sweeps differ by machine; pinned names its binary."""
+    monkeypatch.setenv("E2E_FW_ROOT", "/fw")
+    m3 = load_config(SWEEPS / "e2e_firmware_m3_vme.yaml")
+    pinned = load_config(SWEEPS / "e2e_firmware_pinned.yaml")
+    assert m3.binary is None
+    assert pinned.binary == "reef_perf_pinned"
+    assert pinned.overlay_configs == (
+        MODULE_ROOT / "configs/machines/coral_pinned.yaml",
+    )
+    assert m3.programs == pinned.programs
+    assert pinned.programs["e2e_nomatrix"] == Path("/fw/e2e_nomatrix.elf")
+    assert "simulator: reef_perf_pinned" in describe(pinned)
+    assert describe(pinned).endswith("18 runs")
+
+
 def test_grid_without_variants_and_duplicate_names() -> None:
     """Grid-only sweeps are named by their labels; clashes are errors."""
     grid = {"top.core.rob.params.rob_entries": [8, 16]}

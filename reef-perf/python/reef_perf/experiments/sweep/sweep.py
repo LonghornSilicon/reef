@@ -29,7 +29,7 @@ from reef_perf.microbenchmarks import (
     build_microbenchmarks,
     list_microbenchmarks,
 )
-from reef_perf.sim import MODULE_ROOT
+from reef_perf.sim import MODULE_ROOT, find_binary
 
 OVERLAY_KEY = "overlay"
 """Variant and grid key naming config files rather than a parameter.
@@ -68,6 +68,8 @@ class SweepConfig:
         programs: Program name -> pre-built ELF.
         sim_args: Further simulator options for every run, e.g.
             ["--ext-mem-mb", "160"].
+        binary: Simulator executable name, e.g. "reef_perf_pinned" for
+            coral_pinned.yaml; None runs reef_perf.
     """
 
     name: str
@@ -78,6 +80,7 @@ class SweepConfig:
     variant_overlays: dict[str, tuple[Path, ...]] = field(default_factory=dict)
     programs: dict[str, Path] = field(default_factory=dict)
     sim_args: tuple[str, ...] = ()
+    binary: str | None = None
 
     def overlays(self, variant: str) -> tuple[Path, ...]:
         """Config files applied after sim_config for one variant.
@@ -241,6 +244,7 @@ def load_config(path: Path) -> SweepConfig:
         variant_overlays=variant_overlays,
         programs=programs,
         sim_args=tuple(str(arg) for arg in data.get("sim_args") or []),
+        binary=str(data["binary"]) if data.get("binary") else None,
     )
 
 
@@ -295,6 +299,7 @@ def run_sweep(
         (ELF_DIR / name).parent.mkdir(parents=True, exist_ok=True)
     elfs = build_microbenchmarks(config.microbenchmarks, ELF_DIR)
     elfs.update(config.programs)
+    binary = find_binary(config.binary) if config.binary else None
     sweep_dir = results_root / config.name
     with ThreadPoolExecutor(max_workers=jobs or os.cpu_count()) as pool:
         futures = [
@@ -307,6 +312,7 @@ def run_sweep(
                 elfs[program],
                 config.overlays(variant),
                 config.sim_args,
+                binary,
             )
             for variant, program in config.runs()
         ]
@@ -377,6 +383,8 @@ def describe(config: SweepConfig) -> str:
     lines.append(f"programs: {' '.join(names)}")
     if config.sim_args:
         lines.append(f"simulator options: {' '.join(config.sim_args)}")
+    if config.binary:
+        lines.append(f"simulator: {config.binary}")
     lines.append(f"{len(config.runs())} runs")
     return "\n".join(lines)
 
