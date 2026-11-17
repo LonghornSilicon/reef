@@ -26,6 +26,8 @@ top:
       predictor: btfn         # UncachedFetch.scala:87-100: jal + backward branches predicted taken, free when right; no BTB/RAS (D6)
       fetch_block_bytes: 16   # UncachedFetch.scala:56,107-131: one aligned 16-byte line per fetch (--fetchDataBits=128)
       ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
+      fetch_reserves_whole_line: true # UncachedFetch.scala:192: a fetch starts only with room
+                                      # for a whole line after what is being written
       # The vs1 field of vzext/vsext, vmsbf/vmsif/vmsof, viota/vid, vfsqrt,
       # vfcvt and vfclass is a sub-opcode, not a source register (RVV 1.0).
       # A model decode bug, fixed 2026-11-16 (docs/pinned.md, "A decode bug")

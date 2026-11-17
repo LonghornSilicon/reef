@@ -40,7 +40,8 @@ Fetch::Fetch(sparta::TreeNode *Node, const FetchParameterSet *Params)
       RedirectPenalty(Params->redirect_penalty),
       Predictor(getPredictorKind(Params->predictor.getValue())),
       FetchBlockBytes(Params->fetch_block_bytes),
-      IbufEntries(Params->ibuf_entries), Zvt(Params->zvt),
+      IbufEntries(Params->ibuf_entries),
+      ReservesWholeLine(Params->fetch_reserves_whole_line), Zvt(Params->zvt),
       UnaryVs1IsOpcode(Params->decode_unary_vs1_is_opcode),
       ZvtInSpike(Params->zvt_in_spike) {
   sparta_assert(FetchWidth > 0 && FetchInterval > 0 && IbufEntries > 0);
@@ -120,7 +121,8 @@ void Fetch::fetchGroup() {
     scheduleFetch(Now);
     return;
   }
-  if (getFreeEntries(Now) == 0) {
+  if (getFreeEntries(Now) == 0 ||
+      (ReservesWholeLine && getFreeEntries(Now) < FetchWidth)) {
     ++CyclesNoCredit;
     return; // pop() wakes us up.
   }

@@ -83,6 +83,10 @@ public:
               "Aligned fetch block in bytes; a group never crosses one "
               "(0: no blocks)")
     PARAMETER(uint32_t, ibuf_entries, 8, "Instruction buffer entries")
+    PARAMETER(bool, fetch_reserves_whole_line, false,
+              "A fetch starts only if the instruction buffer has room for a "
+              "whole line (fetch_width) (UncachedFetch.scala, "
+              "insufficientBuffer). Off: whenever an entry is free")
     PARAMETER(bool, zvt_in_spike, false,
               "With zvt: Spike executes Zvt instructions, and reef-perf's "
               "own Zvt layer runs beside it for the matrix details and is "
@@ -158,6 +162,7 @@ private:
   const PredictorKind Predictor;
   const uint32_t FetchBlockBytes;
   const uint32_t IbufEntries;
+  const bool ReservesWholeLine;
   const bool Zvt;
   const bool UnaryVs1IsOpcode;
   const bool ZvtInSpike;

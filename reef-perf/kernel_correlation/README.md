@@ -25,7 +25,8 @@ weights alone are 256 KB or more.
 
 ROI instruction counts match on every kernel, so both sides time the same
 work. Error = (model - RTL) / RTL. Model as of 2026-11-16, with the M3
-dispatch rules, the divider fixes and the unary-vector decode fix in
+dispatch rules, the divider fixes, the unary-vector decode fix and the
+whole-line fetch rule in
 `m3.yaml` (`docs/pinned.md`, "M3 fixes").
 
 | Kernel | Model ROI | RTL ROI | Error | ROI insts |
@@ -35,13 +36,14 @@ dispatch rules, the divider fixes and the unary-vector decode fix in
 | `attention_int8` | 35,011 | 34,849 | +0.5% | 13,758 |
 | `embedding_int8` | 1,749 | 1,749 | +0.0% | 1,126 |
 | `layernorm` | 3,651 | 3,572 | +2.2% | 633 |
-| `layernorm_int8` | 7,869 | 8,131 | -3.2% | 4,123 |
+| `layernorm_int8` | 7,982 | 8,131 | -1.8% | 4,123 |
 | `linear_int8` | 59,468 | 59,408 | +0.1% | 29,696 |
 | `mlp_int8` | 123,479 | 123,324 | +0.1% | 61,180 |
 
-Mean absolute error: 1.2% over 8 kernels (0.9% before the fixes). The
-unary-vector decode fix moves `layernorm_int8` from -0.6% to -3.2%: the bug
-had been hiding another, smaller error there, not yet found.
+Mean absolute error: 1.0% over 8 kernels (0.9% before the fixes).
+`layernorm_int8` went from -0.6% to -3.2% with the unary-vector decode fix,
+which had been cancelling M3's whole-line fetch rule; with that rule too it
+is -1.8%.
 
 Before this fix the model was at 3.6%: `linear_int8` +7.0%,
 `mlp_int8` +6.7%, `attention_int8` +4.7%. These kernels have the most scalar

@@ -96,13 +96,15 @@ checked against the M3 RTL numbers, and no longer listed in
 | `div_release_cycles` 1 | `Dvu.scala:90` | `div_chain` -4.5% to 0.0% |
 | `vec_div_data_dependent` | `rvv_backend_div_unit_divider.sv` | `vdiv_small_chain` +200%, `vdiv_small_indep` +333% to 0.0% |
 | `decode_unary_vs1_is_opcode` | (RVV 1.0 encoding) | a model bug; `layernorm_int8` -0.6% to -3.2% (see below) |
+| `fetch_reserves_whole_line` | `UncachedFetch.scala:192` | `layernorm_int8` -3.2% to -1.8% |
 
 M3 against the M3 RTL, in-scope programs (FP left out as on the pinned
-machine): mean error 1.49% to 0.63%, 49 to 54 of 59 within 3%. Still outside
-3%: `alu_chain` -5.6%, `vcpop_indep` -7.6%, `vredsum_indep` -7.6%,
-`gemv_int8` -3.7%, `layernorm_int8` -3.2%. The decode fix is right but it
-uncovered another error in `layernorm_int8`, which the bug had been
-cancelling.
+machine): mean error 1.49% to 0.60%, 49 to 55 of 59 within 3%; kernels 1.0%.
+Still outside 3%: `alu_chain` -5.6%, `vcpop_indep` -7.6%, `vredsum_indep`
+-7.6%, `gemv_int8` -3.7%. Explaining them needs waveforms of the M3 RTL, and
+the M3 simulator (`~/coralnpu-m3`) is not built with tracing; the pinned
+checkout's testbench patch (`core_mini_axi_tb.cc`, `--trace_file`) would
+have to be applied there and the simulator rebuilt.
 
 Not turned on for M3: the RVV config interlock (`Decode.scala:411-423`). It
 is in the M3 source, but with the branch rule it makes `linear_int8` +6.9%,
