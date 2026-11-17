@@ -134,6 +134,13 @@ public:
               "(vmv.x.s, vcpop, vfirst) before a later vector instruction "
               "writing the same x register may dispatch (0 on M3's model). "
               "A scalar writer does not wait")
+    PARAMETER(bool, rd_field_waw, false,
+              "CoralNPU's decoder treats bits 11:7 of every instruction but "
+              "an integer store or a conditional branch as an x destination "
+              "for WAW (Decode.scala writesRd), vector, Zvt and FP ones "
+              "included: such an instruction waits for an in-flight scalar "
+              "write of that x register, and for an earlier instruction in "
+              "its cycle with the same field, x0 included")
     PARAMETER(uint32_t, load_waw_advance, 1,
               "Cycles before a load's result is ready that a later writer "
               "of the same register may dispatch (1 on M3)")
@@ -190,6 +197,9 @@ private:
   const bool CsrWaitsForEmptyRob;
   const bool VtdiscardInterlock;
   const bool RvvConfigInterlock;
+  const bool RdFieldWaw;
+  std::vector<uint32_t>
+      GroupRdFields; // rd_field_waw: fields dispatched this cycle.
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;

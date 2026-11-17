@@ -41,6 +41,7 @@ PROGRAMS = (
     "vector_units/vfdiv_indep",
     "lsu/vload_macc",
     "lsu/vstore_m4",
+    "matrix/gemm_tile",
     "matrix/mac_rob",
     "matrix/tile_load32_burst",
     "matrix/move_vt_use",

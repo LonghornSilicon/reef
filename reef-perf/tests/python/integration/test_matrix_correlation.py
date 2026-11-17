@@ -194,10 +194,7 @@ PINNED_TOLERANCE = 0.03
 """On the pinned config every matrix program is held to 3% ("good enough",
 2026-11-15), the known gaps of the M3 + Zvt machine included."""
 
-PINNED_KNOWN_GAP = {
-    "vtmm_misaligned": "ROB-bound, bursty on the RTL; no mechanism yet",
-    "gemm_longk": "not investigated",
-}
+PINNED_KNOWN_GAP: dict[str, str] = {}
 """Matrix programs with a known error above 3% on the pinned config."""
 
 

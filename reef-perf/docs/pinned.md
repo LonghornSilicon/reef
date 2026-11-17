@@ -85,7 +85,7 @@ else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
 | Test | Holds |
 | --- | --- |
 | `tests/python/integration/test_pinned_rtl.py` | every in-scope core, frontend, vector-unit and kernel program within 3% of the pinned RTL |
-| `test_matrix_correlation.py::test_matches_rtl_on_pinned_config` | every matrix program within 3% on m3.yaml + coral_pinned.yaml (`matrix_diff --machine pinned`), except `PINNED_KNOWN_GAP` |
+| `test_matrix_correlation.py::test_matches_rtl_on_pinned_config` | every matrix program within 3% on m3.yaml + coral_pinned.yaml (`matrix_diff --machine pinned`); `PINNED_KNOWN_GAP` is empty |
 | `test_pinned_lsu.py` | the LSU and coverage probes within 2%; Spike and reef-perf's Zvt layer agree on every Zvt instruction |
 | `test_pinned_switches.py` | each switch works on its own on m3.yaml + m3_vme.yaml, with only the switches it needs (`REQUIRES`), and moves at least one program (or `NO_EFFECT` says why not) |
 | `test_golden.py` | the model's own numbers: M3 (`m3_results.json`) and pinned (`pinned_results.json`) |
@@ -145,6 +145,8 @@ rule").
 | C9 | `vector_scalar_waw_delay` (new) | 0 | 1 | waveform of `vcpop_indep` | `vcpop_indep` -9.9% to 0.0% |
 | V9 | `vec_to_scalar_writes_per_cycle` (new) | 0 (no limit) | not set | `RvvCore` `async_rd` is one port | moves nothing today; left off |
 | X6 | `zvt_in_spike` (new) | off (`m3_vme.yaml`) | on | CoralNPU `b4be3e79` | Spike executes Zvt; identical timing, 0 mismatches |
+| C10 | `rd_field_waw` (new) | false | true | `Decode.scala:427-431` (`writesRd`); waveform of `vtmm_misaligned` | `vtmm_misaligned` -4.2% to 0.0% |
+| X7 | `mtx_vector_source_lead` (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | 1 | `rvv_backend.sv:782`; measured | `gemm_longk` +3.6% to -0.2%, `gemm_tile` +2.3% to -0.8% |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 
 ## Differences not modeled yet
@@ -368,6 +370,31 @@ place. The vector engine also hands scalar results over one per cycle
 (`async_rd`); `vec_to_scalar_writes_per_cycle` models that limit, but no
 program reaches it, so it is off.
 
+## The last two matrix programs
+
+**`vtmm_misaligned`: a decoder quirk.** `Decode.scala` builds each lane's
+destination for the WAW check as
+
+    writesRd = (!isScalarStore && !isCondBr) || ...
+
+so bits 11:7 of every instruction except an integer store and a conditional
+branch count as an x destination: `vd` of a vector instruction, the tile
+field of a `vtmm`, `rd` of an FP instruction, x0 included. Such an
+instruction waits for an in-flight scalar write of that x register and for
+an earlier instruction in its cycle with the same field. The loop's two
+no-op `vtmm`s both have field 0, so the second dispatches a cycle after the
+first (waveform: `vtmm` at 0x60 alone in lane 0, 0x64 held in lane 1 with
+every other condition met). Two `nop`s cannot dispatch together either.
+`rd_field_waw` models it; nothing else moved.
+
+**`gemm_longk`: Zvt operands.** A k-step is 8 vector loads and a `vtmm`,
+LSU-bound at 3 cycles a load, 24 cycles on the RTL, 25 in the model. The
+extra cycle was the `vtmm` waiting for its last operand: the model pushed
+its uop when the load's register was readable, where a vector uop is
+dispatched the cycle before. The RVV backend dispatches both (the ZVT RS is
+one of its stations), so `mtx_vector_source_lead` 1 gives the Zvt uop the
+vector rule. All three GEMMs are within 1%.
+
 ## Coverage
 
 `microbenchmarks/pinned/` holds 31 programs written for behavior no earlier
@@ -447,9 +474,9 @@ is all of the vector-unit mean), `vcpop_indep` -9.9%, `layernorm` +6.8%,
 `div_chain` -4.4%, `attention` +3.4%.
 | + dividers, vector x-register WAW; FP not scored (C8, C9, V8) | 0.0% | 0.1% | 0.0% | 0.2% | 0.0% | 61 of 61 within 3% |
 
-Matrix programs: 44 of 44 within 5%, 42 within 3%. Outside 3%:
-`vtmm_misaligned` (5.75 against 6.0; ROB-bound, bursty on the RTL, no
-mechanism found yet) and `gemm_longk` (+3.6%).
+Matrix programs: 44 of 44 within 3%; 40 exact, the GEMMs within 1% and
+`tile_store` at -1.8%.
+| + decoder rd-field WAW, Zvt operand lead (C10, X7) | 0.0% | 0.0% | 0.0% | 0.2% | 0.0% | 61 of 61 within 3% |
 
 Matrix programs (per-op cost, `matrix_diff`), within 5% of the RTL:
 

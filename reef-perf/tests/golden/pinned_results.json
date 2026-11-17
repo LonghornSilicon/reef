@@ -277,14 +277,14 @@
     "cycles": 81981,
     "taken_redirects": 5119,
     "dispatch": {
-      "cycles_with_dispatch": 35967,
+      "cycles_with_dispatch": 35947,
       "stall_csr_drain": 9,
-      "stall_ibuf_empty": 127,
+      "stall_ibuf_empty": 107,
       "stall_lsu_queue_full": 5060,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 30636,
-      "stall_vector_queue_full": 10180,
+      "stall_rob_full": 30616,
+      "stall_vector_queue_full": 10240,
       "stall_waw_hazard": 0
     }
   },
@@ -296,12 +296,12 @@
     "dispatch": {
       "cycles_with_dispatch": 9106,
       "stall_csr_drain": 15,
-      "stall_ibuf_empty": 127,
+      "stall_ibuf_empty": 107,
       "stall_lsu_queue_full": 4880,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
       "stall_rob_full": 11551,
-      "stall_vector_queue_full": 2540,
+      "stall_vector_queue_full": 2560,
       "stall_waw_hazard": 0
     }
   },
@@ -311,14 +311,14 @@
     "cycles": 6736,
     "taken_redirects": 319,
     "dispatch": {
-      "cycles_with_dispatch": 1639,
+      "cycles_with_dispatch": 1648,
       "stall_csr_drain": 34,
       "stall_ibuf_empty": 56,
-      "stall_lsu_queue_full": 4134,
+      "stall_lsu_queue_full": 4123,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 251,
-      "stall_vector_queue_full": 620,
+      "stall_rob_full": 233,
+      "stall_vector_queue_full": 640,
       "stall_waw_hazard": 0
     }
   },
@@ -396,9 +396,9 @@
     "cycles": 4014,
     "taken_redirects": 1999,
     "dispatch": {
-      "cycles_with_dispatch": 2008,
+      "cycles_with_dispatch": 2009,
       "stall_csr_drain": 4,
-      "stall_ibuf_empty": 2000,
+      "stall_ibuf_empty": 1999,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
@@ -410,10 +410,10 @@
   "frontend/jalr_chain": {
     "instructions": 3014,
     "functional_instructions": 3014,
-    "cycles": 7022,
+    "cycles": 7024,
     "taken_redirects": 1999,
     "dispatch": {
-      "cycles_with_dispatch": 2010,
+      "cycles_with_dispatch": 2012,
       "stall_csr_drain": 4,
       "stall_ibuf_empty": 5006,
       "stall_lsu_queue_full": 0,
@@ -430,13 +430,13 @@
     "cycles": 8030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 53,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 5963,
+      "stall_rob_full": 5460,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -461,10 +461,10 @@
   "vector_units/vadd_m4_indep": {
     "instructions": 2014,
     "functional_instructions": 2014,
-    "cycles": 3036,
+    "cycles": 3038,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1751,
+      "cycles_with_dispatch": 1753,
       "stall_csr_drain": 32,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -481,13 +481,13 @@
     "cycles": 6030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2507,
       "stall_csr_drain": 41,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 3975,
+      "stall_rob_full": 3473,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -515,13 +515,13 @@
     "cycles": 30033,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2007,
+      "cycles_with_dispatch": 2511,
       "stall_csr_drain": 185,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 27831,
+      "stall_rob_full": 27328,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -546,16 +546,16 @@
   "vector_units/vdiv_m8_indep": {
     "instructions": 126,
     "functional_instructions": 126,
-    "cycles": 5241,
+    "cycles": 5242,
     "taken_redirects": 24,
     "dispatch": {
-      "cycles_with_dispatch": 85,
+      "cycles_with_dispatch": 86,
       "stall_csr_drain": 840,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 4306,
+      "stall_rob_full": 4307,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -563,16 +563,16 @@
   "vector_units/vdiv_m8_then_vadd_m8": {
     "instructions": 126,
     "functional_instructions": 126,
-    "cycles": 2643,
+    "cycles": 2644,
     "taken_redirects": 24,
     "dispatch": {
-      "cycles_with_dispatch": 85,
+      "cycles_with_dispatch": 86,
       "stall_csr_drain": 424,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 2124,
+      "stall_rob_full": 2125,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -583,13 +583,13 @@
     "cycles": 10030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 65,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 7951,
+      "stall_rob_full": 7448,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -617,13 +617,13 @@
     "cycles": 14031,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2003,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 90,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 11928,
+      "stall_rob_full": 11424,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -648,16 +648,16 @@
   "vector_units/vfdiv_chain": {
     "instructions": 2518,
     "functional_instructions": 2518,
-    "cycles": 22032,
+    "cycles": 22033,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2006,
+      "cycles_with_dispatch": 2511,
       "stall_csr_drain": 137,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 19879,
+      "stall_rob_full": 19376,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -665,10 +665,10 @@
   "vector_units/vfdiv_indep": {
     "instructions": 2518,
     "functional_instructions": 2518,
-    "cycles": 18034,
+    "cycles": 18035,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2006,
+      "cycles_with_dispatch": 2007,
       "stall_csr_drain": 113,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -685,13 +685,13 @@
     "cycles": 14031,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2003,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 90,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 11928,
+      "stall_rob_full": 11424,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -702,13 +702,13 @@
     "cycles": 30031,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2003,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 186,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 27832,
+      "stall_rob_full": 27328,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -736,13 +736,13 @@
     "cycles": 8030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 53,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 5963,
+      "stall_rob_full": 5460,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -750,12 +750,12 @@
   "vector_units/vmixed_lmul": {
     "instructions": 2264,
     "functional_instructions": 2264,
-    "cycles": 1788,
+    "cycles": 1789,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1008,
+      "cycles_with_dispatch": 1010,
       "stall_csr_drain": 20,
-      "stall_ibuf_empty": 9,
+      "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
@@ -767,10 +767,10 @@
   "vector_units/vmseq_m4_indep": {
     "instructions": 2014,
     "functional_instructions": 2014,
-    "cycles": 6036,
+    "cycles": 6038,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1751,
+      "cycles_with_dispatch": 1753,
       "stall_csr_drain": 56,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -787,13 +787,13 @@
     "cycles": 8030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 53,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 5963,
+      "stall_rob_full": 5460,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -818,10 +818,10 @@
   "vector_units/vmul_m4_indep": {
     "instructions": 2014,
     "functional_instructions": 2014,
-    "cycles": 3036,
+    "cycles": 3038,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1751,
+      "cycles_with_dispatch": 1753,
       "stall_csr_drain": 32,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -838,13 +838,13 @@
     "cycles": 10030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 65,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 7951,
+      "stall_rob_full": 7448,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -869,10 +869,10 @@
   "vector_units/vredsum_m4_indep": {
     "instructions": 2014,
     "functional_instructions": 2014,
-    "cycles": 6037,
+    "cycles": 6039,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1751,
+      "cycles_with_dispatch": 1753,
       "stall_csr_drain": 56,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -889,13 +889,13 @@
     "cycles": 10030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2253,
       "stall_csr_drain": 65,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 7951,
+      "stall_rob_full": 7702,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -906,13 +906,13 @@
     "cycles": 10030,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2004,
+      "cycles_with_dispatch": 2508,
       "stall_csr_drain": 65,
-      "stall_ibuf_empty": 8,
+      "stall_ibuf_empty": 7,
       "stall_lsu_queue_full": 0,
       "stall_matrix_queue_full": 0,
       "stall_raw_hazard": 0,
-      "stall_rob_full": 7951,
+      "stall_rob_full": 7448,
       "stall_vector_queue_full": 0,
       "stall_waw_hazard": 0
     }
@@ -937,10 +937,10 @@
   "vector_units/vwredsum_indep": {
     "instructions": 2514,
     "functional_instructions": 2514,
-    "cycles": 4033,
+    "cycles": 4034,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 2003,
+      "cycles_with_dispatch": 2004,
       "stall_csr_drain": 29,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,
@@ -954,10 +954,10 @@
   "vector_units/vwredsum_m4_indep": {
     "instructions": 2014,
     "functional_instructions": 2014,
-    "cycles": 12038,
+    "cycles": 12039,
     "taken_redirects": 249,
     "dispatch": {
-      "cycles_with_dispatch": 1752,
+      "cycles_with_dispatch": 1753,
       "stall_csr_drain": 104,
       "stall_ibuf_empty": 8,
       "stall_lsu_queue_full": 0,

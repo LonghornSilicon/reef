@@ -81,6 +81,7 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       LsuHoldsFullFifoBeat(Params->mtx_lsu_holds_full_fifo_beat),
       MoveVectorLatency(Params->mtx_move_vector_latency),
       MoveVectorFloor(Params->mtx_move_vector_floor),
+      VectorSourceLead(Params->mtx_vector_source_lead),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
@@ -134,8 +135,14 @@ Cycle Matrix::getVectorSourcesReady(const Inst &I) const {
       continue;
     unsigned Idx = Reg.getIndex();
     Ready = std::max(Ready, OwnVReady.at(Idx));
-    if (VectorRegs)
-      Ready = std::max(Ready, VectorRegs->getRegisterReady(Idx));
+    if (VectorRegs) {
+      // With mtx_vector_source_lead, a uop reading a vector instruction's
+      // result is pushed as a vector uop is dispatched: in the cycle before
+      // the result is readable (VectorPipeline.cpp).
+      Cycle Vec = VectorRegs->getRegisterReady(Idx);
+      Ready = std::max(Ready, Vec > VectorSourceLead ? Vec - VectorSourceLead
+                                                     : Cycle{0});
+    }
   }
   return Ready;
 }

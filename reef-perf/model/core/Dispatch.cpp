@@ -58,6 +58,13 @@ static bool readsRegistered(const Inst &I, RegId Reg) {
   return I.Class == InstClass::STORE && Reg.getIndex() == Rs2;
 }
 
+/// \returns true if CoralNPU's decoder counts bits 11:7 of \p I as an x
+/// destination (Decode.scala writesRd): anything but an integer store or a
+/// conditional branch.
+static bool hasRdField(const Inst &I) {
+  return I.Class != InstClass::STORE && I.Class != InstClass::BRANCH;
+}
+
 /// \returns true if \p I must dispatch first in its cycle with nothing else
 /// (Decode.scala, forceSlot0Only): CSR, fence, system and FP instructions,
 /// a vector instruction that reads or writes an f register, and vtdiscard.
@@ -139,7 +146,8 @@ Dispatch::Dispatch(sparta::TreeNode *Node, const DispatchParameterSet *Params)
       JumpEndsGroup(Params->jump_ends_group),
       CsrWaitsForEmptyRob(Params->csr_waits_for_empty_rob),
       VtdiscardInterlock(Params->vtdiscard_interlock),
-      RvvConfigInterlock(Params->rvv_config_interlock) {
+      RvvConfigInterlock(Params->rvv_config_interlock),
+      RdFieldWaw(Params->rd_field_waw) {
   sparta_assert(DispatchWidth > 0);
   Slots.Width = DispatchWidth;
 
@@ -211,6 +219,30 @@ bool Dispatch::canDispatch(const InstRef &I, Cycle Now, StallReason &Why,
     Why = StallReason::VecFull;
     Blamed = ExecTarget::Vector;
     return false;
+  }
+  // rd_field_waw: bits 11:7 as an x destination, against this cycle's
+  // earlier instructions and against in-flight scalar writes.
+  if (RdFieldWaw && hasRdField(*I)) {
+    const uint32_t Field = (I->Encoding >> 7) & 31;
+    if (std::ranges::find(GroupRdFields, Field) != GroupRdFields.end()) {
+      Why = StallReason::Waw;
+      Blamed = ExecTarget::Scalar;
+      return false;
+    }
+    // Where the field is the instruction's real x destination, the WAW
+    // check below already covers it.
+    const bool RealRd =
+        std::ranges::find(I->Dsts, RegId::x(Field)) != I->Dsts.end();
+    if (Field != 0 && !RealRd) {
+      const InstRef &Writer = LastWriter.at(RegId::x(Field).getDense());
+      if (Writer && !Writer->isVector() && !Writer->isMatrix() &&
+          (Writer->ResultReadyCycle == Inst::Never ||
+           Writer->ResultReadyCycle > Now)) {
+        Why = StallReason::Waw;
+        Blamed = getExecTarget(*Writer);
+        return false;
+      }
+    }
   }
   // A register hazard is blamed on the unit producing the register. A
   // registered read sees the value one cycle after a forwarded read. A
@@ -330,6 +362,7 @@ void Dispatch::dispatchGroup() {
   StallReason Why = StallReason::IbufEmpty;
   ExecTarget Blamed = ExecTarget::Scalar;
 
+  GroupRdFields.clear();
   while (Count < DispatchWidth) {
     InstRef I = Frontend->peek(Now);
     if (!I)
@@ -340,6 +373,8 @@ void Dispatch::dispatchGroup() {
     if (!canDispatch(I, Now, Why, Blamed))
       break;
     I->DispatchCycle = Now;
+    if (RdFieldWaw && hasRdField(*I))
+      GroupRdFields.push_back((I->Encoding >> 7) & 31);
     if (I->isVector() || I->isMatrix())
       LastRvvDispatch = Now;
     if (I->Class == InstClass::VSET)

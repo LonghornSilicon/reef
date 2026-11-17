@@ -150,6 +150,11 @@ public:
               "vtmv.v.t: no register is readable sooner than this many "
               "cycles after the move's first controller cycle (2 on "
               "CoralNPU). Read only with mtx_move_vector_latency set")
+    PARAMETER(uint32_t, mtx_vector_source_lead, 0,
+              "Cycles before a vector instruction's result is readable that "
+              "a Zvt uop reading it may enter the uop buffer. 0: when it is "
+              "readable (the module's calibration on M3's core); 1: as a "
+              "vector uop is dispatched, in the cycle before")
     PARAMETER(bool, mtx_lsu_holds_full_fifo_beat, false,
               "A tile-load beat that finds lsu2vme full waits in the LSU "
               "after its bus read, as on the RTL. Off: the beat starts "
@@ -262,6 +267,7 @@ private:
   const bool LsuHoldsFullFifoBeat;
   const uint32_t MoveVectorLatency;
   const uint32_t MoveVectorFloor;
+  const uint32_t VectorSourceLead;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;

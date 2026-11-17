@@ -122,6 +122,14 @@ top:
         # iteration's vcpop a0, a1 dispatched in 64). MEASURED: vcpop_indep
         # -9.9% to 0.0%, vec_pingpong unchanged. M3 model: 0
         vector_scalar_waw_delay: 1
+        # C10. The decoder takes bits 11:7 of every instruction but an
+        # integer store or a conditional branch as an x destination for WAW
+        # (Decode.scala:427-431, writesRd), vector, Zvt and FP ones
+        # included: such an instruction waits for an in-flight scalar write
+        # of that x register, and for an earlier instruction in its cycle
+        # with the same field, x0 included. TRACE: matrix/vtmm_misaligned
+        # (two vtmmu with field 0 do not dispatch together). M3 model: false
+        rd_field_waw: true
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
@@ -221,3 +229,9 @@ top:
       # done. m3_vme.yaml: 0 (unchanged)
       mtx_move_vector_latency: 1
       mtx_move_vector_floor: 2
+      # X7. A Zvt uop that reads a vector instruction's result enters the
+      # uop buffer as a vector uop is dispatched: the cycle before the
+      # result is readable. The RVV backend dispatches both (the ZVT RS is
+      # one of its stations, rvv_backend.sv:782). MEASURED: gemm_longk +3.6%
+      # to -0.2%, gemm_tile +2.3% to -0.8%. m3_vme.yaml: 0 (unchanged)
+      mtx_vector_source_lead: 1
