@@ -59,7 +59,6 @@ CORRELATED = {
     "mac_rob": 0.02,
     "zero_rob": 0.02,
     "move_tv_rob": 0.02,
-    "mac_queue": 0.02,
     "mac_rob_tm4": 0.02,
     "mac_rob_tn4": 0.02,
     "mac_rob_tm8tn8": 0.02,
@@ -83,6 +82,9 @@ KNOWN_GAP = {
     "on the RTL",
     "load_then_store": "core: a tile store holds the LSU while it waits for "
     "data (case 5)",
+    "mac_queue": "frontend: 18.5 against 19.0; the VME RTL's fetch unit "
+    "re-fetches behind a stalled jump (docs/pinned.md), M3's does not. Exact "
+    "on the pinned machine",
 }
 """Programs with a known error outside the matrix module, and why."""
 

@@ -80,6 +80,46 @@ measured (C7 `fpu_latency` 2, C7b `fdiv_latency` 13); they change nothing
 else. The vector FP unit programs (`vfadd_*`, `vfmacc_*`, `vfdiv_*`,
 `vfredusum_*`) are still scored: they match, and they are the RVV backend's.
 
+## M3 fixes
+
+Several behaviors found on the pinned RTL are in M3's RTL source too, and
+the M3 model lacked them. They are now in `m3.yaml` itself (2026-11-16),
+checked against the M3 RTL numbers, and no longer listed in
+`coral_pinned.yaml`:
+
+| Fix | M3 source | Effect on M3 |
+| --- | --- | --- |
+| `branch_ends_group` | `Decode.scala:327` | `vadd_indep`, `vmul_indep` -9.0% to 0.0%, `vfadd_indep` -7.7% to 0.0%, `vec_pingpong` -5.9% to 0.0%, `alu_chain` -11.1% to -5.6% |
+| `slot0_only_rule`, `jump_ends_group` | `:167`, `:173` | small |
+| `csr_waits_for_empty_rob` | `:519` | every chain's -0.2% to 0.0%; `vdiv_m8_indep` -3.2% to -1.4% |
+| `rd_field_waw` | `:332-336` | small |
+| `div_release_cycles` 1 | `Dvu.scala:90` | `div_chain` -4.5% to 0.0% |
+| `vec_div_data_dependent` | `rvv_backend_div_unit_divider.sv` | `vdiv_small_chain` +200%, `vdiv_small_indep` +333% to 0.0% |
+| `decode_unary_vs1_is_opcode` | (RVV 1.0 encoding) | a model bug; `layernorm_int8` -0.6% to -3.2% (see below) |
+
+M3 against the M3 RTL, in-scope programs (FP left out as on the pinned
+machine): mean error 1.49% to 0.63%, 49 to 54 of 59 within 3%. Still outside
+3%: `alu_chain` -5.6%, `vcpop_indep` -7.6%, `vredsum_indep` -7.6%,
+`gemv_int8` -3.7%, `layernorm_int8` -3.2%. The decode fix is right but it
+uncovered another error in `layernorm_int8`, which the bug had been
+cancelling.
+
+Not turned on for M3: the RVV config interlock (`Decode.scala:411-423`). It
+is in the M3 source, but with the branch rule it makes `linear_int8` +6.9%,
+`mlp_int8` +6.6% and `attention_int8` +5.0% where they match without it. The
+two rules together are right on the pinned RTL, so something in M3's vector
+frontend differs; not yet explained.
+
+Two consequences for the M3 + Zvt machine (`m3_vme.yaml`):
+
+- The matrix module's `mtx_complete_latency` is now 0, its default and in
+  `coral_vme.yaml`. The 1 it had compensated for the missing branch rule
+  (see "The branch rule"); with the rule in `m3.yaml`, 0 is what matches
+  the VME RTL on both machines.
+- `mac_queue` moves to that machine's known gaps (18.5 against 19.0): the
+  half cycle is the VME RTL's fetch unit, which M3's lacks. It is exact on
+  the pinned machine.
+
 ## Gates
 
 | Test | Holds |
@@ -116,6 +156,9 @@ rule").
 
 ## Switches that are on
 
+Differences from M3 only. The fixes M3 shares are in "M3 fixes" and
+`m3.yaml`.
+
 | ID | Switch | M3 | Pinned | Source | Fixes |
 | --- | --- | --- | --- | --- | --- |
 | F1 | `fetch_reorder_buffer` (with `fetch_max_in_flight` 2, `fetch_response_cycles` 2, `redirect_from_dispatch_cycles` 2) | false | true | `UncachedFetch.scala`: `FetchControl`, `Fetcher`, `FetchReorderBuffer` | `alu_indep` +71% to 0.0%; every frontend program within 0.1% |
@@ -126,26 +169,19 @@ rule").
 | V3 | `vec_fp_latency` | 4 | 5 | `FALU_PIPEREGS` 4; measured | `vfadd_chain`, `vfmacc_chain`: -14.5% to -0.5% |
 | V3b | `vec_fdiv_cycles_per_uop` | 8 | 9 | measured | `vfdiv_indep` -11.3% to -0.5% |
 | C2 | `lsu_v3` | false | true | waveforms (below) | vector memory: `vec_memcpy` +174% to -0.5%, `vec_add_m4` +118% to +0.1%; kernels 38% to 4.4% mean |
-| C4 | `branch_ends_group` | false (the M3 model omits the rule) | true | `Decode.scala:419-422`; waveform of `matrix/mac_rob` | `branch_group` -14.3% to 0.0%, `vec_pingpong` -6.0% to -0.1% |
-| C5 | `slot0_only_rule`, `jump_ends_group`, `csr_waits_for_empty_rob`, `vtdiscard_interlock` (new, four switches) | false (the M3 model omits them) | true | `Decode.scala:196-205`, `:601-607`, `:707-708` | `vdiv_m8_indep` -14% to -0.1%; every chain's -0.5% to 0.0%; `vtdiscard_after_mac` 5.5 to 24.0 (RTL 24.0) |
 | C3 | `load_waw_advance` | 1 | 0 | waveform of `addr_forward` | keeps `addr_forward` at 4 cycles per load with LsuV3's 3-cycle loads |
 | V6 | `vec_store_completes_on_last_register` | false | true | `Lsu.scala:1970-1971` | multi-register stores |
 | M1 | `axi_latency`, `axi_write_latency` | 2, as a read | 4, 5 | waveforms of `ext_*` | `ext_load_chain` -25% to +0.2%, the two streams to -1.8% |
 | C2b | `lsu_v3_tile` | false | true | waveforms of `tile_load32_burst`, `tile_store32_burst`, `load_then_store` | replaces the fitted `lsu_tile_*` cost; `load_then_store` -7% to 0.0% |
 | X4 | `mtx_lsu_holds_full_fifo_beat` (new, matrix module) | false (`m3_vme.yaml`, unchanged) | true | waveform of `tile_load_behind_mac`; `zvt.sv:188-193`, `multi_fifo.sv:44`, `:111-114` | needed by C2b |
-| X3 | `mtx_complete_latency` | 1 (`m3_vme.yaml`, unchanged) | 0 | waveform of `matrix/mac_rob` | with C4, the `*_rob` matrix programs and `mac_queue` stay exact |
 | C6 | `rvv_config_interlock` (new) | false | true | `RvvFrontEnd.sv:86-93`, `Decode.scala` `rvvConfigInterlock`; waveform of `lsu/vload_macc` | `linear_int8`, `mlp_int8` |
 | C7 | `fpu_latency` | 3 | 2 | waveform of `fp_chain` | `fp_chain` +41% to 0.0%, `fp_mix` +20% to 0.0% |
-| F3 | `decode_unary_vs1_is_opcode` (new) | false | true | RVV 1.0 encoding; `pinned/vwmacc_m2_chain` | a decode fix, see "A decode bug" |
 | V4 | `vec_completion_token_latency` (new) | 0 | 1 | CoralNPU `a0974da8`; measured (`lsu/vload_rob`, `vload_dep_rob`) | independent streams -7.7% to within 1% |
 | V5 | `vec_results_forward_from_rob` (new) | false | true | measured (`pinned/vwmacc_m2_chain` 5 to 4) | a slow older uop no longer delays readers of a younger one |
 | X5 | `mtx_move_vector_latency` 1, `mtx_move_vector_floor` 2 (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | set | measured: `move_vt_use` and three probes | `move_vt_use` +15% to 0.0% |
-| C8 | `div_release_cycles` (new) | 0 | 1 | `Dvu.scala` (`io.req.ready`, `count`) | `div_chain` -4.4% to 0.0% |
-| V8 | `vec_div_data_dependent` (new) | false | true | `intdivider.sv` | `vdiv_small_chain` +200% and `vdiv_small_indep` +333% to 0.0%; `pinned/fetch_mispredict_rob` 28 to 17 (exact) |
 | C9 | `vector_scalar_waw_delay` (new) | 0 | 1 | waveform of `vcpop_indep` | `vcpop_indep` -9.9% to 0.0% |
 | V9 | `vec_to_scalar_writes_per_cycle` (new) | 0 (no limit) | not set | `RvvCore` `async_rd` is one port | moves nothing today; left off |
 | X6 | `zvt_in_spike` (new) | off (`m3_vme.yaml`) | on | CoralNPU `b4be3e79` | Spike executes Zvt; identical timing, 0 mismatches |
-| C10 | `rd_field_waw` (new) | false | true | `Decode.scala:427-431` (`writesRd`); waveform of `vtmm_misaligned` | `vtmm_misaligned` -4.2% to 0.0% |
 | X7 | `mtx_vector_source_lead` (new, matrix module) | 0 (`m3_vme.yaml`, unchanged) | 1 | `rvv_backend.sv:782`; measured | `gemm_longk` +3.6% to -0.2%, `gemm_tile` +2.3% to -0.8% |
 | X1 | `zvt` | false | true | `--enableVme=True` | Zvt programs run |
 

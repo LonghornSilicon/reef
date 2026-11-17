@@ -82,7 +82,7 @@ public:
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
     PARAMETER(uint32_t, mtx_uop_buffer_entries, 8,
               "Uops the engine's reservation station holds (ZVT_RS_DEPTH)")
-    PARAMETER(uint32_t, mtx_complete_latency, 1,
+    PARAMETER(uint32_t, mtx_complete_latency, 0,
               "Cycles from the result being written to the core seeing the "
               "instruction complete")
     // Compute fabric (MatrixFabric).

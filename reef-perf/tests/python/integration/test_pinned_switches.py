@@ -56,11 +56,6 @@ PROGRAMS = (
 where they take it) and kernel ELFs (kernels/)."""
 
 REQUIRES: dict[str, dict[str, Any]] = {
-    # M3's fetch unit never has an instruction behind a jump in its cycle;
-    # with the pinned one it does when dispatch is backed up (kernels' calls).
-    "core.dispatch.params.jump_ends_group": {
-        "frontend.params.fetch_reorder_buffer": True
-    },
     "core.lsu.params.lsu_v3_tile": {"core.lsu.params.lsu_v3": True},
     "core.dispatch.params.load_waw_advance": {"core.lsu.params.lsu_v3": True},
     "vector.params.vec_store_completion_matches_pc": {

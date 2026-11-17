@@ -26,10 +26,23 @@ top:
       predictor: btfn         # UncachedFetch.scala:87-100: jal + backward branches predicted taken, free when right; no BTB/RAS (D6)
       fetch_block_bytes: 16   # UncachedFetch.scala:56,107-131: one aligned 16-byte line per fetch (--fetchDataBits=128)
       ibuf_entries: 8         # UncachedFetch.scala:234 window = fetchInstrSlots * 2
+      # The vs1 field of vzext/vsext, vmsbf/vmsif/vmsof, viota/vid, vfsqrt,
+      # vfcvt and vfclass is a sub-opcode, not a source register (RVV 1.0).
+      # A model decode bug, fixed 2026-11-16 (docs/pinned.md, "A decode bug")
+      decode_unary_vs1_is_opcode: true
   core:
     dispatch:
       params:
         dispatch_width: 4
+        # Decode.scala dispatch rules the model lacked until 2026-11-16, read
+        # in the M3 source (deviations D2, D3, M2) and checked on the M3 RTL
+        # numbers (docs/pinned.md, "M3 fixes"):
+        branch_ends_group: true        # :327, branchInterlock
+        slot0_only_rule: true          # :167, forceSlot0Only
+        jump_ends_group: true          # :173, :318, isJump
+        csr_waits_for_empty_rob: true  # :519, a csrr waits for older work
+        rd_field_waw: true             # :332-336, writesRd: bits 11:7 of all but
+                                       # integer stores and branches
     scalar_exec:
       params:
         alu_count: 4
@@ -41,6 +54,8 @@ top:
         div_occupancy: 32
         div_data_dependent: true # Dvu.scala:90-136: leading-zero early termination
         div_base: 2              # One setup cycle and one result cycle
+        div_release_cycles: 1    # Dvu.scala:90: req.ready waits for count to clear,
+                                 # the cycle after the result is taken (div_chain)
         fpu_latency: 3          # B11: fpnew PipeRegs=3; measure
         fpu_occupancy: 1
         fdiv_latency: 12        # B11: measure
@@ -118,6 +133,11 @@ top:
       vec_fp_reduce_cycles_per_uop: 12
       vec_to_scalar_latency: 0    # RTL waveform of vec_pingpong: the x
                                   # register is usable in the retire cycle
+      # The integer divider's time depends on its operands, as the M3
+      # divider (rvv_backend_div_unit_divider.sv: leading-zero count, 3
+      # quotient bits a cycle, reuse of the last result) does. vdiv_small_chain
+      # and vdiv_small_indep: +200% and +333% to 0.0%
+      vec_div_data_dependent: true
       vset_latency: 1         # U4: measure (was timed as an ALU op)
       vec_completion_matches_pc: true  # M3 RTL bug, RetirementBuffer.scala:270
                                        # and :326; fixed after M3 by CoralNPU

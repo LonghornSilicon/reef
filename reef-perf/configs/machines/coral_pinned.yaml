@@ -27,6 +27,11 @@
 # RTL = read in ~/coralnpu-pinned at 8a5e1b31; MEASURED = fitted to the
 # programs named, in rtl_pinned.csv; TRACE = read from a waveform of this
 # RTL. docs/pinned.md lists the differences not modeled yet.
+#
+# Behavior M3's RTL shares with this one, and that the M3 model lacked, is
+# fixed in m3.yaml itself (2026-11-16: the dispatch rules, the scalar
+# divider's release cycle, the data-dependent vector divider, the unary
+# vector decode) and so is not listed here.
 top:
   frontend:
     params:
@@ -43,13 +48,6 @@ top:
       # M3: false (one fetch every other cycle; fetch_interval,
       # redirect_penalty)
       fetch_reorder_buffer: true
-      # F3. The unary vector forms (vzext/vsext, vmsbf/vmsif/vmsof,
-      # viota/vid, vfsqrt, vfcvt, vfclass) carry a sub-opcode in their vs1
-      # field. The M3 model reads it as a source register, which makes
-      # vsext.vf2 depend on v6 or v7. A decode fix, not an RTL difference:
-      # RVV 1.0, and pinned/vwmacc_m2_chain (4 cycles; 8 without). M3
-      # model: false
-      decode_unary_vs1_is_opcode: true
       # X1. Zvt instructions decode and run on the matrix module (the
       # engine's own values are the matrix module's defaults,
       # configs/matrix/coral_vme.yaml). RTL: --enableVme=True. M3: false
@@ -65,22 +63,6 @@ top:
   core:
     scalar_exec:
       params:
-        # Scalar FP (C7, C7b) is out of scope for now: Reef will most likely
-        # have no scalar FPU (2026-11-16). The two values below were set
-        # before that and are left as measured; the FP programs are not scored.
-        # C7. The scalar FPU answers a cycle after it takes an operation
-        # and takes the next one the cycle after that. TRACE: fp_chain
-        # (io_inst fires every 2 cycles, the write in between). Only
-        # fmadd.s and fadd.s are checked; divide and square root are not.
-        # M3: 3 (B11, unmeasured there)
-        # C8. The scalar divider takes its next request only the cycle after
-        # its result is taken: req.ready waits for count to clear, which
-        # happens the cycle after rd fires. RTL: Dvu.scala (io.req.ready,
-        # count). MEASURED: div_chain -4.4% to 0.0%, and
-        # pinned/fetch_mispredict_wait, whose branch reads the result, stays
-        # exact (so the result itself is not later). M3: 0 (the M3 model has
-        # the same gap, -4.5% there)
-        div_release_cycles: 1
         fpu_latency: 2
         # C7b. MEASURED after the fact (the predictions were 12):
         # pinned/fdiv_indep and pinned/fsqrt_chain take 13 cycles per
@@ -94,19 +76,6 @@ top:
         rob_entries: 16
     dispatch:
       params:
-        # C4. A conditional branch is the last instruction dispatched in
-        # its cycle. RTL: Decode.scala:419-422 (branchInterlock); M3 has
-        # the rule too (deviations D2), and the M3 model leaves it out.
-        # TRACE: matrix/mac_rob (the loop's bnez is dispatched alone, the
-        # MAC behind it a cycle later). M3 model: false
-        branch_ends_group: true
-        # C5. Dispatch rules of Decode.scala that the M3 RTL has too and the
-        # M3 model leaves out (deviations D3, M2). RTL: forceSlot0Only
-        # (:196-198), isJump (:202-205), the CSR term of canDispatch
-        # (:707-708), vmeDiscardVillInterlock (:601-607). M3 model: all false
-        slot0_only_rule: true          # CSR, fence, FP and vtdiscard dispatch alone
-        jump_ends_group: true          # nothing follows a jump in its cycle
-        csr_waits_for_empty_rob: true  # so a csrr mcycle waits for older work
         vtdiscard_interlock: true      # empty retirement buffer only; the RTL
                                        # also waits for an idle RVV backend and LSU
         # C6. A vector or tile load or store is not dispatched in the cycle
@@ -122,14 +91,6 @@ top:
         # iteration's vcpop a0, a1 dispatched in 64). MEASURED: vcpop_indep
         # -9.9% to 0.0%, vec_pingpong unchanged. M3 model: 0
         vector_scalar_waw_delay: 1
-        # C10. The decoder takes bits 11:7 of every instruction but an
-        # integer store or a conditional branch as an x destination for WAW
-        # (Decode.scala:427-431, writesRd), vector, Zvt and FP ones
-        # included: such an instruction waits for an in-flight scalar write
-        # of that x register, and for an earlier instruction in its cycle
-        # with the same field, x0 included. TRACE: matrix/vtmm_misaligned
-        # (two vtmmu with field 0 do not dispatch together). M3 model: false
-        rd_field_waw: true
         # C3. A later writer of a load's destination dispatches in the cycle
         # the load's value is written, not the cycle before. TRACE:
         # addr_forward (each lw to a1 is dispatched in the previous one's
@@ -175,14 +136,6 @@ top:
       # V3b. MEASURED: vfdiv_indep is 1 cycle per uop slower than on M3;
       # vfdiv_chain is unchanged, so the latency stays 9. M3: 8
       vec_fdiv_cycles_per_uop: 9
-      # V8. The integer divider's time depends on its operands
-      # (intdivider.sv): 1 cycle to start, one per 3 quotient bits of the
-      # dividend, 1 to hand the result over; 2 for a divisor of 0, signed
-      # overflow, or the same operands as that divider's last operation. A
-      # uop takes its slowest element. MEASURED: vdiv_small_chain +200% and
-      # vdiv_small_indep +333% to 0.0%, pinned/fetch_mispredict_rob 28 to 17
-      # (RTL 17; its vdiv repeats its operands). M3: false (13 per uop)
-      vec_div_data_dependent: true
       # V4. The retirement buffer sees a vector instruction done a cycle
       # after its last uop leaves the vector ROB (CoralNPU a0974da8
       # registers the completion token). MEASURED: lsu/vload_rob 9,
@@ -207,13 +160,6 @@ top:
       axi_write_latency: 5
   matrix:
     params:
-      # X3. The retirement buffer retires a tile instruction in the cycle
-      # the engine reports it. TRACE: matrix/mac_rob, the MAC dispatched in
-      # D is retired in D + 20. The matrix module's default of 1 retires it
-      # in D + 21, which gives the same loop time only without C4 and
-      # without the fetch unit's stalled redirect (docs/pinned.md, "The
-      # branch rule"). m3_vme.yaml: 1 (unchanged)
-      mtx_complete_latency: 0
       # X4. A tile-load beat that finds the 2-entry lsu2vme FIFO full
       # waits in the LSU after its bus read; the module's default starts
       # the read later instead, which is right only while the LSU reports
