@@ -96,6 +96,19 @@ t3, t1 = M.load(R("s3_ttft32"), 4), M.load(R("A1i8_ttft32"), 4)
 L.append(f"\nTime to first token: {t3['roi'] / 50e6:.3f} s to {t1['roi'] / 50e6:.3f} s. The saving does not depend on the assumed hardware: "
          "the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, "
          "so only the flash half of each pass shrinks. On the final design A reaches 3.33 tokens/s at batch 1 (against 2.71 here).\n")
+L.append("\n### Experiment A and A + int4 on the final design\n")
+L.append("Same low-rank weights on the final design (S3's next-linear prefetch is off for A), with int8 and with int4 factors. "
+         "Tokens/s, all stories; the change is against the same design and precision without A.\n")
+L.append("| Workload | Batch | Without A | With A | Change |")
+L.append("| --- | ---: | ---: | ---: | ---: |")
+for lab, base, a, bs in (("52M int8", "S3i8", "A3i8", (1, 8)), ("52M int4", "S3i4", "A3i4", (1, 8)),
+                         ("Small int8", "S3si8", "A3si8", (1, 8, 15)), ("Small int4", "S3si4", "A3si4", (1, 8, 15))):
+    for b in bs:
+        x, y = M.load(R(f"{base}_b{b}")), M.load(R(f"{a}_b{b}")); t = lambda m: b * 50e6 / m["roi"]
+        L.append(f"| {lab} | {b} | {t(x):.2f} | {t(y):.2f} | {(t(y) / t(x) - 1) * 100:+.0f}% |")
+L.append("\nA + int4 against plain int8 (52M): 2.9 x at batch 1, 1.6 x at batch 8. Not 4 x: the flash bytes drop to a quarter, "
+         "but the PSRAM time per story and the fixed costs per pass do not. Time to first token, 52M: 1.41 s (int8), "
+         "0.76 s (A), 0.49 s (A + int4).\n")
 exp_table("Experiment B: rebuild each 16x16 weight tile on the matrix engine",
           "Each 16x16 tile is stored as rank-4 factors (16x4 and 4x16, half the bytes). For every tile the matrix engine "
           "multiplies the factors into a spare accumulator; the core reads the 16 rows out, narrows them to int8 and "

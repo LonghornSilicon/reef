@@ -255,6 +255,26 @@ The same low-rank weights on step 3.3: Joshua's firmware with real multi-story d
 Time to first token: 1.598 s to 0.923 s. The saving does not depend on the assumed hardware: the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, so only the flash half of each pass shrinks. On the final design A reaches 3.33 tokens/s at batch 1 (against 2.71 here).
 
 
+### Experiment A and A + int4 on the final design
+
+Same low-rank weights on the final design (S3's next-linear prefetch is off for A), with int8 and with int4 factors. Tokens/s, all stories; the change is against the same design and precision without A.
+
+| Workload | Batch | Without A | With A | Change |
+| --- | ---: | ---: | ---: | ---: |
+| 52M int8 | 1 | 1.87 | 3.35 | +79% |
+| 52M int8 | 8 | 9.24 | 12.33 | +33% |
+| 52M int4 | 1 | 3.38 | 5.49 | +63% |
+| 52M int4 | 8 | 12.50 | 14.84 | +19% |
+| Small int8 | 1 | 14.23 | 18.90 | +33% |
+| Small int8 | 8 | 39.76 | 42.82 | +8% |
+| Small int8 | 15 | 44.87 | 46.16 | +3% |
+| Small int4 | 1 | 21.78 | 26.29 | +21% |
+| Small int4 | 8 | 44.98 | 46.02 | +2% |
+| Small int4 | 15 | 47.40 | 47.30 | -0% |
+
+A + int4 against plain int8 (52M): 2.9 x at batch 1, 1.6 x at batch 8. Not 4 x: the flash bytes drop to a quarter, but the PSRAM time per story and the fixed costs per pass do not. Time to first token, 52M: 1.41 s (int8), 0.76 s (A), 0.49 s (A + int4).
+
+
 ## Experiment B: rebuild each 16x16 weight tile on the matrix engine
 
 Each 16x16 tile is stored as rank-4 factors (16x4 and 4x16, half the bytes). For every tile the matrix engine multiplies the factors into a spare accumulator; the core reads the 16 rows out, narrows them to int8 and stores them as a normal weight chunk; then the normal MACs use it. **Accuracy is not known** (as for A).

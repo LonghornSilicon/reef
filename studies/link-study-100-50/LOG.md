@@ -509,3 +509,18 @@ staging buffer then a 1.5 KB copy into the layer norm output, because the step-3
 - Result (runs/A1i8_*): 2.71 / 4.73 / 7.54 / 10.71 tokens/s against 1.56 / 2.88 / 4.99 / 7.86 (+74% / +64% /
   +51% / +36%); TTFT 0.923 s against 1.598 s. Flash 26.09 M to 12.95 M cycles per pass; PSRAM unchanged; MACs
   0.51 x. Predicted b1 2.6 to 2.8 and b8 about +35%.
+
+### 6.10 Experiment A and A + int4 on the final design (asked for: rerun A exactly, and A with int4)
+
+fwA3/ = fws3 (final design) + the low-rank change (fwA's diff against fwsz). S3's next-linear hint is off in
+low-rank builds (it assumes the dense layout; with A the next call is a factor of another shape), so these runs
+lack S3's prefetch (worth 1 to 3% at b1 without A). KV cache pinned at each model's usual address. runs/A3*.
+- 52M int8: 1.87 / 3.50 / 5.99 / 9.24 to 3.35 / 5.72 / 8.90 / 12.33 (+79% / +63% / +48% / +33%); TTFT 1.414 to
+  0.759 s. Flash 25.9 M to 12.9 M cycles per pass.
+- 52M int4 (A + int4): 3.38 / 5.85 / 9.06 / 12.50 to 5.49 / 8.57 / 12.00 / 14.84 (+63% / +47% / +32% / +19%);
+  TTFT 0.790 to 0.485 s. Flash 13.2 M to 6.6 M. Against plain int8: 2.9 x at b1, 1.6 x at b8 (estimated before
+  the run: about 3 x and 1.7 x).
+- Small int8: 14.23 to 18.90 (+33%) at b1, +8% at b8, +3% at b15; TTFT 0.263 to 0.195 s.
+- Small int4: 21.78 to 26.29 (+21%) at b1, +2% at b8, 0% at b15; TTFT 0.167 to 0.148 s.
+- Not 4 x: flash bytes drop to a quarter, but PSRAM time per story and per-pass fixed costs do not. Weight FIFO
+  at most 134 units (8.6 KB). Accuracy not checked; A + int4 stacks two lossy changes.
