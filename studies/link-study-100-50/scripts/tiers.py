@@ -46,6 +46,7 @@ L.append(f"| | | Ceiling with A's weights (half the flash bytes) | | {ACEIL[0]:.
 L.append("\nThe tier-2 firmware steps (3.14, S1 to S3) were measured on tier 2 only; some would also help tier 1, so tier 1 is a "
          "conservative figure. The ceiling is for int8 weights; A and int4 lower the bytes and so raise their own ceiling.\n")
 L.append("![Decode speed step by step, by tier](tiers_fig.png)\n")
+L.append(open(os.path.join(H, "changes.md")).read())
 open(os.path.join(H, "tiers.md"), "w").write("\n".join(L) + "\n")
 
 plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11, "axes.edgecolor": "#6b7280", "axes.labelcolor": "#1f2933", "xtick.color": "#6b7280", "ytick.color": "#6b7280"})

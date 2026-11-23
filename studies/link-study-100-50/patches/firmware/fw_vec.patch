@@ -1,0 +1,129 @@
+diff --git a/inference-engine/coral/kernels/common.hpp b/inference-engine/coral/kernels/common.hpp
+index 8a34e2b..a94452c 100644
+--- a/inference-engine/coral/kernels/common.hpp
++++ b/inference-engine/coral/kernels/common.hpp
+@@ -8,7 +8,13 @@
+ 
+ namespace npu {
+ 
+-constexpr uint32_t kChunkRows = 32; // weight rows (of 64 B) per DMA chunk: 2 KB
++// Weight rows (of 64 B) per DMA chunk: 2 KB. Without the matrix engine the
++// accumulators take 2 KB of DTCM, so the chunks shrink to 1 KB to make room.
++#ifdef E2E_NO_MATRIX
++constexpr uint32_t kChunkRows = 16;
++#else
++constexpr uint32_t kChunkRows = 32;
++#endif
+ // KV blocks per attention DMA (about 1 KB).
+ constexpr uint32_t kKvChunk = kKvBlock < 1024 ? 1024 / kKvBlock : 1;
+ constexpr int32_t kNegInf = -(1 << 28); // masked score
+@@ -84,7 +90,9 @@ E2E_INLINE void mark() { (void)mcycle(); }
+ 
+ // Turns on matrix state and fills the exp and GeLU tables.
+ E2E_INLINE void init_tables() {
++#ifndef E2E_NO_MATRIX
+     asm volatile("csrs mstatus, %0" ::"r"(1U << 29)); // matrix state on
++#endif
+     uint32_t decay = 255U << 16;                      // exp(-i/16) * 255
+     for (uint32_t i = 0; i < 256; ++i) {
+         dtcm.exp_table[i] = static_cast<uint8_t>(decay >> 16);
+diff --git a/inference-engine/coral/kernels/npu.hpp b/inference-engine/coral/kernels/npu.hpp
+index 0fd58de..b8eab35 100644
+--- a/inference-engine/coral/kernels/npu.hpp
++++ b/inference-engine/coral/kernels/npu.hpp
+@@ -105,6 +105,87 @@ E2E_INLINE void dma_wait() {
+     (void)reinterpret_cast<volatile uint32_t*>(0x40000000)[4];
+ }
+ 
++#ifdef E2E_NO_MATRIX
++// ---- No matrix engine: the Zvt tile ops in plain RVV -----------------------
++// Same interface as the Zvt wrappers below, so the kernels build unchanged.
++// The four int32 accumulators live in the DTCM as [acc][row][16 columns];
++// rows are tokens (at most kBlockTokens). Each vtmm becomes, per tile row, a
++// scalar A element times a 16-lane B row: vle8 + vzext + vwmacc per k.
++inline int32_t tile_acc[4][kBlockTokens][16];
++inline uint32_t tile_rows = 1;
++
++E2E_INLINE void config_int32() {}
++E2E_INLINE void config_int8(uint32_t rows) { tile_rows = rows; }
++E2E_INLINE void vtzero(bool all = false) {
++    const vint32m4_t zero = __riscv_vmv_v_x_i32m4(0, 16);
++    for (uint32_t acc = 0; acc < (all ? 4U : 1U); ++acc) {
++        for (uint32_t row = 0; row < kBlockTokens; ++row) {
++            __riscv_vse32_v_i32m4(tile_acc[acc][row], zero, 16);
++        }
++    }
++}
++constexpr uint32_t kColumnSlice = 1U << 24;
++constexpr uint32_t acc_tile(uint32_t acc) { return (4 * acc) << 27; }
++// Row j, or with kColumnSlice column j over the rows, of accumulator acc.
++E2E_INLINE vint32m4_t vtmv(uint32_t slice) {
++    const uint32_t acc = slice >> 29;
++    const uint32_t j = slice & 15;
++    if (slice & kColumnSlice) {
++        return __riscv_vlse32_v_i32m4(&tile_acc[acc][0][j], 64, kBlockTokens);
++    }
++    return __riscv_vle32_v_i32m4(tile_acc[acc][j], 16);
++}
++// acc += a * B row (16 uint8 lanes, widened).
++E2E_INLINE vint32m4_t mac_row(vint32m4_t acc, int32_t a, const uint8_t* b) {
++    const vint16m2_t wide = __riscv_vreinterpret_v_u16m2_i16m2(
++        __riscv_vzext_vf2_u16m2(__riscv_vle8_v_u8m1(b, 16), 16));
++    return __riscv_vwmacc_vx_i32m4(acc, static_cast<int16_t>(a), wide, 16);
++}
++// 4 * steps k: accumulator g += A^T B_g, A row k at a + k sa (int8), B_g row
++// k at b + 64 k + 16 g.
++E2E_INLINE void mac4(const void* a_rows, uint32_t a_stride, const void* b_rows,
++                     uint32_t steps) {
++    const auto* a = static_cast<const int8_t*>(a_rows);
++    const auto* b = static_cast<const uint8_t*>(b_rows);
++    for (uint32_t row = 0; row < tile_rows; ++row) {
++        vint32m4_t acc0 = __riscv_vle32_v_i32m4(tile_acc[0][row], 16);
++        vint32m4_t acc1 = __riscv_vle32_v_i32m4(tile_acc[1][row], 16);
++        vint32m4_t acc2 = __riscv_vle32_v_i32m4(tile_acc[2][row], 16);
++        vint32m4_t acc3 = __riscv_vle32_v_i32m4(tile_acc[3][row], 16);
++        for (uint32_t k = 0; k < 4 * steps; ++k) {
++            const int32_t a_k = a[k * a_stride + row];
++            const uint8_t* b_k = b + k * 64;
++            acc0 = mac_row(acc0, a_k, b_k);
++            acc1 = mac_row(acc1, a_k, b_k + 16);
++            acc2 = mac_row(acc2, a_k, b_k + 32);
++            acc3 = mac_row(acc3, a_k, b_k + 48);
++        }
++        __riscv_vse32_v_i32m4(tile_acc[0][row], acc0, 16);
++        __riscv_vse32_v_i32m4(tile_acc[1][row], acc1, 16);
++        __riscv_vse32_v_i32m4(tile_acc[2][row], acc2, 16);
++        __riscv_vse32_v_i32m4(tile_acc[3][row], acc3, 16);
++    }
++}
++// 4 * steps k: accumulator 0 += A^T B, rows sa and sb bytes apart. kSigned:
++// A is int8, else uint8.
++template <bool kSigned>
++E2E_INLINE void mac(const void* a_rows, uint32_t a_stride, const void* b_rows,
++                    uint32_t b_stride, uint32_t steps) {
++    const auto* a = static_cast<const uint8_t*>(a_rows);
++    const auto* b = static_cast<const uint8_t*>(b_rows);
++    for (uint32_t row = 0; row < tile_rows; ++row) {
++        vint32m4_t acc = __riscv_vle32_v_i32m4(tile_acc[0][row], 16);
++        for (uint32_t k = 0; k < 4 * steps; ++k) {
++            const uint8_t raw = a[k * a_stride + row];
++            acc = mac_row(acc,
++                          kSigned ? static_cast<int8_t>(raw)
++                                  : static_cast<int32_t>(raw),
++                          b + k * b_stride);
++        }
++        __riscv_vse32_v_i32m4(tile_acc[0][row], acc, 16);
++    }
++}
++#else
+ // ---- Zvt (CoralNPU matrix extension v0.4) ----------------------------------
+ // Encodings: reef-perf/microbenchmarks/matrix/zvt.inc. The accumulator is
+ // int32 tile group mt0-mt3: C[tile_rows x 16] += A^T B with A rows in v8..v14
+@@ -209,6 +290,7 @@ E2E_INLINE void mac(const void* a_rows, uint32_t a_stride, const void* b_rows,
+                  : "v8", "v10", "v12", "v14", "v16", "v18", "v20", "v22",
+                    "memory");
+ }
++#endif // E2E_NO_MATRIX
+ 
+ E2E_INLINE uint32_t mcycle() {
+     uint32_t cycles;

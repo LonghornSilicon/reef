@@ -107,8 +107,10 @@ plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11.5, "axes.edge
 fig, (a, b) = plt.subplots(1, 2, figsize=(13.5, 5.2))
 cols = ["#9ca3af", "#93c5fd", "#3b82f6", "#1d4ed8", "#1e3a8a", "#d97706", "#059669", "#7c3aed", "#dc2626", "#db2777", "#111827"]
 i = 0
+FIG_STEPS = {"3.1": "3.1: multi-story decode (start)", "3.3": "3.3: end of tier 1 (real hardware)", "S3": "S3: end of tier 2 (assumed DMA and streams)"}
 for st, ch, kind, kept, d, t in rows:
-    if kept is not True: continue
+    if kept is not True or st not in FIG_STEPS: continue
+    ch = FIG_STEPS[st].split(": ", 1)[1]
     xs = [B for B in BATCHES if d[B]]
     if len(xs) < 2: continue
     c = cols[i % len(cols)]; i += 1
@@ -126,7 +128,7 @@ a.set_ylabel("Matrix engine utilization"); a.yaxis.set_major_formatter(lambda v,
 a.set_ylim(0, max(dep[B]["util"] for B in BATCHES) * 1.9)  # room for the legend above the lines
 b.set_ylabel("Decode tokens/s, all stories"); b.set_ylim(bottom=0)
 a.set_title("Utilization during decode (token 200)", loc="left", fontsize=12); b.set_title("Decode speed (token 200)", loc="left", fontsize=12)
-a.legend(frameon=False, fontsize=9.5, loc="upper left", title="Kept steps (each adds to the one before)", title_fontsize=9.5, alignment="left")
+a.legend(frameon=False, fontsize=9.5, loc="upper left", title="Selected kept steps (all steps: tables)", title_fontsize=9.5, alignment="left")
 fig.suptitle("Reef at flash 100 MB/s, PSRAM 50 MB/s (52M model, TinyStories-28M, int8, 32-PE array)", x=0.008, ha="left", fontsize=13)
 fig.tight_layout(rect=(0, 0, 1, 0.95), w_pad=2.5); fig.savefig(os.path.join(H, "report_fig.png"), dpi=200)
 print("REPORT.md and report_fig.png written")

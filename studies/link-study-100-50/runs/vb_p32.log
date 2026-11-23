@@ -1,0 +1,88 @@
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/machines/m3.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/machines/m3_vme.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/matrix/coral_vme.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/xspi_str.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/psram_kv.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/psram_kv_e2e.yaml"
+  [in] Configuration: Parameter "top.memory.params.host_boot" <- value: "true"
+  [in] Configuration: Parameter "top.memory.params.host_boot_data" <- value: "true"
+  [in] Configuration: Parameter "top.matrix.params.mtx_pe_rows" <- value: "8"
+  [in] Configuration: Parameter "top.matrix.params.mtx_pe_cols" <- value: "4"
+  [in] Configuration: Parameter "top.memory.params.ext_mem_bytes_per_cycle" <- value: "2"
+  [in] Configuration: Parameter "top.memory.params.ext_ram_bytes_per_cycle" <- value: "1"
+
+Setting up Simulation Content...
+Resources:
+  dispatch, fetch, lsu, matrix, memory, rob, scalar_exec, vector
+Building tree...
+Configuring tree...
+Finalizing tree...
+Preparing to run...
+Meta-Parameters:
+  architecture: NONE
+  is_final_config: false
+Non-default model parameters: 33
+Running...
+Running Complete
+  Simulation Performance      : wall(138.1713), system(0.2800), user(135.7800)
+  Scheduler Tick Rate  (KTPS): 306.082  (1k ticks per second)
+  Scheduler Event Rate (KEPS): 1122.07 KEPS (1k events per second)
+  Scheduler Events Fired: 152354052
+Run Successful!
+Saving reports...
+
+==================== reef_perf summary ====================
+  program             : /tmp/study/elfs/vec_p32.elf
+  instructions retired: 24024696
+  cycles              : 41559762
+  IPC                 : 0.578
+  taken branches/jumps: 2273546
+  boot cycles (host)  : 46500 (included in cycles)
+  ROI cycles (mcycle) : 41480938
+
+  Dispatch: cycles with no dispatch, by cause
+    (dispatched)            13207494   31.8%
+    ibuf_empty                140932    0.3%
+    raw_hazard               8676449   20.9%
+    waw_hazard                323256    0.8%
+    rob_full                18592325   44.7%
+    lsu_queue_full            619291    1.5%
+    vector_queue_full              0    0.0%
+    matrix_queue_full              0    0.0%
+
+  Top-down: dispatch slots (4 per cycle; docs/topdown.md)
+    retiring                24024696   14.5%
+    frontend_bound            968374    0.6%
+      branch_resteer          264621    0.2%
+      fetch_bandwidth         703753    0.4%
+    backend_bound          141245918   85.0%
+      core                  14410493    8.7%
+      memory                34828812   21.0%
+      vector                92006613   55.3%
+      matrix                       0    0.0%
+
+  Pools: utilization (busy cycles / (resources * cycles))
+    core.alu         x4  ops   11240465  util   6.8%
+    core.mul         x1  ops      50417  util   0.1%
+    core.div         x1  ops     150946  util   5.1%
+    core.fpu         x1  ops          0  util   0.0%
+    core.fdiv        x1  ops          0  util   0.0%
+    core.lsu         x1  ops    7235232  util  76.7%
+    vector.alu       x2  ops    8107267  util   9.8%
+    vector.mul       x2  ops   12937284  util  15.6%
+    vector.div       x1  ops        136  util   0.0%
+    vector.fdiv      x1  ops          0  util   0.0%
+    vector.fma       x2  ops          0  util   0.0%
+    vector.permute_reduce x1  ops       3076  util   0.0%
+    vector.fp_reduce x1  ops          0  util   0.0%
+    matrix.matrix_cmd x1  ops          0  util   0.0%
+    matrix.matrix_array x1  ops          0  util   0.0%
+    matrix.matrix_ctrl x1  ops          0  util   0.0%
+    memory.itcm      x1  ops          0  util   0.0%
+    memory.itcm_fetch x1  ops   13083142  util  31.5%
+    memory.dtcm      x1  ops    6983162  util  17.4%
+    memory.axi_data  x1  ops     252070  util   0.6%
+    memory.axi_outstanding x1  ops     252070  util   1.2%
+    memory.ext_mem_link x1  ops      49747  util  63.9%
+    memory.ext_ram_link x1  ops        768  util   1.6%
+============================================================

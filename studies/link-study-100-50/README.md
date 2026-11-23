@@ -55,5 +55,7 @@ change the paths at the top of each script before you use them.
   | `fws1`, `fws2`, `fwsz`, `fws3` | S1, S2, Z1, S3 (`fws3` is the final design) |
   | `fws4`, `fws5` | S4 (rejected), S5 (dropped) |
   | `fwA`, `fwA1`, `fwB` | Experiment A, A on the one-DMA design, experiment B |
+  | `e2e_no_matrix` | Vector-only firmware (`-DE2E_NO_MATRIX`), for the matrix vs vector comparison |
+  | `fw_vec`, `fw_base` | That patch applied; Joshua's firmware unchanged (baseline builds) |
 
   Build flags per step are in LOG.md and `scripts/build*.sh`.
