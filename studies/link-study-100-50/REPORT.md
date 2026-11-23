@@ -29,7 +29,7 @@ Model names: "52M" is TinyStories-28M (the published name; about 52M parameters 
 | 2 | 3.18 | 4 KB stream transfers | Assumed: 8.3 KB weight FIFO | 1.80 | 8.88 |
 | 2 | 3.20 | KV stream into the matrix engine | Assumed: 4.2 KB KV FIFO | 1.82 | 9.19 |
 | 2 | S1-S3 | Cross-size firmware steps S1, S2, S3 | Firmware: head-ready fix, layer norm per token, next weights early (with the code-space pass) | 1.87 | 9.24 |
-| 2 | + A | Low-rank weights on tier 2 | Firmware and weight format | **3.33** | **12.35** |
+| 2 | + A | Low-rank weights on tier 2 | Firmware and weight format | **3.35** | **12.33** |
 | | | Ceiling, int8 weights (from the link times) | | 1.92 | 9.46 |
 | | | Ceiling with A's weights (half the flash bytes) | | 3.66 | 13.14 |
 
@@ -252,7 +252,7 @@ The same low-rank weights on step 3.3: Joshua's firmware with real multi-story d
 | 4 | 4.99 | 7.54 | +51% | 26.09 M to 12.95 M | 9.67 M (unchanged) |
 | 8 | 7.86 | 10.71 | +36% | 26.10 M to 12.96 M | 19.35 M (unchanged) |
 
-Time to first token: 1.598 s to 0.923 s. The saving does not depend on the assumed hardware: the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, so only the flash half of each pass shrinks. On the final design A reaches 3.33 tokens/s at batch 1 (against 2.71 here).
+Time to first token: 1.598 s to 0.923 s. The saving does not depend on the assumed hardware: the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, so only the flash half of each pass shrinks. On the final design A reaches 3.35 tokens/s at batch 1 (against 2.71 here).
 
 
 ### Experiment A and A + int4 on the final design

@@ -16,7 +16,7 @@
 | 2 | 3.18 | 4 KB stream transfers | Assumed: 8.3 KB weight FIFO | 1.80 | 8.88 |
 | 2 | 3.20 | KV stream into the matrix engine | Assumed: 4.2 KB KV FIFO | 1.82 | 9.19 |
 | 2 | S1-S3 | Cross-size firmware steps S1, S2, S3 | Firmware: head-ready fix, layer norm per token, next weights early (with the code-space pass) | 1.87 | 9.24 |
-| 2 | + A | Low-rank weights on tier 2 | Firmware and weight format | **3.33** | **12.35** |
+| 2 | + A | Low-rank weights on tier 2 | Firmware and weight format | **3.35** | **12.33** |
 | | | Ceiling, int8 weights (from the link times) | | 1.92 | 9.46 |
 | | | Ceiling with A's weights (half the flash bytes) | | 3.66 | 13.14 |
 

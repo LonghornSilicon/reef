@@ -91,7 +91,7 @@ The same low-rank weights on step 3.3: Joshua's firmware with real multi-story d
 | 4 | 4.99 | 7.54 | +51% | 26.09 M to 12.95 M | 9.67 M (unchanged) |
 | 8 | 7.86 | 10.71 | +36% | 26.10 M to 12.96 M | 19.35 M (unchanged) |
 
-Time to first token: 1.598 s to 0.923 s. The saving does not depend on the assumed hardware: the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, so only the flash half of each pass shrinks. On the final design A reaches 3.33 tokens/s at batch 1 (against 2.71 here).
+Time to first token: 1.598 s to 0.923 s. The saving does not depend on the assumed hardware: the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, so only the flash half of each pass shrinks. On the final design A reaches 3.35 tokens/s at batch 1 (against 2.71 here).
 
 
 ### Experiment A and A + int4 on the final design

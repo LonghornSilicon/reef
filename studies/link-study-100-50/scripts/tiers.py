@@ -22,9 +22,9 @@ def tps(p, b):
     f = R(f"{p}_b{b}") if p != "s0" else (R("s0_dec200") if b == 1 else None)
     return b * 50e6 / M.load(f)["roi"] if f and os.path.exists(f) else None
 rows = [(lab, short, tier, what, tps(p, 1), tps(p, 8)) for lab, short, p, tier, what in STEPS]
-A = {1: (tps("A1i8", 1), tps("A1i8", 8)), 2: (tps("Ai8", 1), tps("Ai8", 8))}
-def a_ceil(b):  # A's own ceiling, from A's measured link times (tier 2 runs)
-    m = M.load(R(f"Ai8_b{b}")); F, P = m["flash"], m["psram"] / b
+A = {1: (tps("A1i8", 1), tps("A1i8", 8)), 2: (tps("A3i8", 1), tps("A3i8", 8))}
+def a_ceil(b):  # A's own ceiling, from A's measured link times (final design)
+    m = M.load(R(f"A3i8_b{b}")); F, P = m["flash"], m["psram"] / b
     q = 8 * 3 * (2 * (512 * 64 + 256) + 8 * (128 * 64 + 256)) / 2  # qkv flash: U [512x128] + V [128x512], 3 matrices, 8 layers
     return b * 50e6 / (F + b * P - min(q, b * P))
 ACEIL = (a_ceil(1), a_ceil(8))

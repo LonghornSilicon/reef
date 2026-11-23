@@ -95,7 +95,7 @@ for b in (1, 2, 4, 8):
 t3, t1 = M.load(R("s3_ttft32"), 4), M.load(R("A1i8_ttft32"), 4)
 L.append(f"\nTime to first token: {t3['roi'] / 50e6:.3f} s to {t1['roi'] / 50e6:.3f} s. The saving does not depend on the assumed hardware: "
          "the flash time halves on either design. The gain is smaller at large batch here because the flash and the PSRAM take turns, "
-         "so only the flash half of each pass shrinks. On the final design A reaches 3.33 tokens/s at batch 1 (against 2.71 here).\n")
+         "so only the flash half of each pass shrinks. On the final design A reaches 3.35 tokens/s at batch 1 (against 2.71 here).\n")
 L.append("\n### Experiment A and A + int4 on the final design\n")
 L.append("Same low-rank weights on the final design (S3's next-linear prefetch is off for A), with int8 and with int4 factors. "
          "Tokens/s, all stories; the change is against the same design and precision without A.\n")
