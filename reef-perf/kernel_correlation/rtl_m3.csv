@@ -1,0 +1,9 @@
+kernel,rtl_roi_cycles,rtl_retired_insts,notes
+activation_int8,12562,4030,
+attention,13814,2689,
+attention_int8,34849,13758,
+embedding_int8,1749,1126,
+layernorm,3572,633,
+layernorm_int8,8131,4123,
+linear_int8,59408,29696,
+mlp_int8,123324,61180,

@@ -1,0 +1,31 @@
+# Sweep: the matrix microbenchmarks on every matrix-engine preset, on Reef's
+# prediction config (M3 core with a matrix engine, M3's LSU).
+#
+# Coral presets have RTL behind them (64 and 128 PEs); the systolic and tree
+# presets only have formulas checked against a reference (docs/matrix.md).
+
+name: matrix_presets
+
+# Base config, then overlays applied in order. A list is the same as passing
+# several -c to reef_perf.
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+
+# Microbenchmarks in a subdirectory are named with it.
+microbenchmarks:
+  - matrix/mac_indep
+  - matrix/mac_chain
+  - matrix/gemm_tile
+  - matrix/gemm_multi
+  - matrix/gemm_longk
+
+# Every combination of these values is one variant. `overlay` adds a config
+# file; any other key is a parameter path, as with -p.
+grid:
+  overlay:
+    - configs/matrix/coral_vme.yaml
+    - configs/matrix/coral_128pe.yaml
+    - configs/matrix/os_systolic_16x16.yaml
+    - configs/matrix/ws_systolic_16x16.yaml
+    - configs/matrix/tree_8x8.yaml

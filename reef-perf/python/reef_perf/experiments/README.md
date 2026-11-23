@@ -21,3 +21,5 @@ belongs in the `reef_perf` package itself.
 | [`sweep`](sweep/README.md) | Runs microbenchmarks under parameter variants and records cycles, IPC and stall breakdowns. |
 | [`topdown`](topdown/README.md) | Top-down analysis: where each microbenchmark's dispatch slots went ([docs/topdown.md](../../../docs/topdown.md)). |
 | [`correlation`](correlation/README.md) | Compares the model's ROI cycles with the M3 RTL; the PR bot posts its report. |
+| [`matrix_diff`](matrix_diff/README.md) | Per-op matrix costs, model against the CoralNPU VME RTL, by N/2N differencing. |
+| `array_ref` | Cycle-level reference for the non-Coral matrix arrays; generates the table `MatrixFabricTest.ReferenceArrays` checks the fabric formulas against, and cross-checks itself with SCALE-Sim (docs/matrix-correlation-log.md, D4). |

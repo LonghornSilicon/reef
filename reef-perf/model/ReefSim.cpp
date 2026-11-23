@@ -58,6 +58,81 @@ static void writeTopDown(std::ostream &OS, const TopDownSlots &Slots) {
   OS << "\n    }\n  },\n";
 }
 
+/// Writes \p Head as the "rob_full_head" JSON object, followed by a comma.
+/// Instructions that never headed a full Rob are left out.
+static void writeRobFullHead(std::ostream &OS, const RobFullHead &Head) {
+  OS << "  \"rob_full_head\": {";
+  bool First = true;
+  auto Write = [&](const std::string &Name, uint64_t N) {
+    if (N == 0)
+      return;
+    OS << (First ? "" : ", ") << '"' << Name << "\": " << N;
+    First = false;
+  };
+  for (size_t Class = 0; Class < Head.ByClass.size(); ++Class)
+    Write(getClassName(static_cast<InstClass>(Class)), Head.ByClass[Class]);
+  for (size_t Op = 0; Op < Head.ByMatrixOp.size(); ++Op)
+    Write(std::string("matrix_") + getMatrixOpName(static_cast<MatrixOp>(Op)),
+          Head.ByMatrixOp[Op]);
+  Write("credit_return", Head.CreditReturn);
+  OS << "},\n";
+}
+
+/// Writes \p Time as a JSON object named \p Name.
+static void writeArrayTime(std::ostream &OS, const char *Name,
+                           const ArrayTime &Time) {
+  OS << "    \"" << Name << "\": {";
+  for (size_t State = 0; State < Time.size(); ++State)
+    OS << (State ? ", " : "") << '"'
+       << getArrayStateName(static_cast<ArrayState>(State))
+       << "\": " << Time[State];
+  OS << "},\n";
+}
+
+/// Writes \p M's statistics as the "matrix" JSON object (last in the file):
+/// the array time over the run's \p Cycles and between the first and last
+/// of \p Reads.
+static void writeMatrix(std::ostream &OS, const Matrix &M, Cycle Cycles,
+                        const std::vector<McycleRead> &Reads) {
+  const MatrixStats &S = M.getStats();
+  OS << "  \"matrix\": {\n    \"ops\": {";
+  for (size_t Op = 1; Op < S.Ops.size(); ++Op)
+    OS << (Op > 1 ? ", " : "") << '"'
+       << getMatrixOpName(static_cast<MatrixOp>(Op)) << "\": " << S.Ops[Op];
+  double Utilization = S.CapacityMacs == 0
+                           ? 0.0
+                           : static_cast<double>(S.UsefulMacs) /
+                                 static_cast<double>(S.CapacityMacs);
+  OS << "},\n"
+     << "    \"useful_macs\": " << S.UsefulMacs << ",\n"
+     << "    \"capacity_macs\": " << S.CapacityMacs << ",\n"
+     << "    \"mac_utilization\": " << Utilization << ",\n"
+     << "    \"array_busy_cycles\": " << S.ArrayBusyCycles << ",\n"
+     << "    \"mem_beats\": " << S.MemBeats << ",\n"
+     << "    \"subtile_reads\": " << S.SubtileReads << ",\n"
+     << "    \"subtile_writes\": " << S.SubtileWrites << ",\n";
+  writeArrayTime(OS, "array_time", M.getArrayTime(0, Cycles));
+  if (Reads.size() >= 2)
+    writeArrayTime(
+        OS, "array_time_roi",
+        M.getArrayTime(Reads.front().IssueCycle, Reads.back().IssueCycle));
+  else
+    OS << "    \"array_time_roi\": null,\n";
+  double Area = M.getAreaUm2();
+  double Energy = M.getEnergyPj();
+  OS << "    \"area_um2\": ";
+  if (Area < 0.0)
+    OS << "null";
+  else
+    OS << Area;
+  OS << ",\n    \"energy_pj\": ";
+  if (Energy < 0.0)
+    OS << "null";
+  else
+    OS << Energy;
+  OS << "\n  }\n";
+}
+
 ReefSim::ReefSim(sparta::Scheduler &Scheduler, const std::string &ElfPath,
                  const SpikeOptions &Options)
     : sparta::app::Simulation("reef_perf", &Scheduler),
@@ -106,8 +181,15 @@ void ReefSim::bindTree_() {
             Core::InMatrixCredits);
 
   FrontendModule.getUnit()->setFuncSim(TheFuncSim.get());
+  FrontendModule.getUnit()->setMemory(MemoryModule.getUnit());
   MemoryModule.getUnit()->setMemoryMap(Regions);
+  MemoryModule.getUnit()->setBootImage(TheFuncSim->getLoadSegments());
+  FrontendModule.getUnit()->setStartCycle(
+      MemoryModule.getUnit()->getHost().getBootCycles());
   CoreModule.setMemory(MemoryModule.getUnit());
+  VectorModule.getUnit()->setLsu(CoreModule.getVectorLsu());
+  MatrixModule.getUnit()->setLsu(CoreModule.getVectorLsu());
+  MatrixModule.getUnit()->setVectorRegisters(VectorModule.getUnit());
   CoreModule.setInstBuffer(FrontendModule.getUnit());
 }
 
@@ -122,6 +204,8 @@ void ReefSim::printSummary(std::ostream &OS) const {
      << getIPC(Insts, Cycles) << "\n"
      << "  taken branches/jumps: "
      << FrontendModule.getUnit()->getNumRedirects() << "\n";
+  if (Cycle Boot = MemoryModule.getUnit()->getHost().getBootCycles())
+    OS << "  boot cycles (host)  : " << Boot << " (included in cycles)\n";
   const std::vector<McycleRead> &Reads = CoreModule.getMcycleReads();
   if (Reads.size() >= 2)
     OS << "  ROI cycles (mcycle) : "
@@ -198,6 +282,13 @@ void ReefSim::writeJSON(std::ostream &OS) const {
      << "  \"ipc\": " << getIPC(Insts, Cycles) << ",\n"
      << "  \"taken_redirects\": " << FrontendModule.getUnit()->getNumRedirects()
      << ",\n";
+  // Only when Spike executes Zvt, so other runs keep their keys.
+  if (TheFuncSim->isZvtInSpike())
+    OS << "  \"zvt_mismatches\": " << TheFuncSim->getNumZvtMismatches() << ",\n"
+       << "  \"zvt_rtl_nops\": " << TheFuncSim->getNumZvtRtlNops() << ",\n";
+  // Only with the host's boot load on, so the golden files keep their keys.
+  if (Cycle Boot = MemoryModule.getUnit()->getHost().getBootCycles())
+    OS << "  \"boot_cycles\": " << Boot << ",\n";
   // The microbenchmarks read mcycle at the start and end of their region of
   // interest; the difference is what the RTL measures.
   // ROI instructions exclude the two reads, as the RTL trace parser does.
@@ -224,6 +315,7 @@ void ReefSim::writeJSON(std::ostream &OS) const {
   // Pool names are unique across modules (docs/interfaces.md), so the JSON
   // keeps its flat {"alu": ..., "vector": ...} layout.
   OS << "\n  },\n";
+  writeRobFullHead(OS, CoreModule.getRobFullHead());
   writeTopDown(OS, CoreModule.getTopDownSlots());
   OS << "  \"pools\": {";
   bool First = true;
@@ -236,5 +328,7 @@ void ReefSim::writeJSON(std::ostream &OS) const {
       First = false;
     }
   }
-  OS << "\n  }\n}\n";
+  OS << "\n  },\n";
+  writeMatrix(OS, *MatrixModule.getUnit(), Cycles, Reads);
+  OS << "}\n";
 }

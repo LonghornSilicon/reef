@@ -26,10 +26,12 @@ int main() {
     fill.int8s(proj_wt, bench::kInner * bench::kHidden);
     fill.floats(proj_scale, bench::kHidden, 0.001F);
     fill.floats(proj_bias, bench::kHidden, 0.1F);
+    bench::roi_begin();
     reef_kernels::linear_w8a8_bias(1, bench::kHidden, bench::kInner, x, fc_wt,
                                    fc_scale, fc_bias, x_q, inner);
     reef_kernels::gelu_f32(bench::kInner, inner, inner);
     reef_kernels::linear_w8a8_bias(1, bench::kInner, bench::kHidden, inner,
                                    proj_wt, proj_scale, proj_bias, x_q, y);
+    bench::roi_end();
     return 0;
 }

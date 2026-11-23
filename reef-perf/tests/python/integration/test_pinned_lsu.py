@@ -1,0 +1,219 @@
+"""The LSU microbenchmarks on the pinned-RTL config match the pinned RTL.
+
+microbenchmarks/lsu/ and microbenchmarks/pinned/ measure CoralNPU 8a5e1b31 by
+differencing N and 2N iterations, as the matrix programs do
+(rtl_pinned.csv, from vme_core_mini_verification_axi_sim). The model runs
+m3.yaml + configs/machines/coral_pinned.yaml, which turns lsu_v3 on.
+"""
+
+import csv
+from pathlib import Path
+
+import pytest
+
+from reef_perf.experiments.correlation.pinned import (
+    PINNED_CONFIG,
+    find_pinned_binary,
+)
+from reef_perf.microbenchmarks import MICROBENCHMARK_DIR, build_microbenchmark
+from reef_perf.sim import SimulationError, run_sim
+
+SUITES = ("lsu", "pinned")
+"""Directories of differenced programs with an rtl_pinned.csv."""
+TOLERANCE = 0.02
+"""Allowed relative error in cycles per loop iteration."""
+
+KNOWN_GAP: dict[str, str] = {}
+
+OUT_OF_SCOPE = {
+    "pinned/fcvt_chain",
+    "pinned/fdiv_chain",
+    "pinned/fdiv_indep",
+    "pinned/fsqrt_chain",
+    "pinned/fmul_chain",
+    "pinned/flw_fsw",
+    "pinned/fp_to_vector",
+}
+"""Scalar floating-point programs, not checked for now: Reef will most likely
+have no scalar FPU (docs/pinned.md, "Out of scope")."""
+"""Programs with a known error, and why (docs/pinned.md, "Coverage")."""
+
+
+def _rtl() -> dict[str, list[tuple[int, int, int]]]:
+    rows: dict[str, list[tuple[int, int, int]]] = {}
+    for suite in SUITES:
+        path = MICROBENCHMARK_DIR / suite / "rtl_pinned.csv"
+        with path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                rows.setdefault(f"{suite}/{row['name']}", []).append(
+                    (
+                        int(row["iters"]),
+                        int(row["roi_cycles"]),
+                        int(row["roi_instructions"]),
+                    )
+                )
+    return {name: sorted(runs) for name, runs in rows.items()}
+
+
+PROGRAMS = sorted(
+    f"{suite}/{path.stem}"
+    for suite in SUITES
+    for path in (MICROBENCHMARK_DIR / suite).glob("*.S")
+)
+
+
+@pytest.mark.unit
+def test_every_lsu_program_has_rtl() -> None:
+    """Each program has its N and 2N rows, and known gaps are programs."""
+    rtl = _rtl()
+    assert sorted(rtl) == PROGRAMS
+    assert all(len(runs) == 2 for runs in rtl.values())
+    assert set(KNOWN_GAP) | OUT_OF_SCOPE <= set(PROGRAMS)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "name", [n for n in PROGRAMS if n not in set(KNOWN_GAP) | OUT_OF_SCOPE]
+)
+def test_lsu_program_matches_pinned_rtl(
+    name: str, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """The model's cycles per loop iteration are within 2% of the RTL's."""
+    del cpp_build_dir
+    (low, rtl_low, _), (high, rtl_high, _) = _rtl()[name]
+    model = []
+    for iters, _, insts in _rtl()[name]:
+        out = tmp_path / str(iters)
+        (out / name).parent.mkdir(parents=True)
+        elf = build_microbenchmark(name, out, {"ITERS": iters})
+        result = run_sim(
+            elf, overlay_configs=[PINNED_CONFIG], binary=find_pinned_binary()
+        )
+        assert result.roi_instructions == insts, name
+        assert result.roi_cycles is not None
+        model.append(result.roi_cycles)
+    rtl_cost = (rtl_high - rtl_low) / (high - low)
+    model_cost = (model[1] - model[0]) / (high - low)
+    assert model_cost == pytest.approx(rtl_cost, rel=TOLERANCE), (
+        f"{name}: model {model_cost:.2f} against RTL {rtl_cost:.2f} cycles "
+        "per iteration"
+    )
+
+
+@pytest.mark.integration
+def test_lsu_v3_is_off_without_the_pinned_config(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """On m3.yaml a 4-register load still costs M3's 17 cycles, not 6."""
+    del cpp_build_dir
+    cost = {}
+    for label, overlays in (("m3", []), ("pinned", [PINNED_CONFIG])):
+        roi = []
+        for iters in (20, 40):
+            out = tmp_path / label / str(iters)
+            (out / "lsu").mkdir(parents=True)
+            elf = build_microbenchmark("lsu/vload_m4", out, {"ITERS": iters})
+            binary = find_pinned_binary() if overlays else None
+            result = run_sim(elf, overlay_configs=overlays, binary=binary)
+            roi.append(result.roi_cycles)
+        cost[label] = (roi[1] - roi[0]) / (20 * 16)
+    assert cost["m3"] == pytest.approx(17.0, abs=0.1)
+    assert cost["pinned"] == pytest.approx(6.0, abs=0.1)
+
+
+@pytest.mark.integration
+def test_spike_and_layer_agree_on_every_zvt_instruction(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """On the pinned config Spike executes Zvt; reef-perf's layer agrees.
+
+    Covers every matrix program at its default loop count. vtmm_misaligned
+    has the shapes the RTL retires as no-ops and Spike traps on.
+    """
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    rtl_nops = 0
+    for src in sorted((MICROBENCHMARK_DIR / "matrix").glob("*.S")):
+        elf = build_microbenchmark(f"matrix/{src.stem}", tmp_path)
+        result = run_sim(
+            elf, overlay_configs=[PINNED_CONFIG], binary=find_pinned_binary()
+        )
+        assert result.zvt_mismatches == 0, src.stem
+        assert result.instructions == result.functional_instructions
+        rtl_nops += result.zvt_rtl_nops or 0
+    assert rtl_nops > 0
+
+
+@pytest.mark.integration
+def test_m3_binary_rejects_zvt_in_spike(
+    cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """reef_perf's Spike (M3's) has no Zvt, so it refuses the switch."""
+    del cpp_build_dir
+    (tmp_path / "matrix").mkdir()
+    elf = build_microbenchmark("matrix/mac_chain", tmp_path)
+    with pytest.raises(SimulationError, match="zvt_in_spike"):
+        run_sim(elf, overlay_configs=[PINNED_CONFIG])
+
+
+def _load_cost(
+    program: str, params: dict[str, object], tmp_path: Path
+) -> float:
+    """Cycles per load of an lsu/ program on the pinned config with params."""
+    roi = []
+    for iters in (20, 40):
+        out = tmp_path / str(iters)
+        (out / "lsu").mkdir(parents=True, exist_ok=True)
+        elf = build_microbenchmark(program, out, {"ITERS": iters})
+        result = run_sim(
+            elf,
+            overlay_configs=[PINNED_CONFIG],
+            binary=find_pinned_binary(),
+            params=params,
+        )
+        assert result.roi_cycles is not None
+        roi.append(result.roi_cycles)
+    return (roi[1] - roi[0]) / (20 * 16)
+
+
+@pytest.mark.integration
+def test_lsu_v3_design_knobs(cpp_build_dir: Path, tmp_path: Path) -> None:
+    """A second slot and a wider bus make loads cheaper where they should.
+
+    A second slot overlaps 1-register loads. A 32-byte bus (and DTCM) cuts a
+    4-register load's bus cycles but not a 1-register load's.
+    """
+    del cpp_build_dir
+    lsu = "top.core.lsu.params."
+    wide = {
+        lsu + "lsu_v3_bus_bytes": 32,
+        "top.memory.params.dtcm_line_bytes": 32,
+    }
+    two_slots = {lsu + "lsu_v3_slots": 2}
+    m1 = _load_cost("lsu/vload_m1", {}, tmp_path / "m1")
+    m4 = _load_cost("lsu/vload_m4", {}, tmp_path / "m4")
+    assert m4 == pytest.approx(6.0, abs=0.1)
+    assert _load_cost("lsu/vload_m4", wide, tmp_path / "m4w") < m4 - 1
+    m1_wide = _load_cost("lsu/vload_m1", wide, tmp_path / "m1w")
+    assert m1_wide == pytest.approx(m1)
+    assert _load_cost("lsu/vload_m1", two_slots, tmp_path / "s2") < m1
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("knob", "value"), [("lsu_v3_slots", 0), ("lsu_v3_bus_bytes", 24)]
+)
+def test_bad_lsu_v3_design_knob_fails_by_name(
+    knob: str, value: int, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """An impossible slot count or bus width stops the run, naming the knob."""
+    del cpp_build_dir
+    (tmp_path / "lsu").mkdir()
+    elf = build_microbenchmark("lsu/vload_m1", tmp_path, {"ITERS": 20})
+    with pytest.raises(SimulationError, match=knob):
+        run_sim(
+            elf,
+            overlay_configs=[PINNED_CONFIG],
+            binary=find_pinned_binary(),
+            params={f"top.core.lsu.params.{knob}": value},
+        )

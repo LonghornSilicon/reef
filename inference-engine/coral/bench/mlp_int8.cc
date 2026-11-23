@@ -26,10 +26,12 @@ int main() {
     fill.integers(fc_bias, kInner, 20);
     fill.int8s(proj_wt, kInner * kWidth);
     fill.integers(proj_bias, kWidth, 20);
+    bench::roi_begin();
     reef_kernels::linear_bias_int8(kRows, kWidth, kInner, x, fc_wt, fc_bias, 8,
                                    inner);
     reef_kernels::gelu_int8(kRows * kInner, inner, gelu_table, inner);
     reef_kernels::linear_bias_int8(kRows, kInner, kWidth, inner, proj_wt,
                                    proj_bias, 8, y);
+    bench::roi_end();
     return 0;
 }

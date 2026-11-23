@@ -11,10 +11,12 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -40,9 +42,10 @@ static T readPOD(const std::vector<char> &Data, size_t Offset) {
   return Value;
 }
 
-/// Loads the PT_LOAD segments of the 32-bit RISC-V ELF \p Path into \p Mem.
-/// \returns the entry point.
-static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
+/// Loads the PT_LOAD segments of the 32-bit RISC-V ELF \p Path into \p Mem
+/// and appends each to \p Segments. \returns the entry point.
+static uint32_t loadELF(const std::string &Path, simif_t &Mem,
+                        std::vector<LoadSegment> &Segments) {
   std::ifstream In(Path, std::ios::binary);
   if (!In)
     throw std::runtime_error("cannot open ELF: " + Path);
@@ -67,6 +70,7 @@ static uint32_t loadELF(const std::string &Path, simif_t &Mem) {
       throw std::runtime_error("truncated ELF segment");
     std::memcpy(Dst, Data.data() + Segment.p_offset, Segment.p_filesz);
     std::memset(Dst + Segment.p_filesz, 0, Segment.p_memsz - Segment.p_filesz);
+    Segments.push_back({Segment.p_paddr, Segment.p_filesz});
   }
   return Header.e_entry;
 }
@@ -124,7 +128,7 @@ FuncSim::FuncSim(const std::string &ElfPath, const SpikeOptions &Options)
   // Commit logging makes Spike record each instruction's memory accesses and
   // register writes; the textual log goes to /dev/null.
   Proc->enable_log_commits();
-  Proc->get_state()->pc = loadELF(ElfPath, Mem);
+  Proc->get_state()->pc = loadELF(ElfPath, Mem, Segments);
 }
 
 InstRef FuncSim::next() {
@@ -153,11 +157,47 @@ InstRef FuncSim::next() {
     // Spike does not implement mpause: report it without executing it.
     Halted = true;
     I->NextPC = I->PC + 4;
+  } else if (std::optional<ZvtInst> Z =
+                 ZvtEnabled ? decodeZvt(I->Encoding) : std::nullopt) {
+    if (ZvtInSpike)
+      executeZvtInSpike(*I, *Z);
+    else
+      executeZvt(*I, *Z);
   } else {
     execute(*I);
+    if (ZvtEnabled && isStandardVset(I->Encoding))
+      Zvt = {}; // vset* also clears mtype (RvvFrontEnd.sv:205).
   }
-  decodeInst(*I);
+  decodeInst(*I, ZvtEnabled, UnaryVs1IsOpcode);
   return I;
+}
+
+void FuncSim::captureDivOperands(Inst &I) {
+  // OP-V (0x57), funct6 0x20-0x23 (vdivu, vdiv, vremu, vrem), OPMVV (2) or
+  // OPMVX (6).
+  uint32_t Funct3 = (I.Encoding >> 12) & 7;
+  uint32_t Funct6 = I.Encoding >> 26;
+  if ((I.Encoding & 0x7f) != 0x57 || (Funct3 != 2 && Funct3 != 6) ||
+      Funct6 < 0x20 || Funct6 > 0x23 || !Proc->VU.vl || Proc->VU.vill)
+    return;
+  uint32_t Vs2 = (I.Encoding >> 20) & 0x1f;
+  uint32_t Vs1 = (I.Encoding >> 15) & 0x1f;
+  reg_t Vl = Proc->VU.vl->read();
+  reg_t Sew = Proc->VU.vsew;
+  auto Elt = [&](uint32_t Reg, reg_t N) -> uint32_t {
+    switch (Sew) {
+    case 8:
+      return Proc->VU.elt<uint8_t>(Reg, N);
+    case 16:
+      return Proc->VU.elt<uint16_t>(Reg, N);
+    default:
+      return Proc->VU.elt<uint32_t>(Reg, N);
+    }
+  };
+  uint32_t Mask = Sew >= 32 ? ~0U : (1U << Sew) - 1;
+  for (reg_t N = 0; N < Vl; ++N)
+    I.DivOperands.emplace_back(Elt(Vs2, N),
+                               Funct3 == 6 ? I.Rs1Val & Mask : Elt(Vs1, N));
 }
 
 void FuncSim::execute(Inst &I) {
@@ -167,6 +207,12 @@ void FuncSim::execute(Inst &I) {
   State->log_mem_read.clear();
   State->log_mem_write.clear();
   State->log_reg_write.clear();
+  // Capture operands before Spike updates the destination register.
+  uint32_t Rs1 = (I.Encoding >> 15) & 0x1f;
+  uint32_t Rs2 = (I.Encoding >> 20) & 0x1f;
+  I.Rs1Val = static_cast<uint32_t>(State->XPR[Rs1]);
+  I.Rs2Val = static_cast<uint32_t>(State->XPR[Rs2]);
+  captureDivOperands(I);
   Proc->step(1);
   if (State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore)
     throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
@@ -175,6 +221,280 @@ void FuncSim::execute(Inst &I) {
   for (const auto &[Addr, Value, Size] : State->log_mem_read)
     I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
   for (const auto &[Addr, Value, Size] : State->log_mem_write)
-    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true});
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true, Value});
   I.Dsts = getWrittenRegs(State->log_reg_write);
+}
+
+/// \returns the tile-element bytes for mtype.mtwiden \p MTWiden at SEW
+/// \p SEWBytes: SEW x TWIDEN, TWIDEN = 1, 2, 4 (vtzero's group,
+/// rvv_backend_decode_unit_ari.sv:2735-2752).
+static uint32_t getTileElemBytes(uint32_t SEWBytes, uint32_t MTWiden) {
+  return SEWBytes << (MTWiden == 0 ? 0 : MTWiden - 1);
+}
+
+/// Fills \p I's tile group: \p Tile rounded down to a group of \p ElemBytes
+/// tiles (one tile per element byte; zvt_ctrl.sv forces the base).
+static void setTileGroup(Inst &I, uint32_t Tile, uint32_t ElemBytes) {
+  uint32_t Count = std::clamp<uint32_t>(ElemBytes, 1, 4);
+  I.Mtx.NumTiles = static_cast<uint8_t>(Count);
+  I.Mtx.FirstTile = static_cast<uint8_t>(Tile & ~(Count - 1U) & 0xfU);
+}
+
+void FuncSim::setZvtInSpike(bool Enabled) {
+  if (Enabled && !SpikeHasZvt)
+    throw std::runtime_error("frontend.zvt_in_spike needs a Spike with Zvt: "
+                             "run reef_perf_pinned, not reef_perf");
+  ZvtInSpike = Enabled;
+}
+
+/// \returns the bytes \p Mem touches, each with whether it is written.
+static std::vector<std::pair<uint32_t, bool>>
+getTouchedBytes(const std::vector<MemAccess> &Mem) {
+  std::vector<std::pair<uint32_t, bool>> Bytes;
+  for (const MemAccess &A : Mem)
+    for (uint32_t B = 0; B < A.Size; ++B)
+      Bytes.emplace_back(A.Addr + B, A.IsStore);
+  std::ranges::sort(Bytes);
+  return Bytes;
+}
+
+void FuncSim::executeZvtInSpike(Inst &I, const ZvtInst &Z) {
+  // reef-perf's layer first, in shadow mode, on a copy taken before Spike
+  // runs: it reads the same vl, vtype and registers, and keeps its own
+  // mtype in step for the matrix details.
+  Inst Layer = I;
+  bool LayerTrapped = false;
+  ZvtShadow = true;
+  try {
+    executeZvt(Layer, Z);
+  } catch (const ZvtShadowTrap &) {
+    LayerTrapped = true;
+  }
+  ZvtShadow = false;
+
+  state_t *State = Proc->get_state();
+  // Shapes the RTL's decoder rejects retire there as no-ops (executeZvt,
+  // MakeNop). CoralNPU's Spike traps on some of them instead (misaligned
+  // vtmm operands: illegal instruction), so the RTL is followed: Spike does
+  // not run it, and only the PC moves on.
+  if (!LayerTrapped && Layer.Mtx.Op == MatrixOp::Nop) {
+    ++NumZvtRtlNops;
+    State->pc = Layer.NextPC;
+    I.Rs1Val = Layer.Rs1Val;
+    I.Rs2Val = Layer.Rs2Val;
+    I.Disasm = Z.Name;
+    I.NextPC = Layer.NextPC;
+    I.Mtx = Layer.Mtx;
+    return;
+  }
+
+  // Then Spike, as for any other instruction.
+  reg_t CauseBefore = State->mcause->read();
+  reg_t EPCBefore = State->mepc->read();
+  State->log_mem_read.clear();
+  State->log_mem_write.clear();
+  State->log_reg_write.clear();
+  I.Rs1Val = Layer.Rs1Val;
+  I.Rs2Val = Layer.Rs2Val;
+  I.Disasm = Z.Name;
+  Proc->step(1);
+  bool SpikeTrapped =
+      State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore;
+  auto Mismatch = [&](const std::string &What) {
+    if (++NumZvtMismatches <= 10)
+      std::fprintf(stderr, "zvt_in_spike: %s at %s (%s): %s\n",
+                   NumZvtMismatches == 10 ? "last report" : "mismatch",
+                   toHex(I.PC).c_str(), Z.Name, What.c_str());
+  };
+  if (SpikeTrapped != LayerTrapped)
+    Mismatch(SpikeTrapped ? "Spike trapped, the layer did not"
+                          : "the layer trapped, Spike did not");
+  if (SpikeTrapped)
+    throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
+                             "), mcause=" + toHex(State->mcause->read()));
+  I.NextPC = static_cast<uint32_t>(State->pc);
+  for (const auto &[Addr, Value, Size] : State->log_mem_read)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
+  for (const auto &[Addr, Value, Size] : State->log_mem_write)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true, Value});
+  I.Dsts = getWrittenRegs(State->log_reg_write);
+  // Spike's accesses and register writes are the ones used; the layer's
+  // matrix details (op, tile group, tm/tn/tk) are what the timing needs.
+  I.Mtx = LayerTrapped ? MatrixInfo{} : Layer.Mtx;
+  if (LayerTrapped)
+    I.Mtx.Op = MatrixOp::Nop;
+  if (!LayerTrapped && getTouchedBytes(Layer.Mem) != getTouchedBytes(I.Mem))
+    Mismatch("memory accesses differ (" + std::to_string(Layer.Mem.size()) +
+             " from the layer, " + std::to_string(I.Mem.size()) +
+             " from Spike)");
+  std::vector<RegId> LayerDsts = Layer.Dsts;
+  std::ranges::sort(LayerDsts);
+  std::vector<RegId> SpikeDsts = I.Dsts;
+  std::ranges::sort(SpikeDsts);
+  if (!LayerTrapped && LayerDsts != SpikeDsts)
+    Mismatch("destination registers differ");
+}
+
+void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
+  state_t *State = Proc->get_state();
+  I.Rs1Val = static_cast<uint32_t>(State->XPR[Z.Rs1]);
+  I.Rs2Val = static_cast<uint32_t>(State->XPR[Z.Rs2]);
+  I.Disasm = Z.Name; // M3's Spike disassembler does not know Zvt.
+  I.NextPC = I.PC + 4;
+  // In shadow mode (executeZvtInSpike) Spike executes the instruction; the
+  // layer only works out the matrix details and leaves Spike's state alone.
+  if (!ZvtShadow)
+    State->pc = I.NextPC; // Spike's minstret does not count Zvt instructions.
+  auto Trap = [&](const std::string &Why) {
+    if (ZvtShadow)
+      throw ZvtShadowTrap{};
+    throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
+                             "): " + Why);
+  };
+  auto WriteRd = [&](uint32_t Value) {
+    if (Z.Rd == 0)
+      return;
+    if (!ZvtShadow)
+      State->XPR.write(Z.Rd, Value);
+    I.Dsts = {RegId::x(Z.Rd)};
+  };
+
+  if (isZvtConfig(Z.Kind)) {
+    ZvtConfigEffect E =
+        applyZvtConfig(Z, Zvt, uint32_t{I.SEWBytes} * 8, I.Rs1Val, I.Rs2Val);
+    if (E.Illegal)
+      Trap("mtype is unconfigured (mtwiden = 0)");
+    reg_t Vtype = E.WritesVtype ? E.SpikeVtype : Proc->VU.vtype->read();
+    if (E.SetsVl) {
+      // rd = rs1 = 1 only steers set_vl to "vl = min(AVL, VLMAX)".
+      if (ZvtShadow) {
+        if (E.RdIsVl)
+          WriteRd(0); // Spike writes the value; the layer only records rd.
+      } else {
+        reg_t Vl = Proc->VU.set_vl(1, 1, E.AVL, Vtype);
+        if (E.RdIsVl)
+          WriteRd(static_cast<uint32_t>(Vl));
+      }
+    }
+    if (E.WritesRd)
+      WriteRd(E.RdValue);
+    Zvt = E.Next;
+    return;
+  }
+
+  // Every tile instruction traps on vill and on an unconfigured mtype: the
+  // arithmetic, moves and vtzero in the RVV front end (RvvFrontEnd.sv
+  // :624-633), tile loads and stores in scalar decode (Decode.scala:573-579,
+  // :1052-1073). vtdiscard needs only a legal vtype (Decode.scala:601-607).
+  if (Proc->VU.vill)
+    Trap("vtype is illegal (vill)");
+  if (Z.Kind != ZvtKind::VtDiscard && Zvt.MTWiden == 0)
+    Trap("mtype is unconfigured (mtwiden = 0)");
+
+  uint32_t VL = I.VL;
+  uint32_t EMUL = std::max<uint32_t>(1, I.LMUL8 / 8);
+  // Shapes the RVV backend decoder rejects retire as no-ops without reaching
+  // the matrix engine (rvv_backend_decode_unit.sv:92-96): vl = 0, misaligned
+  // tile groups, vtmm with tm, tn or tk of 0, a mismatched type
+  // configuration or misaligned vs1/vs2 (rvv_backend_decode_unit_ari.sv:3072,
+  // :3211-3216, :3219-3233,
+  // :3317-3320, :3605, :3717-3722; _lsu.sv:3387-3393).
+  auto MakeNop = [&I] {
+    I.Mtx = {};
+    I.Mtx.Op = MatrixOp::Nop;
+    I.Mtx.NumTiles = 0;
+  };
+  auto Misaligned = [](uint32_t Tile, uint32_t Count) {
+    return (Tile & (Count - 1U)) != 0;
+  };
+  switch (Z.Kind) {
+  case ZvtKind::VtZero: {
+    uint32_t Count = getTileElemBytes(I.SEWBytes, Zvt.MTWiden);
+    if ((Z.Rd & 1U) != 0 || Misaligned(Z.Rd >> 1, Count)) {
+      MakeNop();
+      break;
+    }
+    I.Mtx.Op = MatrixOp::Zero;
+    setTileGroup(I, Z.Rd >> 1, Count);
+    break;
+  }
+  case ZvtKind::VtDiscard:
+    I.Mtx.Op = MatrixOp::Discard;
+    I.Mtx.NumTiles = static_cast<uint8_t>(NumTiles);
+    break;
+  case ZvtKind::VtMvTV:
+  case ZvtKind::VtMvVT: {
+    if (VL == 0) {
+      MakeNop();
+      break;
+    }
+    bool ToTile = Z.Kind == ZvtKind::VtMvTV;
+    I.Mtx.Op = ToTile ? MatrixOp::MoveToTile : MatrixOp::MoveToVector;
+    I.Mtx.ElemBytes = I.SEWBytes;
+    I.Mtx.TN = static_cast<uint8_t>(std::min(VL, TileEdge));
+    setTileGroup(I, getTileSlice(I.Rs1Val).Tile, I.SEWBytes);
+    if (!ToTile) // vd: SEW8/16/32 -> 1/2/4 registers (LMUL 1/2/4).
+      for (uint32_t K = 0; K < EMUL && Z.Rd + K < RegId::NumPerFile; ++K)
+        I.Dsts.push_back(RegId::v(Z.Rd + K));
+    break;
+  }
+  case ZvtKind::VtLoad:
+  case ZvtKind::VtStore: {
+    if (VL == 0) {
+      MakeNop();
+      break;
+    }
+    bool IsStore = Z.Kind == ZvtKind::VtStore;
+    I.Mtx.Op = IsStore ? MatrixOp::TileStore : MatrixOp::TileLoad;
+    I.Mtx.ElemBytes = Z.EEWBytes;
+    // vl is clamped to the tile edge (Lsu.scala:328); unit stride from rs1.
+    uint32_t Elems = std::min(VL, TileEdge);
+    I.Mtx.TN = static_cast<uint8_t>(Elems);
+    setTileGroup(I, getTileSlice(I.Rs2Val).Tile, Z.EEWBytes);
+    for (uint32_t E = 0; E < Elems; ++E)
+      I.Mem.push_back({I.Rs1Val + E * Z.EEWBytes, Z.EEWBytes, IsStore});
+    break;
+  }
+  case ZvtKind::VtMM: {
+    // Legal configurations (rvv_backend_decode_unit_ari.sv:2472-2492,
+    // :3039-3055): int8 {SEW8, x4}; bf16 {SEW16, x2, altfmt}; fp32 {SEW32,
+    // x1, no altfmt}.
+    bool TypeOk = !Z.Float ? I.SEWBytes == 1 && Zvt.MTWiden == 3
+                  : I.SEWBytes == 2
+                      ? Zvt.MTWiden == 2 && Zvt.AltFmt
+                      : I.SEWBytes == 4 && Zvt.MTWiden == 1 && !Zvt.AltFmt;
+    // vs1 and vs2 must be aligned for their element width, or the decoder
+    // rejects the vtmm and it retires as a no-op (check_vme_vs{1,2}_align,
+    // rvv_backend_decode_unit_ari.sv:3219-3233, :3789-3791): int8 needs
+    // register bits 2:1 = 0 (v0, v1, v8, v9, ...), bf16 bits 2 and 0 = 0
+    // (v0, v2, v8, v10, ...), fp32 bits 1:0 = 0 (v0, v4, v8, ...).
+    auto OperandOk = [&I](uint32_t Reg) {
+      switch (I.SEWBytes) {
+      case 1:
+        return (Reg & 0b110U) == 0;
+      case 2:
+        return (Reg & 0b101U) == 0;
+      default:
+        return (Reg & 0b011U) == 0;
+      }
+    };
+    if (!TypeOk || Zvt.TM == 0 || VL == 0 || Zvt.TK == 0 ||
+        Misaligned(Z.Rd >> 1, 4) || !OperandOk(Z.Rs1) || !OperandOk(Z.Rs2)) {
+      MakeNop();
+      break;
+    }
+    I.Mtx.Op = MatrixOp::Mac;
+    I.Mtx.TM = static_cast<uint8_t>(Zvt.TM);
+    I.Mtx.TN = static_cast<uint8_t>(std::min(VL, TileEdge));
+    I.Mtx.TK = static_cast<uint8_t>(Zvt.TK);
+    I.Mtx.Type = !Z.Float          ? MatrixType::Int8
+                 : I.SEWBytes == 2 ? MatrixType::Bf16
+                                   : MatrixType::Fp32;
+    I.Mtx.ElemBytes = 4;
+    setTileGroup(I, Z.Rd >> 1, 4); // The accumulator has 32-bit elements.
+    break;
+  }
+  default:
+    break;
+  }
 }

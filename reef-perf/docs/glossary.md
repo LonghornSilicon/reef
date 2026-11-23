@@ -17,7 +17,7 @@ From largest to smallest:
 | **pool** | A set of identical hardware resources that operations book for some cycles. | `ResourcePool` |
 | **resource** | One member of a pool: one ALU, one vector lane, one memory port. | a `ResourcePool` entry |
 | **functional unit (FU)** | A hardware execution resource for one kind of operation: ALU, multiplier, divider, FPU. Modeled as a pool, not as a unit. Always write the full term. | `ScalarExec`'s `ALU`, `MUL`, ... pools |
-| **lane** | One execution resource of the vector or matrix engine. An instruction occupies one for its occupancy. | `vec_lanes`, `mtx_lanes` |
+| **lane** | One execution resource of the matrix engine. An instruction occupies one for its occupancy. The vector engine has functional units instead. | `mtx_lanes` |
 | **engine** | The hardware the vector or matrix module models ("the vector engine"). | the `vector` and `matrix` modules |
 
 Two names coincide on purpose: the **core** is the module with dispatch,
@@ -46,6 +46,7 @@ and **stage** aren't used; pick one of the terms above.
 | --- | --- |
 | **instruction** | One dynamic instruction: an `Inst`, shared as an `InstRef`. |
 | **class** | An instruction's coarse kind (`InstClass`: ALU, LOAD, V_ARITH, ...). |
+| **instruction group** | A set of vector instructions with the same timing, which the vector config assigns to one functional unit pool (`VectorGroup`: `alu_addsub`, `compare`, `widening_reduce`, ...). Every vector instruction is in exactly one. Not a class: finer, and owned by the vector module. |
 | **exec target** | The unit that executes an instruction (`ExecTarget`), decided from its class. |
 | **fetch, dispatch, issue, retire** | When the frontend fetches it, dispatch sends it to its exec target and the Rob, its execution starts, and it leaves the Rob. `Inst` records each as a `*Cycle`. |
 | **result ready** | The first cycle a dependent instruction may dispatch. |

@@ -1,0 +1,101 @@
+From 41bd7ad16adcd17c742e9b1d00a371d9311c47c4 Mon Sep 17 00:00:00 2001
+From: Alex Van Damme <atv@google.com>
+Date: Thu, 24 Sep 2026 19:38:11 +0000
+Subject: [PATCH 1/8] Add mpause
+
+---
+ riscv/decode.h       | 3 +++
+ riscv/encoding.h     | 3 +++
+ riscv/insns/mpause.h | 7 +++++++
+ riscv/platform.h     | 6 +++---
+ riscv/riscv.mk.in    | 1 +
+ 5 files changed, 17 insertions(+), 3 deletions(-)
+ create mode 100644 riscv/insns/mpause.h
+
+diff --git a/riscv/decode.h b/riscv/decode.h
+index 46cae4e..ed50499 100644
+--- a/riscv/decode.h
++++ b/riscv/decode.h
+@@ -36,6 +36,9 @@ const int NCSR = 4096;
+ #define VCSR_VXRM_SHIFT 1
+ #define VCSR_VXRM  (0x3 << VCSR_VXRM_SHIFT)
+ 
++#define DEBUG_START             0x40000000
++#define DEBUG_END               (0x40001000 - 1)
++
+ #define VCSR_VXSAT_SHIFT 0
+ #define VCSR_VXSAT  (0x1 << VCSR_VXSAT_SHIFT)
+ 
+diff --git a/riscv/encoding.h b/riscv/encoding.h
+index 433bfe7..b350e7c 100644
+--- a/riscv/encoding.h
++++ b/riscv/encoding.h
+@@ -3825,6 +3825,8 @@
+ #define MASK_WADDAU 0xfe0070ff
+ #define MATCH_WADDU 0x1200209b
+ #define MASK_WADDU 0xfe0070ff
++#define MATCH_MPAUSE 0x8000073
++#define MASK_MPAUSE 0xffffffff
+ #define MATCH_WFI 0x10500073
+ #define MASK_WFI 0xffffffff
+ #define MATCH_WMACC 0x2a00209b
+@@ -6112,6 +6114,7 @@ DECLARE_INSN(wadd, MATCH_WADD, MASK_WADD)
+ DECLARE_INSN(wadda, MATCH_WADDA, MASK_WADDA)
+ DECLARE_INSN(waddau, MATCH_WADDAU, MASK_WADDAU)
+ DECLARE_INSN(waddu, MATCH_WADDU, MASK_WADDU)
++DECLARE_INSN(mpause, MATCH_MPAUSE, MASK_MPAUSE)
+ DECLARE_INSN(wfi, MATCH_WFI, MASK_WFI)
+ DECLARE_INSN(wmacc, MATCH_WMACC, MASK_WMACC)
+ DECLARE_INSN(wmaccsu, MATCH_WMACCSU, MASK_WMACCSU)
+diff --git a/riscv/insns/mpause.h b/riscv/insns/mpause.h
+new file mode 100644
+index 0000000..3b6a8b9
+--- /dev/null
++++ b/riscv/insns/mpause.h
+@@ -0,0 +1,7 @@
++#include "insn_macros.h"
++
++require_privilege(PRV_M);
++for (int i = 0; i < 32; i++) {
++  fprintf(stderr, "GPR[%d] = 0x%08" PRIx64 "\n", i, STATE.XPR[i]);
++}
++exit(0);
+diff --git a/riscv/platform.h b/riscv/platform.h
+index 4d14c1c..96d2738 100644
+--- a/riscv/platform.h
++++ b/riscv/platform.h
+@@ -3,7 +3,7 @@
+ #define _RISCV_PLATFORM_H
+ 
+ #define DEFAULT_KERNEL_BOOTARGS "console=ttyS0 earlycon"
+-#define DEFAULT_RSTVEC     0x00001000
++#define DEFAULT_RSTVEC     0x70000000
+ #define DEFAULT_ISA        "rv64imafdc_zicntr_zihpm"
+ #define DEFAULT_PRIV       "MSU"
+ #define CLINT_BASE         0x02000000
+@@ -27,8 +27,8 @@
+ #define NS16550_REG_IO_WIDTH 1
+ #define NS16550_INTERRUPT_ID 1
+ #define EXT_IO_BASE        0x40000000
+-#define DRAM_BASE          0x80000000
+-#define DEBUG_START        0x0
++#define DRAM_BASE          0x00000000
++#define DEBUG_START        0x40000000
+ #define DEBUG_SIZE         0x1000
+ 
+ #endif
+diff --git a/riscv/riscv.mk.in b/riscv/riscv.mk.in
+index df29533..b6c95b6 100644
+--- a/riscv/riscv.mk.in
++++ b/riscv/riscv.mk.in
+@@ -142,6 +142,7 @@ riscv_insn_ext_i = \
+ 	xori \
+ 	fence \
+ 	fence_i \
++	mpause \
+ 
+ riscv_insn_ext_a = \
+ 	amoadd_d \
+-- 
+2.56.0.rc1.315.gc6ed9934b7-goog
+

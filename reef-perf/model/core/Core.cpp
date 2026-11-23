@@ -53,6 +53,8 @@ void Core::bind() {
 
 void Core::setMemory(MemoryInterface *Mem) { TheLsu->setMemory(Mem); }
 
+VectorLsuInterface *Core::getVectorLsu() const { return TheLsu; }
+
 void Core::setInstBuffer(InstBufferInterface *Buffer) {
   TheDispatch->setInstBuffer(Buffer);
 }
@@ -78,6 +80,10 @@ uint64_t Core::getStallCycles(StallReason Reason) const {
 
 const TopDownSlots &Core::getTopDownSlots() const {
   return TheDispatch->getTopDownSlots();
+}
+
+const RobFullHead &Core::getRobFullHead() const {
+  return TheDispatch->getRobFullHead();
 }
 
 const std::vector<McycleRead> &Core::getMcycleReads() const {

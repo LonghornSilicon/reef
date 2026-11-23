@@ -8,12 +8,18 @@
 /// Super-coarse, deliberately simpler than the M3 RTL:
 /// - up to `dispatch_width` per cycle, strictly in order: the first
 ///   instruction that cannot go blocks everything behind it;
-/// - an instruction waits while a register it reads or writes is still being
-///   produced (scoreboard: RAW and WAW hazards);
-/// - an instruction waits while the Rob or its unit's queue is full;
+/// - an instruction waits while a scalar or FP register it reads or writes is
+///   still being produced (scoreboard: RAW and WAW hazards). A load or store
+///   address, scalar store data and a jalr target need the registered value,
+///   one cycle after other readers (Decode.scala:347-361);
+/// - vector registers are not waited for, as on M3, whose scalar scoreboards
+///   cover only x and f. Only vector instructions read them, and the vector
+///   module tracks them itself;
+/// - an instruction waits while the Rob or its unit's queue is full; a vector
+///   load or store also needs an LSU queue entry, as on M3;
 /// - not modeled yet: Reef's special dispatch rules (a branch ends the group,
-///   FP and CSR instructions dispatch alone from slot 0, load/store address
-///   registers need a registered value, CSRs wait for an empty Rob).
+///   FP and CSR instructions dispatch alone from slot 0, CSRs wait for an
+///   empty Rob).
 ///
 /// Every cycle in which nothing dispatches is charged to exactly one stall
 /// reason, so the stall counters add up to cycles - cycles_with_dispatch.
@@ -51,6 +57,7 @@ enum class StallReason : uint8_t {
   LsuFull,   ///< LSU queue full.
   VecFull,   ///< Vector command queue full.
   MtxFull,   ///< Matrix command queue full.
+  CsrDrain,  ///< A CSR or vtdiscard waits for an empty Rob.
   NumReasons ///< Number of reasons (not a reason).
 };
 
@@ -84,6 +91,18 @@ struct TopDownSlots {
   uint64_t getTotal() const;
 };
 
+/// Cycles with no dispatch because the Rob was full, by the Rob's oldest
+/// instruction: its InstClass, or for a matrix instruction its MatrixOp.
+/// The entries add up to the rob_full stall cycles.
+struct RobFullHead {
+  /// Cycles by the oldest instruction's InstClass (not MATRIX).
+  std::array<uint64_t, static_cast<size_t>(InstClass::NUM_CLASSES)> ByClass{};
+  /// Cycles by the oldest matrix instruction's MatrixOp.
+  std::array<uint64_t, static_cast<size_t>(MatrixOp::NumOps)> ByMatrixOp{};
+  /// The Rob had emptied, but its credits were still on their way back.
+  uint64_t CreditReturn = 0;
+};
+
 class Rob;
 
 /// The dispatch unit. Tree location: top.core.dispatch.
@@ -96,6 +115,47 @@ public:
         : sparta::ParameterSet(Node) {}
     PARAMETER(uint32_t, dispatch_width, 4,
               "Max instructions dispatched per cycle")
+    PARAMETER(bool, branch_ends_group, false,
+              "A conditional branch is the last instruction dispatched in "
+              "its cycle (Decode.scala). Off: the M3 model, whose fetch "
+              "rate hides the rule")
+    // Dispatch rules of CoralNPU's Decode.scala that the M3 model leaves
+    // out (deviations D3, M2). Each is off by default.
+    PARAMETER(bool, slot0_only_rule, false,
+              "CSR, fence, system and FP instructions, vector instructions "
+              "that read or write an f register, and vtdiscard dispatch "
+              "first in their cycle, with nothing else (forceSlot0Only)")
+    PARAMETER(bool, jump_ends_group, false,
+              "jal, jalr, ecall, ebreak, mret and mpause are the last "
+              "instruction dispatched in their cycle (isJump)")
+    PARAMETER(bool, csr_waits_for_empty_rob, false,
+              "A CSR instruction is dispatched only when the retirement "
+              "buffer is empty")
+    PARAMETER(bool, vtdiscard_interlock, false,
+              "vtdiscard is dispatched only when the retirement buffer is "
+              "empty. The RTL also waits for the RVV backend and the LSU "
+              "to be idle, which this does not model")
+    PARAMETER(bool, rvv_config_interlock, false,
+              "A vector or tile load or store is not dispatched in the cycle "
+              "after a vector-engine instruction was, nor behind a vset* in "
+              "its own cycle: the RVV front end's config state is invalid "
+              "while it holds an instruction (RvvFrontEnd.sv:86-93, "
+              "Decode.scala rvvConfigInterlock)")
+    PARAMETER(uint32_t, vector_scalar_waw_delay, 0,
+              "Cycles after a vector instruction's scalar result is written "
+              "(vmv.x.s, vcpop, vfirst) before a later vector instruction "
+              "writing the same x register may dispatch (0 on M3's model). "
+              "A scalar writer does not wait")
+    PARAMETER(bool, rd_field_waw, false,
+              "CoralNPU's decoder treats bits 11:7 of every instruction but "
+              "an integer store or a conditional branch as an x destination "
+              "for WAW (Decode.scala writesRd), vector, Zvt and FP ones "
+              "included: such an instruction waits for an in-flight scalar "
+              "write of that x register, and for an earlier instruction in "
+              "its cycle with the same field, x0 included")
+    PARAMETER(uint32_t, load_waw_advance, 1,
+              "Cycles before a load's result is ready that a later writer "
+              "of the same register may dispatch (1 on M3)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -115,6 +175,9 @@ public:
 
   /// \returns where the dispatch slots went.
   const TopDownSlots &getTopDownSlots() const { return Slots; }
+
+  /// \returns the rob_full stall cycles by the Rob's oldest instruction.
+  const RobFullHead &getRobFullHead() const { return RobHead; }
 
   /// \returns the cycles in which at least one instruction dispatched.
   uint64_t getCyclesWithDispatch() const { return CyclesWithDispatch.get(); }
@@ -141,14 +204,29 @@ private:
   void sendToTarget(const InstRef &I);
 
   const uint32_t DispatchWidth;
+  const uint32_t LoadWawAdvance;
+  const uint32_t VectorScalarWawDelay;
+  const bool BranchEndsGroup;
+  const bool Slot0OnlyRule;
+  const bool JumpEndsGroup;
+  const bool CsrWaitsForEmptyRob;
+  const bool VtdiscardInterlock;
+  const bool RvvConfigInterlock;
+  const bool RdFieldWaw;
+  std::vector<uint32_t>
+      GroupRdFields; // rd_field_waw: fields dispatched this cycle.
 
   InstBufferInterface *Frontend = nullptr;
   const Rob *TheRob = nullptr;
   TopDownSlots Slots;
+  RobFullHead RobHead;
   // Scoreboard: the in-flight instruction that last wrote each register.
   std::array<InstRef, RegId::NumDense> LastWriter{};
 
   uint32_t RobCredits = 0;
+  Cycle LastRvvDispatch = Inst::Never; // Latest vector-engine dispatch.
+  Cycle LastVsetDispatch = Inst::Never;
+  uint32_t RobSize = 0; // The Rob's first credits: its entries.
   uint32_t LsuCredits = 0;
   uint32_t VecCredits = 0;
   uint32_t MtxCredits = 0;

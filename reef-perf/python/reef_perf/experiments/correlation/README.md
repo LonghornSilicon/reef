@@ -43,3 +43,23 @@ is what fails when timing changes without the golden file being updated.
 `rtl_trace.py` reads a trace log and returns the ROI cycles
 (`s11 - s10`) and the instructions retired in between; see B01 in
 `docs/roadmap.md` for the commands.
+
+## The pinned RTL (`pinned.py`)
+
+`python -m reef_perf.experiments.correlation.pinned` scores a second machine,
+`m3.yaml` + `configs/machines/coral_pinned.yaml`, against CoralNPU `8a5e1b31`,
+the RTL that has the Zvt matrix engine. It runs the core, frontend and
+vector-unit microbenchmarks and the kernel ELFs, and reports the error by
+suite next to how far the RTL itself moved from M3. `--no-overlay` scores
+plain `m3.yaml` against the same RTL.
+
+The RTL numbers are in `rtl_pinned.csv` next to each `rtl_m3.csv`. They come
+from `vme_core_mini_verification_axi_sim --backdoor_load --instr_trace` on
+the same ELFs as the M3 numbers; `rvv_core_mini_verification_axi_sim` at the
+same commit (the build without the matrix engine) gives identical counts on
+all of them.
+
+`tests/golden/pinned_results.json` pins this machine's cycle counts, as
+`m3_results.json` does for M3. Work on `coral_pinned.yaml` regenerates only
+the pinned file (`REEF_PERF_UPDATE_PINNED_GOLDEN=1`); the M3 file must stay
+as it is.

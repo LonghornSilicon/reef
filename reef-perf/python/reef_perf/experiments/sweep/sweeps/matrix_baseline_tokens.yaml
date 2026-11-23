@@ -1,0 +1,38 @@
+# Matrix-engine experiment, docs/matrix-experiments.md. Kernel ELFs from
+# inference-engine/coral (PR #57): set E2E_ROOT to their build directory, with
+# one subdirectory per build: t1 (E2E_TOKENS=1 E2E_START_POS=16), t2, t4,
+# t8 (defaults), t8p8 (E2E_START_POS=8), t1p79 (E2E_TOKENS=1
+# E2E_START_POS=79).
+#
+# Whole-token baseline: every kernel for decode tokens 17 and 80 and for a
+# 16-token prefill (blocks at 0 and 8), at both flash speeds. Adds up to
+# tokens/s and time to first token (docs/matrix-experiments.md, Workloads).
+
+name: matrix_baseline_tokens
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml
+  - configs/memory/psram_kv.yaml
+sim_args: [--ext-mem-mb, "160"]
+programs:
+  embed_t1: ${E2E_ROOT}/t1/embed.elf
+  layernorm_t1: ${E2E_ROOT}/t1/layernorm.elf
+  qkv_t1: ${E2E_ROOT}/t1/qkv.elf
+  attention_t1_pos16: ${E2E_ROOT}/t1/attention.elf
+  attention_t1_pos79: ${E2E_ROOT}/t1p79/attention.elf
+  attn_out_t1: ${E2E_ROOT}/t1/attn_out.elf
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc2_t1: ${E2E_ROOT}/t1/fc2.elf
+  lm_head_t1: ${E2E_ROOT}/t1/lm_head.elf
+  embed_t8: ${E2E_ROOT}/t8/embed.elf
+  layernorm_t8: ${E2E_ROOT}/t8/layernorm.elf
+  qkv_t8: ${E2E_ROOT}/t8/qkv.elf
+  attention_t8_pos0: ${E2E_ROOT}/t8/attention.elf
+  attention_t8_pos8: ${E2E_ROOT}/t8p8/attention.elf
+  attn_out_t8: ${E2E_ROOT}/t8/attn_out.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+  fc2_t8: ${E2E_ROOT}/t8/fc2.elf
+grid:
+  overlay: [configs/memory/xspi_str.yaml, configs/memory/xspi_dtr.yaml]

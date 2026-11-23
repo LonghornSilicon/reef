@@ -42,7 +42,7 @@ target_link_libraries(spike INTERFACE ${CMAKE_DL_LIBS} pthread)
 
 # The model as a library, so the simulator, tools and tests share it.
 # One block per module; see docs/interfaces.md.
-add_library(reef_perf_core STATIC
+set(REEF_PERF_CORE_SOURCES
     model/common/Inst.cpp
     model/common/Module.cpp
     model/common/ResourcePool.cpp
@@ -50,6 +50,7 @@ add_library(reef_perf_core STATIC
     model/frontend/Fetch.cpp
     model/frontend/FuncSim.cpp
     model/frontend/InstDecode.cpp
+    model/frontend/Zvt.cpp
 
     model/core/Core.cpp
     model/core/Dispatch.cpp
@@ -58,14 +59,20 @@ add_library(reef_perf_core STATIC
     model/core/ScalarExec.cpp
 
     model/vector/Vector.cpp
+    model/vector/VectorPipeline.cpp
 
     model/matrix/Matrix.cpp
+    model/matrix/MatrixFabric.cpp
 
+    model/memory/Dma.cpp
+    model/memory/Host.cpp
     model/memory/MemTiming.cpp
     model/memory/Memory.cpp
+    model/memory/Tcm.cpp
 
     model/ReefSim.cpp
 )
+add_library(reef_perf_core STATIC ${REEF_PERF_CORE_SOURCES})
 target_include_directories(reef_perf_core PUBLIC model)
 # Spike is public: frontend/FuncSim.h holds Spike objects directly.
 target_link_libraries(reef_perf_core PUBLIC SPARTA::sparta spike)
@@ -83,6 +90,49 @@ endforeach()
 set_target_properties(reef_perf reef_trace PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+# reef_perf_pinned: the same model with Spike as CoralNPU 8a5e1b31 builds it
+# (ext/spike-pinned with third_party/spike-pinned/*.patch), for
+# configs/machines/coral_pinned.yaml. Built only when that Spike is
+# installed: in the Docker image (/opt/reef-perf/spike-pinned), or with
+# scripts/build_deps.sh build/deps spike-pinned inside an older image.
+# reef_perf keeps ext/spike, so M3 runs do not change.
+if(EXISTS "${REEF_PERF_DEPS}/spike-pinned/lib/libriscv.a")
+    set(_pinned_spike_default "${REEF_PERF_DEPS}/spike-pinned")
+else()
+    set(_pinned_spike_default "${CMAKE_SOURCE_DIR}/build/deps/spike-pinned")
+endif()
+set(REEF_PERF_PINNED_SPIKE "${_pinned_spike_default}"
+    CACHE PATH "Install prefix of the pinned-RTL Spike")
+if(EXISTS "${REEF_PERF_PINNED_SPIKE}/lib/libriscv.a")
+    add_library(spike_pinned INTERFACE)
+    target_include_directories(spike_pinned SYSTEM BEFORE INTERFACE
+        "${REEF_PERF_PINNED_SPIKE}/include")
+    foreach(lib riscv disasm fesvr fdt softfloat)
+        target_link_libraries(spike_pinned INTERFACE
+            "${REEF_PERF_PINNED_SPIKE}/lib/lib${lib}.a")
+    endforeach()
+    target_link_libraries(spike_pinned INTERFACE ${CMAKE_DL_LIBS} pthread)
+
+    add_library(reef_perf_core_pinned STATIC ${REEF_PERF_CORE_SOURCES})
+    target_include_directories(reef_perf_core_pinned PUBLIC model)
+    # The pinned Spike's headers come first: Sparta's include directory also
+    # holds ext/spike's.
+    target_link_libraries(reef_perf_core_pinned PUBLIC spike_pinned
+        SPARTA::sparta)
+    target_compile_definitions(reef_perf_core_pinned PUBLIC
+        REEF_PERF_PINNED_SPIKE=1)
+    target_compile_options(reef_perf_core_pinned PRIVATE ${REEF_PERF_WARNINGS})
+
+    add_executable(reef_perf_pinned model/main.cpp)
+    target_link_libraries(reef_perf_pinned PRIVATE reef_perf_core_pinned)
+    target_compile_options(reef_perf_pinned PRIVATE ${REEF_PERF_WARNINGS})
+    set_target_properties(reef_perf_pinned PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+else()
+    message(STATUS "Pinned-RTL Spike not found in ${REEF_PERF_PINNED_SPIKE}: "
+                   "reef_perf_pinned is not built")
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

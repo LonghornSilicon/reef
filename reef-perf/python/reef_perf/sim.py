@@ -9,8 +9,8 @@ import os
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +81,16 @@ class SimResult:
         pools: Per pool: count (resources), ops and busy_cycles.
         topdown: Where the dispatch slots went, as the simulator reports it;
             reef_perf.topdown turns it into a tree.
+        matrix: Matrix-engine statistics (ops by kind, MACs, utilization,
+            memory beats, and area/energy estimates when configured); empty
+            for output written before the matrix module reported them.
+        zvt_mismatches: With frontend.zvt_in_spike, the Zvt instructions on
+            which reef-perf's Zvt layer and Spike disagreed; None otherwise.
+        zvt_rtl_nops: With frontend.zvt_in_spike, the Zvt instructions the
+            RTL retires as no-ops, which Spike did not run; None otherwise.
+        rob_full_head: The rob_full stall cycles by the Rob's oldest
+            instruction: its class, or matrix_<op>; empty for output
+            written before the simulator reported it.
     """
 
     program: str
@@ -95,6 +105,10 @@ class SimResult:
     dispatch: dict[str, int]
     pools: dict[str, dict[str, int]]
     topdown: dict[str, Any]
+    matrix: dict[str, Any] = field(default_factory=dict)
+    zvt_mismatches: int | None = None
+    zvt_rtl_nops: int | None = None
+    rob_full_head: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "SimResult":
@@ -128,6 +142,18 @@ class SimResult:
                 for name, counters in data["pools"].items()
             },
             topdown=dict(data["topdown"]),
+            matrix=dict(data.get("matrix", {})),
+            zvt_mismatches=(
+                int(data["zvt_mismatches"])
+                if "zvt_mismatches" in data
+                else None
+            ),
+            zvt_rtl_nops=(
+                int(data["zvt_rtl_nops"]) if "zvt_rtl_nops" in data else None
+            ),
+            rob_full_head={
+                k: int(v) for k, v in data.get("rob_full_head", {}).items()
+            },
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -155,6 +181,8 @@ def run_sim(
     params: Mapping[str, object] | None = None,
     binary: Path | None = None,
     timeout: float | None = None,
+    overlay_configs: Sequence[Path] = (),
+    extra_args: Sequence[str] = (),
 ) -> SimResult:
     """Run one program on the simulator.
 
@@ -165,6 +193,9 @@ def run_sim(
             {"top.frontend.params.fetch_interval": 2}.
         binary: Simulator executable; found with find_binary() by default.
         timeout: Seconds before the run is abandoned.
+        overlay_configs: Configuration files applied after sim_config, in
+            order; each overrides the values it lists.
+        extra_args: Further simulator options, e.g. ["--ext-mem-mb", "160"].
 
     Returns:
         The simulator's summary.
@@ -179,8 +210,11 @@ def run_sim(
         cmd += ["--json", str(json_path)]
         if sim_config is not None:
             cmd += ["-c", str(Path(sim_config).resolve())]
+        for overlay in overlay_configs:
+            cmd += ["-c", str(Path(overlay).resolve())]
         for key, value in (params or {}).items():
             cmd += ["-p", key, str(value)]
+        cmd += [str(arg) for arg in extra_args]
         proc = subprocess.run(
             cmd,
             capture_output=True,

@@ -1,0 +1,16 @@
+diff --git a/hdl/verilog/rvv/inc/rvv_backend_define.svh b/hdl/verilog/rvv/inc/rvv_backend_define.svh
+index 1d281ab6..ddd59931 100755
+--- a/hdl/verilog/rvv/inc/rvv_backend_define.svh
++++ b/hdl/verilog/rvv/inc/rvv_backend_define.svh
+@@ -212,8 +212,9 @@
+     `define COMPRATIO         1/4
+     `define PROCESS_DELAY     4
+   `else       
+-    `define COMPRATIO         4/`TE
+-    `define PROCESS_DELAY     `TE/4
++    // Reef D4 experiment: 128 PEs (COMPRATIO 1/2 at TE 16), 2 steps per tile.
++    `define COMPRATIO         8/`TE
++    `define PROCESS_DELAY     `TE/8
+   `endif 
+ 
+   `define ZVT_LMUL            (`WORD_WIDTH*`TE/`VLEN)

@@ -9,7 +9,7 @@
 ///   top.frontend  fetch, with Spike and decode behind it
 ///   top.core      dispatch, scalar_exec, lsu, rob
 ///   top.vector    the RVV backend
-///   top.matrix    the matrix engine (stub)
+///   top.matrix    the matrix engine (Zvt)
 ///   top.memory    ITCM, DTCM and the AXI port
 ///
 //===----------------------------------------------------------------------===//

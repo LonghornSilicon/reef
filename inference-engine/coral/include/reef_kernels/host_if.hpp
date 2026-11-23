@@ -18,7 +18,12 @@
 
 namespace reef_kernels {
 
-inline constexpr std::uint32_t kMailboxAddress = 0x00100000;
+// The first byte of DTCM in the memory map the program was linked for.
+#ifdef REEF_KERNELS_M3_MAP
+inline constexpr std::uint32_t kMailboxAddress = 0x00010000; // link_m3.ld
+#else
+inline constexpr std::uint32_t kMailboxAddress = 0x00100000; // link.ld
+#endif
 inline constexpr std::uint32_t kMailboxTokens = 256;
 
 enum class Status : std::uint32_t {
