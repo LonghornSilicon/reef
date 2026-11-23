@@ -1,0 +1,762 @@
+diff --git a/reef-perf/configs/machines/m3.yaml b/reef-perf/configs/machines/m3.yaml
+index 4423ceb..acadffd 100644
+--- a/reef-perf/configs/machines/m3.yaml
++++ b/reef-perf/configs/machines/m3.yaml
+@@ -147,7 +147,7 @@ top:
+       dma_setup_cycles: 20    # ASSUMPTION; no Reef source (HyperRAM latency and descriptor fetch)
+       dma_beat_bytes: 16      # CoreAxi.scala: dtcmWidth = axi2DataBits = 128
+       dma_queue_depth: 0      # ASSUMPTION; 0 = no limit. A GO into a full queue holds the e-bus
+-      dma_stream_loads: false # EXPERIMENT; true: a core load waits for its own bytes of a transfer in flight, not for the whole transfer
++      dma_channels: 1         # ASSUMPTION; 2 gives each external memory link its own channel
+       # The host's ITCM load before the core leaves reset (memory/Host.h). Off,
+       # so runs start in cycle 0 as the RTL testbench does (it backdoor-loads).
+       host_boot: false
+diff --git a/reef-perf/docs/deviations.md b/reef-perf/docs/deviations.md
+index 50687b0..0edd89b 100644
+--- a/reef-perf/docs/deviations.md
++++ b/reef-perf/docs/deviations.md
+@@ -135,7 +135,7 @@ budget once measurements exist.
+ | A4 | Wrong-path fetch modeled as a timed bubble only | Should be close to exact, since the core is in-order |
+ | A5 | The DMA (`memory/Dma.h`) is not in M3. It follows the Reef SoC plan (`atlas-soc/docs/dma.md`). Its register address, register layout, `dma_setup_cycles` and `dma_queue_depth` are assumptions. With a depth set, a GO store that finds the queue full holds the e-bus until the oldest transfer finishes; if that transfer is later pushed out, the GO keeps the cycle it was taken. It models timing only: Spike does not copy the data. A WAIT load gets the finish cycle known when it books. A later core access can still move the finish out | Anything that depends on DMA timing; no RTL to correlate against |
+ | A6 | The host's boot load (`memory/Host.h`) times the ITCM image, the DTCM image with `host_boot_data`, and the release write, at `host_setup_cycles` + bytes x `host_cycles_per_byte`. Both numbers are assumptions: there is no Reef source for the host link. No arbiter: the core is in reset during boot (`CoreAxiCSR.scala`, `resetReg` starts at 3), so the host has the TCMs to itself. Off by default | Boot time and anything that reloads the TCMs. The host does not write external memory, and it does not read the generated tokens back |
+-| A7 | External memory (`ExtMemModel` in `memory/MemTiming.h`) is up to two links, each with a first-byte latency and a rate. The first (`ext_mem_*`) is the weight flash. The second (`ext_ram_*`) is a RAM for the KV cache: the address range `ext_ram_base` + `ext_ram_mb`, with its own read and write latency. A burst limit (`*_max_burst_bytes`) splits an operation into bursts that each pay the latency. The two links do not wait for each other, but the DMA still runs one transfer at a time, so a flash transfer and a RAM transfer started by the DMA do not overlap. The core's e-bus accesses and the DMA share each link in order. There is no request FIFO, no read/write turnaround and no refresh. A rate of 0 turns a link off, as in `m3.yaml`. `configs/memory/xspi_str.yaml`, `xspi_dtr.yaml` and `psram_kv.yaml` hold the Reef SoC's numbers, from the RTL team's datasheet values at a 25 MHz link clock; the rates are still to confirm. A queued DMA transfer that moves later keeps its original link booking; only its finish moves | Anything that streams weights or the KV cache from external memory |
++| A7 | External memory (`ExtMemModel` in `memory/MemTiming.h`) is up to two links, each with a first-byte latency and a rate. The first (`ext_mem_*`) is the weight flash. The second (`ext_ram_*`) is a RAM for the KV cache: the address range `ext_ram_base` + `ext_ram_mb`, with its own read and write latency. A burst limit (`*_max_burst_bytes`) splits an operation into bursts that each pay the latency. The two links do not wait for each other. The DMA runs one transfer at a time by default, so a flash transfer and a RAM transfer started by the DMA do not overlap; `dma_channels` 2 gives each link its own channel and they do (an assumption, no Reef source). The core's e-bus accesses and the DMA share each link in order. There is no request FIFO, no read/write turnaround and no refresh. A rate of 0 turns a link off, as in `m3.yaml`. `configs/memory/xspi_str.yaml`, `xspi_dtr.yaml` and `psram_kv.yaml` hold the Reef SoC's numbers, from the RTL team's datasheet values at a 25 MHz link clock; the rates are still to confirm. A queued DMA transfer that moves later keeps its original link booking; only its finish moves | Anything that streams weights or the KV cache from external memory |
+ | A8 | Fetch books its ITCM line every fetch group but keeps its own timing (`fetch_interval`). An LSU load from the ITCM wins the cycle, as in the RTL, but the model does not delay fetch for it. Fetch outside the ITCM is not timed | Programs that load data from the ITCM; code running outside the ITCM |
+ 
+ ## Appendix: changes after M3 (for when the pin moves)
+diff --git a/reef-perf/docs/memory-backlog.md b/reef-perf/docs/memory-backlog.md
+index 5111c99..099017e 100644
+--- a/reef-perf/docs/memory-backlog.md
++++ b/reef-perf/docs/memory-backlog.md
+@@ -11,21 +11,6 @@ inference runs. Then the core does not wait for the host after each run, and
+ the compute units stay busy. The cost is DTCM space for the waiting prompt.
+ This is a sweep: measure the time saved against the DTCM used.
+ 
+-### Use a chunk while it arrives
+-
+-`dma_stream_loads` makes a core load from the destination of an unfinished
+-DMA transfer wait for its own bytes, not for the whole transfer
+-(`Dma::getArrival`). With it, a firmware loop can start on a chunk before
+-the chunk is all in. Hardware for this would let the LSU see how far a
+-transfer is.
+-
+-Measured on a token 200 decode step with the wait removed from `linear()`
+-of the end-to-end firmware: +2.8% at 50 MB/s of flash, +4.4% at 87.5 MB/s,
+-+0.4% at 100 MB/s and +0.2% above. The gain is from transfers that run back
+-to back; the link rate still sets the time below 100 MB/s, and the core
+-sets it above. The arrival time does not include a beat that a core access
+-pushed out.
+-
+ ### LSU occupancy
+ 
+ The LSU starts one memory instruction every 4 cycles. A load-heavy kernel is
+@@ -60,8 +45,11 @@ QSPI PSRAM. These are still open:
+ - The controller's own latency and any pipeline stages on the route to the
+   DTCM.
+ - The controller FIFO depth and what a full FIFO does (`dma_queue_depth`).
+-- Whether the DMA has one channel or one per memory. The model has one, so
+-  DMA transfers to the two memories do not overlap.
++- Whether the DMA has one channel or one per memory. The default is one, so
++  DMA transfers to the two memories do not overlap; `dma_channels` 2 models
++  one per memory. The end-to-end firmware never has a flash transfer and a
++  RAM transfer in flight together, so a token 512 decode step takes the same
++  cycles either way.
+ - What `dma_setup_cycles` (20) stands for now that each link has its own
+   latency. It may count the same delay twice.
+ - The firmware's memory map. It keeps the KV cache after the weights in one
+diff --git a/reef-perf/model/common/MemoryMap.h b/reef-perf/model/common/MemoryMap.h
+index 2bd8e36..91e286c 100644
+--- a/reef-perf/model/common/MemoryMap.h
++++ b/reef-perf/model/common/MemoryMap.h
+@@ -47,7 +47,7 @@ struct LoadSegment {
+ /// stores and loads go out through the e-bus. Not in M3; the address is an
+ /// assumption, outside the M3 testbench's memory (0x20000000, 4 MB).
+ inline MemoryRegion getDmaRegsRegion() {
+-  return {0x40000000, 0x20, RegionKind::External};
++  return {0x40000000, 0x40, RegionKind::External};
+ }
+ 
+ /// \returns the M3 verification testbench's external memory: 4 MB at
+diff --git a/reef-perf/model/common/StreamFifo.h b/reef-perf/model/common/StreamFifo.h
+new file mode 100644
+index 0000000..fb1856d
+--- /dev/null
++++ b/reef-perf/model/common/StreamFifo.h
+@@ -0,0 +1,66 @@
++//===- StreamFifo.h - Weight stream into the matrix engine (study) --------===//
++//
++// Study assumption (step 3.17), not in the RTL: a FIFO in the matrix engine
++// that DMA transfers to the stream window fill from the flash, and that MACs
++// with B = v25 read 64 B at a time instead of a vector register.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef REEF_PERF_COMMON_STREAMFIFO_H
++#define REEF_PERF_COMMON_STREAMFIFO_H
++
++#include "common/Types.h"
++
++#include <algorithm>
++#include <cstdio>
++#include <vector>
++
++namespace reef_perf {
++
++/// The stream windows: DMA destinations in window N go into FIFO N (0: the
++/// weights, B = v25; 1: the KV cache, B = v24, step 3.20).
++constexpr Address StreamBase = 0x50000000;
++constexpr Address StreamBytes = 0x01000000;
++constexpr unsigned NumStreams = 2;
++
++struct StreamFifo {
++  std::vector<Cycle> Ready; // Arrival of each 64-byte unit, in order.
++  size_t Popped = 0;
++  size_t Arrived = 0;
++  size_t MaxHeld = 0;
++  size_t Underflows = 0;
++
++  /// \returns the cycle the next 64 bytes are there for a MAC that could
++  /// start at \p At.
++  Cycle pop(Cycle At) {
++    while (Arrived < Ready.size() && Ready[Arrived] <= At)
++      ++Arrived;
++    if (Popped >= Ready.size()) {
++      ++Underflows;
++      return At;
++    }
++    MaxHeld = std::max(MaxHeld, Arrived > Popped ? Arrived - Popped : 0);
++    return Ready[Popped++];
++  }
++
++  unsigned Id = 0;
++
++  ~StreamFifo() {
++    if (!Ready.empty())
++      std::fprintf(stderr,
++                   "stream fifo %u: %zu units of 64 B pushed, %zu popped, "
++                   "%zu underflows, at most %zu units held\n",
++                   Id, Ready.size(), Popped, Underflows, MaxHeld);
++  }
++};
++
++/// \returns stream FIFO \p Id of the run.
++inline StreamFifo &getStreamFifo(unsigned Id = 0) {
++  static StreamFifo Fifos[NumStreams];
++  Fifos[Id].Id = Id;
++  return Fifos[Id];
++}
++
++} // namespace reef_perf
++
++#endif // REEF_PERF_COMMON_STREAMFIFO_H
+diff --git a/reef-perf/model/matrix/Matrix.cpp b/reef-perf/model/matrix/Matrix.cpp
+index 87a61a3..9f3db2a 100644
+--- a/reef-perf/model/matrix/Matrix.cpp
++++ b/reef-perf/model/matrix/Matrix.cpp
+@@ -2,6 +2,8 @@
+ 
+ #include "matrix/Matrix.h"
+ 
++#include "common/StreamFifo.h"
++
+ #include "sparta/events/StartupEvent.hpp"
+ #include "sparta/utils/SpartaAssert.hpp"
+ 
+@@ -79,6 +81,7 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
+       LsuFifoEntries(
+           atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
+       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
++      StreamB(Params->mtx_stream_b),
+       AreaPerPe(Params->mtx_area_per_pe_um2),
+       TileStorageArea(Params->mtx_tile_storage_area_um2),
+       EnergyPerMac(Params->mtx_energy_per_mac_pj),
+@@ -130,6 +133,8 @@ Cycle Matrix::getVectorSourcesReady(const Inst &I) const {
+     if (Reg.getFile() != RegFile::V)
+       continue;
+     unsigned Idx = Reg.getIndex();
++    if (StreamB && (Idx == 25 || Idx == 24))
++      continue; // The weight stream, not a register.
+     Ready = std::max(Ready, OwnVReady.at(Idx));
+     if (VectorRegs)
+       Ready = std::max(Ready, VectorRegs->getRegisterReady(Idx));
+@@ -328,6 +333,16 @@ void Matrix::executeInst(const InstRef &I) {
+   // tile-load pop behind it comes at 14 (waveform of tile_load_behind_mac).
+   if (UsesCtrl && CtrlWaitsForDrain)
+     Earliest = std::max(Earliest, ArrayDrain + 1);
++  // A MAC with B = v25 waits for its 64 bytes of the weight stream; with
++  // B = v24, of the KV stream.
++  if (StreamB && M.Op == MatrixOp::Mac)
++    for (RegId Reg : I->Srcs)
++      if (Reg.getFile() == RegFile::V &&
++          (Reg.getIndex() == 25 || Reg.getIndex() == 24)) {
++        Earliest = std::max(
++            Earliest, getStreamFifo(Reg.getIndex() == 25 ? 0 : 1).pop(Earliest));
++        break;
++      }
+   Cycle Start = Earliest;
+   Cycle Done = Earliest;
+   uint64_t SliceSubtiles =
+@@ -350,6 +365,8 @@ void Matrix::executeInst(const InstRef &I) {
+     Stats.UsefulMacs += Cost.UsefulMacs;
+     Stats.CapacityMacs += Cost.CapacityMacs;
+     Stats.ArrayBusyCycles += Cost.Busy;
++    NumMacs += Cost.UsefulMacs;
++    NumBusyCycles += Cost.Busy;
+     // The accumulator rows touched are read and written once.
+     uint64_t AccSubtiles =
+         (uint64_t{M.TM} * M.TN * 4 + SubtileBytes - 1) / SubtileBytes;
+diff --git a/reef-perf/model/matrix/Matrix.h b/reef-perf/model/matrix/Matrix.h
+index c56aa6d..e75d30b 100644
+--- a/reef-perf/model/matrix/Matrix.h
++++ b/reef-perf/model/matrix/Matrix.h
+@@ -74,6 +74,9 @@ public:
+     explicit MatrixParameterSet(sparta::TreeNode *Node)
+         : sparta::ParameterSet(Node) {}
+     // Core interface and command path.
++    PARAMETER(bool, mtx_stream_b, false,
++              "MACs with B = v25 read B from the weight stream (study "
++              "assumption, not in the RTL)")
+     PARAMETER(uint32_t, mtx_queue_entries, 8,
+               "Matrix instructions Dispatch may send ahead of the engine "
+               "(credits)")
+@@ -245,6 +248,7 @@ private:
+   const uint32_t TileReadLatency;
+   const uint32_t LsuFifoEntries;
+   const bool CtrlWaitsForDrain;
++  const bool StreamB;
+   const double AreaPerPe;
+   const double TileStorageArea;
+   const double EnergyPerMac;
+@@ -283,6 +287,11 @@ private:
+   sparta::Counter NumExecuted{&unit_stat_set_, "num_executed",
+                               "Matrix instructions executed",
+                               sparta::Counter::COUNT_NORMAL};
++  sparta::Counter NumMacs{&unit_stat_set_, "num_macs", "Useful MACs",
++                          sparta::Counter::COUNT_NORMAL};
++  sparta::Counter NumBusyCycles{&unit_stat_set_, "num_busy_cycles",
++                                "Array busy cycles",
++                                sparta::Counter::COUNT_NORMAL};
+ };
+ 
+ } // namespace reef_perf
+diff --git a/reef-perf/model/memory/Dma.cpp b/reef-perf/model/memory/Dma.cpp
+index 2c7b1ee..86af06b 100644
+--- a/reef-perf/model/memory/Dma.cpp
++++ b/reef-perf/model/memory/Dma.cpp
+@@ -2,6 +2,7 @@
+ 
+ #include "memory/Dma.h"
+ 
++#include "common/StreamFifo.h"
+ #include "memory/MemTiming.h"
+ #include "memory/Tcm.h"
+ 
+@@ -15,12 +16,70 @@
+ using namespace reef_perf;
+ 
+ Dma::Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
+-         TcmLookup FindTcm, uint32_t QueueDepth)
+-    : SetupCycles(SetupCycles), BeatBytes(BeatBytes),
++         TcmLookup FindTcm, uint32_t QueueDepth, uint32_t Channels,
++         bool SetupOverlap)
++    : SetupCycles(SetupCycles), SetupOverlap(SetupOverlap),
++      BeatBytes(BeatBytes),
+       FindLink(std::move(FindLink)), FindTcm(std::move(FindTcm)),
+-      QueueDepth(QueueDepth) {
++      QueueDepth(QueueDepth), Chains(Channels) {
+   if (BeatBytes == 0 || BeatBytes > 255)
+     throw std::invalid_argument("dma_beat_bytes must be 1-255");
++  if (Channels == 0)
++    throw std::invalid_argument("dma_channels must be at least 1");
++}
++
++Cycle Dma::getFinish() const {
++  Cycle Finish = 0;
++  for (const std::vector<size_t> &Chain : Chains)
++    if (!Chain.empty())
++      Finish = std::max(Finish, Jobs[Chain.back()].Finish);
++  return Finish;
++}
++
++Cycle Dma::getFinishExceptNewest() const {
++  // The newest transfer's channel only: its transfers finish in order.
++  if (Jobs.empty())
++    return 0;
++  const size_t Newest = Jobs.size() - 1;
++  for (const std::vector<size_t> &Chain : Chains)
++    if (!Chain.empty() && Chain.back() == Newest)
++      return Chain.size() < 2 ? 0 : Jobs[Chain[Chain.size() - 2]].Finish;
++  return 0;
++}
++
++Cycle Dma::getFinishOn(const ExtMemModel *Link) const {
++  if (Chains.size() == 1)
++    return getFinish();
++  auto Found = std::find(ChainLinks.begin(), ChainLinks.end(), Link);
++  if (Found == ChainLinks.end())
++    return 0;
++  const std::vector<size_t> &Chain =
++      Chains[static_cast<size_t>(Found - ChainLinks.begin()) % Chains.size()];
++  return Chain.empty() ? 0 : Jobs[Chain.back()].Finish;
++}
++
++Cycle Dma::getBegin(Cycle Arrive, Cycle Free) const {
++  // With SetupOverlap, the setup of a queued transfer runs while the one
++  // before it is still moving data.
++  return SetupOverlap ? std::max(Arrive + SetupCycles, Free)
++                      : std::max(Arrive, Free) + SetupCycles;
++}
++
++uint32_t Dma::getChannel() {
++  if (Chains.size() == 1 || !FindLink)
++    return 0;
++  // The link of the end outside the TCMs names the channel. A transfer
++  // between two TCMs uses the first channel.
++  for (Address End : {Src, Dst}) {
++    if (FindTcm(End))
++      continue;
++    const ExtMemModel *Link = FindLink(End);
++    auto Found = std::find(ChainLinks.begin(), ChainLinks.end(), Link);
++    if (Found == ChainLinks.end())
++      Found = ChainLinks.insert(ChainLinks.end(), Link);
++    return static_cast<uint32_t>(Found - ChainLinks.begin()) % Chains.size();
++  }
++  return 0;
+ }
+ 
+ Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
+@@ -35,15 +94,19 @@ Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
+     Len = static_cast<uint32_t>(Value);
+     break;
+   case DmaGo: {
+-    // Transfers finish in order, so the queue is full exactly when the
+-    // QueueDepth-th newest transfer has not finished yet.
++    // A channel's transfers finish in order, so its queue is full exactly
++    // when its QueueDepth-th newest transfer has not finished yet.
+     Cycle Accept = Arrive;
+-    if (QueueDepth != 0 && Len != 0 && Jobs.size() >= QueueDepth)
+-      Accept = std::max(Arrive, Jobs[Jobs.size() - QueueDepth].Finish);
++    const std::vector<size_t> &Chain = Chains[getChannel()];
++    if (QueueDepth != 0 && Len != 0 && Chain.size() >= QueueDepth)
++      Accept = std::max(Arrive, Jobs[Chain[Chain.size() - QueueDepth]].Finish);
+     Stats.FullCycles += Accept - Arrive;
+     start(Accept);
+     return Accept;
+   }
++  case DmaWaitJob:
++    WaitJob = static_cast<size_t>(Value);
++    break;
+   default:
+     break; // WAIT and unused offsets ignore stores.
+   }
+@@ -53,12 +116,17 @@ Cycle Dma::writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive) {
+ void Dma::start(Cycle Arrive) {
+   if (Len == 0)
+     return;
+-  const Cycle Begin = std::max(Arrive, getFinish()) + SetupCycles;
++  std::vector<size_t> &Chain = Chains[getChannel()];
++  const Cycle Free = Chain.empty() ? 0 : Jobs[Chain.back()].Finish;
++  const Cycle Begin = getBegin(Arrive, Free);
+   const uint32_t Beats = (Len + BeatBytes - 1) / BeatBytes;
+   ++Stats.Transfers;
+   Stats.Bytes += Len;
+   const size_t J = Jobs.size();
+-  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0, 0, 0, {}});
++  if (!Chain.empty())
++    Jobs[Chain.back()].Next = J;
++  Chain.push_back(J);
++  Jobs.push_back({Arrive, Begin, Begin, Beats, {}, {}, {}, 0, NoJob});
+ 
+   // Book each end that is in a TCM: reads at SRC, writes at DST. An end in
+   // external memory books the link, or costs only the setup delay when the
+@@ -67,6 +135,17 @@ void Dma::start(Cycle Arrive) {
+   std::vector<Cycle> Ready;
+   for (const auto &[Base, IsStore] :
+        {std::pair{Src, false}, std::pair{Dst, true}}) {
++    if (IsStore && Base >= StreamBase &&
++        Base - StreamBase < NumStreams * StreamBytes) {
++      StreamFifo &Fifo = getStreamFifo((Base - StreamBase) / StreamBytes);
++      // The stream window: each 64 bytes go into the FIFO when they are in.
++      for (uint32_t Unit = 0; Unit * 64 < Len && !Ready.empty(); ++Unit) {
++        const size_t Beat = std::min<size_t>(
++            Ready.size() - 1, (std::min(Len, (Unit + 1) * 64) - 1) / BeatBytes);
++        Fifo.Ready.push_back(Ready[Beat]);
++      }
++      continue;
++    }
+     Tcm *Target = FindTcm(Base);
+     if (!Target) {
+       // The end's own memory: the flash, or the RAM for a KV cache address.
+@@ -99,11 +178,6 @@ void Dma::start(Cycle Arrive) {
+       Jobs[J].EndFinishes[End] = Moved;
+       retime(J);
+     };
+-    if (IsStore) {
+-      Jobs[J].DstBase = Base;
+-      Jobs[J].DstLen = Len;
+-      Jobs[J].Ready = Ready;
+-    }
+     // A DST beat waits for its bytes; a SRC read does not wait for the link.
+     const Tcm::Booking Booked =
+         Target->book(Request, IsStore ? std::span<const Cycle>(Ready)
+@@ -116,28 +190,6 @@ void Dma::start(Cycle Arrive) {
+   retime(J);
+ }
+ 
+-Cycle Dma::getArrival(Address Addr, uint32_t Size) const {
+-  // A program reads the buffer of the transfer in flight or the one before
+-  // it, so the newest few transfers are enough.
+-  const size_t Oldest = Jobs.size() > 4 ? Jobs.size() - 4 : 0;
+-  for (size_t J = Jobs.size(); J-- > Oldest;) {
+-    const Job &Current = Jobs[J];
+-    if (Current.DstLen == 0 || Addr < Current.DstBase ||
+-        Addr - Current.DstBase >= Current.DstLen)
+-      continue;
+-    // The beat that holds the last byte asked for: written when its turn
+-    // comes and its bytes are in, and usable a cycle later.
+-    const uint32_t Last = std::min<uint64_t>(
+-        (Addr - Current.DstBase + std::max<uint32_t>(Size, 1) - 1) / BeatBytes,
+-        Current.Beats - 1);
+-    Cycle Written = Current.Begin + Last;
+-    if (Last < Current.Ready.size())
+-      Written = std::max(Written, Current.Ready[Last]);
+-    return std::min(Written + 1, Current.Finish);
+-  }
+-  return 0;
+-}
+-
+ void Dma::retime(size_t J) {
+   Job &Current = Jobs[J];
+   // External to external without a link model: one beat per cycle.
+@@ -148,10 +200,10 @@ void Dma::retime(size_t J) {
+     Finish = std::max(Finish, End);
+   Stats.BusyCycles += Finish - Current.Finish;
+   Current.Finish = Finish;
+-  if (J + 1 == Jobs.size())
++  if (Current.Next == NoJob)
+     return;
+-  Job &Next = Jobs[J + 1];
+-  const Cycle Begin = std::max(Next.Arrive, Finish) + SetupCycles;
++  Job &Next = Jobs[Current.Next];
++  const Cycle Begin = getBegin(Next.Arrive, Finish);
+   if (Begin <= Next.Begin)
+     return;
+   Stats.BusyCycles -= Begin - Next.Begin;
+@@ -162,5 +214,5 @@ void Dma::retime(size_t J) {
+   Next.Begin = Begin;
+   for (size_t I = 0; I < Next.Targets.size(); ++I)
+     Next.Targets[I]->delay(Next.Ids[I], Begin);
+-  retime(J + 1);
++  retime(Current.Next);
+ }
+diff --git a/reef-perf/model/memory/Dma.h b/reef-perf/model/memory/Dma.h
+index 3dcf0e0..b55912f 100644
+--- a/reef-perf/model/memory/Dma.h
++++ b/reef-perf/model/memory/Dma.h
+@@ -1,7 +1,7 @@
+ //===- Dma.h - The DMA initiator --------------------------------*- C++ -*-===//
+ ///
+ /// \file
+-/// A one-channel DMA that moves data between external memory (HyperRAM) and
++/// A DMA that moves data between external memory (HyperRAM) and
+ /// the TCMs through the core's AXI slave port, as in the Reef SoC plan
+ /// (atlas-soc/docs/dma.md). Not in M3: it does nothing until a program
+ /// writes its registers.
+@@ -19,18 +19,18 @@
+ /// | 0x10 | WAIT | load: returns when every started transfer is done |
+ ///
+ /// A transfer starts `dma_setup_cycles` after the GO store arrives, or after
+-/// the previous transfer finishes (one at a time). It then moves one
++/// the previous transfer on its channel finishes (one at a time). With
++/// `dma_channels` 2, each external memory link has its own channel, so a
++/// flash transfer and a RAM transfer overlap. It then moves one
+ /// `dma_beat_bytes` beat per TCM port cycle the core leaves free; whichever of
+ /// SRC and DST is in a TCM is booked there as an AxiSlave requester. An end
+ /// outside the TCMs moves its bytes over the external memory link
+ /// (ExtMemModel), when that is modeled. A transfer finishes when both ends
+-/// are done. getArrival() gives the cycle a part of a destination is written,
+-/// for a core that reads a transfer's bytes before the whole transfer is in
+-/// (`dma_stream_loads`). When a core access pushes a transfer's finish out,
+-/// every queued transfer behind it moves too. With `dma_queue_depth` set, a GO
+-/// store that finds that many transfers unfinished waits for the oldest of them
+-/// to finish: the full queue back-pressures the e-bus. Only timing is modeled:
+-/// Spike's memory is not copied.
++/// are done. When a core access pushes a transfer's finish out, every queued
++/// transfer behind it moves too. With `dma_queue_depth` set, a GO store that
++/// finds that many transfers unfinished on its channel waits for the oldest
++/// of them to finish: the full queue back-pressures the e-bus. Only timing is
++/// modeled: Spike's memory is not copied.
+ ///
+ //===----------------------------------------------------------------------===//
+ 
+@@ -40,6 +40,7 @@
+ #include "common/Interfaces.h"
+ #include "common/Types.h"
+ 
++#include <cstddef>
+ #include <cstdint>
+ #include <functional>
+ #include <vector>
+@@ -56,6 +57,16 @@ enum DmaRegister : uint32_t {
+   DmaLen = 0x8,
+   DmaGo = 0xc,
+   DmaWait = 0x10,
++  // Study assumption, not in the RTL: a load returns when the transfers
++  // before the newest on the newest's channel are finished.
++  DmaWaitOlder = 0x14,
++  // Study assumption, not in the RTL: a load returns when the transfers on
++  // the flash (or RAM) link's channel are finished.
++  DmaWaitFlash = 0x18,
++  DmaWaitRam = 0x1c,
++  // Study assumption, not in the RTL: a store sets a transfer number (the
++  // count of earlier transfers); a load returns when that transfer is done.
++  DmaWaitJob = 0x20,
+ };
+ 
+ /// Totals for the end-of-run summary.
+@@ -79,9 +90,12 @@ public:
+   /// beat and move \p BeatBytes per beat, booking the TCMs \p FindTcm names
+   /// and, for an end outside them, the link \p FindLink names (\p FindLink
+   /// may be empty: no link is modeled). \p QueueDepth caps the unfinished
+-  /// transfers (0: no limit).
++  /// transfers of a channel (0: no limit). With \p Channels above 1, each
++  /// link has its own channel. \throws std::invalid_argument for a beat
++  /// size outside 1-255 or no channel.
+   Dma(uint32_t SetupCycles, uint32_t BeatBytes, LinkLookup FindLink,
+-      TcmLookup FindTcm, uint32_t QueueDepth = 0);
++      TcmLookup FindTcm, uint32_t QueueDepth = 0, uint32_t Channels = 1,
++      bool SetupOverlap = false);
+ 
+   /// Applies a store of \p Value to register \p Offset that arrives at
+   /// cycle \p Arrive. A GO store starts a transfer. \returns the cycle the
+@@ -89,13 +103,22 @@ public:
+   /// waits for room in a full queue.
+   Cycle writeRegister(uint32_t Offset, uint64_t Value, Cycle Arrive);
+ 
+-  /// \returns the cycle the last started transfer finishes, or 0 if none.
+-  Cycle getFinish() const { return Jobs.empty() ? 0 : Jobs.back().Finish; }
++  /// \returns the cycle every started transfer is finished, or 0 if none.
++  Cycle getFinish() const;
+ 
+-  /// \returns the cycle the bytes [\p Addr, \p Addr + \p Size) are in their
+-  /// TCM, for the newest recent transfer whose destination holds them, or 0
+-  /// if no recent transfer does.
+-  Cycle getArrival(Address Addr, uint32_t Size) const;
++  /// \returns the cycle the transfers before the newest on the newest's
++  /// channel are finished, or 0 if none.
++  Cycle getFinishExceptNewest() const;
++
++  /// \returns the cycle the transfers on \p Link's channel are finished, or
++  /// 0 if none. With one channel, this is getFinish().
++  Cycle getFinishOn(const ExtMemModel *Link) const;
++
++  /// \returns the cycle the transfer set by a DmaWaitJob store is done, or 0
++  /// if it has not started.
++  Cycle getWaitJobFinish() const {
++    return WaitJob < Jobs.size() ? Jobs[WaitJob].Finish : 0;
++  }
+ 
+   /// \returns the totals so far.
+   const DmaStats &getStats() const { return Stats; }
+@@ -111,16 +134,23 @@ private:
+     std::vector<uint32_t> Ids;      // Their Tcm::book handles.
+     std::vector<Cycle> EndFinishes; // When each booked end finishes.
+     Cycle ExtFinish = 0;            // When the link is done, or 0.
+-    Address DstBase = 0;            // The TCM destination, if there is one.
+-    uint32_t DstLen = 0;            // Its bytes, or 0.
+-    std::vector<Cycle> Ready;       // When the link has each beat's bytes.
++    size_t Next = NoJob;            // The transfer behind it on its channel.
+   };
++  static constexpr size_t NoJob = ~size_t{0};
++
++  /// \returns the channel the programmed transfer uses.
++  uint32_t getChannel();
++
++  /// \returns the first beat's cycle for a transfer that arrives at
++  /// \p Arrive behind one that finishes at \p Free.
++  Cycle getBegin(Cycle Arrive, Cycle Free) const;
+ 
+   void start(Cycle Arrive);
+   /// Recomputes job \p J's finish and moves the job behind it if needed.
+   void retime(size_t J);
+ 
+   uint32_t SetupCycles;
++  bool SetupOverlap;
+   uint32_t BeatBytes;
+   LinkLookup FindLink;
+   TcmLookup FindTcm;
+@@ -128,7 +158,10 @@ private:
+   Address Src = 0;
+   Address Dst = 0;
+   uint32_t Len = 0;
++  size_t WaitJob = 0;
+   std::vector<Job> Jobs;
++  std::vector<std::vector<size_t>> Chains;     // Each channel's jobs, in order.
++  std::vector<const ExtMemModel *> ChainLinks; // Links seen, in channel order.
+   DmaStats Stats;
+ };
+ 
+diff --git a/reef-perf/model/memory/Memory.cpp b/reef-perf/model/memory/Memory.cpp
+index 1662a12..d44f0d3 100644
+--- a/reef-perf/model/memory/Memory.cpp
++++ b/reef-perf/model/memory/Memory.cpp
+@@ -2,7 +2,6 @@
+ 
+ #include "memory/Memory.h"
+ 
+-#include <algorithm>
+ #include <cstdint>
+ #include <vector>
+ 
+@@ -37,8 +36,8 @@ Memory::Memory(sparta::TreeNode *Node, const MemoryParameterSet *Params)
+             }
+             return nullptr;
+           },
+-          Params->dma_queue_depth),
+-      StreamLoads(Params->dma_stream_loads),
++          Params->dma_queue_depth, Params->dma_channels,
++          Params->dma_setup_overlap),
+       TheHost(Params->host_boot, Params->host_boot_data,
+               Params->host_setup_cycles, Params->host_cycles_per_byte) {}
+ 
+@@ -82,17 +81,13 @@ MemResponse Memory::access(const MemRequest &Request) {
+   RegionKind Kind = Request.Accesses.empty()
+                         ? RegionKind::DTCM
+                         : getRegionKind(Request.Accesses.front().Addr);
+-  if (Kind != RegionKind::External) {
+-    Tcm &Target = Kind == RegionKind::ITCM ? ITCM : DTCM;
+-    if (!StreamLoads || Request.Requester == RequesterKind::IFetch)
+-      return Target.access(Request);
+-    // A load of bytes a DMA transfer has not written yet waits for them.
+-    MemRequest Timed = Request;
+-    for (const MemAccess &Access : Request.Accesses)
+-      if (!Access.IsStore)
+-        Timed.Earliest =
+-            std::max(Timed.Earliest, DMA.getArrival(Access.Addr, Access.Size));
+-    return Target.access(Timed);
++  switch (Kind) {
++  case RegionKind::ITCM:
++    return ITCM.access(Request);
++  case RegionKind::DTCM:
++    return DTCM.access(Request);
++  case RegionKind::External:
++    break;
+   }
+   MemResponse Response = AXI.access(Request.Accesses, Request.Earliest);
+   const MemoryRegion DmaRegs = getDmaRegsRegion();
+@@ -112,8 +107,21 @@ MemResponse Memory::access(const MemRequest &Request) {
+         Response.Latency = Accept - Response.Start;
+         Response.Occupancy = Response.Latency;
+       }
+-    } else if (Offset == DmaWait && DMA.getFinish() > Arrive)
+-      Response.Latency = DMA.getFinish() - Response.Start;
++    } else {
++      Cycle Done = 0;
++      if (Offset == DmaWait)
++        Done = DMA.getFinish();
++      else if (Offset == DmaWaitOlder)
++        Done = DMA.getFinishExceptNewest();
++      else if (Offset == DmaWaitFlash)
++        Done = DMA.getFinishOn(&Ext);
++      else if (Offset == DmaWaitRam)
++        Done = DMA.getFinishOn(&Ram);
++      else if (Offset == DmaWaitJob)
++        Done = DMA.getWaitJobFinish();
++      if (Done > Arrive)
++        Response.Latency = Done - Response.Start;
++    }
+   }
+   return Response;
+ }
+diff --git a/reef-perf/model/memory/Memory.h b/reef-perf/model/memory/Memory.h
+index efcbf33..8c58618 100644
+--- a/reef-perf/model/memory/Memory.h
++++ b/reef-perf/model/memory/Memory.h
+@@ -57,9 +57,11 @@ public:
+     PARAMETER(uint32_t, dma_beat_bytes, 16, "Bytes per DMA beat into a TCM")
+     PARAMETER(uint32_t, dma_queue_depth, 0,
+               "Unfinished DMA transfers before a GO store waits (0: no limit)")
+-    PARAMETER(bool, dma_stream_loads, false,
+-              "A core load from an unfinished DMA transfer's destination "
+-              "waits for its own bytes, not for the whole transfer")
++    PARAMETER(uint32_t, dma_channels, 1,
++              "DMA channels: 1, or 2 for one per external memory link")
++    PARAMETER(bool, dma_setup_overlap, false,
++              "A queued transfer's setup runs during the one before it "
++              "(study assumption, not in the RTL)")
+     PARAMETER(bool, host_boot, false,
+               "Time the host's ITCM load before the core leaves reset")
+     PARAMETER(bool, host_boot_data, false,
+@@ -140,7 +142,6 @@ private:
+   Address RamBase;
+   uint64_t RamBytes;
+   Dma DMA;
+-  bool StreamLoads;
+   Host TheHost;
+ };
+ 
+diff --git a/reef-perf/tests/cpp/memory/DmaTest.cpp b/reef-perf/tests/cpp/memory/DmaTest.cpp
+index 74afcd1..681de36 100644
+--- a/reef-perf/tests/cpp/memory/DmaTest.cpp
++++ b/reef-perf/tests/cpp/memory/DmaTest.cpp
+@@ -234,14 +234,52 @@ TEST_F(DmaTwoLinkFixture, AWriteToTheRamPaysTheWriteLatency) {
+   EXPECT_EQ(Ram.getLink().getBusyCycles(), 80U);
+ }
+ 
+-TEST_F(DmaTwoLinkFixture, EachPartOfATransferHasItsOwnArrival) {
+-  // Begin 20; the flash's first byte at 46, then 1 B per cycle. The beat of
+-  // bytes 0-15 is written at 62 and usable at 63; the last beat at 111.
+-  programTwo(0x20000000, 0x10000, 64, 0);
+-  EXPECT_EQ(TwoDMA.getFinish(), 111U);
+-  EXPECT_EQ(TwoDMA.getArrival(0x10000, 16), 63U);
+-  EXPECT_EQ(TwoDMA.getArrival(0x10030, 16), 111U);
+-  EXPECT_EQ(TwoDMA.getArrival(0x10100, 16), 0U); // Not a destination.
++/// The two links again, with one DMA channel for each.
++struct DmaTwoChannelFixture : public DmaTwoLinkFixture {
++  Dma ChannelDMA{
++      20,
++      16,
++      [this](Address Addr) { return Addr >= 0x24000000 ? &Ram : &Flash; },
++      [this](Address Addr) -> Tcm * {
++        return Addr >= 0x10000 && Addr < 0x18000 ? &DTCM : nullptr;
++      },
++      0,
++      2};
++
++  void programOn(Dma &Target, Address Src, Address Dst, uint32_t Len,
++                 Cycle At) {
++    Target.writeRegister(DmaSrc, Src, At);
++    Target.writeRegister(DmaDst, Dst, At);
++    Target.writeRegister(DmaLen, Len, At);
++    Target.writeRegister(DmaGo, 1, At);
++  }
++};
++
++TEST_F(DmaTwoChannelFixture, OneChannelRunsAFlashAndARamTransferInTurn) {
++  // Flash: begin 20, first byte at 46, 1,024 bytes, done at 1,071. The RAM
++  // transfer waits for it.
++  programOn(TwoDMA, 0x20000000, 0x10000, 1024, 0);
++  const Cycle FlashDone = TwoDMA.getFinish();
++  programOn(TwoDMA, 0x24000000, 0x10400, 16, 0);
++  EXPECT_GT(TwoDMA.getFinish(), FlashDone);
++}
++
++TEST_F(DmaTwoChannelFixture, TwoChannelsRunAFlashAndARamTransferTogether) {
++  programOn(ChannelDMA, 0x20000000, 0x10000, 1024, 0);
++  const Cycle FlashDone = ChannelDMA.getFinish();
++  // The RAM transfer has its own channel: as alone, its beat is at 114.
++  programOn(ChannelDMA, 0x24000000, 0x10400, 16, 0);
++  EXPECT_EQ(Ram.getLink().getBusyCycles(), 94U);
++  // WAIT returns when both channels are done.
++  EXPECT_EQ(ChannelDMA.getFinish(), FlashDone);
++}
++
++TEST_F(DmaTwoChannelFixture, TwoTransfersOnOneLinkStillTakeTurns) {
++  // Keys then values, both from the RAM: the second starts after the first.
++  programOn(ChannelDMA, 0x24000000, 0x10000, 16, 0);
++  EXPECT_EQ(ChannelDMA.getFinish(), 115U);
++  programOn(ChannelDMA, 0x24001000, 0x10400, 16, 0);
++  EXPECT_EQ(ChannelDMA.getFinish(), 115U + 20U + 30U + 64U + 1U);
+ }
+ 
+ TEST_F(DmaTwoLinkFixture, TheTwoLinksDoNotWaitForEachOther) {

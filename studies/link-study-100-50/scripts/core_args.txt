@@ -1,0 +1,1 @@
+-p top.core.rob.params.rob_entries 16 -p top.core.lsu.params.lsu_vector_load_reg_overhead 0 -p top.core.lsu.params.lsu_vector_store_reg_overhead 0 -p top.core.lsu.params.lsu_vector_switch_cycles 2

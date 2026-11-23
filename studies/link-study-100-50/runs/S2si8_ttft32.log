@@ -1,0 +1,96 @@
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/machines/m3.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/machines/m3_vme.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/matrix/coral_vme.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/xspi_str.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/psram_kv.yaml"
+  [in] Configuration: Node "" <- file: "/tmp/snap10/configs/memory/psram_kv_e2e.yaml"
+  [in] Configuration: Parameter "top.memory.params.host_boot" <- value: "true"
+  [in] Configuration: Parameter "top.memory.params.host_boot_data" <- value: "true"
+  [in] Configuration: Parameter "top.matrix.params.mtx_pe_rows" <- value: "8"
+  [in] Configuration: Parameter "top.matrix.params.mtx_pe_cols" <- value: "4"
+  [in] Configuration: Parameter "top.memory.params.ext_mem_bytes_per_cycle" <- value: "2"
+  [in] Configuration: Parameter "top.memory.params.ext_ram_bytes_per_cycle" <- value: "1"
+  [in] Configuration: Parameter "top.core.rob.params.rob_entries" <- value: "16"
+  [in] Configuration: Parameter "top.core.lsu.params.lsu_vector_load_reg_overhead" <- value: "0"
+  [in] Configuration: Parameter "top.core.lsu.params.lsu_vector_store_reg_overhead" <- value: "0"
+  [in] Configuration: Parameter "top.core.lsu.params.lsu_vector_switch_cycles" <- value: "2"
+  [in] Configuration: Parameter "top.memory.params.dma_channels" <- value: "2"
+  [in] Configuration: Parameter "top.matrix.params.mtx_stream_b" <- value: "true"
+  [in] Configuration: Parameter "top.memory.params.ext_ram_base" <- value: "544289280"
+
+Setting up Simulation Content...
+Resources:
+  dispatch, fetch, lsu, matrix, memory, rob, scalar_exec, vector
+Building tree...
+Configuring tree...
+Finalizing tree...
+Preparing to run...
+Meta-Parameters:
+  architecture: NONE
+  is_final_config: false
+Non-default model parameters: 34
+Running...
+Running Complete
+  Simulation Performance      : wall(19.9464), system(0.0400), user(19.6700)
+  Scheduler Tick Rate  (KTPS): 674.002  (1k ticks per second)
+  Scheduler Event Rate (KEPS): 1624.64 KEPS (1k events per second)
+  Scheduler Events Fired: 31956676
+Run Successful!
+Saving reports...
+stream fifo 0: 311296 units of 64 B pushed, 311296 popped, 0 underflows, at most 129 units held
+
+==================== reef_perf summary ====================
+  program             : /tmp/study/elfs/S2si8_ttft32.elf
+  instructions retired: 4167891
+  cycles              : 13257609
+  IPC                 : 0.314
+  taken branches/jumps: 456230
+  boot cycles (host)  : 66948 (included in cycles)
+  ROI cycles (mcycle) : 13167497
+
+  Dispatch: cycles with no dispatch, by cause
+    (dispatched)             2127673   16.0%
+    ibuf_empty                443255    3.3%
+    raw_hazard               1166162    8.8%
+    waw_hazard                339836    2.6%
+    rob_full                 8987297   67.8%
+    lsu_queue_full            188860    1.4%
+    vector_queue_full           4508    0.0%
+    matrix_queue_full              0    0.0%
+
+  Top-down: dispatch slots (4 per cycle; docs/topdown.md)
+    retiring                 4167891    7.9%
+    frontend_bound           2548431    4.8%
+      branch_resteer         1301682    2.5%
+      fetch_bandwidth        1246749    2.4%
+    backend_bound           46314042   87.3%
+      core                   3983409    7.5%
+      memory                 4140243    7.8%
+      vector                 7218301   13.6%
+      matrix                30972089   58.4%
+
+  Pools: utilization (busy cycles / (resources * cycles))
+    core.alu         x4  ops    1951974  util   3.7%
+    core.mul         x1  ops       5826  util   0.0%
+    core.div         x1  ops      16696  util   1.2%
+    core.fpu         x1  ops          0  util   0.0%
+    core.fdiv        x1  ops          0  util   0.0%
+    core.lsu         x1  ops     913579  util  26.5%
+    vector.alu       x2  ops    2594676  util   9.8%
+    vector.mul       x2  ops     139008  util   0.5%
+    vector.div       x1  ops       1536  util   0.2%
+    vector.fdiv      x1  ops          0  util   0.0%
+    vector.fma       x2  ops          0  util   0.0%
+    vector.permute_reduce x1  ops       3140  util   0.0%
+    vector.fp_reduce x1  ops          0  util   0.0%
+    matrix.matrix_cmd x1  ops     733137  util   5.5%
+    matrix.matrix_array x1  ops     315904  util  18.2%
+    matrix.matrix_ctrl x1  ops      60416  util   2.0%
+    memory.itcm      x1  ops          0  util   0.0%
+    memory.itcm_fetch x1  ops    2135064  util  16.1%
+    memory.dtcm      x1  ops     881498  util  14.1%
+    memory.axi_data  x1  ops      32081  util   0.2%
+    memory.axi_outstanding x1  ops      32081  util   0.5%
+    memory.ext_mem_link x1  ops       5905  util  77.0%
+    memory.ext_ram_link x1  ops       1536  util   4.7%
+============================================================

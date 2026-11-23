@@ -1,0 +1,71 @@
+{
+  "program": "/tmp/study/elfs/S4si4_b4.elf",
+  "instructions": 2220859,
+  "functional_instructions": 2220859,
+  "cycles": 5194180,
+  "ipc": 0.427567,
+  "taken_redirects": 185019,
+  "boot_cycles": 47236,
+  "mcycle_reads": [66916, 70057, 76845, 432720, 699292, 718744, 725309, 797573, 875699, 882300, 1238175, 1504747, 1524199, 1530772, 1603040, 1681166, 1687767, 2043642, 2310214, 2329666, 2336235, 2408503, 2486629, 2493230, 2849105, 3115677, 3135129, 3141698, 3213966, 3292092, 3298693, 3654568, 3921140, 3940592, 3947161, 4019429, 4097555, 4104156, 4460031, 4726603, 4746055, 4752624, 4824892, 4903018, 4909619, 5194105],
+  "roi_cycles": 5127189,
+  "roi_instructions": 2200786,
+  "dispatch": {
+    "cycles_with_dispatch": 1124736,
+    "stall_ibuf_empty": 183110,
+    "stall_raw_hazard": 1093712,
+    "stall_waw_hazard": 233364,
+    "stall_rob_full": 2354394,
+    "stall_lsu_queue_full": 204222,
+    "stall_vector_queue_full": 624,
+    "stall_matrix_queue_full": 0
+  },
+  "topdown": {
+    "dispatch_width": 4,
+    "slots": 20776648,
+    "retiring": 2220859,
+    "frontend_bound": {"branch_resteer": 400163, "fetch_bandwidth": 701323},
+    "backend_bound": {
+      "core": {"raw_hazard": 2602412, "rob_full": 264504},
+      "memory": {"raw_hazard": 2796648, "waw_hazard": 690995, "rob_full": 49460, "lsu_queue_full": 947137},
+      "vector": {"raw_hazard": 328220, "waw_hazard": 17792, "rob_full": 878693, "vector_queue_full": 4624},
+      "matrix": {"raw_hazard": 30400, "waw_hazard": 267456, "rob_full": 8575962}
+    }
+  },
+  "pools": {
+    "alu": {"count": 4, "ops": 1158265, "busy_cycles": 1158265},
+    "mul": {"count": 1, "ops": 8816, "busy_cycles": 8816},
+    "div": {"count": 1, "ops": 5044, "busy_cycles": 55475},
+    "fpu": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "fdiv": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "lsu": {"count": 1, "ops": 580039, "busy_cycles": 2256143},
+    "alu": {"count": 2, "ops": 708026, "busy_cycles": 708026},
+    "mul": {"count": 2, "ops": 31488, "busy_cycles": 31488},
+    "div": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "fdiv": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "fma": {"count": 2, "ops": 0, "busy_cycles": 0},
+    "permute_reduce": {"count": 1, "ops": 40368, "busy_cycles": 40368},
+    "fp_reduce": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "matrix_cmd": {"count": 1, "ops": 294099, "busy_cycles": 294099},
+    "matrix_array": {"count": 1, "ops": 130048, "busy_cycles": 400384},
+    "matrix_ctrl": {"count": 1, "ops": 25568, "busy_cycles": 146688},
+    "itcm": {"count": 1, "ops": 0, "busy_cycles": 0},
+    "itcm_fetch": {"count": 1, "ops": 1064686, "busy_cycles": 1064686},
+    "dtcm": {"count": 1, "ops": 561103, "busy_cycles": 960544},
+    "axi_data": {"count": 1, "ops": 18936, "busy_cycles": 18936},
+    "axi_outstanding": {"count": 1, "ops": 18936, "busy_cycles": 37872},
+    "ext_mem_link": {"count": 1, "ops": 1709, "busy_cycles": 1512746},
+    "ext_ram_link": {"count": 1, "ops": 2688, "busy_cycles": 3595776}
+  },
+  "matrix": {
+    "ops": {"zero": 11104, "discard": 0, "move_to_tile": 0, "move_to_vector": 14464, "tile_load": 0, "tile_store": 0, "mac": 130048, "nop": 0},
+    "useful_macs": 25624576,
+    "capacity_macs": 51249152,
+    "mac_utilization": 0.5,
+    "array_busy_cycles": 400384,
+    "mem_beats": 0,
+    "subtile_reads": 1659392,
+    "subtile_writes": 2312192,
+    "area_um2": null,
+    "energy_pj": null
+  }
+}

@@ -1,0 +1,451 @@
+diff --git a/inference-engine/coral/kernels/attention.cc b/inference-engine/coral/kernels/attention.cc
+index fe2c18e..aa76d82 100644
+--- a/inference-engine/coral/kernels/attention.cc
++++ b/inference-engine/coral/kernels/attention.cc
+@@ -11,11 +11,11 @@ namespace npu {
+ // State uses lane 0 of row_max / row_sum; out_acc[dim] holds the output.
+ static void attend_row(uint32_t head, uint32_t block, const uint8_t* key_block,
+                        const uint8_t* value_block, uint32_t query_pos,
+-                       bool local) {
++                       bool local, uint32_t col) {
+     Softmax& state = dtcm.scratch.softmax;
+     vtzero();
+     config_int8(1);
+-    mac<true>(dtcm.shared.attn.query + head * kHeadDim * kBlockTokens,
++    mac<true>(dtcm.shared.attn.query + head * kHeadDim * kBlockTokens + col,
+               kBlockTokens, key_block, 16, kHeadDim / 4); // S = q K^T
+     // Key positions of this block's 16 lanes; visible: oldest <= key <= query.
+     const vuint32m4_t key_pos =
+@@ -62,9 +62,10 @@ static void attend_row(uint32_t head, uint32_t block, const uint8_t* key_block,
+ // One KV block (16 positions) for head h: online-softmax update of m, l, acc.
+ static void attend_block(uint32_t head, uint32_t block,
+                          const uint8_t* key_block, const uint8_t* value_block,
+-                         uint32_t tokens, uint32_t start_pos, bool local) {
++                         uint32_t tokens, uint32_t start_pos, bool local,
++                         uint32_t col) {
+     if (tokens == 1) {
+-        attend_row(head, block, key_block, value_block, start_pos, local);
++        attend_row(head, block, key_block, value_block, start_pos, local, col);
+         return;
+     }
+     Softmax& state = dtcm.scratch.softmax;
+@@ -134,17 +135,18 @@ static void attend_block(uint32_t head, uint32_t block,
+     }
+ }
+ 
+-void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
++void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos,
++               uint32_t col, uint32_t story) {
+     const bool local = (layer & 1) != 0;
+     const uint32_t tail_col = start_pos & 15;
+     const uint32_t tail_block = start_pos >> 4;
+     const uint32_t first_block = (local && start_pos + 1 > kLocalWindow)
+                                      ? (start_pos + 1 - kLocalWindow) >> 4
+                                      : 0;
+-    const uint32_t key_base =
+-        kKeyCache + layer * kNumHeads * kKvBlocks * kKvBlock;
+-    const uint32_t value_base =
+-        kValueCache + layer * kNumHeads * kKvBlocks * kKvBlock;
++    const uint32_t key_base = kKeyCache + story * kStoryCacheBytes +
++                              layer * kNumHeads * kKvBlocks * kKvBlock;
++    const uint32_t value_base = kValueCache + story * kStoryCacheBytes +
++                                layer * kNumHeads * kKvBlocks * kKvBlock;
+     auto issue = [&](uint32_t head, uint32_t start_block, uint32_t buf) {
+         const uint32_t count = (tail_block + 1 - start_block) < kKvChunk
+                                    ? tail_block + 1 - start_block
+@@ -160,7 +162,7 @@ void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+     uint32_t buf = 0;
+     issue(head, start_block, buf);
+     while (true) {
+-        dma_wait();
++        dma_wait_ram(); // not the weight chunk coming in from the flash
+         uint32_t next_head = head;
+         uint32_t next_start = start_block + kKvChunk;
+         if (next_start > tail_block) {
+@@ -192,7 +194,8 @@ void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+                             tail_col,
+                         __riscv_vle8_v_i8m1(dtcm.shared.attn.key +
+                                                 (head * kHeadDim + j) *
+-                                                    kBlockTokens,
++                                                    kBlockTokens +
++                                                col,
+                                             tokens),
+                         tokens);
+                 }
+@@ -200,13 +203,14 @@ void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+                     __riscv_vse8_v_u8m4(
+                         value_block + (tail_col + row) * kHeadDim,
+                         __riscv_vle8_v_u8m4(dtcm.shared.attn.value +
+-                                                row * kHidden + head * kHeadDim,
++                                                (col + row) * kHidden +
++                                                head * kHeadDim,
+                                             kHeadDim),
+                         kHeadDim);
+                 }
+             }
+             attend_block(head, block, key_block, value_block, tokens, start_pos,
+-                         local);
++                         local, col);
+             if (block == tail_block) { // write the newest block back
+                 const uint32_t offset = (head * kKvBlocks + block) * kKvBlock;
+                 dma(addr(key_block), key_base + offset, kKvBlock);
+@@ -225,9 +229,10 @@ void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+                         row_sum << 7, 16);
+                     out = __riscv_vsra_vx_i32m4(
+                         __riscv_vmul_vx_i32m4(out, recip, 16), 20, 16);
+-                    // Dims down column 0 of normed (rows kBlockTokens apart).
++                    // Dims down column col of normed (rows kBlockTokens apart).
+                     __riscv_vsse8_v_i8m1(
+-                        dtcm.normed + (head * kHeadDim + dim0) * kBlockTokens,
++                        dtcm.normed + (head * kHeadDim + dim0) * kBlockTokens +
++                            col,
+                         kBlockTokens, to_i8(out),
+                         kHeadDim - dim0 < 16 ? kHeadDim - dim0 : 16);
+                 }
+@@ -259,7 +264,8 @@ void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos) {
+         start_block = next_start;
+         buf ^= 1;
+     }
+-    dma_wait(); // the last write-backs
++    // The last write-backs stay in flight through attn_out; layernorm waits
++    // for them before it writes dtcm.shared.
+ }
+ 
+ } // namespace npu
+diff --git a/inference-engine/coral/kernels/common.hpp b/inference-engine/coral/kernels/common.hpp
+index 8a34e2b..61b8c5b 100644
+--- a/inference-engine/coral/kernels/common.hpp
++++ b/inference-engine/coral/kernels/common.hpp
+@@ -42,15 +42,19 @@ struct Dtcm {
+         Attn attn;
+         int8_t norm_params[2 * kHidden];             // LayerNorm gamma, beta
+         int8_t embed_rows[kBlockTokens][2][kHidden]; // token and position rows
++        struct {
++            int32_t logit[kBlockTokens][16]; // per token row (story)
++            int32_t index[kBlockTokens][16];
++        } best; // lm_head only
+     } shared;
++    // Weight chunk buffer 0 has its own space, so a chunk can come in from
++    // the flash during attention (step 3.8). Buffer 1 shares with softmax.
++    uint8_t weights0[kChunkRows * 64 + 256]; // weight chunk (+ bias trailer)
+     union {
+-        uint8_t
+-            weights[2][kChunkRows * 64 + 256]; // weight chunks (+ bias trailer)
++        uint8_t weights1[kChunkRows * 64 + 256];
+         Softmax softmax;
+     } scratch;
+     int32_t act_sum[16];
+-    int32_t best_logit[16];
+-    int32_t best_index[16];
+     int8_t gelu_table[256];
+     uint8_t exp_table[256];
+ };
+@@ -97,16 +101,27 @@ E2E_INLINE void init_tables() {
+ 
+ // ---- Kernels (one file each) ----------------------------------------------
+ // embed.cc: token + position embeddings of `tokens` ids into dtcm.residual.
+-void embed(const uint32_t* ids, uint32_t tokens, uint32_t start_pos);
++// Token j sits at position start_pos + j * pos_step (pos_step 0: one position
++// per story, all equal).
++void embed(const uint32_t* ids, uint32_t tokens, uint32_t start_pos,
++           uint32_t pos_step = 1);
+ // layernorm.cc: dtcm.residual -> dtcm.normed, gamma/beta from flash at params.
+ void layernorm(uint32_t params);
+ // linear.cc: out = act[in_dim][kBlockTokens] x W[in_dim x out_dim] from flash.
++// prefetched: chunk 0 was started already by prefetch_weights.
+ void linear(uint32_t weights, uint32_t in_dim, uint32_t out_dim,
+-            const int8_t* act, uint32_t tokens, Mode mode, int8_t* out);
++            const int8_t* act, uint32_t tokens, Mode mode, int8_t* out,
++            bool prefetched = false);
++// Starts chunk 0 of a linear() into weight buffer 0.
++void prefetch_weights(uint32_t weights, uint32_t in_dim);
+ // attention.cc: one layer's attention, Q/K/V staged in dtcm.shared.attn,
+ // output into dtcm.normed; reads and extends that layer's KV cache.
+-void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos);
++// With tokens == 1, col is the token's column and story selects its KV cache.
++void attention(uint32_t layer, uint32_t tokens, uint32_t start_pos,
++               uint32_t col = 0, uint32_t story = 0);
+ // lm_head.cc: tied lm_head on column token_col of dtcm.normed; argmax token.
+ uint32_t lm_head(uint32_t token_col);
++// lm_head on columns 0..tokens-1; one argmax token per column into next[].
++void lm_head_rows(uint32_t tokens, uint32_t* next);
+ 
+ } // namespace npu
+diff --git a/inference-engine/coral/kernels/embed.cc b/inference-engine/coral/kernels/embed.cc
+index a2f1afb..19b27ed 100644
+--- a/inference-engine/coral/kernels/embed.cc
++++ b/inference-engine/coral/kernels/embed.cc
+@@ -4,12 +4,13 @@
+ 
+ namespace npu {
+ 
+-void embed(const uint32_t* ids, uint32_t tokens, uint32_t start_pos) {
++void embed(const uint32_t* ids, uint32_t tokens, uint32_t start_pos,
++           uint32_t pos_step) {
+     for (uint32_t j = 0; j < tokens; ++j) {
+         const uint32_t id = ids[j] < kVocab ? ids[j] : 0;
+         dma(kTokenEmbed + id * kHidden, addr(dtcm.shared.embed_rows[j][0]),
+             kHidden);
+-        dma(kPosEmbed + (start_pos + j) * kHidden,
++        dma(kPosEmbed + (start_pos + j * pos_step) * kHidden,
+             addr(dtcm.shared.embed_rows[j][1]), kHidden);
+     }
+     dma_wait();
+diff --git a/inference-engine/coral/kernels/layernorm.cc b/inference-engine/coral/kernels/layernorm.cc
+index 84f4836..55b442f 100644
+--- a/inference-engine/coral/kernels/layernorm.cc
++++ b/inference-engine/coral/kernels/layernorm.cc
+@@ -21,6 +21,7 @@ static uint32_t isqrt(uint32_t value) {
+ 
+ // ---- LayerNorm over features, vectorized over tokens: x -> nrm -----------
+ void layernorm(uint32_t params) {
++    dma_wait_ram(); // KV write-backs read dtcm.shared
+     dma(params, addr(dtcm.shared.norm_params), 2 * kHidden);
+     vint32m4_t sum = splat(0);
+     vint32m4_t sum_sq = splat(0);
+diff --git a/inference-engine/coral/kernels/linear.cc b/inference-engine/coral/kernels/linear.cc
+index f8cb817..d33c5e7 100644
+--- a/inference-engine/coral/kernels/linear.cc
++++ b/inference-engine/coral/kernels/linear.cc
+@@ -13,27 +13,32 @@ static void issue_weights(uint32_t weights, uint32_t in_dim, uint32_t chunks,
+                               ? in_dim - chunk * kChunkRows
+                               : kChunkRows;
+     dma(weights + group * (in_dim * 64 + 256) + chunk * kChunkRows * 64,
+-        addr(dtcm.scratch.weights[index & 1]),
++        addr((index & 1) ? dtcm.scratch.weights1 : dtcm.weights0),
+         rows * 64 + (chunk == chunks - 1 ? 256 : 0));
+ }
+ 
+ // Column block col_block, held in the accumulator tile_sel selects.
+ static void epilogue(Mode mode, uint32_t col_block, uint32_t tile_sel,
+                      const int32_t* bias, int8_t* out, uint32_t tokens) {
+-    if (mode == kArgmax) { // logits of 16 vocabulary entries, row 0
+-        const vint32m4_t logits = vtmv(tile_sel);
+-        const vint32m4_t best = __riscv_vle32_v_i32m4(dtcm.best_logit, 16);
+-        const vbool8_t greater = __riscv_vmsgt_vv_i32m4_b8(logits, best, 16);
+-        __riscv_vse32_v_i32m4(
+-            dtcm.best_logit,
+-            __riscv_vmerge_vvm_i32m4(best, logits, greater, 16), 16);
++    if (mode == kArgmax) { // logits of 16 vocabulary entries, one row per token
+         const vint32m4_t index = __riscv_vreinterpret_v_u32m4_i32m4(
+             __riscv_vadd_vx_u32m4(__riscv_vid_v_u32m4(16), col_block * 16, 16));
+-        __riscv_vse32_v_i32m4(
+-            dtcm.best_index,
+-            __riscv_vmerge_vvm_i32m4(__riscv_vle32_v_i32m4(dtcm.best_index, 16),
+-                                     index, greater, 16),
+-            16);
++        for (uint32_t row = 0; row < tokens; ++row) {
++            const vint32m4_t logits = vtmv(tile_sel | row);
++            const vint32m4_t best =
++                __riscv_vle32_v_i32m4(dtcm.shared.best.logit[row], 16);
++            const vbool8_t greater =
++                __riscv_vmsgt_vv_i32m4_b8(logits, best, 16);
++            __riscv_vse32_v_i32m4(
++                dtcm.shared.best.logit[row],
++                __riscv_vmerge_vvm_i32m4(best, logits, greater, 16), 16);
++            __riscv_vse32_v_i32m4(
++                dtcm.shared.best.index[row],
++                __riscv_vmerge_vvm_i32m4(
++                    __riscv_vle32_v_i32m4(dtcm.shared.best.index[row], 16), index,
++                    greater, 16),
++                16);
++        }
+         return;
+     }
+     if (mode == kValueRows) { // V rows: token row, 16 dims of head col_block
+@@ -67,11 +72,18 @@ static void epilogue(Mode mode, uint32_t col_block, uint32_t tile_sel,
+     }
+ }
+ 
++void prefetch_weights(uint32_t weights, uint32_t in_dim) {
++    issue_weights(weights, in_dim, (in_dim + kChunkRows - 1) / kChunkRows, 0);
++}
++
+ void linear(uint32_t weights, uint32_t in_dim, uint32_t out_dim,
+-            const int8_t* act, uint32_t tokens, Mode mode, int8_t* out) {
++            const int8_t* act, uint32_t tokens, Mode mode, int8_t* out,
++            bool prefetched) {
+     const uint32_t chunks = (in_dim + kChunkRows - 1) / kChunkRows;
+     const uint32_t total = out_dim / 64 * chunks;
+-    issue_weights(weights, in_dim, chunks, 0);
++    if (!prefetched) {
++        issue_weights(weights, in_dim, chunks, 0);
++    }
+     // Weights are uint8 with zero point 128: subtract 128 * sum_k act[in_dim].
+     vint32m4_t act_sum = splat(0);
+     for (uint32_t i = 0; i < in_dim; ++i) {
+@@ -81,15 +93,19 @@ void linear(uint32_t weights, uint32_t in_dim, uint32_t out_dim,
+     __riscv_vse32_v_i32m4(dtcm.act_sum, __riscv_vsll_vx_i32m4(act_sum, 7, 16),
+                           16);
+     for (uint32_t i = 0; i < total; ++i) {
+-        dma_wait();
++        // Start chunk i+1 before waiting for chunk i, so the flash does not
++        // stop between chunks.
+         if (i + 1 < total) {
+             issue_weights(weights, in_dim, chunks, i + 1);
++            dma_wait_older();
++        } else {
++            dma_wait_flash(); // KV write-backs can still be in flight
+         }
+         const uint32_t chunk = i % chunks;
+         const uint32_t rows = (in_dim - chunk * kChunkRows) < kChunkRows
+                                   ? in_dim - chunk * kChunkRows
+                                   : kChunkRows;
+-        const uint8_t* buf = dtcm.scratch.weights[i & 1];
++        const uint8_t* buf = (i & 1) ? dtcm.scratch.weights1 : dtcm.weights0;
+         if (chunk == 0) {
+             vtzero(true);
+         }
+diff --git a/inference-engine/coral/kernels/lm_head.cc b/inference-engine/coral/kernels/lm_head.cc
+index 88cc69b..106331e 100644
+--- a/inference-engine/coral/kernels/lm_head.cc
++++ b/inference-engine/coral/kernels/lm_head.cc
+@@ -4,17 +4,33 @@
+ 
+ namespace npu {
+ 
+-uint32_t lm_head(uint32_t token_col) {
+-    __riscv_vse32_v_i32m4(dtcm.best_logit, splat(kNegInf), 16);
+-    linear(kLmHead, kHidden, kVocabPadded, dtcm.normed + token_col, 1, kArgmax,
+-           nullptr);
+-    const vint32m4_t best = __riscv_vle32_v_i32m4(dtcm.best_logit, 16);
++// The best of the 16 lanes of row `row`.
++static uint32_t pick(uint32_t row) {
++    const vint32m4_t best = __riscv_vle32_v_i32m4(dtcm.shared.best.logit[row], 16);
+     const int32_t max_logit =
+         __riscv_vmv_x_s_i32m1_i32(__riscv_vredmax_vs_i32m4_i32m1(
+             best, __riscv_vmv_s_x_i32m1(kNegInf, 1), 16));
+     const long lane =
+         __riscv_vfirst_m_b8(__riscv_vmseq_vx_i32m4_b8(best, max_logit, 16), 16);
+-    return static_cast<uint32_t>(dtcm.best_index[lane < 0 ? 0 : lane]);
++    return static_cast<uint32_t>(dtcm.shared.best.index[row][lane < 0 ? 0 : lane]);
++}
++
++uint32_t lm_head(uint32_t token_col) {
++    __riscv_vse32_v_i32m4(dtcm.shared.best.logit[0], splat(kNegInf), 16);
++    linear(kLmHead, kHidden, kVocabPadded, dtcm.normed + token_col, 1, kArgmax,
++           nullptr);
++    return pick(0);
++}
++
++void lm_head_rows(uint32_t tokens, uint32_t* next) {
++    for (uint32_t row = 0; row < tokens; ++row) {
++        __riscv_vse32_v_i32m4(dtcm.shared.best.logit[row], splat(kNegInf), 16);
++    }
++    linear(kLmHead, kHidden, kVocabPadded, dtcm.normed, tokens, kArgmax,
++           nullptr);
++    for (uint32_t row = 0; row < tokens; ++row) {
++        next[row] = pick(row);
++    }
+ }
+ 
+ } // namespace npu
+diff --git a/inference-engine/coral/kernels/main.cc b/inference-engine/coral/kernels/main.cc
+index 1b0c2f7..ab1ce41 100644
+--- a/inference-engine/coral/kernels/main.cc
++++ b/inference-engine/coral/kernels/main.cc
+@@ -22,6 +22,16 @@ using namespace npu;
+ #ifndef E2E_START_POS
+ #define E2E_START_POS 0
+ #endif
++// E2E_STORIES: with E2E_START_POS, decode this many separate stories per pass,
++// each with its own KV cache, position and next token (all start at
++// E2E_START_POS). 1: one story, as before.
++#ifndef E2E_STORIES
++#define E2E_STORIES 1
++#endif
++static_assert(E2E_STORIES >= 1 && E2E_STORIES <= kBlockTokens,
++              "a pass holds at most kBlockTokens stories");
++static_assert(E2E_STORIES == 1 || E2E_START_POS,
++              "several stories need E2E_START_POS");
+ constexpr uint32_t kMailboxTokens = 64;
+ static_assert(E2E_START_POS || E2E_PROMPT + E2E_NEW_TOKENS <= kMailboxTokens,
+               "mailbox too small");
+@@ -45,7 +55,9 @@ Dtcm npu::dtcm;
+ 
+ namespace {
+ 
+-void layers(uint32_t tokens, uint32_t start_pos) {
++// stories > 0: the tokens are that many separate stories, one column each,
++// all at position start_pos; each attends to its own KV cache.
++void layers(uint32_t tokens, uint32_t start_pos, uint32_t stories = 0) {
+     for (uint32_t layer = 0; layer < kNumLayers; ++layer) {
+         const uint32_t base = kLayersBase + layer * kLayerBytes;
+         layernorm(base + kNormOffset);
+@@ -57,10 +69,18 @@ void layers(uint32_t tokens, uint32_t start_pos) {
+         linear(base + kValueOffset, kHidden, kHidden, dtcm.normed, tokens,
+                kValueRows, reinterpret_cast<int8_t*>(dtcm.shared.attn.value));
+         mark(); // qkv
+-        attention(layer, tokens, start_pos);
++        // attn_out's first chunk comes in from the flash during attention.
++        prefetch_weights(base + kOutOffset, kHidden);
++        if (stories) {
++            for (uint32_t story = 0; story < stories; ++story) {
++                attention(layer, 1, start_pos, story, story);
++            }
++        } else {
++            attention(layer, tokens, start_pos);
++        }
+         mark(); // attention
+         linear(base + kOutOffset, kHidden, kHidden, dtcm.normed, tokens,
+-               kResidual, dtcm.residual);
++               kResidual, dtcm.residual, true);
+         mark(); // attn_out + residual
+         layernorm(base + kNormOffset + 2 * kHidden);
+         mark(); // ln2
+@@ -102,6 +122,22 @@ int main() {
+         }
+         next = next_token(tokens - 1);
+     }
++    if (E2E_STORIES > 1) {
++        uint32_t next_ids[kBlockTokens] = {};
++        for (uint32_t step = 0; step < box.new_tokens; ++step) {
++            const uint32_t pos = prompt + step;
++            embed(next_ids, E2E_STORIES, pos, 0);
++            mark(); // embedding
++            layers(E2E_STORIES, pos, E2E_STORIES);
++            layernorm(kFinalNorm);
++            mark(); // ln_f
++            lm_head_rows(E2E_STORIES, next_ids);
++            mark(); // lm_head
++        }
++        box.tokens[0] = next_ids[0];
++        box.status = 1;
++        return 0;
++    }
+     for (uint32_t step = 0; step < box.new_tokens; ++step) {
+         const uint32_t pos = prompt + step;
+         box.tokens[(E2E_START_POS ? step : pos) % kMailboxTokens] = next;
+diff --git a/inference-engine/coral/kernels/npu.hpp b/inference-engine/coral/kernels/npu.hpp
+index 0fd58de..5cc7ca8 100644
+--- a/inference-engine/coral/kernels/npu.hpp
++++ b/inference-engine/coral/kernels/npu.hpp
+@@ -87,6 +87,8 @@ constexpr uint32_t kCacheBytes = kNumLayers * kNumHeads * kKvBlocks * kKvBlock;
+ constexpr uint32_t kKeyCache =
+     align64(kLmHead + linear_bytes(kHidden, kVocabPadded));
+ constexpr uint32_t kValueCache = kKeyCache + kCacheBytes;
++// Each story has its own key and value caches, this far apart.
++constexpr uint32_t kStoryCacheBytes = 2 * kCacheBytes;
+ constexpr uint32_t kFlashEnd = kValueCache + kCacheBytes;
+ 
+ // ---- DMA (reef-perf memory/Dma.h; register block is an assumption) -------
+@@ -104,6 +106,19 @@ E2E_INLINE void dma(uint32_t src, uint32_t dst, uint32_t len) {
+ E2E_INLINE void dma_wait() {
+     (void)reinterpret_cast<volatile uint32_t*>(0x40000000)[4];
+ }
++// Study assumption (step 3.9), not in the RTL: returns when every started
++// transfer except the newest is done.
++E2E_INLINE void dma_wait_older() {
++    (void)reinterpret_cast<volatile uint32_t*>(0x40000000)[5];
++}
++// Study assumption (step 3.8), not in the RTL: a second DMA channel, one per
++// link. Each returns when the transfers on that link's channel are done.
++E2E_INLINE void dma_wait_flash() {
++    (void)reinterpret_cast<volatile uint32_t*>(0x40000000)[6];
++}
++E2E_INLINE void dma_wait_ram() {
++    (void)reinterpret_cast<volatile uint32_t*>(0x40000000)[7];
++}
+ 
+ // ---- Zvt (CoralNPU matrix extension v0.4) ----------------------------------
+ // Encodings: reef-perf/microbenchmarks/matrix/zvt.inc. The accumulator is

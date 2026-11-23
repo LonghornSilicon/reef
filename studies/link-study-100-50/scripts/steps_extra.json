@@ -1,0 +1,184 @@
+[
+[
+"3.7",
+"Start the next linear's first weight chunk early",
+"Firmware",
+"s8",
+false
+],
+[
+"3.9",
+"Per-transfer DMA wait (ASSUMED hw)",
+"Assumed hardware + firmware",
+"s9",
+true
+],
+[
+"3.8",
+"Second DMA channel, one per link (ASSUMED hardware)",
+"Assumed hardware + firmware",
+"s38",
+false
+],
+[
+"3.14",
+"Epilogue by tile row (round 2, r2)",
+"Firmware",
+"s10",
+true
+],
+[
+"3.10",
+"Write back only the new V row",
+"Firmware",
+"s310",
+false
+],
+[
+"3.11",
+"Copy the bias out, start chunk i+2 before the epilogue",
+"Firmware",
+"s311",
+false
+],
+[
+"3.12",
+"Layer norm per token (earlier round 2, r5)",
+"Firmware",
+"s312",
+false
+],
+[
+"3.13",
+"A rows load only the token lanes (earlier round 3)",
+"Firmware",
+"s313",
+false
+],
+[
+"3.15",
+"DMA setup overlapped with the previous transfer (ASSUMED hardware)",
+"Assumed hardware",
+"s315",
+false
+],
+[
+"(data)",
+"3.10 + 3.11 + 3.12 + 3.15 together, each rejected alone (not a step)",
+"Firmware + assumed hardware",
+"sc",
+"data"
+],
+[
+"3.16",
+"Attention during the qkv weights (ASSUMED 2-ch DMA)",
+"Assumed hardware + firmware",
+"s316",
+true
+],
+[
+"3.17",
+"Weight stream into the engine (ASSUMED hw)",
+"Assumed hardware + firmware",
+"s317",
+true
+],
+[
+"3.12r",
+"Layer norm per token, retry on 3.17",
+"Firmware",
+"sr12",
+false
+],
+[
+"3.15r",
+"DMA setup overlap, retry on 3.17 (ASSUMED hw)",
+"Assumed hardware",
+"sr15",
+false
+],
+[
+"3.19",
+"Every-PE array mapping (ASSUMED hw)",
+"Assumed hardware",
+"d317_pe",
+false
+],
+[
+"3.7r",
+"Next linear's chunks early, retry on 3.17",
+"Firmware",
+"sr7",
+false
+],
+[
+"3.18",
+"4 KB stream transfers (ASSUMED 8.3 KB FIFO)",
+"Assumed hardware + firmware",
+"s318a",
+true
+],
+[
+"3.18 (attempt 2)",
+"8 KB stream transfers (ASSUMED 16.4 KB FIFO); under 2% over attempt 1",
+"Assumed hardware + firmware",
+"s318b",
+false
+],
+[
+"(data 2)",
+"3.12 + 3.15 on 3.18 together (not a step)",
+"Firmware + assumed hardware",
+"sc2",
+"data"
+],
+[
+"3.20",
+"KV cache streamed into the engine (ASSUMED 4.2 KB FIFO)",
+"Assumed hardware + firmware",
+"s320",
+true
+],
+[
+"S1",
+"Head-ready fix for any head size (cross-size step; 0% here, +4.4% small b1)",
+"Firmware (bug fix)",
+"S1i8",
+true
+],
+[
+"S2",
+"Layer norm per token + ITCM trims (cross-size; +8.6% small int4 b1)",
+"Firmware",
+"S2i8",
+true
+],
+[
+"S4",
+"Bias-only weight buffers, small model batch 16 (cross-size)",
+"DTCM layout",
+"S4i8",
+false
+],
+[
+"Z1",
+"Code-space pass: -msave-restore, dma() not inlined (frees 976 B of ITCM)",
+"Build / firmware",
+"Z1i8",
+"data"
+],
+[
+"S3",
+"Next linear's weights early (cross-size; +2.6% small b1)",
+"Firmware",
+"S3i8",
+true
+],
+[
+"S5",
+"Bigger, deeper KV steps (needs a 12.3 KB KV FIFO, was 4.2 KB); dropped for the FIFO cost",
+"Firmware + assumed FIFO size",
+"S5i8",
+false
+]
+]
