@@ -82,6 +82,10 @@ const TopDownSlots &Core::getTopDownSlots() const {
   return TheDispatch->getTopDownSlots();
 }
 
+const RobFullHead &Core::getRobFullHead() const {
+  return TheDispatch->getRobFullHead();
+}
+
 const std::vector<McycleRead> &Core::getMcycleReads() const {
   return TheRob->getMcycleReads();
 }

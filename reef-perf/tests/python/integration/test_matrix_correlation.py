@@ -23,6 +23,7 @@ from reef_perf.experiments.matrix_diff.main import (
     RTL_REFERENCE,
     VME_CONFIG,
     DiffBenchmark,
+    run_model,
 )
 from reef_perf.microbenchmarks import build_microbenchmark
 from reef_perf.sim import run_sim
@@ -58,7 +59,6 @@ CORRELATED = {
     "mac_rob": 0.02,
     "zero_rob": 0.02,
     "move_tv_rob": 0.02,
-    "mac_queue": 0.02,
     "mac_rob_tm4": 0.02,
     "mac_rob_tn4": 0.02,
     "mac_rob_tm8tn8": 0.02,
@@ -82,6 +82,9 @@ KNOWN_GAP = {
     "on the RTL",
     "load_then_store": "core: a tile store holds the LSU while it waits for "
     "data (case 5)",
+    "mac_queue": "frontend: 18.5 against 19.0; the VME RTL's fetch unit "
+    "re-fetches behind a stalled jump (docs/pinned.md), M3's does not. Exact "
+    "on the pinned machine",
 }
 """Programs with a known error outside the matrix module, and why."""
 
@@ -186,4 +189,53 @@ def test_matches_rtl_at_128_pes(
     model = _model_cost(bench, tmp_path, RTL_REFERENCE_PE128, (PE128_CONFIG,))
     assert model == pytest.approx(rtl, rel=CORRELATED_PE128[name]), (
         f"{name} at 128 PEs: model {model:.3f} against RTL {rtl:.3f}"
+    )
+
+
+PINNED_TOLERANCE = 0.03
+"""On the pinned config every matrix program is held to 3% ("good enough",
+2026-11-15), the known gaps of the M3 + Zvt machine included."""
+
+PINNED_KNOWN_GAP: dict[str, str] = {}
+"""Matrix programs with a known error above 3% on the pinned config."""
+
+
+def _pinned_cost(bench: DiffBenchmark, tmp_path: Path) -> float:
+    rtl_insts = [int(row["roi_instructions"]) for row in _rtl_rows(bench)]
+    roi = []
+    for n, insts in zip((bench.iters, 2 * bench.iters), rtl_insts, strict=True):
+        out = tmp_path / str(n)
+        (out / "matrix").mkdir(parents=True)
+        elf = build_microbenchmark(f"matrix/{bench.name}", out, {"ITERS": n})
+        result = run_model(elf, "pinned")
+        assert result.instructions == result.functional_instructions
+        assert result.zvt_mismatches == 0
+        assert result.roi_instructions == insts, bench.name
+        assert result.roi_cycles is not None
+        roi.append(result.roi_cycles)
+    return (roi[1] - roi[0]) / (bench.iters * bench.ops_per_iter)
+
+
+@pytest.mark.unit
+def test_pinned_known_gaps_are_programs() -> None:
+    """Every pinned known gap names a matrix_diff program."""
+    assert set(PINNED_KNOWN_GAP) <= set(_BY_NAME)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("name", sorted(set(_BY_NAME) - set(PINNED_KNOWN_GAP)))
+def test_matches_rtl_on_pinned_config(
+    name: str, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """On the pinned machine every matrix program is within 3% of the RTL.
+
+    m3.yaml + coral_pinned.yaml on reef_perf_pinned, as matrix_diff's
+    `--machine pinned` runs it: no REFERENCE_CORE_PARAMS and no m3_vme.yaml.
+    """
+    del cpp_build_dir
+    bench = _BY_NAME[name]
+    rtl = _rtl_cost(bench)
+    model = _pinned_cost(bench, tmp_path)
+    assert model == pytest.approx(rtl, rel=PINNED_TOLERANCE), (
+        f"{name}: model {model:.3f} against RTL {rtl:.3f} cycles per op"
     )

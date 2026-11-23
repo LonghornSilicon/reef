@@ -65,6 +65,27 @@ struct MatrixStats {
   uint64_t SubtileWrites = 0;   ///< 16-byte tile writes (coarse count).
 };
 
+/// What the MAC arrays were doing in a cycle: computing, or why the next MAC
+/// had not started (docs/matrix.md, "Array time").
+enum class ArrayState : uint8_t {
+  Busy,           ///< At least one array in its compute steps.
+  CoreNotIssued,  ///< The core had not dispatched the next MAC yet.
+  VectorOperands, ///< The MAC waits for its vector-register operands.
+  UopBufferFull,  ///< The MAC waits for room in the uop buffer.
+  CmdPath,        ///< The MAC is in the command path (latency, uop issue).
+  TileDependency, ///< The MAC waits for its tiles (an earlier MAC or load).
+  ControllerBusy, ///< vtzero, vtmv or a tile load or store holds the head.
+  NoMatrixWork,   ///< No later MAC.
+  NumStates       ///< Number of states (not a state).
+};
+
+/// \returns the name of \p State in JSON, e.g. "vector_operands".
+const char *getArrayStateName(ArrayState State);
+
+/// Cycles per ArrayState.
+using ArrayTime =
+    std::array<uint64_t, static_cast<size_t>(ArrayState::NumStates)>;
+
 /// The matrix module. Tree location: top.matrix.
 class Matrix : public sparta::Unit {
 public:
@@ -82,7 +103,7 @@ public:
     PARAMETER(uint32_t, mtx_uops_per_cycle, 3, "Matrix uops issued per cycle")
     PARAMETER(uint32_t, mtx_uop_buffer_entries, 8,
               "Uops the engine's reservation station holds (ZVT_RS_DEPTH)")
-    PARAMETER(uint32_t, mtx_complete_latency, 1,
+    PARAMETER(uint32_t, mtx_complete_latency, 0,
               "Cycles from the result being written to the core seeing the "
               "instruction complete")
     // Compute fabric (MatrixFabric).
@@ -141,6 +162,26 @@ public:
     PARAMETER(uint32_t, mtx_lsu_fifo_entries, 2,
               "Entries in each FIFO between the LSU and the controller "
               "(lsu2vme for tile loads, vme2lsu for tile stores)")
+    PARAMETER(uint32_t, mtx_move_vector_latency, 0,
+              "vtmv.v.t: cycles from the controller cycle of a uop to its "
+              "vector register being readable. 0: every register is "
+              "readable when the whole move is done (the module's first "
+              "model); 1 on CoralNPU")
+    PARAMETER(uint32_t, mtx_move_vector_floor, 0,
+              "vtmv.v.t: no register is readable sooner than this many "
+              "cycles after the move's first controller cycle (2 on "
+              "CoralNPU). Read only with mtx_move_vector_latency set")
+    PARAMETER(uint32_t, mtx_vector_source_lead, 0,
+              "Cycles before a vector instruction's result is readable that "
+              "a Zvt uop reading it may enter the uop buffer. 0: when it is "
+              "readable (the module's calibration on M3's core); 1: as a "
+              "vector uop is dispatched, in the cycle before")
+    PARAMETER(bool, mtx_lsu_holds_full_fifo_beat, false,
+              "A tile-load beat that finds lsu2vme full waits in the LSU "
+              "after its bus read, as on the RTL. Off: the beat starts "
+              "later instead, which is the same stall only while the LSU "
+              "reports a beat's data in its bus cycle (lsu_tile_cost). Set "
+              "with the core's lsu_v3_tile, which reports the push cycle")
     PARAMETER(bool, mtx_ctrl_waits_for_array_drain, true,
               "vtzero, moves, tile loads and stores wait until no MAC is "
               "in flight")
@@ -184,6 +225,9 @@ public:
 
   /// \returns the end-of-run statistics.
   const MatrixStats &getStats() const { return Stats; }
+
+  /// \returns the cycles in [\p From, \p To) spent in each ArrayState.
+  ArrayTime getArrayTime(Cycle From, Cycle To) const;
 
   /// \returns the area estimate in um^2, or a negative value if no area
   /// parameter is set.
@@ -229,6 +273,12 @@ private:
   /// Sets the pop cycles of the newest \p Uops uops: all at \p Last for a
   /// MAC (\p Together), else spread one per cycle ending at \p Last.
   void popUops(uint32_t Uops, Cycle Last, bool Together);
+  /// Records a MAC computing over [\p Start, \p End) and the idle time
+  /// before it: CoreNotIssued until \p Dispatched, \p Waiting after.
+  void recordArrayTime(Cycle Dispatched, Cycle Start, Cycle End,
+                       ArrayState Waiting);
+  /// Appends [\p Begin, \p End) in \p State to the array timeline.
+  void addArraySegment(Cycle Begin, Cycle End, ArrayState State);
 
   const uint32_t QueueEntries;
   const uint32_t CmdLatency;
@@ -244,6 +294,10 @@ private:
   const uint32_t TileWriteLatency;
   const uint32_t TileReadLatency;
   const uint32_t LsuFifoEntries;
+  const bool LsuHoldsFullFifoBeat;
+  const uint32_t MoveVectorLatency;
+  const uint32_t MoveVectorFloor;
+  const uint32_t VectorSourceLead;
   const bool CtrlWaitsForDrain;
   const double AreaPerPe;
   const double TileStorageArea;
@@ -272,6 +326,15 @@ private:
   std::deque<Cycle> LoadFifoPops;  // lsu2vme: the controller pops.
   std::deque<Cycle> StoreFifoPops; // vme2lsu: the LSU pops.
   MatrixStats Stats;
+  // The array timeline from cycle 0 to ArrayBusyEnd, in order, with
+  // adjacent segments of one state merged.
+  struct ArraySegment {
+    Cycle Begin;
+    Cycle End;
+    ArrayState State;
+  };
+  std::vector<ArraySegment> ArraySegments;
+  Cycle ArrayBusyEnd = 0; // End of the latest MAC's compute steps.
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

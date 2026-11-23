@@ -188,6 +188,9 @@ through `VectorLsuInterface` (`common/Interfaces.h`). It is synchronous, like
 | `FirstRegister` | the instruction's first register; its LSU queue entry frees when it starts |
 | `LastRegister` | the instruction's last register; the LSU then takes a cycle to load the next instruction |
 | `IsTile` | a 16-byte beat of a Zvt tile load or store, set only by the matrix module (default false). With `lsu_tile_cost` on, the LSU charges it the `lsu_tile_*` cost instead of the vector-register cost; off, or false, it costs a vector register (`docs/lsu-tile-beats.md`) |
+| `Dispatched` | the cycle the core dispatched the instruction (0 if the sender does not say). Read only with `lsu_v3`, where an unmasked unit-stride or strided load starts from the core's dispatch |
+| `NeedsVectorData` | the LSU needs store data, an index vector or a mask from the vector backend before it can start (default true). Read only with `lsu_v3` |
+| `ReceiverReady` | first cycle the sender can take a loaded register back (default 0, at once). The LSU, either path, holds the register and its slot until then; the matrix module sets it when its `lsu2vme` FIFO is full (`mtx_lsu_holds_full_fifo_beat`) |
 
 | `VectorLsuResponse` field | Meaning |
 | --- | --- |
@@ -338,6 +341,7 @@ Branch `akul/matrix_engine`, against `yuvesh-kernel-integration` (`5393b2f`).
 | [`FuncSim.h`](../model/frontend/FuncSim.h), [`FuncSim.cpp`](../model/frontend/FuncSim.cpp) | With `zvt` on, `next()` looks for a Zvt encoding before Spike; a Zvt word runs in `executeZvt` (mset* configuration and `rd` writes, traps where the RTL traps, the shapes the RTL retires as no-ops, operand values for the timing model). A standard `vset*` also clears mtype (`RvvFrontEnd.sv:205`). | Only with `zvt` on, and only for Zvt words (and the mtype clear on `vset*`). | Matrix microbenchmarks (`EXPECTED_OPS`), `ZvtTest` |
 | [`InstDecode.h`](../model/frontend/InstDecode.h), [`InstDecode.cpp`](../model/frontend/InstDecode.cpp) | `decodeInst(Inst &, bool Zvt = false)`: with Zvt on, a Zvt word gets class `MATRIX` (`VSET` for mset*) and its sources, per the RTL's uop operand offsets. | Only with `zvt` on. | `ZvtTest.InstDecodeClassifiesZvt` |
 | [`Zvt.h`](../model/frontend/Zvt.h), [`Zvt.cpp`](../model/frontend/Zvt.cpp) (new) | Zvt encodings (spec v0.4 at CoralNPU `8a5e1b31`) and the mset* semantics. | Called only from the two rows above. | `ZvtTest` |
+| [`FuncSim.cpp`](../model/frontend/FuncSim.cpp) | `zvt_in_spike` (default false): Spike executes Zvt (only in `reef_perf_pinned`, whose Spike has it), with the Zvt layer in shadow mode beside it for `Inst::Mtx` and checked against Spike. | Only with `zvt` and `zvt_in_spike` on. | `test_spike_and_layer_agree_on_every_zvt_instruction` |
 
 mset* are vector configuration on CoralNPU (the RVV front end runs them), so
 they reach the vector module as `VSET` instructions. The vector module's

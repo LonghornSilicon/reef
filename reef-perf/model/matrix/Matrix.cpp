@@ -37,6 +37,30 @@ static uint32_t getZeroCycles(const Matrix::MatrixParameterSet *Params,
   return 4;
 }
 
+const char *reef_perf::getArrayStateName(ArrayState State) {
+  switch (State) {
+  case ArrayState::Busy:
+    return "busy";
+  case ArrayState::CoreNotIssued:
+    return "core_not_issued";
+  case ArrayState::VectorOperands:
+    return "vector_operands";
+  case ArrayState::UopBufferFull:
+    return "uop_buffer_full";
+  case ArrayState::CmdPath:
+    return "cmd_path";
+  case ArrayState::TileDependency:
+    return "tile_dependency";
+  case ArrayState::ControllerBusy:
+    return "controller_busy";
+  case ArrayState::NoMatrixWork:
+    return "no_matrix_work";
+  case ArrayState::NumStates:
+    break;
+  }
+  return "unknown";
+}
+
 static FabricConfig getFabric(const Matrix::MatrixParameterSet *Params) {
   FabricConfig F;
   F.Rows = Params->mtx_pe_rows;
@@ -78,6 +102,10 @@ Matrix::Matrix(sparta::TreeNode *Node, const MatrixParameterSet *Params)
       TileReadLatency(Params->mtx_tile_read_latency),
       LsuFifoEntries(
           atLeastOne(Params->mtx_lsu_fifo_entries, "mtx_lsu_fifo_entries")),
+      LsuHoldsFullFifoBeat(Params->mtx_lsu_holds_full_fifo_beat),
+      MoveVectorLatency(Params->mtx_move_vector_latency),
+      MoveVectorFloor(Params->mtx_move_vector_floor),
+      VectorSourceLead(Params->mtx_vector_source_lead),
       CtrlWaitsForDrain(Params->mtx_ctrl_waits_for_array_drain),
       AreaPerPe(Params->mtx_area_per_pe_um2),
       TileStorageArea(Params->mtx_tile_storage_area_um2),
@@ -131,8 +159,14 @@ Cycle Matrix::getVectorSourcesReady(const Inst &I) const {
       continue;
     unsigned Idx = Reg.getIndex();
     Ready = std::max(Ready, OwnVReady.at(Idx));
-    if (VectorRegs)
-      Ready = std::max(Ready, VectorRegs->getRegisterReady(Idx));
+    if (VectorRegs) {
+      // With mtx_vector_source_lead, a uop reading a vector instruction's
+      // result is pushed as a vector uop is dispatched: in the cycle before
+      // the result is readable (VectorPipeline.cpp).
+      Cycle Vec = VectorRegs->getRegisterReady(Idx);
+      Ready = std::max(Ready, Vec > VectorSourceLead ? Vec - VectorSourceLead
+                                                     : Cycle{0});
+    }
   }
   return Ready;
 }
@@ -186,11 +220,18 @@ Matrix::Transfer Matrix::runTileLoad(const Inst &I, Cycle Now,
     // The LSU takes a beat once lsu2vme has room for it. The RTL holds the
     // finished beat in the LSU instead; starting it later is the same stall
     // without modeling the LSU's hold.
-    Request.Earliest = std::max(Now, getFifoFree(LoadFifoPops));
+    Cycle Room = getFifoFree(LoadFifoPops);
+    Request.Earliest = LsuHoldsFullFifoBeat ? Now : std::max(Now, Room);
     // Dispatch gave the instruction an LSU queue entry; the LSU frees it
     // when the first beat starts.
     Request.FirstRegister = B == 0;
     Request.LastRegister = B + 1 == Beats.size();
+    // With mtx_lsu_holds_full_fifo_beat the LSU reads the beat at once and
+    // holds it, and its slot, until lsu2vme has room.
+    // lsu2vme is built without FULL_PUSH (zvt.sv:188-193, multi_fifo.sv:44,
+    // :111-114), so a full FIFO shows room the cycle after a pop, not in it.
+    if (LsuHoldsFullFifoBeat)
+      Request.ReceiverReady = Room > 0 ? Room + 1 : 0;
     Cycle Data = Lsu->accessVectorRegister(Request).Done;
     // The controller pops one beat per cycle and writes it to the tile
     // (isLsu2Vme, zvt_ctrl.sv:106), no earlier than the cycle after the LSU
@@ -292,8 +333,9 @@ void Matrix::executeInst(const InstRef &I) {
   // once vector sources are ready; a uop can leave the cycle after it
   // enters.
   uint32_t Uops = getUops(*I);
-  Cycle CmdEarliest = std::max(
-      {Cycle{Now + CmdLatency}, getVectorSourcesReady(*I), LastCmdStart});
+  Cycle VectorReady = getVectorSourcesReady(*I);
+  Cycle CmdEarliest =
+      std::max({Cycle{Now + CmdLatency}, VectorReady, LastCmdStart});
   auto [CmdStart, LastPush] = pushUops(Uops, CmdEarliest);
   Cycle CmdDone = LastPush + 1;
   LastCmdStart = CmdStart;
@@ -337,6 +379,18 @@ void Matrix::executeInst(const InstRef &I) {
     FabricCost Cost = getMacCost(Fabric, M.TM, M.TN, M.TK, M.Type);
     Start = Arrays.reserve(Earliest, Cost.Occupancy);
     Done = Start + Cost.Latency;
+    // What held the MAC back, by the latest of the three limits above.
+    ArrayState Waiting = ArrayState::ControllerBusy;
+    if (Earliest == CmdReady) {
+      Waiting = ArrayState::CmdPath;
+      if (CmdStart > CmdEarliest)
+        Waiting = ArrayState::UopBufferFull;
+      else if (VectorReady == CmdEarliest && VectorReady > Now + CmdLatency)
+        Waiting = ArrayState::VectorOperands;
+    } else if (Earliest == TilesReady) {
+      Waiting = ArrayState::TileDependency;
+    }
+    recordArrayTime(Now, Start, Start + Cost.Busy, Waiting);
     // CoralNPU's one array holds the controller's head until its compute
     // steps end (canStart && cntCr). With more arrays the controller hands
     // the MAC to a free one and moves on the next cycle, so MACs on
@@ -376,12 +430,21 @@ void Matrix::executeInst(const InstRef &I) {
       setTilesReady(*I, TileMacReady, Done);
       Stats.SubtileWrites += SliceSubtiles;
     } else {
+      uint64_t Uop = 0;
       for (RegId Reg : I->Dsts)
         if (Reg.getFile() == RegFile::V) {
-          OwnVReady.at(Reg.getIndex()) = Done;
+          // The controller writes one register per uop; a reader of the
+          // first does not wait for the last.
+          Cycle Ready = Done;
+          if (MoveVectorLatency != 0)
+            Ready = Start +
+                    std::max<uint64_t>(MoveVectorFloor, Uop * MoveCyclesPerUop +
+                                                            MoveVectorLatency);
+          ++Uop;
+          OwnVReady.at(Reg.getIndex()) = Ready;
           // Vector readers wait for it in the vector module.
           if (VectorRegs)
-            VectorRegs->setRegisterReady(Reg.getIndex(), Done);
+            VectorRegs->setRegisterReady(Reg.getIndex(), Ready);
         }
       Stats.SubtileReads += SliceSubtiles;
     }
@@ -439,6 +502,46 @@ void Matrix::executeInst(const InstRef &I) {
   I->IssueCycle = CmdStart;
   I->ResultReadyCycle = Done;
   I->CompleteCycle = Done + CompleteLatency;
+}
+
+void Matrix::addArraySegment(Cycle Begin, Cycle End, ArrayState State) {
+  if (End <= Begin)
+    return;
+  if (!ArraySegments.empty() && ArraySegments.back().State == State &&
+      ArraySegments.back().End == Begin) {
+    ArraySegments.back().End = End;
+    return;
+  }
+  ArraySegments.push_back({Begin, End, State});
+}
+
+void Matrix::recordArrayTime(Cycle Dispatched, Cycle Start, Cycle End,
+                             ArrayState Waiting) {
+  if (Start > ArrayBusyEnd) {
+    Cycle Issued = std::clamp(Dispatched, ArrayBusyEnd, Start);
+    addArraySegment(ArrayBusyEnd, Issued, ArrayState::CoreNotIssued);
+    addArraySegment(Issued, Start, Waiting);
+  }
+  // With several arrays, MACs overlap: busy is their union.
+  Cycle From = std::max(Start, ArrayBusyEnd);
+  if (End > From) {
+    addArraySegment(From, End, ArrayState::Busy);
+    ArrayBusyEnd = End;
+  }
+}
+
+ArrayTime Matrix::getArrayTime(Cycle From, Cycle To) const {
+  ArrayTime Time{};
+  for (const ArraySegment &S : ArraySegments) {
+    Cycle Begin = std::max(S.Begin, From);
+    Cycle End = std::min(S.End, To);
+    if (End > Begin)
+      Time.at(static_cast<size_t>(S.State)) += End - Begin;
+  }
+  Cycle Tail = std::max(From, ArrayBusyEnd);
+  if (To > Tail)
+    Time.at(static_cast<size_t>(ArrayState::NoMatrixWork)) += To - Tail;
+  return Time;
 }
 
 double Matrix::getAreaUm2() const {

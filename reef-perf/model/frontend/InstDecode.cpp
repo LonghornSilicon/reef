@@ -199,7 +199,7 @@ static bool readsDestination(uint32_t Funct3, uint32_t Funct6) {
 /// Decodes the class and sources of an OP-V instruction (major opcode 0x57).
 /// Coarse: every operand spans LMUL registers; the double-width operands
 /// (narrowing and .w* widening vs2, widening accumulators) span 2*LMUL.
-static void decodeOpV(Inst &I, uint32_t Word) {
+static void decodeOpV(Inst &I, uint32_t Word, bool UnaryVs1IsOpcode) {
   uint32_t Funct3 = getBits(Word, 14, 12);
   uint32_t Funct6 = getBits(Word, 31, 26);
   uint32_t Vs2 = getBits(Word, 24, 20);
@@ -226,6 +226,15 @@ static void decodeOpV(Inst &I, uint32_t Word) {
   bool WideVs2 = Narrowing || (Widening && Suffix.starts_with('w'));
   uint32_t Vs2Regs = WideVs2 ? 2 * EMUL : EMUL;
   bool Unary = Funct6 == Funct6Unary;
+  // The other unary forms, whose vs1 field also selects the operation:
+  // VXUNARY0 (vzext, vsext) and VMUNARY0 (vmsbf, vmsof, vmsif, viota, vid)
+  // under OPMVV; VFUNARY0 (vfcvt) and VFUNARY1 (vfsqrt, vfclass) under OPFVV.
+  bool OtherUnary = UnaryVs1IsOpcode &&
+                    ((Funct3 == 2 && (Funct6 == 0x12 || Funct6 == 0x14)) ||
+                     (Funct3 == 1 && (Funct6 == 0x12 || Funct6 == 0x13)));
+  // vzext/vsext.vf2, .vf4 and .vf8 read a source 1/2, 1/4 or 1/8 as wide.
+  if (OtherUnary && Funct3 == 2 && Funct6 == 0x12)
+    Vs2Regs = std::max<uint32_t>(1, EMUL >> (4 - Rs1 / 2));
 
   // The first operand: vs1, or the scalar rs1, depending on Funct3.
   switch (Funct3) {
@@ -233,7 +242,7 @@ static void decodeOpV(Inst &I, uint32_t Word) {
   case 1: // OPFVV
   case 2: // OPMVV
     // vmv.x.s, vfmv.f.s and the other unary ops have no vs1.
-    if (!Unary || Funct3 == 0)
+    if ((!Unary || Funct3 == 0) && !OtherUnary)
       addVRegs(I, Rs1, EMUL);
     break;
   case 4: // OPIVX
@@ -335,7 +344,7 @@ static void decodeZvtInst(Inst &I, const ZvtInst &Z) {
   I.Class = InstClass::MATRIX;
 }
 
-void reef_perf::decodeInst(Inst &I, bool Zvt) {
+void reef_perf::decodeInst(Inst &I, bool Zvt, bool UnaryVs1IsOpcode) {
   // Mnemonic = first whitespace-separated token of the disassembly.
   I.Mnemonic = I.Disasm.substr(0, I.Disasm.find_first_of(" \t"));
 
@@ -364,7 +373,7 @@ void reef_perf::decodeInst(Inst &I, bool Zvt) {
     decodeVectorMem(I, Word, /*IsStore=*/true);
     break;
   case OpVector:
-    decodeOpV(I, Word);
+    decodeOpV(I, Word, UnaryVs1IsOpcode);
     break;
   default:
     break;

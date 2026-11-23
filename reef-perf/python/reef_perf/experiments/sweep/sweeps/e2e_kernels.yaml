@@ -1,0 +1,46 @@
+# Sweep: the GPT-Neo kernel ELFs from inference-engine/coral (PR #57) under the
+# core settings the matrix engine depends on.
+#
+# The ELFs are not in the repository. Build them first, one directory per
+# token count, from inference-engine/:
+#   E2E_OUT=build/e2e/t8 coral/tools/build.sh
+#   E2E_OUT=build/e2e/t1 coral/tools/build.sh -DE2E_TOKENS=1 -DE2E_START_POS=16
+# and set E2E_ROOT to that build/e2e directory before running the sweep.
+#
+# Each kernel reads mcycle around its work, so use roi_cycles in summary.csv.
+# The firmware at 83f7152 keeps weights and KV cache in one flash region from
+# 0x20000000 (about 91 MB); until it moves to the two-memory map, part of its
+# layout falls inside psram_kv.yaml's range.
+
+name: e2e_kernels
+
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml   # Pessimistic weight link: 1 B/cycle
+  - configs/memory/psram_kv.yaml
+
+# reef_perf options other than -c and -p.
+sim_args: [--ext-mem-mb, "160"]
+
+# Pre-built ELFs, by name. Environment variables are expanded; relative
+# paths are from reef-perf/.
+programs:
+  qkv_t8: ${E2E_ROOT}/t8/qkv.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+  fc2_t8: ${E2E_ROOT}/t8/fc2.elf
+  attention_t8: ${E2E_ROOT}/t8/attention.elf
+  qkv_t1: ${E2E_ROOT}/t1/qkv.elf
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc2_t1: ${E2E_ROOT}/t1/fc2.elf
+  attention_t1: ${E2E_ROOT}/t1/attention.elf
+
+# Named variants are crossed with the grid: 2 x 2 x 2 = 8 variants.
+variants:
+  coral: {}
+  coral_128pe: {overlay: configs/matrix/coral_128pe.yaml}
+
+grid:
+  top.core.rob.params.rob_entries: [8, 16]
+  top.core.lsu.params.lsu_tile_cost: [false, true]

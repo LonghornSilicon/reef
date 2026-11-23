@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -158,14 +159,45 @@ InstRef FuncSim::next() {
     I->NextPC = I->PC + 4;
   } else if (std::optional<ZvtInst> Z =
                  ZvtEnabled ? decodeZvt(I->Encoding) : std::nullopt) {
-    executeZvt(*I, *Z);
+    if (ZvtInSpike)
+      executeZvtInSpike(*I, *Z);
+    else
+      executeZvt(*I, *Z);
   } else {
     execute(*I);
     if (ZvtEnabled && isStandardVset(I->Encoding))
       Zvt = {}; // vset* also clears mtype (RvvFrontEnd.sv:205).
   }
-  decodeInst(*I, ZvtEnabled);
+  decodeInst(*I, ZvtEnabled, UnaryVs1IsOpcode);
   return I;
+}
+
+void FuncSim::captureDivOperands(Inst &I) {
+  // OP-V (0x57), funct6 0x20-0x23 (vdivu, vdiv, vremu, vrem), OPMVV (2) or
+  // OPMVX (6).
+  uint32_t Funct3 = (I.Encoding >> 12) & 7;
+  uint32_t Funct6 = I.Encoding >> 26;
+  if ((I.Encoding & 0x7f) != 0x57 || (Funct3 != 2 && Funct3 != 6) ||
+      Funct6 < 0x20 || Funct6 > 0x23 || !Proc->VU.vl || Proc->VU.vill)
+    return;
+  uint32_t Vs2 = (I.Encoding >> 20) & 0x1f;
+  uint32_t Vs1 = (I.Encoding >> 15) & 0x1f;
+  reg_t Vl = Proc->VU.vl->read();
+  reg_t Sew = Proc->VU.vsew;
+  auto Elt = [&](uint32_t Reg, reg_t N) -> uint32_t {
+    switch (Sew) {
+    case 8:
+      return Proc->VU.elt<uint8_t>(Reg, N);
+    case 16:
+      return Proc->VU.elt<uint16_t>(Reg, N);
+    default:
+      return Proc->VU.elt<uint32_t>(Reg, N);
+    }
+  };
+  uint32_t Mask = Sew >= 32 ? ~0U : (1U << Sew) - 1;
+  for (reg_t N = 0; N < Vl; ++N)
+    I.DivOperands.emplace_back(Elt(Vs2, N),
+                               Funct3 == 6 ? I.Rs1Val & Mask : Elt(Vs1, N));
 }
 
 void FuncSim::execute(Inst &I) {
@@ -180,6 +212,7 @@ void FuncSim::execute(Inst &I) {
   uint32_t Rs2 = (I.Encoding >> 20) & 0x1f;
   I.Rs1Val = static_cast<uint32_t>(State->XPR[Rs1]);
   I.Rs2Val = static_cast<uint32_t>(State->XPR[Rs2]);
+  captureDivOperands(I);
   Proc->step(1);
   if (State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore)
     throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
@@ -207,21 +240,122 @@ static void setTileGroup(Inst &I, uint32_t Tile, uint32_t ElemBytes) {
   I.Mtx.FirstTile = static_cast<uint8_t>(Tile & ~(Count - 1U) & 0xfU);
 }
 
+void FuncSim::setZvtInSpike(bool Enabled) {
+  if (Enabled && !SpikeHasZvt)
+    throw std::runtime_error("frontend.zvt_in_spike needs a Spike with Zvt: "
+                             "run reef_perf_pinned, not reef_perf");
+  ZvtInSpike = Enabled;
+}
+
+/// \returns the bytes \p Mem touches, each with whether it is written.
+static std::vector<std::pair<uint32_t, bool>>
+getTouchedBytes(const std::vector<MemAccess> &Mem) {
+  std::vector<std::pair<uint32_t, bool>> Bytes;
+  for (const MemAccess &A : Mem)
+    for (uint32_t B = 0; B < A.Size; ++B)
+      Bytes.emplace_back(A.Addr + B, A.IsStore);
+  std::ranges::sort(Bytes);
+  return Bytes;
+}
+
+void FuncSim::executeZvtInSpike(Inst &I, const ZvtInst &Z) {
+  // reef-perf's layer first, in shadow mode, on a copy taken before Spike
+  // runs: it reads the same vl, vtype and registers, and keeps its own
+  // mtype in step for the matrix details.
+  Inst Layer = I;
+  bool LayerTrapped = false;
+  ZvtShadow = true;
+  try {
+    executeZvt(Layer, Z);
+  } catch (const ZvtShadowTrap &) {
+    LayerTrapped = true;
+  }
+  ZvtShadow = false;
+
+  state_t *State = Proc->get_state();
+  // Shapes the RTL's decoder rejects retire there as no-ops (executeZvt,
+  // MakeNop). CoralNPU's Spike traps on some of them instead (misaligned
+  // vtmm operands: illegal instruction), so the RTL is followed: Spike does
+  // not run it, and only the PC moves on.
+  if (!LayerTrapped && Layer.Mtx.Op == MatrixOp::Nop) {
+    ++NumZvtRtlNops;
+    State->pc = Layer.NextPC;
+    I.Rs1Val = Layer.Rs1Val;
+    I.Rs2Val = Layer.Rs2Val;
+    I.Disasm = Z.Name;
+    I.NextPC = Layer.NextPC;
+    I.Mtx = Layer.Mtx;
+    return;
+  }
+
+  // Then Spike, as for any other instruction.
+  reg_t CauseBefore = State->mcause->read();
+  reg_t EPCBefore = State->mepc->read();
+  State->log_mem_read.clear();
+  State->log_mem_write.clear();
+  State->log_reg_write.clear();
+  I.Rs1Val = Layer.Rs1Val;
+  I.Rs2Val = Layer.Rs2Val;
+  I.Disasm = Z.Name;
+  Proc->step(1);
+  bool SpikeTrapped =
+      State->mcause->read() != CauseBefore || State->mepc->read() != EPCBefore;
+  auto Mismatch = [&](const std::string &What) {
+    if (++NumZvtMismatches <= 10)
+      std::fprintf(stderr, "zvt_in_spike: %s at %s (%s): %s\n",
+                   NumZvtMismatches == 10 ? "last report" : "mismatch",
+                   toHex(I.PC).c_str(), Z.Name, What.c_str());
+  };
+  if (SpikeTrapped != LayerTrapped)
+    Mismatch(SpikeTrapped ? "Spike trapped, the layer did not"
+                          : "the layer trapped, Spike did not");
+  if (SpikeTrapped)
+    throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
+                             "), mcause=" + toHex(State->mcause->read()));
+  I.NextPC = static_cast<uint32_t>(State->pc);
+  for (const auto &[Addr, Value, Size] : State->log_mem_read)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, false});
+  for (const auto &[Addr, Value, Size] : State->log_mem_write)
+    I.Mem.push_back({static_cast<uint32_t>(Addr), Size, true, Value});
+  I.Dsts = getWrittenRegs(State->log_reg_write);
+  // Spike's accesses and register writes are the ones used; the layer's
+  // matrix details (op, tile group, tm/tn/tk) are what the timing needs.
+  I.Mtx = LayerTrapped ? MatrixInfo{} : Layer.Mtx;
+  if (LayerTrapped)
+    I.Mtx.Op = MatrixOp::Nop;
+  if (!LayerTrapped && getTouchedBytes(Layer.Mem) != getTouchedBytes(I.Mem))
+    Mismatch("memory accesses differ (" + std::to_string(Layer.Mem.size()) +
+             " from the layer, " + std::to_string(I.Mem.size()) +
+             " from Spike)");
+  std::vector<RegId> LayerDsts = Layer.Dsts;
+  std::ranges::sort(LayerDsts);
+  std::vector<RegId> SpikeDsts = I.Dsts;
+  std::ranges::sort(SpikeDsts);
+  if (!LayerTrapped && LayerDsts != SpikeDsts)
+    Mismatch("destination registers differ");
+}
+
 void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
   state_t *State = Proc->get_state();
   I.Rs1Val = static_cast<uint32_t>(State->XPR[Z.Rs1]);
   I.Rs2Val = static_cast<uint32_t>(State->XPR[Z.Rs2]);
-  I.Disasm = Z.Name; // Spike's disassembler does not know Zvt.
+  I.Disasm = Z.Name; // M3's Spike disassembler does not know Zvt.
   I.NextPC = I.PC + 4;
-  State->pc = I.NextPC; // Spike's minstret does not count Zvt instructions.
-  auto Trap = [&I](const std::string &Why) {
+  // In shadow mode (executeZvtInSpike) Spike executes the instruction; the
+  // layer only works out the matrix details and leaves Spike's state alone.
+  if (!ZvtShadow)
+    State->pc = I.NextPC; // Spike's minstret does not count Zvt instructions.
+  auto Trap = [&](const std::string &Why) {
+    if (ZvtShadow)
+      throw ZvtShadowTrap{};
     throw std::runtime_error("trap at " + toHex(I.PC) + " (" + I.Disasm +
                              "): " + Why);
   };
   auto WriteRd = [&](uint32_t Value) {
     if (Z.Rd == 0)
       return;
-    State->XPR.write(Z.Rd, Value);
+    if (!ZvtShadow)
+      State->XPR.write(Z.Rd, Value);
     I.Dsts = {RegId::x(Z.Rd)};
   };
 
@@ -233,9 +367,14 @@ void FuncSim::executeZvt(Inst &I, const ZvtInst &Z) {
     reg_t Vtype = E.WritesVtype ? E.SpikeVtype : Proc->VU.vtype->read();
     if (E.SetsVl) {
       // rd = rs1 = 1 only steers set_vl to "vl = min(AVL, VLMAX)".
-      reg_t Vl = Proc->VU.set_vl(1, 1, E.AVL, Vtype);
-      if (E.RdIsVl)
-        WriteRd(static_cast<uint32_t>(Vl));
+      if (ZvtShadow) {
+        if (E.RdIsVl)
+          WriteRd(0); // Spike writes the value; the layer only records rd.
+      } else {
+        reg_t Vl = Proc->VU.set_vl(1, 1, E.AVL, Vtype);
+        if (E.RdIsVl)
+          WriteRd(static_cast<uint32_t>(Vl));
+      }
     }
     if (E.WritesRd)
       WriteRd(E.RdValue);

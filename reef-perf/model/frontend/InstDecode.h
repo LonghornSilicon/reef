@@ -17,7 +17,11 @@ namespace reef_perf {
 /// Sets the Mnemonic, Class and Srcs of \p I from its Disasm, Encoding and
 /// vector configuration; leaves Dsts alone. x0 is never listed, since it is
 /// never a dependency. Zvt encodings are recognized only if \p Zvt is set.
-void decodeInst(Inst &I, bool Zvt = false);
+/// With \p UnaryVs1IsOpcode, the vs1 field of the unary vector forms
+/// (vzext/vsext, vmsbf/vmsif/vmsof/viota/vid, vfsqrt, vfcvt, vfclass) is the
+/// sub-opcode it is, not a source register, and vzext/vsext read their
+/// narrower source group.
+void decodeInst(Inst &I, bool Zvt = false, bool UnaryVs1IsOpcode = false);
 
 } // namespace reef_perf
 

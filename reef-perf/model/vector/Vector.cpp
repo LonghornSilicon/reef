@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -198,9 +199,16 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
       FpReduceLatency(Params->vec_fp_reduce_latency),
       FpReduceCyclesPerUop(Params->vec_fp_reduce_cycles_per_uop),
       ToScalarLatency(Params->vec_to_scalar_latency),
+      ToScalarWritesPerCycle(Params->vec_to_scalar_writes_per_cycle),
       VsetLatency(Params->vset_latency),
       CompareFirstUnitOnly(Params->vec_compare_first_unit_only),
       CompletionMatchesPc(Params->vec_completion_matches_pc),
+      StoreCompletesOnLastRegister(
+          Params->vec_store_completes_on_last_register),
+      StoreCompletionMatchesPc(Params->vec_store_completion_matches_pc),
+      CompletionTokenLatency(Params->vec_completion_token_latency),
+      DivDataDependent(Params->vec_div_data_dependent),
+      ResultsForwardFromRob(Params->vec_results_forward_from_rob),
       GroupPools(getGroupPools(Params)), Pipeline(getPipelineConfig(Params)) {
   InInstsPort.registerConsumerHandler(
       CREATE_SPARTA_HANDLER_WITH_DATA(Vector, receiveInst, InstRef));
@@ -208,6 +216,49 @@ Vector::Vector(sparta::TreeNode *Node, const VectorParameterSet *Params)
 }
 
 void Vector::sendInitialCredits() { OutCreditsPort.send(QueueEntries); }
+
+std::vector<uint64_t> Vector::getDivUopCycles(const Inst &I) {
+  uint32_t Bits = uint32_t{I.SEWBytes} * 8;
+  uint32_t Mask = Bits >= 32 ? ~0U : (1U << Bits) - 1;
+  uint32_t SignBit = 1U << (Bits - 1);
+  uint32_t PerReg = VectorRegisterBytes / I.SEWBytes;
+  // vdiv and vrem (funct6 0x21, 0x23) are signed; vdivu and vremu are not.
+  bool Signed = ((I.Encoding >> 26) & 1) != 0;
+  std::vector<uint64_t> Cycles(getVectorUops(I), 2);
+  for (size_t N = 0; N < I.DivOperands.size(); ++N) {
+    uint32_t Dividend = I.DivOperands[N].first & Mask;
+    uint32_t Divisor = I.DivOperands[N].second & Mask;
+    DivState &Last = Dividers[{Bits, static_cast<uint32_t>(N % PerReg)}];
+    uint64_t Time = 2;
+    bool Overflow = Signed && Dividend == SignBit && Divisor == Mask;
+    if (Divisor == 0 || Overflow) {
+      Last = {}; // intdivider.sv clears its dividend and divisor here.
+    } else {
+      DivState Now;
+      Now.QSign = Signed && (((Dividend ^ Divisor) & SignBit) != 0);
+      Now.RSign = Signed && (Dividend & SignBit) != 0;
+      Now.Dividend =
+          Signed && (Dividend & SignBit) ? (~Dividend + 1) & Mask : Dividend;
+      Now.Divisor =
+          Signed && (Divisor & SignBit) ? (~Divisor + 1) & Mask : Divisor;
+      bool Reuse = Now.Dividend == Last.Dividend &&
+                   Now.Divisor == Last.Divisor && Now.QSign == Last.QSign &&
+                   Now.RSign == Last.RSign;
+      if (!Reuse) {
+        // count = width + 1 - clz(dividend), then 3 bits a cycle down to 1.
+        uint32_t Clz =
+            static_cast<uint32_t>(std::countl_zero(Now.Dividend)) - (32 - Bits);
+        uint64_t Count = Bits + 1 - Clz;
+        Time = 1 + (Count - 1 + 2) / 3 + 1;
+        Last = Now;
+      }
+    }
+    size_t Uop = N / PerReg;
+    if (Uop < Cycles.size())
+      Cycles[Uop] = std::max(Cycles[Uop], Time);
+  }
+  return Cycles;
+}
 
 VectorOp Vector::getOp(const Inst &I) const {
   VectorGroup Group = getVectorGroup(I);
@@ -306,8 +357,19 @@ void Vector::recordResults(const Inst &I, const VectorTiming &T) {
   size_t Uops = T.UopRetires.size();
   for (size_t K = 0; K < Regs.size(); ++K) {
     size_t Writer = std::min(Uops, (K + 1) * Uops / Regs.size());
-    RegReady[Regs[K]] = T.UopRetires[Writer > 0 ? Writer - 1 : 0] + 1;
+    const std::vector<Cycle> &Visible =
+        ResultsForwardFromRob ? T.UopInRob : T.UopRetires;
+    RegReady[Regs[K]] = Visible[Writer > 0 ? Writer - 1 : 0] + 1;
   }
+}
+
+/// \returns true if the LSU needs data from the vector backend to run the
+/// vector load or store \p I: store data, an index vector (mop, bits 27:26,
+/// is 1 or 3) or a mask (vm, bit 25, is 0).
+static bool needsVectorData(const Inst &I) {
+  bool Indexed = ((I.Encoding >> 26) & 1) != 0;
+  bool Masked = ((I.Encoding >> 25) & 1) == 0;
+  return I.Class == InstClass::V_STORE || Indexed || Masked;
 }
 
 Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
@@ -319,16 +381,23 @@ Cycle Vector::getScalarComplete(const Inst &I, const VectorTiming &T) {
   // The retirement buffer marks an entry done on its last uop leaving the
   // vector ROB, or for a store, a cycle after the LSU's first store-complete
   // signal (each register sends one).
-  if (!CompletionMatchesPc)
-    return IsStore ? T.UopDones.front() + 1 : T.Retire;
+  Cycle LastStoreDone = IsStore ? T.UopDones.back() + 1 : 0;
+  bool ByPc = CompletionMatchesPc || (IsStore && StoreCompletionMatchesPc);
+  if (!ByPc)
+    return !IsStore                       ? T.Retire
+           : StoreCompletesOnLastRegister ? LastStoreDone
+                                          : T.UopDones.front() + 1;
 
   // M3 matches those writes to entries by PC (RetirementBuffer.scala:270,
   // :326), so a write for an older instance of the same PC, still in flight
   // when this one was dispatched, completes this one too. An RTL bug, fixed
-  // after M3 (rtl_bugs.md at the top of the Reef repository).
+  // for results after M3 (rtl_bugs.md at the top of the Reef repository);
+  // stores are still matched by PC at 8a5e1b31 (RetirementBuffer.scala:558).
   std::vector<Cycle> &Events = PcDoneEvents[I.PC];
   std::erase_if(Events, [&](Cycle C) { return C <= I.DispatchCycle; });
-  if (IsStore)
+  if (IsStore && StoreCompletesOnLastRegister)
+    Events.push_back(LastStoreDone);
+  else if (IsStore)
     for (Cycle Done : T.UopDones)
       Events.push_back(Done + 1);
   else
@@ -367,10 +436,14 @@ void Vector::receiveInst(const InstRef &I) {
       Request.Earliest = Earliest;
       Request.FirstRegister = Uop == 0;
       Request.LastRegister = Uop + 1 == Registers.size();
+      Request.Dispatched = I->DispatchCycle;
+      Request.NeedsVectorData = needsVectorData(*I);
       return Lsu->accessVectorRegister(Request);
     };
   } else {
     Op = getOp(*I);
+    if (DivDataDependent && !I->DivOperands.empty())
+      Op.UopCycles = getDivUopCycles(*I);
   }
   VectorTiming T =
       Pipeline.schedule(I->DispatchCycle, Op, getSourcesReady(*I, Op.Uops));
@@ -379,9 +452,18 @@ void Vector::receiveInst(const InstRef &I) {
 
   I->IssueCycle = T.FirstStart;
   I->ResultReadyCycle = T.Retire;
+  // One scalar write port (async_rd, RvvCore): a scalar result waits for a
+  // free cycle on it, and the instruction completes with its write.
+  Cycle PortDelay = 0;
+  if (I->Class == InstClass::V_TO_SCALAR && ToScalarWritesPerCycle > 0) {
+    Cycle Write = ToScalarPort.reserve(T.Retire, 1);
+    PortDelay = Write - T.Retire;
+  }
   if (I->Class == InstClass::V_TO_SCALAR)
-    I->ResultReadyCycle += ToScalarLatency;
-  I->CompleteCycle = getScalarComplete(*I, T);
+    I->ResultReadyCycle += ToScalarLatency + PortDelay;
+  I->CompleteCycle = getScalarComplete(*I, T) + PortDelay;
+  if (I->Class != InstClass::V_STORE)
+    I->CompleteCycle += CompletionTokenLatency;
 
   // Dispatch may use the command-queue entry the cycle after DE1 takes it.
   sparta_assert(T.CommandQueuePop >= Now);

@@ -36,7 +36,7 @@ class AxiModel {
 public:
   /// Creates the port with a \p BytesPerBeat-wide data bus.
   AxiModel(uint32_t Latency, uint32_t BytesPerBeat, uint32_t MaxOutstanding,
-           bool BlockingReads = false);
+           bool BlockingReads = false, uint32_t WriteLatency = 0);
 
   /// Times \p Accesses, starting no earlier than \p Earliest, and books the
   /// data channel and an outstanding slot. \returns the timing.
@@ -56,6 +56,7 @@ public:
 
 private:
   uint32_t Latency;
+  uint32_t WriteLatency; // 0: a write takes Latency, as a read does.
   uint32_t BytesPerBeat;
   bool BlockingReads;
   ResourcePool Data;        // One beat per cycle.

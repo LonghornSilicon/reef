@@ -7,3 +7,6 @@
 [submodule "reef-perf/ext/yaml-cpp"]
 	path = reef-perf/ext/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "reef-perf/ext/spike-pinned"]
+	path = reef-perf/ext/spike-pinned
+	url = https://github.com/riscv-software-src/riscv-isa-sim.git

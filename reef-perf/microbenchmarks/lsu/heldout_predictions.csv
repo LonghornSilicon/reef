@@ -1,0 +1,32 @@
+# Model predictions for the LSU probe programs, recorded 2026-11-15T23:20:39Z before any
+# RTL run. Model: akul/pinned-model 79a5273 + the uncommitted LsuV3 path; m3.yaml +
+# coral_pinned.yaml + lsu_v3, load_waw_advance 0, vec_store_completes_on_last_register.
+# variant = lsu_v3_backend_lead (two candidates). cycles_per_iter = (ROI(2N) - ROI(N)) / N.
+name,variant,n,roi_n,roi_2n,instructions_n,cycles_per_iter
+lsu/vload_rob,lead1,50,504,1004,851,10.000
+lsu/vload_rob,lead0,50,504,1004,851,10.000
+lsu/vload_dep_rob,lead1,50,552,1102,851,11.000
+lsu/vload_dep_rob,lead0,50,602,1202,851,12.000
+lsu/vstore_rob,lead1,50,506,1006,851,10.000
+lsu/vstore_rob,lead0,50,506,1006,851,10.000
+lsu/lw_rob,lead1,50,505,1005,853,10.000
+lsu/lw_rob,lead0,50,505,1005,853,10.000
+# vload_macc: predictions recorded 2026-11-16T05:07:11Z before its RTL run. Model: akul/pinned-model
+# fddda32 + uncommitted vec_completion_token_latency 1 and fpu_latency 2 on coral_pinned.yaml.
+# variant = lsu_v3_backend_lead.
+lsu/vload_macc,lead0,50,465,915,352,9.000
+lsu/vload_macc,lead1,50,415,815,352,8.000
+# vwmacc_m2_chain, vwmacc_m2_only (microbenchmarks/pinned/): predictions recorded
+# 2026-11-16T05:07:50Z before their RTL run, same model as vload_macc (the hand-back variant does
+# not matter: no load).
+pinned/vwmacc_m2_chain,token,50,410,810,252,8.000
+pinned/vwmacc_m2_only,token,50,211,411,202,4.000
+# pinned/move_vt_use_last: predictions recorded 2026-11-16T17:34:56Z before its RTL run. Model:
+# akul/pinned-model eb4dec7 + uncommitted mtx_move_vector_latency. variant = that value (0 or 2).
+pinned/move_vt_use_last,lat0,100,1508,3008,601,15.000
+pinned/move_vt_use_last,lat2,100,1608,3208,601,16.000
+# pinned/move_vt_use_v5, _v6: predictions recorded 2026-11-16T17:35:24Z before their RTL run, with
+# mtx_move_vector_latency 2 (one register per cycle), which move_vt_use_last had already shown
+# to be wrong for the last register (RTL 15, predicted 16).
+pinned/move_vt_use_v5,lat2,100,1408,2808,601,14.000
+pinned/move_vt_use_v6,lat2,100,1508,3008,601,15.000

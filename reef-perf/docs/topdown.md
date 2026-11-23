@@ -108,6 +108,18 @@ To drill down:
 4. For individual instructions, use the per-instruction timing trace (roadmap
    B19).
 
+### Who holds the Rob
+
+`rob_full` names the unit of the Rob's oldest instruction, which is usually
+not enough: on the linear kernels it is mostly matrix and memory. The JSON
+summary's `"rob_full_head"` splits the `stall_rob_full` cycles by the oldest
+instruction itself: its class (`v_load`, `store`, `v_alu`, ...) or, for a
+Zvt instruction, `matrix_<op>` (`matrix_mac`, `matrix_tile_load`, ...).
+`credit_return` counts cycles in which the Rob had emptied but its credits had
+not reached dispatch yet. The entries add up to `stall_rob_full`. Like the
+dispatch counters, they cover the whole run. A sweep's `summary.csv` has them
+as `rob_head_<name>`.
+
 ## What it doesn't cover
 
 - **The drain at the end.** Slots cover the cycles dispatch ran. The cycles

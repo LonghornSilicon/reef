@@ -338,3 +338,34 @@ def test_bad_matrix_parameters_fail_by_name(
             params={f"top.matrix.params.{param}": value},
             overlay_configs=(VME_CONFIG,),
         )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("name", "preset"),
+    [
+        ("mac_chain", None),
+        ("gemm_multi", None),
+        ("tile_load_behind_mac", None),
+        ("gemm_longk", "ws_systolic_16x16"),
+    ],
+)
+def test_bottleneck_counters_add_up(
+    name: str, preset: str | None, tmp_path: Path
+) -> None:
+    """The array time and the Rob-head blame account for every cycle once.
+
+    array_time covers the run and array_time_roi the ROI, one state per
+    cycle; with one array its busy cycles are the fabric's. rob_full_head
+    splits the rob_full stall cycles.
+    """
+    overlays = (OVERLAY_DIR / f"{preset}.yaml",) if preset else ()
+    result = _run(name, tmp_path, overlays)
+    array_time = result.matrix["array_time"]
+    roi = result.matrix["array_time_roi"]
+    assert sum(array_time.values()) == result.cycles
+    assert sum(roi.values()) == result.roi_cycles
+    assert array_time["busy"] == result.matrix["array_busy_cycles"]
+    assert (
+        sum(result.rob_full_head.values()) == result.dispatch["stall_rob_full"]
+    )

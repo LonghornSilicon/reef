@@ -1,0 +1,33 @@
+# Matrix-engine experiment, docs/matrix-experiments.md. Kernel ELFs from
+# inference-engine/coral (PR #57): set E2E_ROOT to their build directory, with
+# one subdirectory per build: t1 (E2E_TOKENS=1 E2E_START_POS=16), t2, t4,
+# t8 (defaults), t8p8 (E2E_START_POS=8), t1p79 (E2E_TOKENS=1
+# E2E_START_POS=79).
+#
+# E3: array size and organization, with memory exposed. Each preset sits on
+# coral_vme.yaml, so every array keeps the same Zvt controller and queues and
+# only the array changes. Coral 64 and 128 have
+# RTL behind them; the systolic and tree presets only checked formulas.
+
+name: matrix_e3_presets
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/m3_vme.yaml
+  - configs/matrix/coral_vme.yaml
+  - configs/memory/xspi_str.yaml
+  - configs/memory/psram_kv.yaml
+  - python/reef_perf/experiments/sweep/sweeps/overlays/exposed_memory.yaml
+sim_args: [--ext-mem-mb, "160"]
+microbenchmarks: [matrix/gemm_tile, matrix/gemm_multi, matrix/gemm_longk]
+programs:
+  fc1_t1: ${E2E_ROOT}/t1/fc1.elf
+  fc1_t8: ${E2E_ROOT}/t8/fc1.elf
+  qkv_t1: ${E2E_ROOT}/t1/qkv.elf
+  qkv_t8: ${E2E_ROOT}/t8/qkv.elf
+grid:
+  overlay:
+    - configs/matrix/coral_vme.yaml
+    - configs/matrix/coral_128pe.yaml
+    - configs/matrix/os_systolic_16x16.yaml
+    - configs/matrix/ws_systolic_16x16.yaml
+    - configs/matrix/tree_8x8.yaml

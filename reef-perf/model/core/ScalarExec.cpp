@@ -34,6 +34,7 @@ ScalarExec::ScalarExec(sparta::TreeNode *Node,
       MULLatency(Params->mul_latency), MULOccupancy(Params->mul_occupancy),
       DIVLatency(Params->div_latency), DIVOccupancy(Params->div_occupancy),
       DIVDataDependent(Params->div_data_dependent), DIVBase(Params->div_base),
+      DIVReleaseCycles(Params->div_release_cycles),
       FPULatency(Params->fpu_latency), FPUOccupancy(Params->fpu_occupancy),
       FDIVLatency(Params->fdiv_latency), FDIVOccupancy(Params->fdiv_occupancy),
       ALU("alu", Params->alu_count), MUL("mul", Params->mul_count),
@@ -59,7 +60,7 @@ void ScalarExec::receiveInst(const InstRef &I) {
     Pool = &DIV;
     if (DIVDataDependent) {
       Latency = DIVBase + getM3DivIterations(*I);
-      Occupancy = Latency;
+      Occupancy = Latency + DIVReleaseCycles;
     } else {
       Latency = DIVLatency;
       Occupancy = DIVOccupancy;

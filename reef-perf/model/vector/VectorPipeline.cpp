@@ -107,15 +107,19 @@ VectorTiming VectorPipeline::schedule(Cycle Dispatched, const VectorOp &Op,
       Done = Lsu.Done;
     } else {
       ResourcePool &Units = Pools[Op.Pool];
-      Start = Op.FirstUnitOnly ? Units.reserveFirst(Earliest, Op.Occupancy)
-                               : Units.reserve(Earliest, Op.Occupancy);
-      Done = Start + Op.Latency - 1;
+      bool PerUop = Uop < Op.UopCycles.size();
+      uint64_t Occupancy = PerUop ? Op.UopCycles[Uop] : Op.Occupancy;
+      uint64_t Latency = PerUop ? Op.UopCycles[Uop] : Op.Latency;
+      Start = Op.FirstUnitOnly ? Units.reserveFirst(Earliest, Occupancy)
+                               : Units.reserve(Earliest, Occupancy);
+      Done = Start + Latency - 1;
     }
     LastStart[StationIndex] = Start;
     Station.recordLeave(Start);
     if (Uop == 0)
       T.FirstStart = Start;
     T.UopDones.push_back(Done);
+    T.UopInRob.push_back(Done + 2);
     if (!TakesRobEntry) {
       T.UopRetires.push_back(0); // Set below, to the instruction's retire.
       continue;
@@ -129,8 +133,10 @@ VectorTiming VectorPipeline::schedule(Cycle Dispatched, const VectorOp &Op,
     T.Retire = Retire;
     T.UopRetires.push_back(Retire);
   }
-  if (Op.OneRobEntry)
+  if (Op.OneRobEntry) {
     std::ranges::fill(T.UopRetires, T.Retire);
+    std::ranges::fill(T.UopInRob, T.UopInRob.back());
+  }
   LegalQueue.recordLeave(LastUopPush);
   return T;
 }

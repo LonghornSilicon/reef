@@ -1,0 +1,55 @@
+# Sweep: the GPT-Neo firmware of the e2e-npu-firmware branch (83f7152) on
+# the pinned-RTL machine (CoralNPU 8a5e1b31 as a whole, correlated to its RTL).
+#
+# The ELFs are not in the repository. Build them from that branch's
+# inference-engine/, one directory per variant, and set E2E_FW_ROOT to the
+# parent directory (here: build/e2e-fw):
+#   E2E_OUT=$E2E_FW_ROOT/prefill8 coral/tools/build.sh
+#   E2E_OUT=$E2E_FW_ROOT/dec59 coral/tools/build.sh -DE2E_TOKENS=1 \
+#       -DE2E_START_POS=58 -DE2E_NEW_TOKENS=1
+# prefill8 is one 8-token prefill block at position 0, layer 0; dec59 is one
+# decode step at position 58 (the README's check run). e2e_nomatrix.elf is
+# the whole model built without Zvt.
+#
+# Each kernel reads mcycle around its work: use roi_cycles in summary.csv.
+# The whole-model ELFs run tens of millions of cycles each.
+
+name: e2e_firmware_pinned
+
+sim_config:
+  - configs/machines/m3.yaml
+  - configs/machines/coral_pinned.yaml
+
+# coral_pinned.yaml has Spike execute Zvt, which only this simulator can.
+binary: reef_perf_pinned
+
+# The README's run line: the flash at 1-cycle latency, 2 B/cycle, and the
+# host's boot load.
+sim_args: [--ext-mem-mb, "160"]
+
+programs:
+  embed_p8: ${E2E_FW_ROOT}/prefill8/embed.elf
+  layernorm_p8: ${E2E_FW_ROOT}/prefill8/layernorm.elf
+  qkv_p8: ${E2E_FW_ROOT}/prefill8/qkv.elf
+  attention_p8: ${E2E_FW_ROOT}/prefill8/attention.elf
+  attn_out_p8: ${E2E_FW_ROOT}/prefill8/attn_out.elf
+  fc1_p8: ${E2E_FW_ROOT}/prefill8/fc1.elf
+  fc2_p8: ${E2E_FW_ROOT}/prefill8/fc2.elf
+  lm_head_p8: ${E2E_FW_ROOT}/prefill8/lm_head.elf
+  embed_d59: ${E2E_FW_ROOT}/dec59/embed.elf
+  layernorm_d59: ${E2E_FW_ROOT}/dec59/layernorm.elf
+  qkv_d59: ${E2E_FW_ROOT}/dec59/qkv.elf
+  attention_d59: ${E2E_FW_ROOT}/dec59/attention.elf
+  attn_out_d59: ${E2E_FW_ROOT}/dec59/attn_out.elf
+  fc1_d59: ${E2E_FW_ROOT}/dec59/fc1.elf
+  fc2_d59: ${E2E_FW_ROOT}/dec59/fc2.elf
+  lm_head_d59: ${E2E_FW_ROOT}/dec59/lm_head.elf
+  e2e_d59: ${E2E_FW_ROOT}/dec59/e2e.elf
+  e2e_nomatrix: ${E2E_FW_ROOT}/e2e_nomatrix.elf
+
+# One variant: the README's memory settings. Add a grid: to sweep.
+variants:
+  readme:
+    top.memory.params.host_boot: true
+    top.memory.params.ext_mem_latency: 1
+    top.memory.params.ext_mem_bytes_per_cycle: 2

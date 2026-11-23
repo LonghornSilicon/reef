@@ -81,6 +81,18 @@ struct VectorLsuRequest {
   /// LSU may cost it differently from a vector register (lsu_tile_cost);
   /// the vector module leaves it false.
   bool IsTile = false;
+  /// Cycle the core dispatched the instruction, or 0 if the sender does not
+  /// say. Only an LSU that starts a load before the vector backend asks for
+  /// it (lsu_v3) reads it.
+  Cycle Dispatched = 0;
+  /// The LSU needs something from the vector backend before it can start
+  /// the register: store data, an index vector or a mask. False for an
+  /// unmasked unit-stride or strided load. Only lsu_v3 reads it.
+  bool NeedsVectorData = true;
+  /// First cycle the sender can take a loaded register back (0: at once).
+  /// The LSU holds the register, and its slot, until then. The matrix module
+  /// sets it when lsu2vme is full (mtx_lsu_holds_full_fifo_beat).
+  Cycle ReceiverReady = 0;
 };
 
 /// The LSU's answer to a VectorLsuRequest.
