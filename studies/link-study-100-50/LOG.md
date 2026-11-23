@@ -538,5 +538,5 @@ Modeled as two load/store slots that alternate, about 2 cycles per 16 B vector r
 - Stacked on the final design (S3 builds, LsuV3 with the double buffer's switch 0 and scalar occupancy 1),
   runs/LDBS3*: decode +0.0% to +0.6% on all four workloads; TTFT 0.5% to 2.3% faster (52M int8 1.414 to 1.407 s,
   small int4 0.167 to 0.163 s). Passes the 2% rule only on small int4 TTFT; not adopted, since it is assumed
-  hardware for a gain inside run-to-run differences elsewhere. Predicted about 0 for decode (97 to 98% of the
+  hardware for under 1% everywhere else. Predicted about 0 for decode (97 to 98% of the
   ceiling, weights and KV bypass the LSU).
