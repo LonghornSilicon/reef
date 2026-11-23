@@ -524,3 +524,19 @@ lack S3's prefetch (worth 1 to 3% at b1 without A). KV cache pinned at each mode
 - Small int4: 21.78 to 26.29 (+21%) at b1, +2% at b8, 0% at b15; TTFT 0.167 to 0.148 s.
 - Not 4 x: flash bytes drop to a quarter, but PSRAM time per story and per-pass fixed costs do not. Weight FIFO
   at most 134 units (8.6 KB). Accuracy not checked; A + int4 stacks two lossy changes.
+
+### 6.11 Double-buffered LSU (asked for: Nathan Mara's idea)
+
+Modeled as two load/store slots that alternate, about 2 cycles per 16 B vector register instead of the M3 LSU's
+4: `lsu_vector_load_reg_overhead 1`, `lsu_vector_store_reg_overhead 1`, `lsu_vector_switch_cycles 0`,
+`lsu_scalar_occupancy_overhead 1`. Core settings only, no firmware change; snap10. runs/lsu_*.
+- On the plain M3 baseline at 100/50, against LsuV3 (step 3.3: 0 / 0 / switch 2) and an ideal LSU (all 0):
+  matrix b1 token 200 701 ms to 657 ms (+6.7%; LsuV3 +6.5%, ideal +7.5%); matrix b8 6.53 to 7.30 tokens/s
+  (+11.8%; LsuV3 +11.5%, ideal +15.6%); TTFT 2.010 to 1.761 s (+14.1%; LsuV3 +14.1%, ideal +18.7%); vector-only
+  b1 token 200 (fw_vec) 879 to 740 ms (+18.8%; LsuV3 +20.6%, ideal +22.9%). LSU busy about 40% against about
+  55% for LsuV3, at the same speed.
+- Stacked on the final design (S3 builds, LsuV3 with the double buffer's switch 0 and scalar occupancy 1),
+  runs/LDBS3*: decode +0.0% to +0.6% on all four workloads; TTFT 0.5% to 2.3% faster (52M int8 1.414 to 1.407 s,
+  small int4 0.167 to 0.163 s). Passes the 2% rule only on small int4 TTFT; not adopted, since it is assumed
+  hardware for a gain inside run-to-run differences elsewhere. Predicted about 0 for decode (97 to 98% of the
+  ceiling, weights and KV bypass the LSU).
