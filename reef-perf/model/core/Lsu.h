@@ -107,6 +107,19 @@ public:
     PARAMETER(uint32_t, lsu_v3_handshake_cycles, 1,
               "Cycles from the vector backend handing over store data, an "
               "index or a mask to the register's first bus cycle")
+    // Design knobs beyond 8a5e1b31, which has one slot and a 16-byte bus.
+    // Their defaults are that RTL, so they change nothing unless set.
+    PARAMETER(uint32_t, lsu_v3_slots, 1,
+              "With lsu_v3: instructions the LSU holds at once. Each keeps "
+              "its slot from its first bus cycle until its last register is "
+              "handed back; their bus cycles stay in dispatch order on one "
+              "bus. 8a5e1b31 has 1 (its LsuV3 commit names a second super "
+              "slot as future work)")
+    PARAMETER(uint32_t, lsu_v3_bus_bytes, 16,
+              "With lsu_v3: bytes the LSU moves per bus cycle within one "
+              "vector instruction, a multiple of 16. Wider, consecutive "
+              "registers of one instruction share a bus cycle. The DTCM "
+              "must be as wide (top.memory.params.dtcm_line_bytes)")
   };
 
   /// Sparta resource name; ResourceFactory requires this exact member name.
@@ -151,10 +164,20 @@ private:
   const uint32_t V3ScalarStoreCycles;
   const uint32_t V3HandshakeCycles;
   const uint32_t V3BackendLead;
+  const uint32_t V3BusBytes;
   Cycle V3NextBus =
       0; // First bus cycle the instruction's next register can use.
+  Cycle V3BusFree = 0; // First bus cycle the next instruction can use.
+  uint32_t V3Slot = 0; // The current vector instruction's slot.
+  // The current bus beat, which a later register of the same instruction in
+  // the same lsu_v3_bus_bytes row can share.
+  bool V3BeatOpen = false;
+  Cycle V3BeatBus = 0;
+  uint64_t V3BeatLatency = 1;
+  Address V3BeatRow = 0;
   MemoryInterface *Mem = nullptr;
-  ResourcePool Pipe; // One memory instruction at a time.
+  // One memory instruction at a time on M3; lsu_v3_slots with lsu_v3.
+  ResourcePool Pipe;
 
   sparta::DataInPort<InstRef> InInstsPort{&unit_port_set_, "in_insts", 1};
   sparta::DataOutPort<uint32_t> OutCreditsPort{&unit_port_set_, "out_credits"};

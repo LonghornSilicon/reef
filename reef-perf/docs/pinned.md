@@ -14,6 +14,83 @@ reef_perf --elf x.elf -c configs/machines/m3.yaml -c configs/machines/coral_pinn
 uv run python -m reef_perf.experiments.correlation.pinned   # score against the RTL
 ```
 
+## M3 and the pinned RTL
+
+The pinned RTL is M3 (`M3-2026-04-27`) plus 409 commits. Of the 224 that
+touch `hdl/`, only about a quarter exist because of the matrix engine. The
+rest changed other units, and many of those change cycle counts. RTL
+numbers for both cores below are from `~/lhs_reef/baseline/ASYNC.md` (54
+microbenchmarks and 8 Coral kernels, run on both RTLs) and
+`microbenchmarks/lsu/rtl_pinned.csv`. The per-commit audit is
+`~/coralnpu-pinned/ZVT_M3_DIFF_AUDIT.md`. Both files are outside this
+repository.
+
+| Bucket | Commits | What it is |
+| --- | --- | --- |
+| The matrix engine | 45 | PE array, tile registers, controller, Zvt decode, `mtype` CSRs, retire hooks |
+| Prerequisites the engine is built on | 8 | LsuV3, `rob_tag` (tag-matched retirement), `mstatus` dirty tracking, vector `fflags` |
+| Other units, independent of the engine | 118 | ROB depths, LsuV3 follow-ups, fetch rework, FPU, vector backend syncs, DMA |
+| No effect on performance | 53 | Formatting, lint, tests, build, debug ports, FPGA, other foundries' SRAM |
+
+### Differences that change cycle counts
+
+| Area | M3 | Pinned | Measured effect (RTL, pinned against M3) | Switch |
+| --- | --- | --- | --- | --- |
+| Matrix engine | none; Zvt traps | Zvt, 64 PEs | matrix programs run | X1 |
+| LSU | LsuV2 | LsuV3 (below) | `vec_memcpy` -64%, `vec_add_m4` -54%, `load_stream` -25% | C2, C2b, C3 |
+| Scalar ROB | 8 entries | 16 | independent vector streams; dependent MACs 7.0 to 4.0 cycles each | C1 |
+| Vector ROB | 8 entries | 16 | little on its own | V1 |
+| Fetch | a new line every other cycle | fetch reorder buffer, speculative fetch, caches removed | `alu_indep` -42%; taken branches and `jalr` +17% | F1 |
+| Vector FP | 4-cycle pipeline | 5-cycle | `vfadd_chain`, `vfmacc_chain` +17% | V3, V3b |
+| Vector divide | | slower at LMUL 8 | `vdiv_m8_indep` +54% | V2 |
+| Scalar FPU | 3 cycles | 2 cycles, new divide and square root | `fp_mix` -17% (out of scope: Reef likely has no scalar FPU) | C7 |
+| External bus | 2-cycle latency | 4 for a read, 5 for a write | scalar external loads slower | M1 |
+| Vector configuration | | `vset*` interlock with the RVV frontend | `linear_int8`, `mlp_int8` | C6 |
+
+On the Coral kernels the pinned core is 15 to 38% faster (`linear_int8`
+-35%, `attention` -38%, `layernorm_int8` -15%), mostly from LsuV3 and the
+larger ROB.
+
+The branch rule (a conditional branch ends its dispatch group) is in both
+RTLs; it is in `m3.yaml` (see "M3 fixes"), not a pinned difference.
+
+### LsuV2 against LsuV3
+
+LsuV2 pays its overhead on every 16-byte register. LsuV3 pays it once per
+instruction, then moves one 16-byte line per cycle. Cycles per instruction,
+from the `vec_*_burst` programs on both RTLs and the waveforms in "LsuV3"
+below:
+
+| Access | LsuV2 (M3) | LsuV3 (pinned) |
+| --- | --- | --- |
+| Vector load, unit-stride or strided, 1 register | 5 | 3 (2 + 1 per line) |
+| Vector load, 4 registers | 17 | 6 |
+| Vector store, 1 register | 4 | 4 (3 + 1 per line) |
+| Vector store, 4 registers | 13 | 7 |
+| Indexed or masked vector load | per register | 3 + 1 per line: waits for the backend's index or mask |
+| Scalar load | 4 | 3; load-to-use unchanged |
+| Scalar store | 2 | 2 |
+| Tile load or store | not supported | through LsuV3 (`LsuSuperSlot`) |
+
+Two things behind the difference:
+
+- **No handshake before a load.** LsuV3 starts a load's first bus read 2
+  cycles after dispatch without waiting for the vector backend. That is most
+  of the saving on a 1-register load (5 to 3).
+- **One instruction at a time, in dispatch order.** A store waiting for its
+  data holds the LSU and everything behind it.
+
+The matrix engine's tile path is written inside `LsuSuperSlot`, which does
+not exist in M3. Putting the engine on M3 means re-implementing tile loads
+and stores on LsuV2, not porting them. No RTL has that combination, so
+`m3_vme.yaml` (M3 + Zvt, the team's baseline) has no RTL to check whole
+programs against, and its comparisons between settings are stronger than
+its absolute cycles.
+
+For the firmware's linear layers (20 one-register `vle8` per 4 `vtmm`),
+that is about 100 cycles of loads per step on LsuV2 against about 60 on
+LsuV3.
+
 ## Functional model
 
 The pinned config runs on its own simulator, `reef_perf_pinned`. It is the
@@ -216,17 +293,43 @@ waiting for its data holds the LSU. `lsu_v3_setup_cycles`,
 `lsu_v3_return_cycles`, `lsu_v3_scalar_store_cycles` and
 `lsu_v3_handshake_cycles` hold the numbers above.
 
-One value is fitted, not read: `lsu_v3_backend_lead` 0, the earliest the
-vector backend takes a loaded register relative to when the load's uop could
-issue. Two candidates (0 and 1) were recorded as predictions for four new
-probe programs before their RTL run (`microbenchmarks/lsu/heldout_predictions.csv`).
-`vload_dep_rob` measured 12.0 cycles; 0 predicted 12.0 and 1 predicted 11.0.
+`lsu_v3_backend_lead` was first fitted at 0 against four held-out probes
+(`microbenchmarks/lsu/heldout_predictions.csv`). It is now 1, read from the
+waveform of `lsu/vload_macc`; see "The vector-to-scalar path and the linear
+loop".
 
 `tests/python/integration/test_pinned_lsu.py` holds 19 of the 20 LSU
 programs within 2% of the RTL; the other is V8.
 
-Tile beats keep their own cost (`lsu_tile_*`) and do not go through the new
-path.
+Tile beats take the new path only with `lsu_v3_tile` (C2b); otherwise they
+keep their own cost (`lsu_tile_*`).
+
+### Design knobs beyond this RTL
+
+Two parameters describe an LSU the pinned RTL does not have, for the
+architecture sweep. Their defaults are the RTL's, so they change nothing
+unless set, and neither is in `coral_pinned.yaml`.
+
+| Knob | RTL value | What changes |
+| --- | --- | --- |
+| `lsu_v3_slots` | 1 | Instructions in the LSU at once. Each holds its slot from its first bus cycle until its last register is handed back; bus cycles stay in dispatch order on one bus. The LsuV3 commit names a second super slot as future work. |
+| `lsu_v3_bus_bytes` | 16 | Bytes per bus cycle within one vector instruction. Registers of one instruction in the same aligned row share a bus cycle. Set `top.memory.params.dtcm_line_bytes` to the same width. |
+
+Cycles per load on the pinned machine (`lsu/` programs, N/2N), slots by bus
+width:
+
+| Program | 1 slot, 16 B | 1 slot, 32 B | 1 slot, 64 B | 2 slots, 16 B | 2 slots, 32 B |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `vload_m1` | 3.00 | 3.00 | 3.00 | 2.25 | 2.25 |
+| `vload_m4` | 6.00 | 4.00 | 3.00 | 4.00 | 2.19 |
+| `vload_m8` | 10.00 | 6.00 | 4.00 | 8.00 | 4.00 |
+| `vstore_m4` | 7.00 | 5.00 | 4.00 | 5.00 | 3.00 |
+| `lw_burst` (scalar) | 3.00 | 3.00 | 3.00 | 1.50 | 1.50 |
+
+A wider bus only helps instructions that move more than 16 bytes; a second
+slot helps every back-to-back access, scalar included. With two slots a
+1-register vector load stops at 2.25 cycles, short of the bus's 1: the vector
+side's issue is then the limit (not investigated). Neither has RTL behind it.
 
 ## Fetch
 

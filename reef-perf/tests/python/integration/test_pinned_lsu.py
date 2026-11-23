@@ -154,3 +154,66 @@ def test_m3_binary_rejects_zvt_in_spike(
     elf = build_microbenchmark("matrix/mac_chain", tmp_path)
     with pytest.raises(SimulationError, match="zvt_in_spike"):
         run_sim(elf, overlay_configs=[PINNED_CONFIG])
+
+
+def _load_cost(
+    program: str, params: dict[str, object], tmp_path: Path
+) -> float:
+    """Cycles per load of an lsu/ program on the pinned config with params."""
+    roi = []
+    for iters in (20, 40):
+        out = tmp_path / str(iters)
+        (out / "lsu").mkdir(parents=True, exist_ok=True)
+        elf = build_microbenchmark(program, out, {"ITERS": iters})
+        result = run_sim(
+            elf,
+            overlay_configs=[PINNED_CONFIG],
+            binary=find_pinned_binary(),
+            params=params,
+        )
+        assert result.roi_cycles is not None
+        roi.append(result.roi_cycles)
+    return (roi[1] - roi[0]) / (20 * 16)
+
+
+@pytest.mark.integration
+def test_lsu_v3_design_knobs(cpp_build_dir: Path, tmp_path: Path) -> None:
+    """A second slot and a wider bus make loads cheaper where they should.
+
+    A second slot overlaps 1-register loads. A 32-byte bus (and DTCM) cuts a
+    4-register load's bus cycles but not a 1-register load's.
+    """
+    del cpp_build_dir
+    lsu = "top.core.lsu.params."
+    wide = {
+        lsu + "lsu_v3_bus_bytes": 32,
+        "top.memory.params.dtcm_line_bytes": 32,
+    }
+    two_slots = {lsu + "lsu_v3_slots": 2}
+    m1 = _load_cost("lsu/vload_m1", {}, tmp_path / "m1")
+    m4 = _load_cost("lsu/vload_m4", {}, tmp_path / "m4")
+    assert m4 == pytest.approx(6.0, abs=0.1)
+    assert _load_cost("lsu/vload_m4", wide, tmp_path / "m4w") < m4 - 1
+    m1_wide = _load_cost("lsu/vload_m1", wide, tmp_path / "m1w")
+    assert m1_wide == pytest.approx(m1)
+    assert _load_cost("lsu/vload_m1", two_slots, tmp_path / "s2") < m1
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("knob", "value"), [("lsu_v3_slots", 0), ("lsu_v3_bus_bytes", 24)]
+)
+def test_bad_lsu_v3_design_knob_fails_by_name(
+    knob: str, value: int, cpp_build_dir: Path, tmp_path: Path
+) -> None:
+    """An impossible slot count or bus width stops the run, naming the knob."""
+    del cpp_build_dir
+    (tmp_path / "lsu").mkdir()
+    elf = build_microbenchmark("lsu/vload_m1", tmp_path, {"ITERS": 20})
+    with pytest.raises(SimulationError, match=knob):
+        run_sim(
+            elf,
+            overlay_configs=[PINNED_CONFIG],
+            binary=find_pinned_binary(),
+            params={f"top.core.lsu.params.{knob}": value},
+        )

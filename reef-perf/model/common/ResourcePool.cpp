@@ -25,6 +25,16 @@ Cycle ResourcePool::reserve(Cycle Earliest, uint64_t Occupancy) {
   return book(*std::ranges::min_element(FreeAt), Earliest, Occupancy);
 }
 
+uint32_t ResourcePool::getEarliestFree() const {
+  return static_cast<uint32_t>(std::ranges::min_element(FreeAt) -
+                               FreeAt.begin());
+}
+
+Cycle ResourcePool::reserveOn(uint32_t Index, Cycle Earliest,
+                              uint64_t Occupancy) {
+  return book(FreeAt.at(Index), Earliest, Occupancy);
+}
+
 Cycle ResourcePool::reserveFirst(Cycle Earliest, uint64_t Occupancy) {
   return book(FreeAt.front(), Earliest, Occupancy);
 }
